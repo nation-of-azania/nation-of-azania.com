@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "pnpm vercel-build",
-  "ignoreCommand": "[ \"$VERCEL_ENV\" != production ]",
   "git": {
     "deploymentEnabled": {
       "**": false,

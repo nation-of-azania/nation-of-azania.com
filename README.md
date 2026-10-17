@@ -240,9 +240,9 @@ a production build:
 
 If any step fails, the deployment fails and Vercel keeps serving the previous
 one. Only `main` deploys: `vercel.json` turns off deployments for every other
-branch (and skips any non-production build that slips through), so work on
-other branches never touches the production database. A typical change looks
-like this:
+branch, and the build script never writes to a database outside a production
+build, so work on other branches never touches the production database. A
+typical change looks like this:
 
 ```sh
 git checkout main
