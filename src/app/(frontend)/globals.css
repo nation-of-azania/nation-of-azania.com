@@ -1,0 +1,125 @@
+@import 'tailwindcss';
+
+/*
+ * Condoria design tokens — "official gazette" aesthetic.
+ * Parchment ground, pine green primary, antique gold accent, oxide red seal.
+ * Referenced as Tailwind utilities: bg-parchment-50, text-pine-800,
+ * border-gold-400, font-display, …
+ */
+@theme {
+  --color-parchment-50: #faf7f0;
+  --color-parchment-100: #f4eee0;
+  --color-parchment-200: #eae1cb;
+  --color-parchment-300: #d9cba6;
+
+  --color-ink-900: #1b1913;
+  --color-ink-700: #3b372b;
+  --color-ink-500: #6d654f;
+  --color-ink-400: #8d8468;
+
+  --color-pine-950: #0f1d14;
+  --color-pine-900: #16281c;
+  --color-pine-800: #1d3625;
+  --color-pine-700: #24462f;
+  --color-pine-600: #2f5a3c;
+  --color-pine-500: #3f7350;
+  --color-pine-200: #c3d5c5;
+  --color-pine-100: #dde9de;
+
+  --color-gold-600: #8f6f2a;
+  --color-gold-500: #a5812f;
+  --color-gold-400: #c9a84c;
+  --color-gold-300: #dcc27a;
+  --color-gold-200: #ead9a8;
+
+  --color-oxide-700: #7c2d21;
+  --color-oxide-600: #8a3226;
+
+  /*
+   * National flag colours — maroon #441313 and gold #c9a52f.
+   * Used as accents in the government look, and as the Condor Times' core palette.
+   */
+  --color-flag-brown: #441313;
+  --color-flag-gold: #c9a52f;
+
+  /* Condor Times — independent digital-news palette (maroon primary, gold accent). */
+  --color-maroon-950: #1c0808;
+  --color-maroon-900: #2b0d0d;
+  --color-maroon-800: #441313;
+  --color-maroon-700: #591c1c;
+  --color-maroon-600: #74282a;
+  --color-maroon-500: #8f3a3a;
+  --color-maroon-300: #c88a8a;
+  --color-maroon-200: #e6c8c8;
+  --color-maroon-100: #f4e6e6;
+
+  --color-tgold-700: #8a6d18;
+  --color-tgold-600: #a8871f;
+  --color-tgold-500: #c9a52f;
+  --color-tgold-400: #d9bb55;
+  --color-tgold-300: #e7d087;
+
+  /* Warm near-neutral ground for the Times (light news surface). */
+  --color-news-50: #faf8f5;
+  --color-news-100: #f4efe8;
+  --color-news-200: #e6ddd1;
+  --color-news-300: #d3c6b4;
+  --color-news-500: #8a8079;
+  --color-news-700: #453c36;
+  --color-news-900: #1a1310;
+
+  /*
+   * Discord's own dark palette — used ONLY by the Discord Quote content block
+   * (src/blocks/components/Discord), so a quoted exchange looks like the real
+   * client rather than a re-skin of it. These are Discord's dark-theme values:
+   * dc-chat = --background-primary, dc-panel = --background-secondary,
+   * dc-well = --background-tertiary, dc-text = --text-normal,
+   * dc-name = --header-primary, dc-muted = --text-muted,
+   * dc-icon = --interactive-normal, dc-blurple = --brand-experiment.
+   * Not part of the Condoria design system — do not use them elsewhere.
+   */
+  --color-dc-chat: #313338;
+  --color-dc-panel: #2b2d31;
+  --color-dc-well: #1e1f22;
+  --color-dc-line: #3f4147;
+  --color-dc-text: #dbdee1;
+  --color-dc-name: #f2f3f5;
+  --color-dc-muted: #949ba4;
+  --color-dc-icon: #b5bac1;
+  --color-dc-bar: #4e5058;
+  --color-dc-link: #00a8fc;
+  --color-dc-blurple: #5865f2;
+  --color-dc-mention: #dee0fc;
+
+  --font-display: var(--font-fraunces), 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body: var(--font-public-sans), 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-news: var(--font-archivo), 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  /* Discord ships "gg sans"; visitors won't have it, so this is its fallback stack. */
+  --font-discord: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    @apply bg-parchment-50 text-ink-900;
+  }
+
+  body {
+    @apply font-body antialiased;
+  }
+}
+
+/*
+ * Base polish for the public site (Stream C). The @theme token block above
+ * is the shared contract — extend below it only.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-gold-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-gold-200);
+    color: var(--color-ink-900);
+  }
+}
