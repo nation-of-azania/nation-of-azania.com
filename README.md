@@ -260,8 +260,11 @@ content edits in the admin panel need no deploy.
    (GitHub → Settings → General → Default branch).
 2. **Import the repository into Vercel** (Add New → Project). A project named
    `nation-of-azania` gets the address `https://nation-of-azania.vercel.app`.
-   The defaults are right: Next.js preset, pnpm detected from the lockfile,
-   and the build command comes from `vercel.json`. Under Settings → Git,
+   Nothing needs configuring: `vercel.json` pins the Next.js framework preset
+   and the build command, and pnpm is detected from the lockfile. (Vercel
+   detects the preset only once, at import, and falls back to "Other" if
+   the repository was empty then. "Other" publishes nothing but `public/`,
+   so every page 404s; the pin rules that out.) Under Settings → Git,
    confirm the **production branch is `main`**.
 3. **Add Postgres:** Storage → Create → **Neon** (from the Marketplace), then
    connect it to the project. This sets `DATABASE_URL` for you. Any hosted
