@@ -1,7 +1,9 @@
 /**
- * Generates src/seed/assets/condoria-monument.glb — a small, dependency-free
- * glTF 2.0 binary of the National Monument of Condoria (a stone obelisk with a
- * gilded pyramidion). Used by the seed script's Model3D demo article.
+ * Generates src/seed/assets/azania-lighthouse.glb — a small, dependency-free
+ * glTF 2.0 binary of the Lighthouse on Founders' Point, Azania's national
+ * monument: a whitewashed, ochre-banded tower on a coral-stone plinth, with a
+ * bronze gallery, a golden lantern and a verdigris dome. Used by the seed
+ * script's Model3D demo article.
  *
  *   node scripts/make-sample-glb.mjs
  */
@@ -10,28 +12,24 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const outFile = resolve(here, '../src/seed/assets/condoria-monument.glb')
+const outFile = resolve(here, '../src/seed/assets/azania-lighthouse.glb')
 
 // ── geometry helpers ─────────────────────────────────────────────────────────
 
 /**
- * Flat-shaded rectangular frustum centered on the Y axis, base at y=0.
- * bw/bd: base width/depth, tw/td: top width/depth (0 for a pyramid), h: height.
+ * Flat-shaded regular n-gon frustum centered on the Y axis, base at y=0.
+ * rb/rt: base/top circumradius (rt = 0 for a cone), h: height.
  * Returns { positions, normals, indices }.
  */
-function frustum(bw, bd, tw, td, h) {
-  const b = [
-    [-bw / 2, 0, -bd / 2],
-    [bw / 2, 0, -bd / 2],
-    [bw / 2, 0, bd / 2],
-    [-bw / 2, 0, bd / 2],
-  ]
-  const t = [
-    [-tw / 2, h, -td / 2],
-    [tw / 2, h, -td / 2],
-    [tw / 2, h, td / 2],
-    [-tw / 2, h, td / 2],
-  ]
+function frustum(sides, rb, rt, h) {
+  const ring = (r, y) =>
+    Array.from({ length: sides }, (_, i) => {
+      // offset by half a step so a flat face, not an edge, faces the viewer
+      const a = ((i + 0.5) / sides) * Math.PI * 2
+      return [Math.cos(a) * r, y, Math.sin(a) * r]
+    })
+  const b = ring(rb, 0)
+  const t = ring(rt, h)
 
   const positions = []
   const normals = []
@@ -53,19 +51,18 @@ function frustum(bw, bd, tw, td, h) {
       positions.push(...p)
       normals.push(...n)
     }
-    indices.push(base, base + 1, base + 2)
-    if (verts.length === 4) indices.push(base, base + 2, base + 3)
+    // triangle fan (faces are convex)
+    for (let i = 1; i < verts.length - 1; i++) indices.push(base, base + i, base + i + 1)
   }
 
-  // sides (counter-clockwise seen from outside)
-  addFace([b[0], b[1], t[1], t[0]]) // -z
-  addFace([b[1], b[2], t[2], t[1]]) // +x
-  addFace([b[2], b[3], t[3], t[2]]) // +z
-  addFace([b[3], b[0], t[0], t[3]]) // -x
-  // bottom (faces down)
-  addFace([b[3], b[2], b[1], b[0]])
-  // top (faces up) — skip when degenerate (pyramid)
-  if (tw > 0 && td > 0) addFace([t[0], t[1], t[2], t[3]])
+  // sides (counter-clockwise seen from outside); a cone's sides are triangles
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    addFace(rt > 0 ? [b[i], t[i], t[j], b[j]] : [b[i], t[i], b[j]])
+  }
+  // bottom (faces down) and top (faces up, skipped for a cone)
+  addFace([...b])
+  if (rt > 0) addFace([...t].reverse())
 
   return {
     positions: new Float32Array(positions),
@@ -74,18 +71,36 @@ function frustum(bw, bd, tw, td, h) {
   }
 }
 
-// ── monument parts ───────────────────────────────────────────────────────────
+// ── lighthouse parts ─────────────────────────────────────────────────────────
 
-const STONE_DARK = [0.42, 0.45, 0.4, 1]
-const STONE = [0.72, 0.7, 0.62, 1]
-const GOLD = [0.83, 0.66, 0.28, 1]
+const ROCK = [0.36, 0.38, 0.4, 1]
+const CORAL_STONE = [0.84, 0.76, 0.64, 1]
+const WHITEWASH = [0.95, 0.93, 0.88, 1]
+const OCHRE = [0.78, 0.45, 0.2, 1]
+const BRONZE = [0.33, 0.27, 0.2, 1]
+const LANTERN = [0.98, 0.8, 0.36, 1]
+const VERDIGRIS = [0.22, 0.47, 0.46, 1]
 
-const parts = [
-  { geom: frustum(2.4, 2.4, 2.2, 2.2, 0.35), y: 0, color: STONE_DARK, rough: 0.9, metal: 0 },
-  { geom: frustum(1.5, 1.5, 1.3, 1.3, 0.7), y: 0.35, color: STONE, rough: 0.85, metal: 0 },
-  { geom: frustum(0.9, 0.9, 0.55, 0.55, 3.0), y: 1.05, color: STONE, rough: 0.8, metal: 0 },
-  { geom: frustum(0.62, 0.62, 0, 0, 0.55), y: 4.05, color: GOLD, rough: 0.35, metal: 0.9 },
+// Stacked bottom to top; each part sits on the one before it.
+const stack = [
+  { geom: frustum(10, 2.0, 1.75, 0.35), color: ROCK, rough: 0.95, metal: 0 },
+  { geom: frustum(8, 1.3, 1.2, 0.45), color: CORAL_STONE, rough: 0.9, metal: 0 },
+  { geom: frustum(8, 0.95, 0.85, 1.05), color: WHITEWASH, rough: 0.8, metal: 0 },
+  { geom: frustum(8, 0.85, 0.77, 0.6), color: OCHRE, rough: 0.8, metal: 0 },
+  { geom: frustum(8, 0.77, 0.68, 1.05), color: WHITEWASH, rough: 0.8, metal: 0 },
+  { geom: frustum(8, 0.95, 0.95, 0.12), color: BRONZE, rough: 0.6, metal: 0.4 },
+  { geom: frustum(8, 0.5, 0.5, 0.55), color: LANTERN, rough: 0.3, metal: 0.6 },
+  { geom: frustum(8, 0.62, 0, 0.42), color: VERDIGRIS, rough: 0.5, metal: 0.3 },
+  { geom: frustum(4, 0.06, 0, 0.22), color: LANTERN, rough: 0.35, metal: 0.9 },
 ]
+
+let height = 0
+const parts = stack.map((part) => {
+  const y = height
+  const top = part.geom.positions.reduce((max, v, i) => (i % 3 === 1 ? Math.max(max, v) : max), 0)
+  height += top
+  return { ...part, y }
+})
 
 // ── build binary buffer + accessors ─────────────────────────────────────────
 
@@ -184,9 +199,9 @@ parts.forEach((part, index) => {
 })
 
 const gltf = {
-  asset: { version: '2.0', generator: 'condoria make-sample-glb' },
+  asset: { version: '2.0', generator: 'azania make-sample-glb' },
   scene: 0,
-  scenes: [{ name: 'CondoriaMonument', nodes: nodes.map((_, i) => i) }],
+  scenes: [{ name: 'AzaniaLighthouse', nodes: nodes.map((_, i) => i) }],
   nodes,
   meshes,
   materials,

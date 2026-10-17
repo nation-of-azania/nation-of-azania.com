@@ -1,4 +1,4 @@
-# Condoria CMS — build contract (internal)
+# Azania CMS — build contract (internal)
 
 Shared interfaces for the parallel build streams. **Schema and file ownership
 are FIXED here — do not change another stream's files or any collection/block
@@ -75,23 +75,30 @@ Stored as `{ type: 'block', fields: { blockType: '<slug>', ...fields } }` nodes.
 Stream C: keep the `@theme` token block in `globals.css` intact (extend below it).
 Stream B/C boundary: C renders `<RichText>` inside a `.prose`-like article shell
 of its own making; B's components style themselves with Tailwind utilities and
-must look right on the parchment background without external wrappers.
+must look right on the sand background without external wrappers.
 
 ## Design tokens (Tailwind v4 `@theme` — already in globals.css)
 
-- Ground: `parchment-50` (page bg), `parchment-100/200` (panels), `parchment-300` (rules/borders).
+- Ground: `sand-50` (page bg), `sand-100/200` (panels), `sand-300` (rules/borders).
 - Text: `ink-900` (body), `ink-700`, `ink-500` (muted), `ink-400` (faint).
-- Primary: `pine-950…100` (deep green; nav/footer `pine-900`, links `pine-700`).
-- Accent: `gold-600…200` (antique gold; hairlines, eyebrows, seals).
-- Alert/seal: `oxide-700/600` (dark red).
-- Fonts: `font-display` (Fraunces — headings, wordmark), `font-body` (Public Sans).
-  Stream C loads both via `next/font/google` with CSS variables
-  `--font-fraunces` and `--font-public-sans` on `<html>` (tokens already
-  reference those variables; loading them activates the real fonts).
+- Primary: `sea-950…100` (deep-water indigo; nav `sea-900`, footer `sea-950`, links `sea-700`).
+- Accent: `saffron-600…100` (sunset ochre; hairlines, eyebrows, the crest on sea grounds).
+- Seal: `coral-700/600` (reef coral; pinned documents, warnings, the wax seal).
+- National colours: `flag-sea`, `flag-saffron`, `flag-coral` — the Azanian
+  tricolour, used for the flag tick (`<FlagTick />`) and the masthead ribbon.
+- The Azanian Times: `cinnabar-950…100` (primary), `lagoon-700…300` (accent),
+  `news-50…900` (newsprint ground and text).
+- Discord block only: `dc-*` (Discord's own dark palette — never used elsewhere).
+- Fonts: `font-display` (Alegreya — headings, titles), `font-mark` (Marcellus —
+  the wordmark), `font-body` (Source Sans 3), `font-news` (Archivo — Times
+  nameplate and headlines). Stream C loads them via `next/font/google` with CSS
+  variables `--font-alegreya`, `--font-marcellus`, `--font-source-sans` and
+  `--font-archivo` on `<html>` (tokens already reference those variables;
+  loading them activates the real fonts).
 
-Voice: official gazette of a small proud nation — restrained, typographic,
-lightly heraldic (hairline double rules, small-caps eyebrows, a seal motif).
-Not a startup landing page.
+Voice: official gazette of a small proud harbour nation — restrained,
+typographic, lightly heraldic (hairline double rules, small-caps eyebrows, a
+seal motif), sun-bleached rather than gilded. Not a startup landing page.
 
 ## Model3D block requirements (Stream B)
 

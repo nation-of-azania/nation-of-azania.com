@@ -33,10 +33,10 @@ export default async function StandingPage({ params }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
       <header>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-gold-600">
-          The Nation of Condoria
+        <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">
+          The Nation of Azania
         </p>
-        <h1 className="mt-4 text-balance font-display text-4xl leading-[1.08] text-pine-950 md:text-5xl">
+        <h1 className="mt-4 text-balance font-display text-4xl leading-[1.08] text-sea-950 md:text-5xl">
           {page.title}
         </h1>
         <DoubleRule className="mt-7" />
@@ -44,10 +44,10 @@ export default async function StandingPage({ params }: Props) {
 
       <RichText data={page.content} className="mt-10" />
 
-      <footer className="mt-14 border-t border-parchment-300 pt-6">
+      <footer className="mt-14 border-t border-sand-300 pt-6">
         <Link
           href="/gov"
-          className="text-sm font-medium text-pine-700 transition-colors hover:text-pine-600"
+          className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
         >
           ← The Gazette
         </Link>

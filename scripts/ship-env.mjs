@@ -1,7 +1,6 @@
 /**
  * Loads production credentials from .env.ship (git-ignored), falling back to
- * .env for anything not set there (e.g. PAYLOAD_SECRET). Used by ship.mjs and
- * prod.mjs so `.env` itself can stay pointed at local SQLite dev — pointing
+ * .env for anything not set there (e.g. PAYLOAD_SECRET). Used by prod.mjs so `.env` itself can stay pointed at local SQLite dev — pointing
  * `.env` at Neon is how production databases get dev-pushed by accident.
  */
 import { existsSync } from 'node:fs'
@@ -15,7 +14,7 @@ export function loadShipEnv() {
     console.error(
       `\x1b[2m  Production credentials live in ${SHIP_ENV_FILE} (git-ignored), NOT in .env.
   Create it from .env.ship.example: it needs DATABASE_ADAPTER=postgres, the
-  Neon DATABASE_URL, BLOB_READ_WRITE_TOKEN, and SEED_ADMIN_USERNAME/PASSWORD.\x1b[0m`,
+  Neon DATABASE_URL and BLOB_READ_WRITE_TOKEN.\x1b[0m`,
     )
     process.exit(1)
   }

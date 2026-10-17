@@ -42,7 +42,7 @@ export const QuoteBlock: Block = {
     {
       name: 'attributionTitle',
       type: 'text',
-      admin: { description: 'e.g. "First Consul of Condoria"' },
+      admin: { description: 'e.g. "Chancellor of Azania"' },
     },
   ],
 }

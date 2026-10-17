@@ -24,8 +24,9 @@ if (process.env.NODE_ENV === 'production' && !process.env.PAYLOAD_SECRET) {
  * Database adapter, selected via DATABASE_ADAPTER:
  *  - "sqlite" (default): file-based local dev database. Schema is pushed
  *    automatically in dev — no migrations needed.
- *  - "postgres": production database (Neon). Run `pnpm payload migrate` —
- *    see the README for the SQLite→Postgres caveat.
+ *  - "postgres": production database (Neon). Migrations in src/migrations are
+ *    applied by the production build — see the README for the SQLite→Postgres
+ *    caveat.
  */
 const db =
   process.env.DATABASE_ADAPTER === 'postgres'
@@ -37,34 +38,34 @@ const db =
         // Never dev-push schema into Postgres. Push marks the database as
         // dev-managed, after which `payload migrate` offers only a
         // drop-and-replay ("data loss will occur"). Postgres schema changes
-        // go through migration files: pnpm prod migrate:create → pnpm ship.
+        // go through migration files: pnpm migrate:create → commit → push main.
         push: false,
       })
     : sqliteAdapter({
         client: {
-          url: process.env.DATABASE_URL || 'file:./condoria.db',
+          url: process.env.DATABASE_URL || 'file:./azania.db',
         },
       })
 
 export default buildConfig({
   // NO email adapter is configured — deliberately. Payload falls back to its
   // consoleEmailAdapter: password-reset and other emails are written to the
-  // server console and NEVER sent. The nation does not own a mail domain
-  // (seed accounts use the reserved, non-routable condoria.example). If you
-  // ever add a real adapter, change every user email to a domain you own first.
+  // server console and NEVER sent. Accounts are username-only and carry no
+  // email address. If you ever add a real adapter, re-enable email on the
+  // Users collection with addresses on a domain the nation owns.
   admin: {
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
     },
     meta: {
-      titleSuffix: ' · Condoria CMS',
+      titleSuffix: ' · Azania CMS',
     },
     avatar: 'default',
   },
   collections: [Articles, Pages, Media, Categories, Users],
   editor: lexicalEditor(),
-  secret: process.env.PAYLOAD_SECRET || 'condoria-insecure-dev-secret',
+  secret: process.env.PAYLOAD_SECRET || 'azania-insecure-dev-secret',
   // serverURL is intentionally NOT set: media URLs stay relative
   // (/api/media/file/…), which next/image's localPatterns matches and which
   // survive domain changes between dev and production.
@@ -80,9 +81,9 @@ export default buildConfig({
     // conditionally omitted: when omitted, `payload generate:importmap` does not
     // emit the Blob client upload handler, and then wherever the token IS set
     // (production/Vercel) Payload cannot resolve that admin component and the
-    // ENTIRE admin panel renders blank. Regenerate the import map with the token
-    // present via `pnpm prod generate:importmap` (loads .env.ship), never with a
-    // bare `pnpm generate:importmap` in a token-less shell.
+    // ENTIRE admin panel renders blank. `pnpm generate:importmap` therefore
+    // always runs with a placeholder token (package.json), so the handler is
+    // emitted even in a shell without the real one.
     vercelBlobStorage({
       enabled: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
       collections: { media: true },

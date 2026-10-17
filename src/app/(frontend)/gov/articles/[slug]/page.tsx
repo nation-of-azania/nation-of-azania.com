@@ -45,16 +45,16 @@ export default async function GovArticlePage({ params }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
       <header>
-        <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-gold-600">
+        <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
           {category ? (
             <>
-              <span className="text-pine-700">{category.name}</span>
+              <span className="text-sea-700">{category.name}</span>
               <span aria-hidden="true">·</span>
             </>
           ) : null}
           {date ? <time dateTime={dateTime}>{date}</time> : null}
         </p>
-        <h1 className="mt-4 text-balance font-display text-4xl leading-[1.08] text-pine-950 md:text-5xl">
+        <h1 className="mt-4 text-balance font-display text-4xl leading-[1.08] text-sea-950 md:text-5xl">
           {article.title}
         </h1>
         {article.excerpt ? (
@@ -66,8 +66,8 @@ export default async function GovArticlePage({ params }: Props) {
           <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-500">
             {author ? <span>By {author.name}</span> : null}
             {article.pinned ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-oxide-700">
-                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-oxide-600" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-coral-700">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-coral-600" />
                 Pinned document
               </span>
             ) : null}
@@ -78,7 +78,7 @@ export default async function GovArticlePage({ params }: Props) {
 
       {hero ? (
         <figure className="mt-8">
-          <div className="border border-parchment-300 bg-parchment-100 p-1.5">
+          <div className="border border-sand-300 bg-sand-100 p-1.5">
             <Image
               src={hero.url}
               alt={hero.alt}
@@ -97,10 +97,10 @@ export default async function GovArticlePage({ params }: Props) {
 
       <RichText data={article.content} className="mt-10" />
 
-      <footer className="mt-14 border-t border-parchment-300 pt-6">
+      <footer className="mt-14 border-t border-sand-300 pt-6">
         <Link
           href="/gov/articles"
-          className="text-sm font-medium text-pine-700 transition-colors hover:text-pine-600"
+          className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
         >
           ← The Gazette
         </Link>

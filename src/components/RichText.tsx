@@ -137,30 +137,30 @@ const STRUCTURE = cn(
 
 const GAZETTE_TONE = cn(
   '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-display',
-  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-pine-900',
-  '[&_a:not([class])]:text-pine-700',
-  '[&_a:not([class])]:decoration-gold-400',
-  '[&_a:not([class]):hover]:text-pine-800',
-  '[&_a:not([class]):hover]:decoration-gold-600',
-  '[&_blockquote:not([class])]:border-gold-400',
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-sea-900',
+  '[&_a:not([class])]:text-sea-700',
+  '[&_a:not([class])]:decoration-saffron-400',
+  '[&_a:not([class]):hover]:text-sea-800',
+  '[&_a:not([class]):hover]:decoration-saffron-600',
+  '[&_blockquote:not([class])]:border-saffron-400',
   '[&_blockquote:not([class])]:text-ink-700',
-  '[&_li::marker]:text-gold-600',
-  '[&_hr:not([class])]:border-gold-400',
-  '[&_code:not([class])]:bg-parchment-200',
-  '[&_img:not([class])]:border-parchment-300',
+  '[&_li::marker]:text-saffron-600',
+  '[&_hr:not([class])]:border-saffron-400',
+  '[&_code:not([class])]:bg-sand-200',
+  '[&_img:not([class])]:border-sand-300',
 )
 
 const TIMES_TONE = cn(
   '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-display',
-  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-maroon-800',
-  '[&_a:not([class])]:text-maroon-700',
-  '[&_a:not([class])]:decoration-tgold-500',
-  '[&_a:not([class]):hover]:text-maroon-800',
-  '[&_a:not([class]):hover]:decoration-tgold-600',
-  '[&_blockquote:not([class])]:border-tgold-500',
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-cinnabar-800',
+  '[&_a:not([class])]:text-cinnabar-700',
+  '[&_a:not([class])]:decoration-lagoon-500',
+  '[&_a:not([class]):hover]:text-cinnabar-800',
+  '[&_a:not([class]):hover]:decoration-lagoon-600',
+  '[&_blockquote:not([class])]:border-lagoon-500',
   '[&_blockquote:not([class])]:text-news-700',
-  '[&_li::marker]:text-tgold-600',
-  '[&_hr:not([class])]:border-tgold-500',
+  '[&_li::marker]:text-lagoon-600',
+  '[&_hr:not([class])]:border-lagoon-500',
   '[&_code:not([class])]:bg-news-100',
   '[&_img:not([class])]:border-news-200',
 )
@@ -173,7 +173,7 @@ const TONES = {
 type RichTextProps = {
   className?: string
   data: Article['content'] | Page['content'] | null | undefined
-  /** Prose palette: the state Gazette (default) or the Condor Times. */
+  /** Prose palette: the state Gazette (default) or the Azanian Times. */
   tone?: keyof typeof TONES
 }
 

@@ -9,9 +9,9 @@ import { getLatestArticles } from '@/lib/queries'
 export const revalidate = 120
 
 export const metadata: Metadata = {
-  title: 'The Condor Times',
+  title: 'The Azanian Times',
   description:
-    'The independent press of Condoria — news, markets and opinion from the high valley, published without the Council’s leave.',
+    'The independent press of Azania — news, markets and opinion from Port Azania and the coast, published without the Chancellery’s leave.',
 }
 
 export default async function TimesFrontPage() {
@@ -22,7 +22,7 @@ export default async function TimesFrontPage() {
   if (!lead) {
     return (
       <div className="mx-auto max-w-6xl px-6 py-24 text-center">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-maroon-700">The Condor Times</p>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-cinnabar-700">The Azanian Times</p>
         <h1 className="mt-4 font-news text-3xl font-black text-news-900">
           The presses are warm, but the front page is bare.
         </h1>
@@ -46,8 +46,8 @@ export default async function TimesFrontPage() {
       {/* Lead story */}
       <section className="grid gap-8 border-b border-news-200 pb-12 md:grid-cols-2 md:gap-10">
         <div className="order-2 flex flex-col justify-center md:order-1">
-          <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-maroon-700">
-            <span className="bg-maroon-800 px-1.5 py-0.5 text-news-50">Lead Story</span>
+          <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
+            <span className="bg-cinnabar-800 px-1.5 py-0.5 text-news-50">Lead Story</span>
             {leadCategory ? <span>{leadCategory.name}</span> : null}
             {leadDate ? (
               <>
@@ -59,7 +59,7 @@ export default async function TimesFrontPage() {
             ) : null}
           </p>
           <h1 className="mt-3 font-news text-4xl font-black leading-[1.02] text-news-900 md:text-5xl">
-            <Link href={leadHref} className="transition-colors hover:text-maroon-800">
+            <Link href={leadHref} className="transition-colors hover:text-cinnabar-800">
               {lead.title}
             </Link>
           </h1>
@@ -72,7 +72,7 @@ export default async function TimesFrontPage() {
             ) : null}
             <Link
               href={leadHref}
-              className="font-semibold text-maroon-700 transition-colors hover:text-maroon-800"
+              className="font-semibold text-cinnabar-700 transition-colors hover:text-cinnabar-800"
             >
               Read the full story →
             </Link>

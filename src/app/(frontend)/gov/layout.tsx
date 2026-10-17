@@ -4,15 +4,15 @@ import { Footer } from '@/components/site/Footer'
 import { Nav } from '@/components/site/Nav'
 
 /**
- * Chrome for the government Gazette (/gov): the civic pine-and-parchment look,
- * with the national ribbon accents in the flag's maroon and gold.
+ * Chrome for the government Gazette (/gov): the civic sea-and-sand look, with
+ * the national ribbon in saffron and coral over the deep-water masthead.
  */
 export default function GovLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-parchment-50 text-ink-900">
+    <div className="flex min-h-screen flex-col bg-sand-50 text-ink-900">
       <a
         href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-pine-900 focus:px-4 focus:py-2 focus:text-sm focus:text-parchment-50"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-sea-900 focus:px-4 focus:py-2 focus:text-sm focus:text-sand-50"
       >
         Skip to content
       </a>

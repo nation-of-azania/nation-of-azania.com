@@ -122,7 +122,7 @@ export interface UserAuthOperations {
   };
 }
 /**
- * News, decrees and documents of the Nation of Condoria.
+ * News, decrees and documents of the Nation of Azania.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "articles".
@@ -154,7 +154,7 @@ export interface Article {
    */
   slug?: string | null;
   /**
-   * Which publication carries this article: the state Gazette (/gov) or the independent Condor Times (/times).
+   * Which publication carries this article: the state Gazette (/gov) or the independent Azanian Times (/times).
    */
   section: 'government' | 'times';
   /**
@@ -573,7 +573,7 @@ export interface QuoteBlockType {
   quote: string;
   attribution?: string | null;
   /**
-   * e.g. "First Consul of Condoria"
+   * e.g. "Chancellor of Azania"
    */
   attributionTitle?: string | null;
   id?: string | null;

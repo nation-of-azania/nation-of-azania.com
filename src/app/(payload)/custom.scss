@@ -1,0 +1,37 @@
+/*
+ * Azania — light admin-panel theming through Payload's own CSS variables.
+ *
+ * Light theme only: a whitewash ground in place of pure white, and the
+ * deep-water sea scale in place of Payload's default blue for the primary
+ * ("success") colour, which drives buttons, links and the active navigation.
+ * These rules are unlayered on purpose: Payload's defaults sit in
+ * `@layer payload-default`, so plain selectors override them without
+ * fighting specificity. The dark theme is left exactly as Payload ships it.
+ */
+html[data-theme='light'] {
+  --theme-elevation-0: #fcfaf5;
+  --theme-elevation-50: #f4efe4;
+  --theme-elevation-100: #eae3d3;
+  --theme-elevation-150: #dcd3bf;
+  --theme-elevation-200: #cbc1a8;
+
+  --theme-success-50: #eef3f7;
+  --theme-success-100: #dde7ee;
+  --theme-success-150: #c3d3df;
+  --theme-success-200: #a9c0d1;
+  --theme-success-250: #8eadc3;
+  --theme-success-300: #7399b4;
+  --theme-success-350: #5a86a5;
+  --theme-success-400: #437494;
+  --theme-success-450: #336485;
+  --theme-success-500: #2a5878;
+  --theme-success-550: #234d6b;
+  --theme-success-600: #1f4461;
+  --theme-success-650: #1a3c56;
+  --theme-success-700: #17354c;
+  --theme-success-750: #142e42;
+  --theme-success-800: #112739;
+  --theme-success-850: #0e2030;
+  --theme-success-900: #0b1a27;
+  --theme-success-950: #08131c;
+}

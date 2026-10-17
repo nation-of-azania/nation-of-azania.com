@@ -17,9 +17,9 @@ type SceneProps = {
 }
 
 // Palette (mirrors the design tokens in globals.css — three.js needs raw hex).
-const GOLD = '#c9a84c' // gold-400
-const STONE = '#8d8468' // ink-400
-const STONE_LIGHT = '#d9cba6' // parchment-300
+const GOLD = '#d8962c' // saffron-400
+const STONE = '#666e7d' // ink-400
+const STONE_LIGHT = '#d6c9ab' // sand-300
 
 function GltfModel({ url }: { url: string }) {
   const gltf = useGLTF(url)

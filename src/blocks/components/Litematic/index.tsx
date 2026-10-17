@@ -20,8 +20,8 @@ export function LitematicBlock({ schematic, caption, autoRotate }: LitematicProp
 
   return (
     <figure className="my-10">
-      <div className="border border-pine-800 bg-parchment-100 p-1.5">
-        <div className="border border-gold-400">
+      <div className="border border-sea-800 bg-sand-100 p-1.5">
+        <div className="border border-saffron-400">
           <div className="relative aspect-[16/10] w-full overflow-hidden">
             <LitematicClient autoRotate={autoRotate ?? true} label={label} schematic={media} />
             <span

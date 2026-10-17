@@ -10,7 +10,7 @@ import type { Article, Page } from '@/payload-types'
  *
  * Articles belong to one of two publications, selected by `section`:
  *  - 'government' — the state Gazette, served under /gov
- *  - 'times'      — the independent Condor Times, served under /times
+ *  - 'times'      — the independent Azanian Times, served under /times
  * Every article query is scoped to a section so the two sites never bleed
  * into each other.
  */

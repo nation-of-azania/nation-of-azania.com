@@ -9,19 +9,30 @@ import {
   charterContent,
   excerpts,
   foundingDayContent,
-  keepersOpEdContent,
-  lanternFestivalContent,
-  monumentContent,
-  northRoadContent,
-  quayPricesContent,
-  roadOverrunContent,
-  valeGateTollContent,
+  harbourDuesContent,
+  harbourMoleContent,
+  ledgersOpEdContent,
+  lighthouseContent,
+  moleOverrunContent,
+  regattaContent,
+  spicePricesContent,
 } from './content'
+import {
+  CATEGORIES,
+  ensureArticle,
+  ensureCategory,
+  ensureMedia,
+  ensurePage,
+  ensureUser,
+  log,
+  seedStats,
+} from './helpers'
 import { generateBannerImages } from './images'
 
 /**
- * Condoria seed script — creates the demo nation: users, categories, media
- * (including the National Monument .glb), articles and the About page.
+ * Azania seed script — creates the demo nation for local development: users,
+ * categories, media (including the Lighthouse .glb and a Litematica build),
+ * articles and the About page.
  *
  *   pnpm seed        (= payload run src/seed/index.ts)
  *
@@ -29,8 +40,11 @@ import { generateBannerImages } from './images'
  * name, media alt text, article title, page slug) and created only when
  * missing. Running it again completes whatever a previous run didn't create —
  * a partially-failed seed heals itself on the next run — and a fully seeded
- * database is left untouched. Delete condoria.db (local SQLite dev) to
- * rebuild from scratch.
+ * database is left untouched. Delete azania.db (local SQLite dev) to rebuild
+ * from scratch.
+ *
+ * Production is NOT seeded with this demo content: its first deploy runs the
+ * much smaller bootstrap in ./bootstrap.ts instead.
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -38,127 +52,26 @@ const assetsDir = path.resolve(here, 'assets')
 
 // Accounts are username-only: no email addresses exist anywhere in the system
 // (the nation owns no mail domain, and no email adapter is configured).
-const DEFAULT_ADMIN_USERNAME = 'chancellor'
-const DEFAULT_ADMIN_PASSWORD = 'condoria-dev-2026'
+const DEFAULT_ADMIN_USERNAME = 'IPaaat'
+const DEFAULT_ADMIN_PASSWORD = 'azania-dev-2026'
 
-/** Demo accounts (documented in the README — change these passwords!). */
+/** Demo accounts (documented in the README — dev only). */
 const EDITOR = {
   username: 'keeper',
-  password: 'condoria-editor-2026',
-  name: 'Keeper of Records',
+  password: 'azania-editor-2026',
+  name: 'Keeper of the Light',
 } as const
 const RESIDENT = {
   username: 'resident',
-  password: 'condoria-resident-2026',
-  name: 'A Resident of Condoria',
+  password: 'azania-resident-2026',
+  name: 'A Resident of Azania',
 } as const
-/** The Condor Times byline — an independent editor, kept distinct from the Gazette. */
+/** The Azanian Times byline — an independent editor, kept distinct from the Gazette. */
 const TIMES_CORRESPONDENT = {
-  username: 'corvin',
-  password: 'condoria-times-2026',
-  name: 'Corvin Vale',
+  username: 'marlo',
+  password: 'azania-times-2026',
+  name: 'Marlo Tidewell',
 } as const
-
-const log = (message: string) => console.log(`[seed] ${message}`)
-
-let createdCount = 0
-const stamp = (created: boolean, label: string) => {
-  if (created) createdCount += 1
-  log(`${created ? 'created ' : 'exists  '}${label}`)
-}
-
-async function ensureUser(
-  payload: Payload,
-  data: { username: string; password: string; name: string; role: 'admin' | 'editor' | 'resident' },
-) {
-  const found = await payload.find({
-    collection: 'users',
-    where: { username: { equals: data.username } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `user     ${data.username} (id ${found.docs[0].id})`)
-    return found.docs[0]
-  }
-  const doc = await payload.create({ collection: 'users', data })
-  stamp(true, `user     ${data.username} (id ${doc.id}, ${data.role})`)
-  return doc
-}
-
-async function ensureCategory(payload: Payload, name: string) {
-  const found = await payload.find({
-    collection: 'categories',
-    where: { name: { equals: name } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `category ${found.docs[0].slug}`)
-    return found.docs[0]
-  }
-  const doc = await payload.create({ collection: 'categories', data: { name } })
-  stamp(true, `category ${doc.slug} (id ${doc.id})`)
-  return doc
-}
-
-async function ensureMedia(payload: Payload, alt: string, filePath: string) {
-  const found = await payload.find({
-    collection: 'media',
-    where: { alt: { equals: alt } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `media    ${found.docs[0].filename}`)
-    return found.docs[0]
-  }
-  const doc = await payload.create({ collection: 'media', data: { alt }, filePath })
-  stamp(true, `media    ${doc.filename} (id ${doc.id}, ${doc.mimeType})`)
-  return doc
-}
-
-async function ensureArticle(
-  payload: Payload,
-  args: {
-    title: string
-    draft?: boolean
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: Record<string, any>
-  },
-) {
-  const found = await payload.find({
-    collection: 'articles',
-    where: { title: { equals: args.title } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `article  ${found.docs[0].slug}`)
-    return found.docs[0]
-  }
-  const doc = await payload.create({
-    collection: 'articles',
-    draft: args.draft,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: { title: args.title, ...args.data } as any,
-  })
-  stamp(true, `article  ${doc.slug}${args.draft ? ' (DRAFT)' : ''}`)
-  return doc
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function ensurePage(payload: Payload, slug: string, data: Record<string, any>) {
-  const found = await payload.find({
-    collection: 'pages',
-    where: { slug: { equals: slug } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `page     ${slug}`)
-    return found.docs[0]
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = await payload.create({ collection: 'pages', data: { slug, ...data } as any })
-  stamp(true, `page     ${doc.slug}`)
-  return doc
-}
 
 async function seed(payload: Payload): Promise<void> {
   // ── Credentials ───────────────────────────────────────────────────────────
@@ -169,17 +82,17 @@ async function seed(payload: Payload): Promise<void> {
       '\n[seed] WARNING: SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD are not set in\n' +
         `[seed] the environment. Falling back to the well-known dev defaults\n` +
         `[seed] (${DEFAULT_ADMIN_USERNAME} / ${DEFAULT_ADMIN_PASSWORD}).\n` +
-        '[seed] NEVER seed a production database without setting strong values.\n',
+        '[seed] This seed is for local development; never run it against production.\n',
     )
     adminUsername = adminUsername || DEFAULT_ADMIN_USERNAME
     adminPassword = adminPassword || DEFAULT_ADMIN_PASSWORD
   }
 
-  log('Converging the Nation of Condoria (existing entries are kept as-is)…')
+  log('Converging the Nation of Azania (existing entries are kept as-is)…')
 
   // ── 1. Users ──────────────────────────────────────────────────────────────
   const admin = await ensureUser(payload, {
-    name: 'Chancellor of Condoria',
+    name: 'Co-Leader of Azania',
     username: adminUsername,
     password: adminPassword,
     role: 'admin',
@@ -190,26 +103,31 @@ async function seed(payload: Payload): Promise<void> {
 
   // ── 2. Categories ─────────────────────────────────────────────────────────
   const categories: Record<string, number> = {}
-  for (const name of ['Decrees', 'Gazette', 'Culture', 'Public Works', 'Markets', 'Opinion']) {
+  for (const name of CATEGORIES) {
     const category = await ensureCategory(payload, name)
     categories[name] = category.id
   }
 
   // ── 3. Media ──────────────────────────────────────────────────────────────
-  const monument = await ensureMedia(
+  const lighthouse = await ensureMedia(
     payload,
-    'The National Monument of Condoria — stone obelisk with gilded pyramidion',
-    path.join(assetsDir, 'condoria-monument.glb'),
+    'The Lighthouse on Founders’ Point — a whitewashed, ochre-banded tower with a golden lantern',
+    path.join(assetsDir, 'azania-lighthouse.glb'),
+  )
+  const warehouse = await ensureMedia(
+    payload,
+    'The standard quay warehouse (Litematica build)',
+    path.join(assetsDir, 'simple-house.litematic'),
   )
 
   log('generating banner images with sharp…')
   const banners = await generateBannerImages(assetsDir)
-  const foundingBanner = await ensureMedia(payload, banners.foundingDay.alt, banners.foundingDay.filePath)
-  const roadBanner = await ensureMedia(payload, banners.northRoad.alt, banners.northRoad.filePath)
+  const dawnBanner = await ensureMedia(payload, banners.foundingDay.alt, banners.foundingDay.filePath)
+  const harbourBanner = await ensureMedia(payload, banners.harbour.alt, banners.harbour.filePath)
 
   // ── 4. Articles ───────────────────────────────────────────────────────────
   await ensureArticle(payload, {
-    title: 'The Charter of Condoria',
+    title: 'The Charter of Azania',
     data: {
       excerpt: excerpts.charter,
       content: charterContent(),
@@ -222,10 +140,10 @@ async function seed(payload: Payload): Promise<void> {
   })
 
   await ensureArticle(payload, {
-    title: 'The National Monument, Restored',
+    title: 'The Lighthouse on Founders’ Point, Relit',
     data: {
-      excerpt: excerpts.monument,
-      content: monumentContent(monument.id),
+      excerpt: excerpts.lighthouse,
+      content: lighthouseContent(lighthouse.id),
       author: editor.id,
       category: categories['Culture'],
       publishedAt: '2026-07-02T14:00:00.000Z',
@@ -234,53 +152,53 @@ async function seed(payload: Payload): Promise<void> {
   })
 
   await ensureArticle(payload, {
-    title: 'Founding Day: How Condoria Came To Be',
+    title: 'Founding Day: How Azania Came To Be',
     data: {
       excerpt: excerpts.foundingDay,
-      content: foundingDayContent(foundingBanner.id),
+      content: foundingDayContent(dawnBanner.id),
       author: editor.id,
       category: categories['Gazette'],
-      featuredImage: foundingBanner.id,
+      featuredImage: dawnBanner.id,
       publishedAt: '2026-06-12T08:00:00.000Z',
       _status: 'published',
     },
   })
 
   await ensureArticle(payload, {
-    title: 'The Great North Road Opens',
+    title: 'The Long Mole Is Complete',
     data: {
-      excerpt: excerpts.northRoad,
-      content: northRoadContent(foundingBanner.id, roadBanner.id),
+      excerpt: excerpts.harbourMole,
+      content: harbourMoleContent(dawnBanner.id, harbourBanner.id, warehouse.id),
       author: admin.id,
       category: categories['Public Works'],
-      featuredImage: roadBanner.id,
+      featuredImage: harbourBanner.id,
       publishedAt: '2026-06-28T10:30:00.000Z',
       _status: 'published',
     },
   })
 
   await ensureArticle(payload, {
-    title: 'Proposal: Lantern Festival on the South Quay',
+    title: 'Proposal: A Regatta on the Old Harbour',
     draft: true,
     data: {
-      excerpt: excerpts.lanternFestival,
-      content: lanternFestivalContent(),
+      excerpt: excerpts.regatta,
+      content: regattaContent(),
       author: resident.id,
       category: categories['Culture'],
       _status: 'draft',
     },
   })
 
-  // ── 4b. The Condor Times (section: 'times') ───────────────────────────────
+  // ── 4b. The Azanian Times (section: 'times') ──────────────────────────────
   await ensureArticle(payload, {
-    title: 'Traders Balk as Vale Gate Toll Takes Effect',
+    title: 'Captains Balk as New Harbour Dues Take Effect',
     data: {
-      excerpt: excerpts.valeGateToll,
-      content: valeGateTollContent(),
+      excerpt: excerpts.harbourDues,
+      content: harbourDuesContent(),
       section: 'times',
       author: timesEditor.id,
       category: categories['Public Works'],
-      featuredImage: roadBanner.id,
+      featuredImage: harbourBanner.id,
       pinned: true,
       publishedAt: '2026-07-08T07:30:00.000Z',
       _status: 'published',
@@ -288,10 +206,10 @@ async function seed(payload: Payload): Promise<void> {
   })
 
   await ensureArticle(payload, {
-    title: 'The North Road Ran Long, and Ran Over',
+    title: 'The Long Mole Ran Long, and Ran Over',
     data: {
-      excerpt: excerpts.roadOverrun,
-      content: roadOverrunContent(),
+      excerpt: excerpts.moleOverrun,
+      content: moleOverrunContent(),
       section: 'times',
       author: timesEditor.id,
       category: categories['Public Works'],
@@ -301,24 +219,24 @@ async function seed(payload: Payload): Promise<void> {
   })
 
   await ensureArticle(payload, {
-    title: 'Quay Prices Climb as the Stores Run Thin',
+    title: 'Salt and Spice Climb as the Trade Winds Turn',
     data: {
-      excerpt: excerpts.quayPrices,
-      content: quayPricesContent(foundingBanner.id),
+      excerpt: excerpts.spicePrices,
+      content: spicePricesContent(dawnBanner.id),
       section: 'times',
       author: timesEditor.id,
       category: categories['Markets'],
-      featuredImage: foundingBanner.id,
+      featuredImage: dawnBanner.id,
       publishedAt: '2026-07-06T08:00:00.000Z',
       _status: 'published',
     },
   })
 
   await ensureArticle(payload, {
-    title: 'Opinion: Who Keeps the Keepers?',
+    title: 'Opinion: Shine the Same Light on the Ledgers',
     data: {
-      excerpt: excerpts.keepersOpEd,
-      content: keepersOpEdContent(),
+      excerpt: excerpts.ledgersOpEd,
+      content: ledgersOpEdContent(),
       section: 'times',
       author: timesEditor.id,
       category: categories['Opinion'],
@@ -329,27 +247,27 @@ async function seed(payload: Payload): Promise<void> {
 
   // ── 5. Pages ──────────────────────────────────────────────────────────────
   await ensurePage(payload, 'about', {
-    title: 'About Condoria',
+    title: 'About Azania',
     content: aboutContent(),
     _status: 'published',
   })
 
   // ── Summary ───────────────────────────────────────────────────────────────
   const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
-  if (createdCount === 0) {
+  if (seedStats.created === 0) {
     log('Everything already present — nothing to do.')
     return
   }
   console.log(`
 [seed] ────────────────────────────────────────────────────────────
-[seed] The Nation of Condoria is seeded (${createdCount} entries created this run).
+[seed] The Nation of Azania is seeded (${seedStats.created} entries created this run).
 [seed]
 [seed] Sign in:  ${serverURL}/admin
 [seed]   username: ${adminUsername}  (password: your SEED_ADMIN_PASSWORD)
-[seed]   Demo accounts (change these passwords!): ${EDITOR.username}, ${RESIDENT.username}
+[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (editors), ${RESIDENT.username} (resident)
 [seed]
-[seed] Visit:    ${serverURL}/gov          — the government Gazette
-[seed]           ${serverURL}/times        — the Condor Times (independent press)
+[seed] Visit:    ${serverURL}/gov          — the Azania Gazette
+[seed]           ${serverURL}/times        — the Azanian Times (independent press)
 [seed]           ${serverURL}/gov/about    — the standing page
 [seed] ────────────────────────────────────────────────────────────
 `)

@@ -6,11 +6,11 @@ import { LinkButton } from '@/components/site/LinkButton'
 export default function NotFound() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center md:py-32">
-      <Crest className="h-16 w-auto text-parchment-300" />
-      <p className="mt-8 text-[11px] uppercase tracking-[0.24em] text-oxide-700">
+      <Crest className="h-16 w-auto text-sand-300" />
+      <p className="mt-8 text-[11px] uppercase tracking-[0.24em] text-coral-700">
         Archive Notice · 404
       </p>
-      <h1 className="mt-4 text-balance font-display text-4xl text-pine-950">
+      <h1 className="mt-4 text-balance font-display text-4xl text-sea-950">
         This record is not in the archive.
       </h1>
       <p className="mt-4 max-w-md text-ink-500">
@@ -23,7 +23,7 @@ export default function NotFound() {
         </LinkButton>
         <Link
           href="/gov/articles"
-          className="text-sm font-medium text-pine-700 transition-colors hover:text-pine-600"
+          className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
         >
           Browse the Gazette →
         </Link>

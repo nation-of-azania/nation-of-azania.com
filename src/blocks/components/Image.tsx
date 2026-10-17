@@ -7,7 +7,7 @@ import { cn, resolveImage, resolveMedia } from './shared'
 type ImageProps = Pick<ImageBlockType, 'caption' | 'image' | 'layout'>
 
 /**
- * Image — a mounted print: hairline parchment frame, optional centered
+ * Image — a mounted print: hairline sand frame, optional centered
  * caption. The 'wide' layout breaks slightly out of the text column on
  * large screens.
  */
@@ -18,7 +18,7 @@ export function ImageBlock({ image, caption, layout }: ImageProps) {
 
   return (
     <figure className={cn('my-8', wide && 'lg:-mx-12 xl:-mx-20')}>
-      <div className="border border-parchment-300 bg-parchment-100 p-1">
+      <div className="border border-sand-300 bg-sand-100 p-1">
         <NextImage
           alt={resolved.alt}
           className="h-auto w-full"

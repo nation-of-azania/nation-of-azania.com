@@ -10,7 +10,7 @@ import { getArticlesPage } from '@/lib/queries'
 export const metadata: Metadata = {
   title: 'The Gazette',
   description:
-    'All published records of the Nation of Condoria — decrees, dispatches and chronicles, newest first.',
+    'All published records of the Nation of Azania — decrees, dispatches and chronicles, newest first.',
 }
 
 type Props = {
@@ -34,11 +34,11 @@ export default async function GovArticlesIndexPage({ searchParams }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
       <header>
-        <p className="text-[11px] uppercase tracking-[0.24em] text-gold-600">
-          Published by Authority of the Council
+        <p className="text-[11px] uppercase tracking-[0.24em] text-saffron-600">
+          Published by Authority of the Chancellery
         </p>
-        <h1 className="mt-3 font-display text-4xl text-pine-950 md:text-5xl">
-          The Condoria Gazette
+        <h1 className="mt-3 font-display text-4xl text-sea-950 md:text-5xl">
+          The Azania Gazette
         </h1>
         <p className="mt-4 max-w-2xl text-ink-500">
           Decrees, dispatches and chronicles of the nation, newest first.
@@ -66,25 +66,25 @@ export default async function GovArticlesIndexPage({ searchParams }: Props) {
           />
         </>
       ) : totalDocs > 0 ? (
-        <div className="mt-12 border border-parchment-300 bg-parchment-100/60 px-6 py-16 text-center">
+        <div className="mt-12 border border-sand-300 bg-sand-100/60 px-6 py-16 text-center">
           <p className="font-display text-xl text-ink-700">
             There is no page {page} in the record.
           </p>
           <p className="mt-3 text-sm text-ink-500">
-            <Link href="/gov/articles" className="font-medium text-pine-700 hover:text-pine-600">
+            <Link href="/gov/articles" className="font-medium text-sea-700 hover:text-sea-600">
               Return to the first page →
             </Link>
           </p>
         </div>
       ) : (
-        <div className="mt-12 flex flex-col items-center border border-parchment-300 bg-parchment-100/60 px-6 py-20 text-center">
-          <Crest className="h-14 w-auto text-parchment-300" />
+        <div className="mt-12 flex flex-col items-center border border-sand-300 bg-sand-100/60 px-6 py-20 text-center">
+          <Crest className="h-14 w-auto text-sand-300" />
           <p className="mt-6 font-display text-xl text-ink-700">
-            The gazette has no published articles yet.
+            The Gazette has no published articles yet.
           </p>
           <p className="mt-2 max-w-md text-sm text-ink-500">
-            The council has entered nothing into the public record. When the first dispatch is
-            published, it will appear here.
+            The Chancellery has entered nothing into the public record. When the first dispatch
+            is published, it will appear here.
           </p>
         </div>
       )}

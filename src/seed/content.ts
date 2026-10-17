@@ -1,6 +1,7 @@
 import {
   ITALIC,
   block,
+  discordMessage,
   galleryItem,
   heading,
   paragraph,
@@ -13,16 +14,20 @@ import {
  * The seed content itself — lexical editor states for every article and page.
  * Prose is written in the voice of the contract: the official gazette of a
  * small proud nation on the Rulercraft realm.
+ *
+ * The lore here is a placeholder (a coastal trading nation with a harbour
+ * capital and a lighthouse) meant to be replaced with Azania's own. The About
+ * page is the exception: it also seeds production, so it sticks to facts.
  */
 
-// ── The Charter of Condoria (pinned decree) ─────────────────────────────────
+// ── The Charter of Azania (pinned decree) ───────────────────────────────────
 
 export const charterContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'In the beginning there was a valley: a green fold of the Rulercraft realm between the ',
-      'north mountains and the quiet sea, claimed by no crown and mapped by no surveyor. Those ',
-      'who came to it first came on foot, carrying tools rather than banners. What follows is ',
+      'Before there was a nation there was a harbour: a deep, sheltered bay on the coast of ',
+      'the Rulercraft realm, guarded by a headland and claimed by no crown. Those who made ',
+      'landfall there first came by sea, carrying tools rather than banners. What follows is ',
       'the law they agreed upon, written so that the nation they founded would outlast them.',
     ),
     block(
@@ -30,74 +35,72 @@ export const charterContent = (): LexicalEditorState =>
       {
         style: 'decree',
         title: 'Proclamation of the Founding Council',
-        body: 'By decree of the Founding Council, given under the Seal of the Nation on the first day of November in the Year of Founding, this Charter is adopted as the supreme law of Condoria, binding upon every resident, officer and guest within her borders.',
+        body: 'By decree of the Founding Council, given under the Seal of the Nation and the hand of Chancellor Luixiter, this Charter is adopted as the supreme law of Azania, binding upon every resident, officer and guest within her borders and her waters.',
       },
       'Founding proclamation',
     ),
     heading('Article I — The Nation and Its Territory'),
     paragraph(
-      'Condoria is a free and sovereign nation of the Rulercraft realm. Her territory is the ',
-      'charted land between the North Range and the South Quay, together with such districts ',
-      'as the Council may lawfully annex by charter and beacon. The capital is the city of ',
-      'Condoria-upon-Vale, seat of the Chancellery and of the national archive.',
+      'Azania is a free and sovereign nation of the Rulercraft realm. Her territory is the ',
+      'charted coast around the harbour, its islands and its hinterland, together with such ',
+      'districts as the Council may lawfully annex by charter and beacon. The capital is Port ',
+      'Azania, seat of the Chancellery and of the national archive.',
     ),
-    heading('Article II — The Council and the Chancellery'),
+    heading('Article II — The Chancellor, the Co-Leader and the Council'),
     paragraph(
-      'The nation is governed by a Council of residents in good standing, presided over by a ',
-      'Chancellor whom the Council elects. The Council makes law by open vote in the Hall of ',
-      'Assembly; the Chancellor executes it and keeps the Seal. No decree takes force until it ',
-      'is read aloud in the Hall and entered into the Gazette.',
+      'The nation is led by a Chancellor, who keeps the Seal and speaks for Azania abroad, ',
+      'and a Co-Leader, who shares the work of government and keeps the nation’s ',
+      'registers in order. Law is made by the Council of residents in good standing, by open ',
+      'vote in the Hall of Assembly. No decree takes force until it is entered into the Gazette.',
     ),
     heading('Article III — The Rights of Residents'),
     paragraph(
-      'Every resident of Condoria holds these rights, which no decree may abridge: to speak ',
-      'and to write freely in the affairs of the nation; to hold land granted by charter; to ',
-      'petition the Council and be heard; to travel the roads and waters of the realm; and to ',
-      'depart in peace, taking what is theirs.',
+      'Every resident of Azania holds these rights, which no decree may abridge: to speak and ',
+      'to write freely in the affairs of the nation; to hold land granted by charter; to ',
+      'petition the Council and be heard; to sail the waters and walk the roads of the realm; ',
+      'and to depart in peace, taking what is theirs.',
     ),
     heading('Article IV — Land, Building and the Common Works'),
     paragraph(
       'Land within the nation is granted by charter and held by stewardship. A resident may ',
       'build freely upon their grant, provided the work honours the character of its district ',
-      'and endangers no neighbour. Roads, bridges, lighthouses and walls are common works, ',
+      'and endangers no neighbour. Quays, moles, roads and the lighthouse are common works, ',
       'raised by the nation and belonging to all. No common work may be torn down save by ',
       'decree of the Council.',
     ),
-    heading('Article V — The National Monument'),
+    heading('Article V — The Lighthouse'),
     paragraph(
-      'Upon the founding hill stands the National Monument: a stone obelisk crowned with a ',
-      'gilded pyramidion, raised where the first camp was pitched. It is the memory of the ',
-      'nation made visible. The Monument is inviolable; its keeping is the first duty of the ',
-      'Chancellery, and its light shall not be allowed to fail.',
+      'Upon Founders’ Point stands the Lighthouse, raised where the first ship made ',
+      'harbour. It is the memory of the nation made visible, and the first thing every ',
+      'traveller sees of her. Its keeping is the first duty of the Chancellery, and its light ',
+      'shall not be allowed to fail.',
     ),
     heading('Article VI — Amendment and Continuity'),
     paragraph(
       'This Charter may be amended only by a two-thirds voice of the Council, taken in open ',
       'assembly on two separate days. Should the nation ever be scattered, the Charter ',
-      'endures: wherever three residents gather under its words, there is Condoria.',
+      'endures: wherever three residents gather under its words, there is Azania.',
     ),
-    paragraph(
-      text('Given under the Seal of the Nation, in the Year of Founding.', ITALIC),
-    ),
+    paragraph(text('Given under the Seal of the Nation, in the Year of Founding.', ITALIC)),
   )
 
-// ── The National Monument, Restored (3D model showcase) ─────────────────────
+// ── The Lighthouse on Founders' Point, Relit (3D model showcase) ────────────
 
-export const monumentContent = (glbMediaId: number): LexicalEditorState =>
+export const lighthouseContent = (glbMediaId: number): LexicalEditorState =>
   root(
     paragraph(
-      'After a season of scaffolding, canvas and the patient chiselling of the masons’ ',
-      'guild, the National Monument stands restored. The obelisk’s weathered faces have ',
-      'been redressed stone by stone, and the gilded pyramidion — dulled by years of rain ',
-      'and creeper-scorch — has been releafed in true gold, so that it once again catches ',
-      'the first light over the founding hill.',
+      'After a season of scaffolding, lime-wash and the patient work of the masons’ guild, ',
+      'the Lighthouse on Founders’ Point stands restored. The tower has been rewhitened ',
+      'course by course, the ochre band repainted so ships can tell it from the cliffs by ',
+      'day, and the lantern reglazed — so that once again it is the first light a ship sees ',
+      'of Azania, and the last one it loses.',
     ),
     block(
       'callout',
       {
         style: 'note',
         title: 'An interactive exhibit',
-        body: 'The model below is a living exhibit from the national archive. Drag to orbit the Monument, scroll to draw nearer, and let it turn on its own when your hand rests.',
+        body: 'The model below is a living exhibit from the national archive. Drag to orbit the Lighthouse, scroll to draw nearer, and let it turn on its own when your hand rests.',
       },
       'Interactive exhibit note',
     ),
@@ -105,99 +108,98 @@ export const monumentContent = (glbMediaId: number): LexicalEditorState =>
       'model3d',
       {
         model: glbMediaId,
-        caption: 'The National Monument — drag to orbit',
+        caption: 'The Lighthouse on Founders’ Point — drag to orbit',
         autoRotate: true,
       },
-      'The National Monument',
+      'The Lighthouse',
     ),
     paragraph(
-      'The Monument was raised in the first winter, before the walls, before the roads, ',
-      'before even the granary — a fact the founders were fond of repeating whenever anyone ',
-      'questioned their priorities. It marks the spot where the first camp was pitched and ',
-      'the Charter first read aloud, and by Article V of that Charter its keeping is the ',
-      'first duty of the Chancellery.',
+      'The Lighthouse was the first thing the founders built, before the quays and before ',
+      'the warehouses: a nation that lives by the sea, they argued, should first make sure ',
+      'its ships can find their way home. It marks the rock where the first boat was hauled ',
+      'ashore, and by Article V of the Charter its keeping is the first duty of the Chancellery.',
     ),
     paragraph(
-      'The restoration was carried out under the direction of the Keeper of Records, with ',
-      'stone drawn from the original quarry in the North Range and gold leaf beaten in the ',
-      'workshops of the South Quay. The Council extends the nation’s thanks to every ',
-      'hand that touched the work. The scaffolds come down on Founding Day; the light, as ',
-      'the Charter requires, shall not be allowed to fail.',
+      'The restoration was carried out under the direction of the Keeper of the Light, with ',
+      'coral stone cut from the original quarry and bronze for the gallery rail cast on the ',
+      'Spice Quay. The Council extends the nation’s thanks to every hand that touched the ',
+      'work. The scaffolds come down on Founding Day; the light, as the Charter requires, ',
+      'shall not be allowed to fail.',
     ),
   )
 
-// ── Founding Day: How Condoria Came To Be (gazette feature) ─────────────────
+// ── Founding Day: How Azania Came To Be (gazette feature) ───────────────────
 
 export const foundingDayContent = (bannerMediaId: number): LexicalEditorState =>
   root(
     paragraph(
-      'Every nation keeps one story it tells more often than the rest. Ours begins with ',
-      'eleven travellers, one boat with a leak in it, and a valley nobody else wanted. ',
-      'This Founding Day, the Gazette retells how Condoria came to be — as it happened, ',
-      'and not as the tavern versions have improved it.',
+      'Every nation keeps one story it tells more often than the rest. Ours begins with one ',
+      'ship, one bad chart, and a harbour nobody else had noticed. This Founding Day, the ',
+      'Gazette retells how Azania came to be — as it happened, and not as the dockside ',
+      'versions have improved it.',
     ),
     paragraph(
-      'The first party crossed the North Range in deep snow, having been assured by a map ',
-      '(since framed in the Hall of Assembly, as a warning) that the pass was gentle. It ',
-      'was not. What they found on the far side, however, was: a sheltered vale, a river ',
-      'running clean to the sea, and high ground crying out for a beacon. They pitched camp ',
-      'on the hill where the Monument now stands, and by firelight that same evening began ',
-      'arguing about the constitution — a tradition we maintain to this day.',
+      'The first crew sailed down the coast looking for somewhere else entirely, having been ',
+      'assured by a chart (since framed in the Hall of Assembly, as a warning) that the shore ',
+      'was all cliff. It was not. Behind the headland they found a deep bay, sweet water ',
+      'running down from the hills, and a point of rock crying out for a light. They hauled ',
+      'the boat ashore on the spot where the Lighthouse now stands, and by lantern-light that ',
+      'same evening began arguing about the constitution — a tradition we maintain to this day.',
     ),
     block(
       'quote',
       {
         quote:
-          'We did not come to this valley to build walls; we came to build a table long enough for everyone who would sit at it.',
-        attribution: 'The First Chancellor',
+          'We did not come ashore to build walls; we came to build a harbour wide enough for every ship that would put in at it.',
+        attribution: 'The Founding Captain',
         attributionTitle: 'at the Founding Assembly',
       },
-      'The First Chancellor',
+      'The Founding Captain',
     ),
     paragraph(
-      'The Founding Assembly met for three days. It produced the Charter, the office of the ',
-      'Chancellery, and the national habit of settling questions by open vote and closing ',
-      'the session with supper. The eleven signed by torchlight; the youngest of them, it ',
-      'is recorded, signed twice, to be sure.',
+      'The Founding Assembly met on the beach for three days. It produced the Charter, the ',
+      'offices of Chancellor and Co-Leader, and the national habit of settling questions by ',
+      'open vote and closing the session with a fish supper. The crew signed by lantern-light; ',
+      'the youngest of them, it is recorded, signed twice, to be sure.',
     ),
     block(
       'image',
       {
         image: bannerMediaId,
-        caption: 'The Founding Day standard, raised over the assembly field each year at first light.',
+        caption: 'Dawn over Founders’ Point, where the standard is raised each Founding Day.',
         layout: 'wide',
       },
-      'Founding Day standard',
+      'Founding Day at dawn',
     ),
     paragraph(
-      'Founding Day is now kept every year on the first of November: the standard is raised ',
-      'at dawn, the Charter is read from the Monument steps, and the long table is laid the ',
-      'length of the assembly field. All residents are expected; all travellers are welcome. ',
-      'Bring a dish, a story, or both.',
+      'Founding Day is now kept every year on the anniversary of that first landfall: the ',
+      'standard is raised on Founders’ Point at dawn, the Charter is read from the ',
+      'lighthouse steps, and the long tables are laid the length of the Old Harbour. All ',
+      'residents are expected; all travellers are welcome. Bring a dish, a story, or both.',
     ),
   )
 
-// ── The Great North Road Opens (public works report) ────────────────────────
+// ── The Long Mole Is Complete (public works report) ─────────────────────────
 
-export const northRoadContent = (
-  banner1MediaId: number,
-  banner2MediaId: number,
+export const harbourMoleContent = (
+  dawnMediaId: number,
+  harbourMediaId: number,
+  warehouseSchematicId: number,
 ): LexicalEditorState =>
   root(
     paragraph(
-      'The Great North Road is open. From the capital gates to the high pass of the North ',
-      'Range, forty-two hundred blocks of graded stone now carry travellers in hours over ',
-      'ground that once cost days — and, in the wet season, occasionally cost boots. It is ',
-      'the largest common work the nation has yet undertaken, and as of this week it ',
-      'belongs, as all common works do, to everyone.',
+      'The Long Mole is complete. Three hundred blocks of dressed stone now run out from the ',
+      'Spice Quay across the mouth of the Old Harbour, and for the first time since the ',
+      'founding a ship can ride out a storm in Port Azania without its captain spending the ',
+      'night on deck. It is the largest common work the nation has yet undertaken, and as of ',
+      'this week it belongs, as all common works do, to everyone.',
     ),
     paragraph(
-      'The road runs from the Vale Gate along the river terraces, crosses the gorge at the ',
-      'new Sixstone Bridge — five arches of quarried granite and one of stubbornness, as ',
-      'the Road Commission’s foreman put it — and climbs by switchbacks to the beacon ',
-      'at the pass. Waymark posts stand every two hundred blocks, capped in gold leaf so ',
-      'they catch lantern-light. Travellers are asked to keep to the marked way in the ',
-      'gorge section and to stable their mounts at the pass house in storm weather.',
+      'The mole runs from the warehouse steps on the Spice Quay along the line of the old ',
+      'reef, turns at the Elbow — where the Harbour Commission’s foreman says the sea ',
+      'argued with every course they laid — and ends in a small light of its own, a lantern ',
+      'on an iron post that answers the Lighthouse across the bay. Mooring rings are set ',
+      'every twenty blocks. Fishers are asked to keep the inner channel clear at slack water.',
     ),
     block(
       'embed',
@@ -208,243 +210,268 @@ export const northRoadContent = (
       'Opening ceremony broadcast',
     ),
     paragraph(
-      'The Chancellor cut the ribbon at the Vale Gate at dawn and then, in keeping with ',
-      'tradition, walked the whole road with the survey crews, arriving at the pass by ',
-      'lantern-light to loud approval and hot soup. The first official traveller through ',
-      'was a grain cart from the eastern farms, which the Commission notes is exactly the ',
-      'point.',
+      'The Chancellor cut the ribbon on the Spice Quay at dawn and then, in keeping with ',
+      'tradition, walked the whole mole with the masons, arriving at the harbour light to ',
+      'loud approval and hot tea. The first ship to tie up behind it was a salt barge from ',
+      'the southern pans, which the Commission notes is exactly the point.',
     ),
     block(
       'gallery',
       {
         items: [
-          galleryItem(banner1MediaId, 'Surveying the route at first light, below the North Range.'),
-          galleryItem(banner2MediaId, 'The Sixstone Bridge and the road to the pass.'),
+          galleryItem(dawnMediaId, 'First light over Founders’ Point, seen from the end of the mole.'),
+          galleryItem(harbourMediaId, 'The Long Mole and the ships riding in its lee.'),
         ],
         columns: '2',
       },
-      'Views of the North Road',
+      'Views of the Long Mole',
     ),
     paragraph(
-      'The Road Commission’s full accounts will be laid before the Council at the next ',
+      'The quay warehouses that will line the mole follow a single standard design, so that ',
+      'every merchant builds to the same line and the same height. The Commission has ',
+      'published it as a Litematica build: turn it in the viewer below, or download it and ',
+      'paste it into your own world.',
+    ),
+    block(
+      'litematic',
+      {
+        schematic: warehouseSchematicId,
+        caption: 'The standard quay warehouse — drag to orbit',
+        autoRotate: true,
+      },
+      'Standard quay warehouse',
+    ),
+    paragraph(
+      'The Harbour Commission’s full accounts will be laid before the Council at the next ',
       'assembly and printed in the Gazette, as the Charter requires of every common work. ',
-      'Proposals for the South Road may now be submitted to the Chancellery.',
+      'Proposals for a second quay on the Terraces side may now be submitted to the Chancellery.',
     ),
   )
 
-// ── Proposal: Lantern Festival on the South Quay (resident draft) ───────────
+// ── Proposal: A Regatta on the Old Harbour (resident draft) ─────────────────
 
-export const lanternFestivalContent = (): LexicalEditorState =>
+export const regattaContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'To the Council, from a resident of the South Quay district: I propose that the ',
-      'nation keep a Lantern Festival on the quay at midsummer. One evening each year, ',
-      'every household would set a lantern on the water — one light for each resident, so ',
-      'the harbour carries the whole nation on it for a night. The fisher-folk already do ',
-      'this in a small way after a safe season; I propose we make it everyone’s.',
+      'To the Council, from a resident of the Spice Quay district: now that the Long Mole ',
+      'gives us calm water, I propose that the nation keep a Regatta on the Old Harbour each ',
+      'year when the trade winds turn. Every crew in Azania — fishers, merchants, ferry ',
+      'hands and anyone who can borrow a boat — would race from the Lighthouse to the ',
+      'harbour light and back, and the winners would sail at the head of the Founding Day ',
+      'procession.',
     ),
     paragraph(
-      'The cost is modest: paper, wax, and one evening of the harbour-master’s ',
-      'patience. I have spoken with the workshops on the quay, which offer to teach ',
-      'lantern-folding in the week beforehand, and with the ferry crews, who ask only that ',
-      'the channel be kept clear until moonrise. If the Council finds merit in this, I will ',
-      'gladly organise the first festival and answer for the sweeping-up.',
+      'The cost is modest: bunting, a starting gun, and one afternoon of the ',
+      'harbour-master’s patience. The boatwrights on the quay offer to lend hulls to ',
+      'crews who have none, and the ferry crews ask only that the channel be kept clear of ',
+      'spectators. If the Council finds merit in this, I will gladly organise the first ',
+      'Regatta and answer for anyone who ends up in the water.',
     ),
   )
 
 // ════════════════════════════════════════════════════════════════════════════
-// THE CONDOR TIMES — the independent press (section: 'times')
+// THE AZANIAN TIMES — the independent press (section: 'times')
 // A sharper, more journalistic voice than the state Gazette: markets, daily
 // life, and a healthy scepticism of the Chancellery.
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Traders Balk as Vale Gate Toll Takes Effect (lead story) ────────────────
+// ── Captains Balk as New Harbour Dues Take Effect (lead story) ──────────────
 
-export const valeGateTollContent = (): LexicalEditorState =>
+export const harbourDuesContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'The new toll at the Vale Gate — a copper for every laden cart passing into the ',
-      'capital — took effect at first light on market-day, and by mid-morning the queue at ',
-      'the gate was longer than the gatehouse ledger. The Chancellery says the coin will keep ',
-      'the Great North Road in repair. The traders who use that road are not yet convinced ',
-      'they should pay twice for a work they were told belonged to everyone.',
+      'The new harbour dues — a copper for every laden ship that ties up behind the Long ',
+      'Mole — took effect on the morning tide, and by noon the line of hulls waiting to be ',
+      'tallied stretched past the Elbow. The Chancellery says the coin will keep the mole in ',
+      'repair. The captains who moor behind it are not yet convinced they should pay twice ',
+      'for a work they were told belonged to everyone.',
     ),
     block(
       'quote',
       {
         quote:
-          'They cut the ribbon and told us the road was ours. A fortnight later they put a till at the gate. You cannot own a thing you are charged to cross.',
-        attribution: 'Bram Cartwright',
-        attributionTitle: 'of the Carters’ Benevolent Fund',
+          'They cut the ribbon and told us the mole was ours. A fortnight later they put a tally-man at the end of it. You cannot own a thing you are charged to tie up to.',
+        attribution: 'Captain Ysolde Marr',
+        attributionTitle: 'of the Coasting Masters’ Fund',
       },
-      'A carter at the Vale Gate',
+      'A captain on the Spice Quay',
     ),
     paragraph(
-      'Under Article IV of the Charter, the North Road is a common work “belonging to all.” ',
-      'The Chancellery maintains that the toll funds upkeep, not ownership, and points to the ',
-      'wet-season washouts that closed the gorge section twice last year. The Times asked the ',
-      'Road Commission for the maintenance accounts promised “at the next assembly.” We were ',
-      'told they are forthcoming.',
+      'Under Article IV of the Charter, the mole is a common work “belonging to all.” The ',
+      'Chancellery maintains that the dues fund upkeep, not ownership, and points to the ',
+      'storm that carried away twelve blocks of the Elbow before the capstones were set. The ',
+      'Times asked the Harbour Commission for the maintenance accounts promised “at the next ',
+      'assembly.” We were told they are forthcoming.',
     ),
     paragraph(
-      'For now the copper is collected, the queue lengthens, and the carters keep a tally of ',
+      'For now the copper is collected, the line lengthens, and the captains keep a tally of ',
       'their own. This paper will publish both ledgers side by side when the Commission’s is ',
       'finally laid open.',
     ),
   )
 
-// ── The North Road Ran Long, and Ran Over (investigation) ───────────────────
+// ── The Long Mole Ran Long, and Ran Over (investigation) ────────────────────
 
-export const roadOverrunContent = (): LexicalEditorState =>
+export const moleOverrunContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'When the Chancellor walked the length of the Great North Road at its opening, the ',
-      'Gazette recorded the soup and the applause. It did not record the figure the Times has ',
-      'since assembled from the Commission’s own posted tallies: the road came in at nearly ',
-      'half again its first estimate, and two seasons late.',
+      'When the Chancellor walked the length of the Long Mole at its opening, the Gazette ',
+      'recorded the tea and the applause. It did not record the figure the Times has since ',
+      'assembled from the Commission’s own posted tallies: the mole came in at nearly half ',
+      'again its first estimate, and two seasons late.',
     ),
     paragraph(
-      'The overrun is no scandal on its own. Stone is heavy, the gorge is unkind, and the ',
-      'Sixstone Bridge alone swallowed a winter. But the nation was quoted one number when the ',
-      'work began, and paid a larger one when it ended — and the difference, with its reasons, ',
-      'is exactly what the Charter’s requirement to lay “the full accounts before the Council” ',
-      'exists to surface.',
+      'The overrun is no scandal on its own. Stone is heavy, the sea is unkind, and the Elbow ',
+      'alone swallowed a winter. But the nation was quoted one number when the work began, ',
+      'and paid a larger one when it ended — and the difference, with its reasons, is exactly ',
+      'what the Charter’s requirement to lay “the full accounts before the Council” exists ',
+      'to surface. When the Times raised it in the town hall, the exchange went like this:',
+    ),
+    block(
+      'discord',
+      {
+        channel: 'town-hall',
+        messages: [
+          discordMessage('Marlo Tidewell', {
+            timestamp: 'Today at 18:02',
+            roleColour: '#d98e3f',
+            body: 'Question for the Harbour Commission: the mole was quoted at **1,800 blocks of stone**. The posted tallies add up to **2,640**. Where did the other 840 go?',
+          }),
+          discordMessage('Port Ledger', {
+            timestamp: 'Today at 18:02',
+            roleColour: '#4f9fa8',
+            bot: true,
+            body: 'Harbour Commission tallies, Long Mole:\n```\nquoted   1,800\nposted   2,640\nvariance +840 (+46%)\n```',
+          }),
+          discordMessage('Harbourmaster Bell', {
+            timestamp: 'Today at 18:09',
+            body: 'Most of it is in the Elbow. The storm took twelve blocks before the capstones went on and we laid the whole turn twice. Full accounts go to the Council at the next assembly.',
+          }),
+          discordMessage('Marlo Tidewell', {
+            timestamp: 'Today at 18:11',
+            body: 'Then we’ll print them the day they’re laid. Thanks, Harbourmaster.',
+            edited: true,
+          }),
+        ],
+        caption: 'Quoted from the nation’s Discord with the participants’ leave.',
+      },
+      'The town hall exchange',
     ),
     block(
       'callout',
       {
         style: 'note',
         title: 'What we asked',
-        body: 'The Times put five questions to the Road Commission regarding the final cost of the North Road and the two-season delay. This article will be updated when they are answered.',
+        body: 'The Times put five questions to the Harbour Commission regarding the final cost of the Long Mole and the two-season delay. This article will be updated when they are answered.',
       },
       'Questions to the Commission',
     ),
     paragraph(
-      'The road is, by every account, a fine road. The Times’ quarrel is not with the stone ',
+      'The mole is, by every account, a fine mole. The Times’ quarrel is not with the stone ',
       'but with the arithmetic — and with how long the nation was left to wait before it was ',
       'allowed to see the sum.',
     ),
   )
 
-// ── Opinion: Who Keeps the Keepers? (editorial) ─────────────────────────────
+// ── Opinion: Shine the Same Light on the Ledgers (editorial) ────────────────
 
-export const keepersOpEdContent = (): LexicalEditorState =>
+export const ledgersOpEdContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'This paper is glad the National Monument shines again. We are gladder still that the ',
-      'Keeper of Records restored it in the open — with posted accounts, named quarries, and ',
+      'This paper is glad the Lighthouse shines again. We are gladder still that the Keeper ',
+      'of the Light restored it in the open — with posted accounts, named quarries, and ',
       'thanks paid to every hand that touched the work. That is how the nation’s business ',
       'ought to be done, and it throws into sharp relief how rarely the rest of it is.',
     ),
     paragraph(
-      'The Chancellery keeps the archive, sets the tolls, and reviews its own works. In a ',
-      'nation of eleven founders that was trust. In a nation of this size it is a habit worth ',
-      'examining. An independent press is not an enemy of the Council; it is the Council’s ',
-      'ledger, kept by someone the Council does not pay.',
+      'The Chancellery keeps the archive, sets the harbour dues, and reviews its own works. ',
+      'In a nation of one ship’s crew that was trust. In a nation of this size it is a ',
+      'habit worth examining. An independent press is not an enemy of the Council; it is the ',
+      'Council’s ledger, kept by someone the Council does not pay.',
     ),
     paragraph(
       'We will go on printing the questions until the answers are printed beside them. That ',
       'is the whole of our programme, and we commend it to our readers and our Chancellor ',
       'alike.',
     ),
-    paragraph(text('— The Editors, The Condor Times', ITALIC)),
+    paragraph(text('— The Editors, The Azanian Times', ITALIC)),
   )
 
-// ── Quay Prices Climb as the Stores Run Thin (markets) ──────────────────────
+// ── Salt and Spice Climb as the Trade Winds Turn (markets) ──────────────────
 
-export const quayPricesContent = (quayBannerMediaId: number): LexicalEditorState =>
+export const spicePricesContent = (marketBannerMediaId: number): LexicalEditorState =>
   root(
     paragraph(
-      'The price of salt-fish, lamp-oil and good rope has risen sharply on the South Quay ',
-      'this fortnight, as the last boats before the ice come in light and the winter stores ',
-      'are drawn down. The fishers blame the weather; the buyers blame the fishers; the ',
-      'harbour-master blames, as ever, the moon.',
+      'The price of salt, pepper and good rope has risen sharply on the Spice Quay this ',
+      'fortnight, as the trade winds turn and the last ships of the season come in light. ',
+      'The merchants blame the weather; the buyers blame the merchants; the harbour-master ',
+      'blames, as ever, the moon.',
     ),
     block(
       'image',
       {
-        image: quayBannerMediaId,
-        caption: 'The South Quay at first light, where the winter market sets its prices.',
+        image: marketBannerMediaId,
+        caption: 'Dawn over the harbour, when the Spice Quay market sets its prices.',
         layout: 'wide',
       },
-      'The winter market on the South Quay',
+      'The morning market on the Spice Quay',
     ),
     paragraph(
-      'The Times will post the quay prices each week through the winter, so that a household ',
-      'on the terraces knows what a household on the quay is paying before it sets out with ',
+      'The Times will post the quay prices each week through the season, so that a household ',
+      'on the Terraces knows what a household on the quay is paying before it sets out with ',
       'a basket. Bring this paper to market — it argues well, and folds smaller than a ',
       'ledger.',
     ),
   )
 
-// ── About Condoria (standing page) ──────────────────────────────────────────
+// ── About Azania (standing page — also seeds production) ────────────────────
 
 export const aboutContent = (): LexicalEditorState =>
   root(
     paragraph(
-      'Condoria is a roleplay nation on the Rulercraft Minecraft server: a small country ',
-      'with a Charter, a Council, a Gazette, and rather more opinions about bridge ',
-      'architecture than is strictly necessary. This site is her official record — the ',
-      'decrees, news and culture of the nation, published by the Chancellery.',
+      'Azania is a roleplay nation on the Rulercraft Minecraft server. This site is her ',
+      'official record: the Azania Gazette, where the government publishes its decrees, ',
+      'news and documents, and the Azanian Times, the nation’s independent press.',
     ),
+    heading('How the nation is led'),
     paragraph(
-      'In the world, Condoria lies between the North Range and the sea: a walled capital ',
-      'in the vale, farming terraces along the river, and the harbour district of the ',
-      'South Quay. On the founding hill stands the National Monument, an obelisk crowned ',
-      'in gold, raised where the first camp was pitched.',
-    ),
-    heading('How the nation is governed'),
-    paragraph(
-      'Condoria is governed by a Council of residents presided over by an elected ',
-      'Chancellor, under the Charter adopted at the founding. Law is made by open vote in ',
-      'the Hall of Assembly and published in the Gazette before it takes force. Day-to-day ',
-      'matters — land grants, common works, the keeping of the archive — rest with the ',
-      'Chancellery.',
+      'Azania is led by Chancellor Luixiter, together with IPaaat as Co-Leader. Decisions ',
+      'of the government are published in the Gazette.',
     ),
     heading('How to join'),
     paragraph(
-      'Joining is simple and free of ceremony, though we do enjoy ceremony. Visit ',
-      'Condoria on the Rulercraft server and speak with any resident, or leave word for ',
-      'the Chancellery in the capital. New residents receive a land grant in one of the ',
-      'open districts, a copy of the Charter, and an honest warning about the length of ',
-      'Council meetings. Builders, farmers, archivists and wanderers are all equally ',
-      'welcome; the only firm requirements are good faith and a tolerance for bunting.',
+      'Visit Azania on the Rulercraft server (play.rulercraft.com) and speak with any ',
+      'resident, or ask the Chancellor or the Co-Leader in game.',
     ),
     block(
       'callout',
       {
         style: 'note',
-        title: 'Visiting in game',
-        body: 'Condoria welcomes travellers. Look for the gold-capped waymarks of the Great North Road, keep to the marked way in the gorge, and present yourself at the Vale Gate. The kettle in the gatehouse is, by long custom, always on.',
+        title: 'Writing for the Gazette',
+        body: 'Residents can draft articles for the Gazette and the Times; editors review and publish them. If you are a resident and want to write, ask an administrator for an account.',
       },
-      'Visiting note',
-    ),
-    paragraph(
-      'This website is also the nation’s working press: residents draft articles, ',
-      'editors of the Gazette review and publish them, and the Chancellery keeps the ',
-      'archive. If you are a resident and wish to write, ask the Keeper of Records for an ',
-      'account.',
+      'Writing note',
     ),
   )
 
 /** Excerpts (article list summaries), kept here with the prose they summarise. */
 export const excerpts = {
   charter:
-    'The founding law of the nation: the Council and the Chancellery, the rights of residents, land and building law, and the keeping of the National Monument.',
-  monument:
-    'After a season of scaffolding and gold leaf, the obelisk on the founding hill stands restored — and the archive presents an interactive model of it.',
+    'The founding law of the nation: the Chancellor, the Co-Leader and the Council, the rights of residents, land and building law, and the keeping of the Lighthouse.',
+  lighthouse:
+    'After a season of scaffolding and lime-wash, the Lighthouse on Founders’ Point stands restored — and the archive presents an interactive model of it.',
   foundingDay:
-    'Eleven travellers, one leaking boat, and a valley nobody else wanted: the true story of the founding, retold for Founding Day.',
-  northRoad:
-    'Forty-two hundred blocks of graded stone from the Vale Gate to the high pass: the nation’s largest common work is open to all.',
-  lanternFestival:
-    'A resident’s proposal that the nation keep a midsummer Lantern Festival on the water of the South Quay.',
-  valeGateToll:
-    'The Chancellery’s new toll at the Vale Gate is meant to keep the North Road in repair. The traders who use it are not convinced they should pay twice for a road they were told was theirs.',
-  roadOverrun:
-    'The Gazette recorded the soup and the applause at the road’s opening. It did not record the figure: nearly half again the first estimate, and two seasons late.',
-  keepersOpEd:
-    'The Monument was restored in the open, with posted accounts. An editorial on why so little of the rest of the nation’s business is.',
-  quayPrices:
-    'Salt-fish, lamp-oil and good rope are dearer on the South Quay this fortnight, as the last boats before the ice come in light and the winter stores run thin.',
+    'One ship, one bad chart, and a harbour nobody else had noticed: the true story of the founding, retold for Founding Day.',
+  harbourMole:
+    'Three hundred blocks of dressed stone across the mouth of the Old Harbour: the nation’s largest common work is complete and open to all.',
+  regatta:
+    'A resident’s proposal that the nation keep a Regatta on the calm water behind the Long Mole each year when the trade winds turn.',
+  harbourDues:
+    'The Chancellery’s new harbour dues are meant to keep the Long Mole in repair. The captains who moor behind it are not convinced they should pay twice for a work they were told was theirs.',
+  moleOverrun:
+    'The Gazette recorded the tea and the applause at the mole’s opening. It did not record the figure: nearly half again the first estimate, and two seasons late.',
+  ledgersOpEd:
+    'The Lighthouse was restored in the open, with posted accounts. An editorial on why so little of the rest of the nation’s business is.',
+  spicePrices:
+    'Salt, pepper and good rope are dearer on the Spice Quay this fortnight, as the trade winds turn and the last ships of the season come in light.',
 } as const

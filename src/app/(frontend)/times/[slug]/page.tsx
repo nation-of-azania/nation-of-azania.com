@@ -44,7 +44,7 @@ export default async function TimesArticlePage({ params }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-6 py-12 md:py-16">
       <header>
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-maroon-700">
+        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
           {category ? <span>{category.name}</span> : null}
           {category && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
           {date ? (
@@ -64,7 +64,7 @@ export default async function TimesArticlePage({ params }: Props) {
         {author ? (
           <p className="mt-5 text-sm uppercase tracking-wider text-news-500">By {author.name}</p>
         ) : null}
-        <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-maroon-800" />
+        <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-cinnabar-800" />
       </header>
 
       {hero ? (
@@ -89,9 +89,9 @@ export default async function TimesArticlePage({ params }: Props) {
       <footer className="mt-14 border-t border-news-200 pt-6">
         <Link
           href="/times"
-          className="text-sm font-semibold text-maroon-700 transition-colors hover:text-maroon-800"
+          className="text-sm font-semibold text-cinnabar-700 transition-colors hover:text-cinnabar-800"
         >
-          ← The Condor Times
+          ← The Azanian Times
         </Link>
       </footer>
     </article>

@@ -30,7 +30,7 @@ export function SignOutButton() {
       type="button"
       onClick={signOut}
       disabled={pending}
-      className="border border-gold-400/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-200 transition-colors hover:border-gold-300 hover:text-gold-100 disabled:opacity-60"
+      className="border border-saffron-400/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-saffron-200 transition-colors hover:border-saffron-300 hover:text-saffron-100 disabled:opacity-60"
     >
       {pending ? 'Signing out…' : 'Sign out'}
     </button>

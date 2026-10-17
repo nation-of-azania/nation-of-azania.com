@@ -3,7 +3,6 @@
  * Run any Payload CLI command against PRODUCTION (credentials from .env.ship):
  *
  *   pnpm prod migrate:status
- *   pnpm prod migrate:create my-schema-change
  *   pnpm prod run src/seed/verify.ts
  *
  * Local dev (.env, SQLite) stays untouched.

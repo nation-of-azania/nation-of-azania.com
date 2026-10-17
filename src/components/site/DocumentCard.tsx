@@ -4,7 +4,7 @@ import type { Article } from '@/payload-types'
 
 import { articleHref, formatDate } from './format'
 
-/** A small oxide wax-seal mark for pinned documents of state. */
+/** A small coral wax-seal mark for pinned documents of state. */
 function Seal({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 12 12" aria-hidden="true" className={className}>
@@ -24,15 +24,15 @@ export function DocumentCard({ article }: { article: Article }) {
   const href = articleHref(article)
 
   return (
-    <article className="group relative flex flex-col border border-parchment-300 bg-parchment-100 p-6 transition-colors hover:border-gold-400">
-      <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-oxide-700">
+    <article className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-saffron-400">
+      <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-coral-700">
         <Seal className="h-3.5 w-3.5 shrink-0" />
         Pinned · Document of State
       </p>
       <h3 className="mt-3.5 font-display text-xl leading-snug text-ink-900">
         <Link
           href={href}
-          className="transition-colors after:absolute after:inset-0 hover:text-pine-800 group-hover:text-pine-800"
+          className="transition-colors after:absolute after:inset-0 hover:text-sea-800 group-hover:text-sea-800"
         >
           {article.title}
         </Link>

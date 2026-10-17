@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status?: Article['_status'] }) {
     <span
       className={cn(
         'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]',
-        published ? 'bg-pine-800 text-parchment-50' : 'border border-gold-500/50 text-gold-600',
+        published ? 'bg-sea-800 text-sand-50' : 'border border-saffron-500/50 text-saffron-600',
       )}
     >
       {published ? 'Published' : 'Draft'}
@@ -63,17 +63,17 @@ export default async function AccountPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-parchment-50 text-ink-900">
+    <div className="flex min-h-screen flex-col bg-sand-50 text-ink-900">
       <MemberHeader name={displayName} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 md:py-16">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-gold-600">Residents’ Register</p>
-        <h1 className="mt-3 font-display text-4xl text-pine-950 md:text-5xl">Welcome, {displayName}</h1>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-saffron-600">Residents’ Register</p>
+        <h1 className="mt-3 font-display text-4xl text-sea-950 md:text-5xl">Welcome, {displayName}</h1>
         <DoubleRule className="mt-6" />
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {/* Standing */}
-          <section className="border border-parchment-300 bg-parchment-50 p-6 md:col-span-1">
-            <h2 className="text-[11px] uppercase tracking-[0.2em] text-gold-600">Your standing</h2>
+          <section className="border border-sand-300 bg-sand-50 p-6 md:col-span-1">
+            <h2 className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">Your standing</h2>
             <dl className="mt-4 flex flex-col gap-3 text-sm">
               <div>
                 <dt className="text-ink-400">Name</dt>
@@ -86,14 +86,14 @@ export default async function AccountPage() {
               <div>
                 <dt className="text-ink-400">Role</dt>
                 <dd>
-                  <span className="inline-flex items-center border border-pine-700/30 bg-pine-100/50 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-pine-800">
+                  <span className="inline-flex items-center border border-sea-700/30 bg-sea-100/50 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-sea-800">
                     {ROLE_LABEL[role]}
                   </span>
                 </dd>
               </div>
             </dl>
             {isStaff ? (
-              <div className="mt-6 border-t border-parchment-300 pt-5">
+              <div className="mt-6 border-t border-sand-300 pt-5">
                 <p className="text-sm leading-relaxed text-ink-500">
                   You hold publishing rights to the record.
                 </p>
@@ -102,7 +102,7 @@ export default async function AccountPage() {
                 </LinkButton>
               </div>
             ) : (
-              <p className="mt-6 border-t border-parchment-300 pt-5 text-sm leading-relaxed text-ink-500">
+              <p className="mt-6 border-t border-sand-300 pt-5 text-sm leading-relaxed text-ink-500">
                 As a resident you may draft articles for the Gazette. An editor reviews each one before it
                 enters the record.
               </p>
@@ -112,14 +112,14 @@ export default async function AccountPage() {
           {/* Writings */}
           <section className="md:col-span-2">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-2xl text-pine-950">Your writings</h2>
+              <h2 className="font-display text-2xl text-sea-950">Your writings</h2>
               <span className="text-[12px] uppercase tracking-[0.16em] text-ink-400">
                 {myArticles.length} in all
               </span>
             </div>
-            <div className="mt-5 border-t border-parchment-300">
+            <div className="mt-5 border-t border-sand-300">
               {myArticles.length === 0 ? (
-                <p className="border-x border-b border-parchment-300 bg-parchment-100/50 px-6 py-12 text-center text-sm text-ink-500">
+                <p className="border-x border-b border-sand-300 bg-sand-100/50 px-6 py-12 text-center text-sm text-ink-500">
                   You have not written anything yet.
                 </p>
               ) : (
@@ -127,12 +127,12 @@ export default async function AccountPage() {
                   {myArticles.map((article) => (
                     <li
                       key={article.id}
-                      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-x border-b border-parchment-300 bg-parchment-50 px-5 py-4"
+                      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-x border-b border-sand-300 bg-sand-50 px-5 py-4"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-display text-lg text-pine-950">{article.title}</p>
+                        <p className="truncate font-display text-lg text-sea-950">{article.title}</p>
                         <p className="mt-0.5 text-[12px] uppercase tracking-[0.14em] text-ink-400">
-                          {article.section === 'times' ? 'Condor Times' : 'Government Gazette'}
+                          {article.section === 'times' ? 'The Azanian Times' : 'The Azania Gazette'}
                           {formatDate(article.updatedAt) ? ` · ${formatDate(article.updatedAt)}` : ''}
                         </p>
                       </div>
@@ -141,7 +141,7 @@ export default async function AccountPage() {
                         {article._status === 'published' ? (
                           <Link
                             href={articleHref(article)}
-                            className="text-[12px] font-semibold uppercase tracking-[0.14em] text-pine-700 hover:text-pine-900"
+                            className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sea-700 hover:text-sea-900"
                           >
                             View →
                           </Link>

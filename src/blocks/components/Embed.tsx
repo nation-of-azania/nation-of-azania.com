@@ -65,7 +65,7 @@ function LinkCard({ url }: { url: string }) {
 
   return (
     <a
-      className="group flex items-center justify-between gap-4 border border-parchment-300 bg-parchment-100 px-5 py-4 transition-colors hover:border-gold-400"
+      className="group flex items-center justify-between gap-4 border border-sand-300 bg-sand-100 px-5 py-4 transition-colors hover:border-saffron-400"
       href={url}
       rel="noopener noreferrer"
       target="_blank"
@@ -74,11 +74,11 @@ function LinkCard({ url }: { url: string }) {
         <span className="block text-[0.6875rem] font-semibold tracking-[0.18em] text-ink-500 uppercase">
           {hostname ?? 'External link'}
         </span>
-        <span className="mt-1 block truncate text-sm text-pine-700 underline decoration-gold-400 underline-offset-2 group-hover:decoration-gold-600">
+        <span className="mt-1 block truncate text-sm text-sea-700 underline decoration-saffron-400 underline-offset-2 group-hover:decoration-saffron-600">
           {url}
         </span>
       </span>
-      <span aria-hidden="true" className="shrink-0 font-display text-lg leading-none text-gold-600">
+      <span aria-hidden="true" className="shrink-0 font-display text-lg leading-none text-saffron-600">
         &#8599;
       </span>
     </a>
@@ -98,7 +98,7 @@ export function EmbedBlock({ url, caption }: EmbedProps) {
   return (
     <figure className="my-8">
       {video ? (
-        <div className="border border-parchment-300 bg-parchment-100 p-1">
+        <div className="border border-sand-300 bg-sand-100 p-1">
           <iframe
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen

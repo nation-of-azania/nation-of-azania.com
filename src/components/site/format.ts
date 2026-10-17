@@ -2,7 +2,7 @@ import type { Article, Media } from '@/payload-types'
 
 /**
  * Canonical public URL for an article, routed by its publication:
- *  - Condor Times pieces live at /times/[slug]
+ *  - Azanian Times pieces live at /times/[slug]
  *  - Government Gazette pieces live at /gov/articles/[slug]
  */
 export function articleHref(

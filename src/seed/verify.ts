@@ -42,19 +42,19 @@ try {
 
   // ── Users ─────────────────────────────────────────────────────────────────
   const users = await payload.find({ collection: 'users', limit: 10 })
-  check(users.totalDocs === 3, 'users: 3 accounts', `found ${users.totalDocs}`)
+  check(users.totalDocs === 4, 'users: 4 accounts', `found ${users.totalDocs}`)
   for (const role of ['admin', 'editor', 'resident'] as const) {
     check(
       users.docs.some((user) => user.role === role),
-      `users: one ${role}`,
+      `users: has ${role}`,
     )
   }
 
   // ── Categories ────────────────────────────────────────────────────────────
   const categories = await payload.find({ collection: 'categories', limit: 10 })
-  check(categories.totalDocs === 4, 'categories: 4', `found ${categories.totalDocs}`)
+  check(categories.totalDocs === 6, 'categories: 6', `found ${categories.totalDocs}`)
   check(
-    ['decrees', 'gazette', 'culture', 'public-works'].every((slug) =>
+    ['decrees', 'gazette', 'culture', 'public-works', 'markets', 'opinion'].every((slug) =>
       categories.docs.some((category) => category.slug === slug),
     ),
     'categories: slugs auto-generated',
@@ -63,7 +63,7 @@ try {
 
   // ── Media ─────────────────────────────────────────────────────────────────
   const media = await payload.find({ collection: 'media', limit: 10 })
-  check(media.totalDocs === 3, 'media: 3 documents', `found ${media.totalDocs}`)
+  check(media.totalDocs === 4, 'media: 4 documents', `found ${media.totalDocs}`)
   const glb = media.docs.find((doc) => doc.filename?.endsWith('.glb'))
   check(Boolean(glb), 'media: .glb present', glb?.filename ?? 'missing')
   check(
@@ -71,19 +71,23 @@ try {
     'media: .glb mime type acceptable',
     `mimeType = ${glb?.mimeType}`,
   )
+  const schematic = media.docs.find((doc) => doc.filename?.endsWith('.litematic'))
+  check(Boolean(schematic), 'media: .litematic present', schematic?.filename ?? 'missing')
   const images = media.docs.filter((doc) => doc.mimeType?.startsWith('image/'))
   check(images.length === 2, 'media: 2 banner images', images.map((i) => i.filename).join(', '))
 
   // ── Articles ──────────────────────────────────────────────────────────────
   // depth 0 keeps relationship values as raw ids (including inside lexical blocks).
   const articles = await payload.find({ collection: 'articles', limit: 20, depth: 0 })
-  check(articles.totalDocs === 5, 'articles: 5 total', `found ${articles.totalDocs}`)
+  check(articles.totalDocs === 9, 'articles: 9 total', `found ${articles.totalDocs}`)
   const published = articles.docs.filter((doc) => doc._status === 'published')
   const drafts = articles.docs.filter((doc) => doc._status === 'draft')
-  check(published.length === 4, 'articles: 4 published', `found ${published.length}`)
+  check(published.length === 8, 'articles: 8 published', `found ${published.length}`)
+  const times = articles.docs.filter((doc) => doc.section === 'times')
+  check(times.length === 4, 'articles: 4 in the Azanian Times', `found ${times.length}`)
   check(drafts.length === 1, 'articles: 1 draft', drafts.map((d) => d.slug).join(', '))
 
-  const charter = articles.docs.find((doc) => doc.slug === 'the-charter-of-condoria')
+  const charter = articles.docs.find((doc) => doc.slug === 'the-charter-of-azania')
   check(Boolean(charter), 'charter: exists (slug auto-generated from title)')
   check(charter?.pinned === true, 'charter: pinned')
   check(charter?._status === 'published', 'charter: published')
@@ -93,12 +97,12 @@ try {
     charter?.publishedAt ?? 'missing',
   )
 
-  const monumentArticle = articles.docs.find(
-    (doc) => doc.slug === 'the-national-monument-restored',
+  const lighthouseArticle = articles.docs.find(
+    (doc) => doc.slug === 'the-lighthouse-on-founders-point-relit',
   )
-  check(Boolean(monumentArticle), 'monument article: exists')
-  const model3dBlocks = findBlocks(monumentArticle?.content ?? null, 'model3d')
-  check(model3dBlocks.length === 1, 'monument article: one model3d block node')
+  check(Boolean(lighthouseArticle), 'lighthouse article: exists')
+  const model3dBlocks = findBlocks(lighthouseArticle?.content ?? null, 'model3d')
+  check(model3dBlocks.length === 1, 'lighthouse article: one model3d block node')
   const modelId = model3dBlocks[0]?.model
   check(
     typeof modelId === 'number',
@@ -114,8 +118,8 @@ try {
 
   const draft = drafts[0]
   check(
-    draft?.slug === 'proposal-lantern-festival-on-the-south-quay',
-    'draft: lantern festival proposal',
+    draft?.slug === 'proposal-a-regatta-on-the-old-harbour',
+    'draft: regatta proposal',
     draft?.slug ?? 'missing',
   )
   const draftAuthor = typeof draft?.author === 'object' ? draft?.author?.id : draft?.author
@@ -124,7 +128,8 @@ try {
 
   // Block coverage across all articles (every block type should be exercised).
   const allContent = articles.docs.map((doc) => doc.content ?? null)
-  for (const blockType of ['callout', 'quote', 'image', 'gallery', 'embed', 'model3d']) {
+  const blockTypes = ['callout', 'quote', 'image', 'gallery', 'embed', 'discord', 'model3d', 'litematic']
+  for (const blockType of blockTypes) {
     const count = allContent.flatMap((content) => findBlocks(content, blockType)).length
     check(count > 0, `blocks: '${blockType}' used in seed content`, `${count} instance(s)`)
   }

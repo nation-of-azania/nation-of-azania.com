@@ -150,7 +150,7 @@ const RULES: Rule[] = [
   },
   {
     // Bare URLs. The final character class keeps sentence punctuation
-    // ("see https://condoria.org.") out of the href.
+    // ("see https://nation-of-azania.com.") out of the href.
     name: 'autolink',
     pattern: /https?:\/\/[^\s<>"']*[^\s<>"'.,!?;:)\]]/g,
     content: (m) => m[0],

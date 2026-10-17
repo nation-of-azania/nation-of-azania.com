@@ -43,13 +43,13 @@ const CASES: Array<{ expect: RegExp[]; name: string; reject?: RegExp[]; source: 
   },
   {
     name: 'autolink drops the sentence full stop',
-    source: 'see https://condoria.org/gov/about. Thanks',
-    expect: [/href="https:\/\/condoria\.org\/gov\/about"/, /<\/a>\. Thanks/],
+    source: 'see https://nation-of-azania.com/gov/about. Thanks',
+    expect: [/href="https:\/\/nation-of-azania\.com\/gov\/about"/, /<\/a>\. Thanks/],
   },
   {
     name: 'markdown link',
-    source: '[the register](https://condoria.org/gov) has it',
-    expect: [/<a class="[^"]*" href="https:\/\/condoria\.org\/gov"[^>]*>the register<\/a>/],
+    source: '[the register](https://nation-of-azania.com/gov) has it',
+    expect: [/<a class="[^"]*" href="https:\/\/nation-of-azania\.com\/gov"[^>]*>the register<\/a>/],
   },
   {
     name: 'javascript: urls are not linkified',

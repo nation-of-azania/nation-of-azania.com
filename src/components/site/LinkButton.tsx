@@ -2,13 +2,13 @@ import Link from 'next/link'
 import type { ComponentProps } from 'react'
 
 const VARIANTS = {
-  /** Solid pine — the main call to action on parchment. */
-  primary: 'bg-pine-800 text-parchment-50 hover:bg-pine-700',
-  /** Hairline outline — the quieter companion action on parchment. */
+  /** Solid sea — the main call to action on sand. */
+  primary: 'bg-sea-800 text-sand-50 hover:bg-sea-700',
+  /** Hairline outline — the quieter companion action on sand. */
   outline:
-    'border border-pine-700/40 text-pine-800 hover:border-pine-700 hover:bg-pine-100/60',
-  /** Gold outline — for use on pine-900/950 bands. */
-  gold: 'border border-gold-400/60 text-gold-200 hover:border-gold-300 hover:text-gold-100',
+    'border border-sea-700/40 text-sea-800 hover:border-sea-700 hover:bg-sea-100/60',
+  /** Saffron outline — for use on sea-900/950 bands. */
+  gold: 'border border-saffron-400/60 text-saffron-200 hover:border-saffron-300 hover:text-saffron-100',
 } as const
 
 type LinkButtonProps = ComponentProps<typeof Link> & {

@@ -6,7 +6,7 @@ import type { Article } from '@/payload-types'
 import { articleHref, formatDate, resolveImage } from '@/components/site/format'
 
 /**
- * A Condor Times story card for the front-page grid: image, maroon kicker,
+ * An Azanian Times story card for the front-page grid: image, cinnabar kicker,
  * Archivo headline, dek and byline. The whole card is clickable via a
  * stretched title link.
  */
@@ -32,10 +32,10 @@ export function TimesCard({ article }: { article: Article }) {
           />
         </div>
       ) : (
-        <div className="aspect-[3/2] w-full bg-maroon-800/[0.06]" />
+        <div className="aspect-[3/2] w-full bg-cinnabar-800/[0.06]" />
       )}
       <div className="mt-3.5 flex flex-1 flex-col">
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-maroon-700">
+        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-cinnabar-700">
           {category ? <span>{category.name}</span> : null}
           {category && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
           {date ? (
@@ -47,7 +47,7 @@ export function TimesCard({ article }: { article: Article }) {
         <h3 className="mt-1.5 font-news text-xl font-bold leading-tight text-news-900">
           <Link
             href={articleHref(article)}
-            className="transition-colors after:absolute after:inset-0 group-hover:text-maroon-800"
+            className="transition-colors after:absolute after:inset-0 group-hover:text-cinnabar-800"
           >
             {article.title}
           </Link>

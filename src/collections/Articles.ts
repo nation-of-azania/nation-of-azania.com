@@ -66,7 +66,7 @@ export const Articles: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'section', 'author', 'category', '_status', 'publishedAt'],
     group: 'Content',
-    description: 'News, decrees and documents of the Nation of Condoria.',
+    description: 'News, decrees and documents of the Nation of Azania.',
   },
   access: {
     read: canReadPublishedOrOwn,
@@ -114,12 +114,12 @@ export const Articles: CollectionConfig = {
       defaultValue: 'government',
       options: [
         { label: 'Government Gazette', value: 'government' },
-        { label: 'Condor Times', value: 'times' },
+        { label: 'Azanian Times', value: 'times' },
       ],
       admin: {
         position: 'sidebar',
         description:
-          'Which publication carries this article: the state Gazette (/gov) or the independent Condor Times (/times).',
+          'Which publication carries this article: the state Gazette (/gov) or the independent Azanian Times (/times).',
       },
     },
     {

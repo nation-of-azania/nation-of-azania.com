@@ -36,7 +36,7 @@ export function GalleryBlock({ items, columns }: GalleryProps) {
     >
       {plates.map((plate) => (
         <figure className="min-w-0" key={plate.key}>
-          <div className="relative aspect-[4/3] overflow-hidden border border-parchment-300 bg-parchment-100">
+          <div className="relative aspect-[4/3] overflow-hidden border border-sand-300 bg-sand-100">
             <NextImage
               alt={plate.image.alt}
               className="object-cover"

@@ -14,7 +14,7 @@ import { cn } from '@/blocks/components/shared'
  */
 
 const FIELD =
-  'w-full border border-parchment-300 bg-parchment-50 px-3.5 py-2.5 text-ink-900 placeholder:text-ink-400 focus:border-gold-400 focus:outline-none'
+  'w-full border border-sand-300 bg-sand-50 px-3.5 py-2.5 text-ink-900 placeholder:text-ink-400 focus:border-saffron-400 focus:outline-none'
 const LABEL = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500'
 
 /** Only follow a `?next=` that is a same-site absolute path (no open redirects). */
@@ -61,7 +61,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
       {error ? (
-        <p role="alert" className="border border-oxide-600/40 bg-oxide-600/5 px-3.5 py-2.5 text-sm text-oxide-700">
+        <p role="alert" className="border border-coral-600/40 bg-coral-600/5 px-3.5 py-2.5 text-sm text-coral-700">
           {error}
         </p>
       ) : null}
@@ -100,7 +100,7 @@ export function LoginForm() {
         type="submit"
         disabled={pending}
         className={cn(
-          'mt-1 inline-flex w-full items-center justify-center bg-pine-800 px-5 py-2.5 text-sm font-semibold tracking-wide text-parchment-50 transition-colors hover:bg-pine-700',
+          'mt-1 inline-flex w-full items-center justify-center bg-sea-800 px-5 py-2.5 text-sm font-semibold tracking-wide text-sand-50 transition-colors hover:bg-sea-700',
           pending && 'cursor-not-allowed opacity-70',
         )}
       >

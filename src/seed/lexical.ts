@@ -117,6 +117,13 @@ export const galleryItem = (image: number, caption?: string) => ({
   ...(caption ? { caption } : {}),
 })
 
+/** A Discord block `messages` row: `{ id, author, …fields }`. */
+export const discordMessage = (author: string, fields: Record<string, unknown>) => ({
+  id: hexId(),
+  author,
+  ...fields,
+})
+
 /** Wrap content nodes into a full editor state for a richText field. */
 export const root = (...children: ContentNode[]): LexicalEditorState =>
   ({
