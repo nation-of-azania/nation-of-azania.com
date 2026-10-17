@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
+import { draftMode } from 'next/headers'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
 import { DoubleRule } from '@/components/site/SectionHeading'
 import { getAllPageSlugs, getPageBySlug } from '@/lib/queries'
@@ -20,18 +22,21 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const page = await getPageBySlug(slug)
+  const { isEnabled: draft } = await draftMode()
+  const page = await getPageBySlug(slug, { draft })
   if (!page) return { title: 'Record not found' }
   return { title: page.title }
 }
 
 export default async function StandingPage({ params }: Props) {
   const { slug } = await params
-  const page = await getPageBySlug(slug)
+  const { isEnabled: draft } = await draftMode()
+  const page = await getPageBySlug(slug, { draft })
   if (!page) notFound()
 
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+      {draft ? <PreviewTools /> : null}
       <header>
         <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">
           The Nation of Azania

@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
-import { articleHref, formatDate, resolveImage } from '@/components/site/format'
+import { articleHref, formatDate, resolveByline, resolveImage } from '@/components/site/format'
 import { getLatestArticles } from '@/lib/queries'
 
 export const revalidate = 120
@@ -35,7 +36,7 @@ export default async function TimesFrontPage() {
 
   const leadCategory =
     lead.category && typeof lead.category === 'object' ? lead.category : null
-  const leadAuthor = lead.author && typeof lead.author === 'object' ? lead.author : null
+  const leadByline = resolveByline(lead)
   const leadImage = resolveImage(lead.featuredImage, 'hero')
   const leadDateTime = lead.publishedAt ?? lead.createdAt
   const leadDate = formatDate(leadDateTime)
@@ -66,10 +67,8 @@ export default async function TimesFrontPage() {
           {lead.excerpt ? (
             <p className="mt-4 text-lg leading-relaxed text-news-700">{lead.excerpt}</p>
           ) : null}
-          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            {leadAuthor ? (
-              <span className="uppercase tracking-wider text-news-500">By {leadAuthor.name}</span>
-            ) : null}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-sm">
+            {leadByline ? <TimesByline byline={leadByline} /> : null}
             <Link
               href={leadHref}
               className="font-semibold text-cinnabar-700 transition-colors hover:text-cinnabar-800"

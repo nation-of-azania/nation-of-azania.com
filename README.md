@@ -17,7 +17,7 @@ Tailwind CSS v4. Local development runs on SQLite. Production runs on Postgres
 itself**.
 
 - [Quick start (local)](#quick-start-local)
-- [Roles and permissions](#roles-and-permissions)
+- [Access levels and byline profiles](#access-levels-and-byline-profiles)
 - [Content model](#content-model)
 - [Database adapters and migrations](#database-adapters-and-migrations)
 - [Deploying: push to main](#deploying-push-to-main)
@@ -56,15 +56,15 @@ Then visit:
   `SEED_ADMIN_PASSWORD` from your `.env`, or `azania-dev-2026` if no `.env`
   sets it.
 
-The seed also creates **demo accounts** so you can try every role right away.
-They exist only in your local database. Production never gets them (see
-[First deploy](#first-deploy)).
+The seed also creates **demo accounts** so you can try every access level
+right away. They exist only in your local database. Production never gets them
+(see [First deploy](#first-deploy)). Their people are fictional.
 
-| Username   | Role     | Password               | Byline                 |
-| ---------- | -------- | ---------------------- | ---------------------- |
-| `keeper`   | editor   | `azania-editor-2026`   | Keeper of the Light    |
-| `marlo`    | editor   | `azania-times-2026`    | Marlo Tidewell (Times) |
-| `resident` | resident | `azania-resident-2026` | A Resident of Azania   |
+| Username   | Access level | Password               | Writes as                              |
+| ---------- | ------------ | ---------------------- | -------------------------------------- |
+| `keeper`   | Can publish  | `azania-editor-2026`   | Ione Harrow, Keeper of the Light       |
+| `marlo`    | Can publish  | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
+| `resident` | Drafts only  | `azania-resident-2026` | A Resident of Azania (no profile)      |
 
 Usernames are case-insensitive: Payload stores them lowercased, so `IPaaat`
 and `ipaaat` are the same account.
@@ -82,7 +82,9 @@ one in the panel (Users → edit → New Password).
 
 `pnpm seed` creates a demo nation with placeholder lore: a coastal trading
 nation with a harbour capital, Port Azania, and a lighthouse on Founders'
-Point. It includes four accounts, six categories, four media items (two
+Point. It includes four accounts, six byline profiles (IPaaat as Co-Leader in
+the Gazette and Editor-in-Chief of the Times, a shared "Luixiter, Chancellor"
+and "The Editors", and the demo staff), six categories, four media items (two
 generated banner images, the Lighthouse `.glb` and a Litematica build), the
 About page, and nine articles that exercise every content block:
 
@@ -104,13 +106,17 @@ check of the seeded content:
 pnpm payload run src/seed/verify.ts
 ```
 
-## Roles and permissions
+## Access levels and byline profiles
 
-| Role         | Can                                                                                          |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| **resident** | Sign in to the resident area and see their own articles. Access control lets them write **drafts of their own articles** but never publish, and never add the 3D model or Litematica blocks. |
-| **editor**   | Create, edit and publish any article or page; manage categories and media; use every block. |
-| **admin**    | Everything an editor can, plus manage users and assign roles.                                |
+Two separate things describe a person here. Their **access level** is what
+they may do in the CMS; their **byline profiles** are how they're credited
+in Azania's publications (see [Bylines](#bylines-and-profiles)).
+
+| Access level (stored value) | Can                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| **Drafts only** (`resident`) | Sign in to the resident area and see their own articles. Access control lets them write **drafts of their own articles** but never publish, and never add the 3D model or Litematica blocks. |
+| **Can publish** (`editor`)  | Create, edit and publish any article or page; manage categories, media and every profile; use every block. |
+| **Admin** (`admin`)         | Everything above, plus manage accounts and assign access levels.            |
 
 Residents are kept out of `/admin` and sent to their branded register at
 `/account` (`src/middleware.ts` handles the redirect; `Users.access.admin`
@@ -122,8 +128,8 @@ Enforcement happens on the server, twice. Collection and field **access
 control** (`src/access/index.ts`) restricts reads, writes and specific fields
 (for example, only editors and admins can set `pinned` or reassign `author`).
 **Hooks** on the Articles collection (`src/collections/Articles.ts`) reject a
-resident's attempt to publish, or to slip an exhibit block into the content,
-however the request arrives.
+resident's attempt to publish, to slip an exhibit block into the content, or
+to sign an article with someone else's profile, however the request arrives.
 
 ## Content model
 
@@ -139,9 +145,49 @@ Collections (`src/collections/`):
 - **Media**: uploads with required alt text. Images get `thumbnail`, `card`
   and `hero` renditions. It also accepts audio, `.glb` 3D models and
   `.litematic` schematics.
+- **Profiles**: byline profiles, one per role a person writes in. See
+  [Bylines and profiles](#bylines-and-profiles).
 - **Categories**: a name plus an auto-generated slug.
-- **Users**: name, username and role (`resident | editor | admin`). No email;
-  see [No email, anywhere](#no-email-anywhere).
+- **Users**: accounts. Display name, username, Minecraft name and access
+  level (`resident | editor | admin`, shown as Drafts only / Can publish /
+  Admin). No email; see [No email, anywhere](#no-email-anywhere).
+
+### Bylines and profiles
+
+An article is credited through its **byline**, a profile with a **name** and a
+**role** in one publication, e.g. "IPaaat, Co-Leader" in the Gazette and
+"IPaaat, Editor-in-Chief" in the Times. One account can hold any number of
+profiles. The avatar is the player's **Minecraft head**, looked up from the
+profile's Minecraft name (mc-heads.net, through Vercel's image proxy), unless
+an image is uploaded instead.
+
+- **Everyone manages their own** profiles under Content → Profiles; editors
+  and admins can manage all of them. Name and Minecraft name default to the
+  owner's.
+- **Shared profiles** have no owner: "The Editors", or someone who has no
+  account yet. Editors and admins can sign articles with them.
+- **The byline must fit:** one of the author's profiles (or, for staff, a
+  shared one) for the article's publication. A new article gets the author's
+  first matching profile, and changing the author switches it to theirs.
+  Without any profile, the byline falls back to the author's display name.
+- **When a role ends**, switch its profile off (*Active*) instead of renaming
+  it: past articles keep the title they were written under, and new articles
+  can no longer choose it.
+
+### Live preview
+
+The article and page editors have a **Live Preview** button (the eye icon
+beside *Publish changes*): it opens the real Gazette or Times page beside the
+form, with phone, tablet and desktop widths, refreshed after every save.
+Autosave runs every 1.5 seconds, so it follows your typing closely. The
+**Preview** button next to it opens the same draft in a new tab.
+
+It works through Next.js draft mode: `/preview` (`src/app/(frontend)/preview`)
+checks that you're signed in as an editor or admin, turns draft mode on for
+your browser only, and the article and page routes then render the latest
+draft (`src/lib/preview.ts`, `src/components/PreviewTools.tsx`). Outside the
+admin a bar marks the page as a draft preview, with *Exit preview* to return
+to the published version. Visitors never see drafts.
 
 Article and page content is a Lexical rich-text field with eight custom blocks
 (schema in `src/blocks/config.ts`, renderers in `src/blocks/components/`):
@@ -299,7 +345,9 @@ bootstrap sees that accounts exist and does nothing, so you can delete
 `https://nation-of-azania.vercel.app/admin`.
 
 Then create the other accounts in the admin panel (Users → Create New), for
-example the Chancellor's, and start writing.
+example the Chancellor's. Each person adds their byline profiles under
+Content → Profiles (a role per publication they write in), and you can start
+writing.
 
 ### Custom domain, rollbacks and production commands
 
@@ -445,20 +493,20 @@ import map. Without that handler, the production admin panel renders blank.
 ```
 src/
 ├─ app/
-│  ├─ (frontend)/       # public site: / → /gov, /gov (Gazette), /times (Times), /login, /account
+│  ├─ (frontend)/       # public site: / → /gov, /gov (Gazette), /times (Times), /login, /account, /preview
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
 ├─ access/              # role helpers shared by all collections
 ├─ blocks/
 │  ├─ config.ts         # the eight content-block schemas (single source of truth)
 │  └─ components/       # React renderers for each block (Model3D/ and Litematic/ are client-only)
-├─ collections/         # Articles, Pages, Media, Categories, Users
+├─ collections/         # Articles, Pages, Profiles, Media, Categories, Users
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
 │  ├─ site/             # Gazette chrome (header, footer, crest, cards, …)
 │  ├─ times/            # Times chrome (masthead, footer, story cards)
 │  └─ members/          # resident area (login form, header)
-├─ fields/slug.ts       # shared auto-generated slug field
-├─ lib/                 # typed, published-only data helpers; Litematica parser
+├─ fields/              # shared fields: auto-generated slug, Minecraft name
+├─ lib/                 # published-only data helpers, live preview config, Litematica parser
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)
 ├─ middleware.ts        # keeps residents out of /admin

@@ -1,12 +1,13 @@
 import type { CollectionConfig } from 'payload'
 
 import { hasRole, isAdmin, isAdminField } from '../access'
+import { minecraftNameField } from '../fields/minecraftName'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'username', 'role'],
+    defaultColumns: ['name', 'username', 'minecraftName', 'role'],
     group: 'Administration',
   },
   // Pure username/password auth. The nation owns no mail domain and no email
@@ -41,16 +42,25 @@ export const Users: CollectionConfig = {
     {
       name: 'name',
       type: 'text',
+      label: 'Display name',
       required: true,
+      admin: {
+        description: 'Shown in the admin panel, and as the byline of articles without a byline profile.',
+      },
     },
+    minecraftNameField('Used as the default name and head on this person’s byline profiles.'),
     {
+      // Permissions only. In-world roles ("Co-Leader", "Editor-in-Chief") live
+      // on byline profiles (src/collections/Profiles.ts). The stored values
+      // keep their original names; only the labels describe what they allow.
       name: 'role',
       type: 'select',
+      label: 'Access level',
       required: true,
       defaultValue: 'resident',
       options: [
-        { label: 'Resident', value: 'resident' },
-        { label: 'Editor', value: 'editor' },
+        { label: 'Drafts only', value: 'resident' },
+        { label: 'Can publish', value: 'editor' },
         { label: 'Admin', value: 'admin' },
       ],
       access: {
@@ -61,7 +71,7 @@ export const Users: CollectionConfig = {
       saveToJWT: true,
       admin: {
         description:
-          'Residents write drafts of their own articles. Editors publish anything. Admins manage users.',
+          'Drafts only: write drafts of their own articles. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.',
       },
     },
   ],

@@ -23,6 +23,7 @@ import {
   ensureCategory,
   ensureMedia,
   ensurePage,
+  ensureProfile,
   ensureUser,
   log,
   seedStats,
@@ -55,11 +56,11 @@ const assetsDir = path.resolve(here, 'assets')
 const DEFAULT_ADMIN_USERNAME = 'IPaaat'
 const DEFAULT_ADMIN_PASSWORD = 'azania-dev-2026'
 
-/** Demo accounts (documented in the README — dev only). */
+/** Demo accounts (documented in the README — dev only). Their people are fictional. */
 const EDITOR = {
   username: 'keeper',
   password: 'azania-editor-2026',
-  name: 'Keeper of the Light',
+  name: 'Ione Harrow',
 } as const
 const RESIDENT = {
   username: 'resident',
@@ -92,7 +93,8 @@ async function seed(payload: Payload): Promise<void> {
 
   // ── 1. Users ──────────────────────────────────────────────────────────────
   const admin = await ensureUser(payload, {
-    name: 'Co-Leader of Azania',
+    name: adminUsername,
+    minecraftName: adminUsername,
     username: adminUsername,
     password: adminPassword,
     role: 'admin',
@@ -100,6 +102,46 @@ async function seed(payload: Payload): Promise<void> {
   const editor = await ensureUser(payload, { ...EDITOR, role: 'editor' })
   const resident = await ensureUser(payload, { ...RESIDENT, role: 'resident' })
   const timesEditor = await ensureUser(payload, { ...TIMES_CORRESPONDENT, role: 'editor' })
+
+  // ── 1b. Byline profiles ───────────────────────────────────────────────────
+  // One person, several hats: the admin is Co-Leader in the Gazette and
+  // Editor-in-Chief of the Times. Profiles without an owner are shared bylines.
+  // Real players get their Minecraft head; the fictional demo staff don't.
+  await ensureProfile(payload, {
+    name: adminUsername,
+    title: 'Co-Leader',
+    publication: 'government',
+    owner: admin.id,
+  })
+  await ensureProfile(payload, {
+    name: adminUsername,
+    title: 'Editor-in-Chief',
+    publication: 'times',
+    owner: admin.id,
+  })
+  const chancellor = await ensureProfile(payload, {
+    name: 'Luixiter',
+    title: 'Chancellor',
+    publication: 'government',
+    minecraftName: 'Luixiter',
+  })
+  await ensureProfile(payload, {
+    name: EDITOR.name,
+    title: 'Keeper of the Light',
+    publication: 'government',
+    owner: editor.id,
+  })
+  await ensureProfile(payload, {
+    name: TIMES_CORRESPONDENT.name,
+    title: 'Harbour Correspondent',
+    publication: 'times',
+    owner: timesEditor.id,
+  })
+  const editors = await ensureProfile(payload, {
+    name: 'The Editors',
+    title: 'The Azanian Times',
+    publication: 'times',
+  })
 
   // ── 2. Categories ─────────────────────────────────────────────────────────
   const categories: Record<string, number> = {}
@@ -122,7 +164,11 @@ async function seed(payload: Payload): Promise<void> {
 
   log('generating banner images with sharp…')
   const banners = await generateBannerImages(assetsDir)
-  const dawnBanner = await ensureMedia(payload, banners.foundingDay.alt, banners.foundingDay.filePath)
+  const dawnBanner = await ensureMedia(
+    payload,
+    banners.foundingDay.alt,
+    banners.foundingDay.filePath,
+  )
   const harbourBanner = await ensureMedia(payload, banners.harbour.alt, banners.harbour.filePath)
 
   // ── 4. Articles ───────────────────────────────────────────────────────────
@@ -132,6 +178,7 @@ async function seed(payload: Payload): Promise<void> {
       excerpt: excerpts.charter,
       content: charterContent(),
       author: admin.id,
+      byline: chancellor.id,
       category: categories['Decrees'],
       pinned: true,
       publishedAt: '2025-11-01T09:00:00.000Z',
@@ -224,7 +271,7 @@ async function seed(payload: Payload): Promise<void> {
       excerpt: excerpts.spicePrices,
       content: spicePricesContent(dawnBanner.id),
       section: 'times',
-      author: timesEditor.id,
+      author: admin.id,
       category: categories['Markets'],
       featuredImage: dawnBanner.id,
       publishedAt: '2026-07-06T08:00:00.000Z',
@@ -238,7 +285,8 @@ async function seed(payload: Payload): Promise<void> {
       excerpt: excerpts.ledgersOpEd,
       content: ledgersOpEdContent(),
       section: 'times',
-      author: timesEditor.id,
+      author: admin.id,
+      byline: editors.id,
       category: categories['Opinion'],
       publishedAt: '2026-07-03T18:00:00.000Z',
       _status: 'published',
@@ -264,7 +312,7 @@ async function seed(payload: Payload): Promise<void> {
 [seed]
 [seed] Sign in:  ${serverURL}/admin
 [seed]   username: ${adminUsername}  (password: your SEED_ADMIN_PASSWORD)
-[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (editors), ${RESIDENT.username} (resident)
+[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (can publish), ${RESIDENT.username} (drafts only)
 [seed]
 [seed] Visit:    ${serverURL}/gov          — the Azania Gazette
 [seed]           ${serverURL}/times        — the Azanian Times (independent press)
@@ -279,6 +327,8 @@ try {
   process.exit(0)
 } catch (error) {
   console.error('[seed] FAILED:', error)
-  console.error('[seed] The seed is convergent — fix the cause and re-run; completed entries are kept.')
+  console.error(
+    '[seed] The seed is convergent — fix the cause and re-run; completed entries are kept.',
+  )
   process.exit(1)
 }

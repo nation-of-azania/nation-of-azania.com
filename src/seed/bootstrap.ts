@@ -40,6 +40,8 @@ export async function bootstrapProduction(payload: Payload): Promise<void> {
     content: aboutContent(),
     _status: 'published',
   })
-  await ensureUser(payload, { name: 'Co-Leader of Azania', username, password, role: 'admin' })
+  // The seed username doubles as the admin's Minecraft name (it keeps its case
+  // there; the login itself is stored lowercased).
+  await ensureUser(payload, { name: username, minecraftName: username, username, password, role: 'admin' })
   log(`Bootstrap complete. Sign in at /admin as "${username.toLowerCase()}".`)
 }

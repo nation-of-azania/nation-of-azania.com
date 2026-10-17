@@ -62,3 +62,60 @@ export function resolveImage(
   if (!url || !width || !height) return null
   return { url, width, height, alt: media.alt ?? '' }
 }
+
+/**
+ * A player's head (helmet layer included) from the public skin service, used
+ * as the default byline avatar. next/image fetches it through Vercel's image
+ * proxy (see images.remotePatterns in next.config.ts). Render it with
+ * `image-rendering: pixelated` so the 8×8 skin stays crisp.
+ */
+export function minecraftHeadUrl(minecraftName: string, size = 64): string {
+  return `https://mc-heads.net/avatar/${encodeURIComponent(minecraftName)}/${size}`
+}
+
+/**
+ * The monogram shown in place of a missing avatar: the initials of the first
+ * and last significant words, so "Ione Harrow" gives "IH", "The Editors" "E"
+ * and a lone Minecraft name its first letter.
+ */
+export function bylineInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((w) => !/^(the|a|an|of)$/i.test(w))
+  const letters = (words.length > 1 ? [words[0], words[words.length - 1]] : words)
+    .map((w) => w.match(/[\p{L}\p{N}]/u)?.[0] ?? '')
+    .join('')
+  return (letters || name.trim().charAt(0) || '·').toLocaleUpperCase()
+}
+
+export type ResolvedByline = {
+  /** e.g. "IPaaat" */
+  name: string
+  /** e.g. "Co-Leader"; absent when the article has no byline profile */
+  title?: string
+  /** an uploaded avatar, or the player's head (pixel art) */
+  avatar?: { url: string; alt: string; pixelated: boolean }
+}
+
+/**
+ * How an article is credited: its byline profile (name, role, avatar — an
+ * upload, else the Minecraft head), falling back to the author's display name
+ * and head for articles without one. Null when neither is populated.
+ */
+export function resolveByline(article: Pick<Article, 'author' | 'byline'>): ResolvedByline | null {
+  const profile = article.byline && typeof article.byline === 'object' ? article.byline : null
+  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const name = profile?.name ?? author?.name
+  if (!name) return null
+
+  const upload = resolveImage(profile?.avatar, 'thumbnail')
+  const minecraftName = profile ? profile.minecraftName : author?.minecraftName
+  const avatar = upload
+    ? { url: upload.url, alt: upload.alt, pixelated: false }
+    : minecraftName
+      ? { url: minecraftHeadUrl(minecraftName), alt: '', pixelated: true }
+      : undefined
+
+  return { name, title: profile?.title ?? undefined, avatar }
+}

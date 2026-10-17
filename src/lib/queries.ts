@@ -7,6 +7,9 @@ import type { Article, Page } from '@/payload-types'
  * Read-side data access for the public frontend. Every helper returns only
  * PUBLISHED content and swallows database errors (returning empty results) so
  * that `next build` succeeds even before the database has been initialized.
+ * The one exception is `{ draft: true }` on the slug lookups, which returns
+ * the latest draft: pages pass it only in Next.js draft mode, which the
+ * /preview route enables for signed-in staff (live preview in the admin).
  *
  * Articles belong to one of two publications, selected by `section`:
  *  - 'government' — the state Gazette, served under /gov
@@ -83,12 +86,19 @@ export async function getArticlesPage(
   }
 }
 
-export async function getArticleBySlug(section: Section, slug: string): Promise<Article | null> {
+export async function getArticleBySlug(
+  section: Section,
+  slug: string,
+  { draft = false }: { draft?: boolean } = {},
+): Promise<Article | null> {
   try {
     const payload = await getClient()
     const result = await payload.find({
       collection: 'articles',
-      where: { and: [PUBLISHED, inSection(section), { slug: { equals: slug } }] },
+      where: {
+        and: [...(draft ? [] : [PUBLISHED]), inSection(section), { slug: { equals: slug } }],
+      },
+      draft,
       limit: 1,
       depth: 2,
     })
@@ -113,12 +123,16 @@ export async function getAllArticleSlugs(section: Section): Promise<string[]> {
   }
 }
 
-export async function getPageBySlug(slug: string): Promise<Page | null> {
+export async function getPageBySlug(
+  slug: string,
+  { draft = false }: { draft?: boolean } = {},
+): Promise<Page | null> {
   try {
     const payload = await getClient()
     const result = await payload.find({
       collection: 'pages',
-      where: { and: [PUBLISHED, { slug: { equals: slug } }] },
+      where: { and: [...(draft ? [] : [PUBLISHED]), { slug: { equals: slug } }] },
+      draft,
       limit: 1,
       depth: 2,
     })

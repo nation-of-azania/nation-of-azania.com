@@ -3,7 +3,9 @@ import Link from 'next/link'
 
 import type { Article } from '@/payload-types'
 
-import { articleHref, formatDate, resolveImage } from '@/components/site/format'
+import { articleHref, formatDate, resolveByline, resolveImage } from '@/components/site/format'
+
+import { TimesCredit } from './TimesByline'
 
 /**
  * An Azanian Times story card for the front-page grid: image, cinnabar kicker,
@@ -14,7 +16,7 @@ export function TimesCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
   const category =
     article.category && typeof article.category === 'object' ? article.category : null
-  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const byline = resolveByline(article)
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
 
@@ -57,11 +59,7 @@ export function TimesCard({ article }: { article: Article }) {
             {article.excerpt}
           </p>
         ) : null}
-        {author ? (
-          <p className="mt-auto pt-3.5 text-xs uppercase tracking-wider text-news-500">
-            By {author.name}
-          </p>
-        ) : null}
+        {byline ? <TimesCredit byline={byline} className="mt-auto pt-4" /> : null}
       </div>
     </article>
   )

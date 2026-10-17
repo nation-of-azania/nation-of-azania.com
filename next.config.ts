@@ -8,6 +8,8 @@ const dirname = path.dirname(__filename)
 
 const nextConfig: NextConfig = {
   images: {
+    // 100 serves Minecraft heads losslessly (BylineAvatar); 75 is the default.
+    qualities: [75, 100],
     localPatterns: [
       {
         pathname: '/api/media/file/**',
@@ -18,6 +20,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
+      },
+      // Minecraft player heads, the default byline avatars
+      {
+        protocol: 'https',
+        hostname: 'mc-heads.net',
+        pathname: '/avatar/**',
       },
     ],
   },

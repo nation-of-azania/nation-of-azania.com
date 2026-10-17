@@ -134,3 +134,11 @@
     color: var(--color-ink-900);
   }
 }
+
+/*
+ * Byline avatars. A Minecraft head is 8×8 skin pixels; nearest-neighbour
+ * scaling keeps it crisp where smoothing would turn it to mush.
+ */
+@utility pixelated {
+  image-rendering: pixelated;
+}

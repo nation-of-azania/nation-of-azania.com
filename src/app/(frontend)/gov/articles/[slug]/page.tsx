@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
+import { draftMode } from 'next/headers'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
+import { GazetteByline, GazetteSignature } from '@/components/site/GazetteByline'
 import { DoubleRule } from '@/components/site/SectionHeading'
-import { formatDate, resolveImage } from '@/components/site/format'
+import { formatDate, resolveByline, resolveImage } from '@/components/site/format'
 import { getAllArticleSlugs, getArticleBySlug } from '@/lib/queries'
 
 export const revalidate = 120
@@ -22,7 +25,8 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await getArticleBySlug('government', slug)
+  const { isEnabled: draft } = await draftMode()
+  const article = await getArticleBySlug('government', slug, { draft })
   if (!article) return { title: 'Record not found' }
   return {
     title: article.title,
@@ -32,18 +36,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GovArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await getArticleBySlug('government', slug)
+  const { isEnabled: draft } = await draftMode()
+  const article = await getArticleBySlug('government', slug, { draft })
   if (!article) notFound()
 
   const category =
     article.category && typeof article.category === 'object' ? article.category : null
-  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const byline = resolveByline(article)
   const hero = resolveImage(article.featuredImage, 'hero')
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
 
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+      {draft ? <PreviewTools /> : null}
       <header>
         <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
           {category ? (
@@ -62,16 +68,16 @@ export default async function GovArticlePage({ params }: Props) {
             {article.excerpt}
           </p>
         ) : null}
-        {author || article.pinned ? (
-          <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-500">
-            {author ? <span>By {author.name}</span> : null}
+        {byline || article.pinned ? (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            {byline ? <GazetteByline byline={byline} /> : null}
             {article.pinned ? (
               <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-coral-700">
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-coral-600" />
                 Pinned document
               </span>
             ) : null}
-          </p>
+          </div>
         ) : null}
         <DoubleRule className="mt-7" />
       </header>
@@ -96,6 +102,10 @@ export default async function GovArticlePage({ params }: Props) {
       ) : null}
 
       <RichText data={article.content} className="mt-10" />
+
+      {byline && article.pinned ? (
+        <GazetteSignature byline={byline} dateTime={dateTime} date={date} className="mt-12" />
+      ) : null}
 
       <footer className="mt-14 border-t border-sand-300 pt-6">
         <Link

@@ -4,7 +4,8 @@ import Link from 'next/link'
 import type { Article } from '@/payload-types'
 
 import { Crest } from './Crest'
-import { articleHref, formatDate, resolveImage } from './format'
+import { GazetteCredit } from './GazetteByline'
+import { articleHref, formatDate, resolveByline, resolveImage } from './format'
 
 /**
  * The standard gazette card, shared by the homepage and the article index.
@@ -15,7 +16,7 @@ export function ArticleCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
   const category =
     article.category && typeof article.category === 'object' ? article.category : null
-  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const byline = resolveByline(article)
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const href = articleHref(article)
@@ -61,7 +62,7 @@ export function ArticleCard({ article }: { article: Article }) {
             {article.excerpt}
           </p>
         ) : null}
-        {author ? <p className="mt-auto pt-4 text-xs text-ink-400">By {author.name}</p> : null}
+        {byline ? <GazetteCredit byline={byline} className="mt-auto pt-4" /> : null}
       </div>
     </article>
   )

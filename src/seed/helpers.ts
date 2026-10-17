@@ -22,7 +22,13 @@ export const CATEGORIES = ['Decrees', 'Gazette', 'Culture', 'Public Works', 'Mar
 
 export async function ensureUser(
   payload: Payload,
-  data: { username: string; password: string; name: string; role: 'admin' | 'editor' | 'resident' },
+  data: {
+    username: string
+    password: string
+    name: string
+    minecraftName?: string
+    role: 'admin' | 'editor' | 'resident'
+  },
 ) {
   // Payload stores usernames lowercased and trimmed; look them up the same way.
   const username = data.username.toLowerCase().trim()
@@ -37,6 +43,36 @@ export async function ensureUser(
   }
   const doc = await payload.create({ collection: 'users', data })
   stamp(true, `user     ${username} (id ${doc.id}, ${data.role})`)
+  return doc
+}
+
+export async function ensureProfile(
+  payload: Payload,
+  data: {
+    name: string
+    title: string
+    publication: 'government' | 'times' | 'both'
+    owner?: number
+    minecraftName?: string
+  },
+) {
+  const found = await payload.find({
+    collection: 'profiles',
+    where: {
+      and: [
+        { name: { equals: data.name } },
+        { title: { equals: data.title } },
+        { publication: { equals: data.publication } },
+      ],
+    },
+    limit: 1,
+  })
+  if (found.docs[0]) {
+    stamp(false, `profile  ${found.docs[0].label}`)
+    return found.docs[0]
+  }
+  const doc = await payload.create({ collection: 'profiles', data })
+  stamp(true, `profile  ${doc.label} (id ${doc.id})`)
   return doc
 }
 

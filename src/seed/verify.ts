@@ -50,6 +50,41 @@ try {
     )
   }
 
+  const admin = users.docs.find((user) => user.role === 'admin')
+  check(
+    Boolean(admin?.minecraftName),
+    'users: admin has a Minecraft name',
+    admin?.minecraftName ?? 'missing',
+  )
+
+  // ── Byline profiles ───────────────────────────────────────────────────────
+  // depth 0 keeps relationship values as raw ids (including inside lexical blocks).
+  const articles = await payload.find({ collection: 'articles', limit: 20, depth: 0 })
+  const articlesBySlug = new Map(articles.docs.map((article) => [article.slug, article]))
+  const profiles = await payload.find({ collection: 'profiles', limit: 20, depth: 0 })
+  check(profiles.totalDocs === 6, 'profiles: 6', `found ${profiles.totalDocs}`)
+  const adminProfiles = profiles.docs.filter((profile) => profile.owner === admin?.id)
+  check(
+    adminProfiles.length === 2 &&
+      new Set(adminProfiles.map((profile) => profile.publication)).size === 2,
+    'profiles: admin wears two hats (Gazette + Times)',
+    adminProfiles.map((profile) => profile.label).join(', '),
+  )
+  check(
+    adminProfiles.every((profile) => profile.minecraftName === admin?.minecraftName),
+    'profiles: owner’s Minecraft name filled in by default',
+  )
+  const shared = profiles.docs.filter((profile) => !profile.owner)
+  check(
+    shared.length === 2,
+    'profiles: 2 shared bylines',
+    shared.map((profile) => profile.name).join(', '),
+  )
+  const bylineOf = (slug: string) => {
+    const article = articlesBySlug.get(slug)
+    return profiles.docs.find((profile) => profile.id === article?.byline)
+  }
+
   // ── Categories ────────────────────────────────────────────────────────────
   const categories = await payload.find({ collection: 'categories', limit: 10 })
   check(categories.totalDocs === 6, 'categories: 6', `found ${categories.totalDocs}`)
@@ -77,8 +112,6 @@ try {
   check(images.length === 2, 'media: 2 banner images', images.map((i) => i.filename).join(', '))
 
   // ── Articles ──────────────────────────────────────────────────────────────
-  // depth 0 keeps relationship values as raw ids (including inside lexical blocks).
-  const articles = await payload.find({ collection: 'articles', limit: 20, depth: 0 })
   check(articles.totalDocs === 9, 'articles: 9 total', `found ${articles.totalDocs}`)
   const published = articles.docs.filter((doc) => doc._status === 'published')
   const drafts = articles.docs.filter((doc) => doc._status === 'draft')
@@ -128,11 +161,41 @@ try {
 
   // Block coverage across all articles (every block type should be exercised).
   const allContent = articles.docs.map((doc) => doc.content ?? null)
-  const blockTypes = ['callout', 'quote', 'image', 'gallery', 'embed', 'discord', 'model3d', 'litematic']
+  const blockTypes = [
+    'callout',
+    'quote',
+    'image',
+    'gallery',
+    'embed',
+    'discord',
+    'model3d',
+    'litematic',
+  ]
   for (const blockType of blockTypes) {
     const count = allContent.flatMap((content) => findBlocks(content, blockType)).length
     check(count > 0, `blocks: '${blockType}' used in seed content`, `${count} instance(s)`)
   }
+
+  // ── Bylines ───────────────────────────────────────────────────────────────
+  check(
+    bylineOf('the-charter-of-azania')?.name === 'Luixiter',
+    'byline: charter credited to the Chancellor (shared profile)',
+    bylineOf('the-charter-of-azania')?.label ?? 'none',
+  )
+  check(
+    bylineOf('the-long-mole-is-complete')?.title === 'Co-Leader',
+    'byline: defaults to the author’s Gazette profile',
+    bylineOf('the-long-mole-is-complete')?.label ?? 'none',
+  )
+  check(
+    bylineOf('salt-and-spice-climb-as-the-trade-winds-turn')?.title === 'Editor-in-Chief',
+    'byline: same author, Times profile in the Times',
+    bylineOf('salt-and-spice-climb-as-the-trade-winds-turn')?.label ?? 'none',
+  )
+  check(
+    !articlesBySlug.get('proposal-a-regatta-on-the-old-harbour')?.byline,
+    'byline: none for an author without profiles (falls back to the display name)',
+  )
 
   // ── Pages ─────────────────────────────────────────────────────────────────
   const pages = await payload.find({ collection: 'pages', limit: 10, depth: 0 })
@@ -142,9 +205,7 @@ try {
   check(about?._status === 'published', 'pages: about published')
 
   console.log(
-    failures === 0
-      ? '[verify] All checks passed.'
-      : `[verify] ${failures} check(s) FAILED.`,
+    failures === 0 ? '[verify] All checks passed.' : `[verify] ${failures} check(s) FAILED.`,
   )
   process.exit(failures === 0 ? 0 : 1)
 } catch (error) {

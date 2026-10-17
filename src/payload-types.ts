@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     articles: Article;
     pages: Page;
+    profiles: Profile;
     media: Media;
     categories: Category;
     users: User;
@@ -81,6 +82,7 @@ export interface Config {
   collectionsSelect: {
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    profiles: ProfilesSelect<false> | ProfilesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
@@ -162,6 +164,10 @@ export interface Article {
    */
   publishedAt?: string | null;
   author?: (number | null) | User;
+  /**
+   * How the author is credited, e.g. "IPaaat, Co-Leader". Defaults to their first profile for this publication; manage profiles under Content → Profiles.
+   */
+  byline?: (number | null) | Profile;
   category?: (number | null) | Category;
   /**
    * Pinned articles appear in the "Documents of State" section on the homepage.
@@ -178,9 +184,16 @@ export interface Article {
  */
 export interface User {
   id: number;
+  /**
+   * Shown in the admin panel, and as the byline of articles without a byline profile.
+   */
   name: string;
   /**
-   * Residents write drafts of their own articles. Editors publish anything. Admins manage users.
+   * Used as the default name and head on this person’s byline profiles.
+   */
+  minecraftName?: string | null;
+  /**
+   * Drafts only: write drafts of their own articles. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.
    */
   role: 'resident' | 'editor' | 'admin';
   updatedAt: string;
@@ -204,16 +217,42 @@ export interface User {
   collection: 'users';
 }
 /**
+ * How people are credited on articles: a name and a role per publication. Create one for each role you write in; switch it off when the role ends.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
+ * via the `definition` "profiles".
  */
-export interface Category {
+export interface Profile {
   id: number;
+  /**
+   * Shown in the byline. Defaults to the owner’s Minecraft name.
+   */
   name: string;
   /**
-   * Leave empty to generate from name.
+   * Their role in this publication, e.g. "Co-Leader" or "Editor-in-Chief".
    */
-  slug?: string | null;
+  title: string;
+  /**
+   * Where this byline can be used.
+   */
+  publication: 'government' | 'times' | 'both';
+  /**
+   * Their head is the avatar unless one is uploaded below. Defaults to the owner’s.
+   */
+  minecraftName?: string | null;
+  /**
+   * Optional. Replaces the Minecraft head.
+   */
+  avatar?: (number | null) | Media;
+  /**
+   * The account that writes as this profile. Leave empty for a shared byline such as "The Editors".
+   */
+  owner?: (number | null) | User;
+  /**
+   * Switch off when the role ends: past articles keep this byline, new ones can no longer choose it.
+   */
+  active?: boolean | null;
+  label?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -268,7 +307,21 @@ export interface Media {
   };
 }
 /**
- * Hand-crafted standing pages (About, Government, …) served at /<slug>.
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  name: string;
+  /**
+   * Leave empty to generate from name.
+   */
+  slug?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Hand-crafted standing pages (About, Government, …) served at /gov/<slug>.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages".
@@ -330,6 +383,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'profiles';
+        value: number | Profile;
       } | null)
     | ({
         relationTo: 'media';
@@ -397,6 +454,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   section?: T;
   publishedAt?: T;
   author?: T;
+  byline?: T;
   category?: T;
   pinned?: T;
   featuredImage?: T;
@@ -415,6 +473,22 @@ export interface PagesSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profiles_select".
+ */
+export interface ProfilesSelect<T extends boolean = true> {
+  name?: T;
+  title?: T;
+  publication?: T;
+  minecraftName?: T;
+  avatar?: T;
+  owner?: T;
+  active?: T;
+  label?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -484,6 +558,7 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  minecraftName?: T;
   role?: T;
   updatedAt?: T;
   createdAt?: T;

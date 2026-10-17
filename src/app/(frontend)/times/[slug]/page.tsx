@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
+import { draftMode } from 'next/headers'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
-import { formatDate, resolveImage } from '@/components/site/format'
+import { formatDate, resolveByline, resolveImage } from '@/components/site/format'
+import { TimesByline } from '@/components/times/TimesByline'
 import { getAllArticleSlugs, getArticleBySlug } from '@/lib/queries'
 
 export const revalidate = 120
@@ -21,7 +24,8 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await getArticleBySlug('times', slug)
+  const { isEnabled: draft } = await draftMode()
+  const article = await getArticleBySlug('times', slug, { draft })
   if (!article) return { title: 'Story not found' }
   return {
     title: article.title,
@@ -31,18 +35,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function TimesArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await getArticleBySlug('times', slug)
+  const { isEnabled: draft } = await draftMode()
+  const article = await getArticleBySlug('times', slug, { draft })
   if (!article) notFound()
 
   const category =
     article.category && typeof article.category === 'object' ? article.category : null
-  const author = article.author && typeof article.author === 'object' ? article.author : null
+  const byline = resolveByline(article)
   const hero = resolveImage(article.featuredImage, 'hero')
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
 
   return (
     <article className="mx-auto max-w-3xl px-6 py-12 md:py-16">
+      {draft ? <PreviewTools /> : null}
       <header>
         <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
           {category ? <span>{category.name}</span> : null}
@@ -61,9 +67,7 @@ export default async function TimesArticlePage({ params }: Props) {
             {article.excerpt}
           </p>
         ) : null}
-        {author ? (
-          <p className="mt-5 text-sm uppercase tracking-wider text-news-500">By {author.name}</p>
-        ) : null}
+        {byline ? <TimesByline byline={byline} className="mt-6" /> : null}
         <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-cinnabar-800" />
       </header>
 

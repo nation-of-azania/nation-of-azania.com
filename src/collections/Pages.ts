@@ -4,6 +4,7 @@ import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import { isEditorOrAdmin } from '../access'
 import { contentBlocks } from '../blocks/config'
 import { slugField } from '../fields/slug'
+import { livePreview, pagePath, previewButton } from '../lib/preview'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -11,7 +12,9 @@ export const Pages: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'slug', '_status'],
     group: 'Content',
-    description: 'Hand-crafted standing pages (About, Government, …) served at /<slug>.',
+    description: 'Hand-crafted standing pages (About, Government, …) served at /gov/<slug>.',
+    livePreview: livePreview(pagePath),
+    preview: previewButton(pagePath),
   },
   access: {
     read: ({ req }) => {

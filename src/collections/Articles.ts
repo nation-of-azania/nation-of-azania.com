@@ -1,4 +1,13 @@
-import { APIError, type CollectionBeforeChangeHook, type CollectionConfig } from 'payload'
+import {
+  APIError,
+  ValidationError,
+  type CollectionBeforeChangeHook,
+  type CollectionBeforeValidateHook,
+  type CollectionConfig,
+  type Payload,
+  type PayloadRequest,
+  type Where,
+} from 'payload'
 import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 
 import {
@@ -11,6 +20,7 @@ import {
 } from '../access'
 import { contentBlocks } from '../blocks/config'
 import { slugField } from '../fields/slug'
+import { articlePath, livePreview, previewButton } from '../lib/preview'
 
 /** Block types reserved for editors and admins (heavy interactive exhibits). */
 const RESTRICTED_BLOCKS = new Set(['model3d', 'litematic'])
@@ -46,7 +56,10 @@ const enforceResidentLimits: CollectionBeforeChangeHook = ({ data, originalDoc, 
   const before = countRestrictedBlocks(originalDoc?.content ?? null)
   const after = countRestrictedBlocks(data?.content ?? null)
   if (after > before) {
-    throw new APIError('The 3D model and Litematica blocks are available to editors and admins only.', 403)
+    throw new APIError(
+      'The 3D model and Litematica blocks are available to editors and admins only.',
+      403,
+    )
   }
 
   return data
@@ -60,6 +73,103 @@ const stampPublishedAt: CollectionBeforeChangeHook = ({ data }) => {
   return data
 }
 
+const idOf = (value: unknown): number | undefined =>
+  typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id
+
+/** Profiles a byline may use: the author's own (or, for staff, shared ones) in this publication. */
+const bylineChoices = (authorId: number | undefined, section: string, staff: boolean): Where => ({
+  and: [
+    { publication: { in: [section, 'both'] } },
+    staff
+      ? {
+          or: [
+            { owner: { exists: false } },
+            ...(authorId ? [{ owner: { equals: authorId } }] : []),
+          ],
+        }
+      : { owner: { equals: authorId ?? 0 } },
+  ],
+})
+
+/** The author's first active profile for the publication, if any. */
+const defaultByline = async (
+  payload: Payload,
+  req: PayloadRequest,
+  authorId: number,
+  section: string,
+) => {
+  const { docs } = await payload.find({
+    collection: 'profiles',
+    where: { and: [{ active: { equals: true } }, bylineChoices(authorId, section, false)] },
+    sort: 'createdAt',
+    limit: 1,
+    depth: 0,
+    req,
+  })
+  return docs[0]?.id ?? null
+}
+
+/** Trusted local calls (seed, scripts) have no user; staff may also use shared profiles. */
+const isStaff = (user: Parameters<typeof hasRole>[0]) => !user || hasRole(user, 'editor', 'admin')
+
+/**
+ * Keeps the byline consistent with the author and publication. A byline picked
+ * in this request must be one of the author's active profiles for the
+ * publication (staff may also use a shared one). Otherwise the author's
+ * default profile fills an empty byline, and replaces a saved one that no
+ * longer fits because the author or publication changed; a saved byline whose
+ * profile was merely switched off stays.
+ */
+const applyDefaultByline: CollectionBeforeValidateHook = async ({ data, originalDoc, req }) => {
+  if (!data) return data
+  const section = String(data.section ?? originalDoc?.section ?? 'government')
+  const authorId = idOf(data.author ?? originalDoc?.author)
+  const bylineId = idOf(data.byline !== undefined ? data.byline : originalDoc?.byline)
+  const pickedNow = data.byline !== undefined && bylineId !== idOf(originalDoc?.byline)
+
+  if (bylineId && pickedNow) {
+    // Checked here rather than left to filterOptions, which Payload skips on
+    // draft saves (and autosave is a draft save).
+    const { totalDocs } = await req.payload.count({
+      collection: 'profiles',
+      where: {
+        and: [
+          { id: { equals: bylineId } },
+          { active: { equals: true } },
+          bylineChoices(authorId, section, isStaff(req.user)),
+        ],
+      },
+      req,
+    })
+    if (totalDocs > 0) return data
+    throw new ValidationError({
+      collection: 'articles',
+      errors: [
+        {
+          path: 'byline',
+          message:
+            'Choose one of the author’s active profiles for this publication (staff may also use a shared one).',
+        },
+      ],
+      req,
+    })
+  }
+
+  if (bylineId) {
+    const { totalDocs } = await req.payload.count({
+      collection: 'profiles',
+      where: {
+        and: [{ id: { equals: bylineId } }, bylineChoices(authorId, section, isStaff(req.user))],
+      },
+      req,
+    })
+    if (totalDocs > 0) return data
+  }
+
+  data.byline = authorId ? await defaultByline(req.payload, req, authorId, section) : null
+  return data
+}
+
 export const Articles: CollectionConfig = {
   slug: 'articles',
   admin: {
@@ -67,6 +177,8 @@ export const Articles: CollectionConfig = {
     defaultColumns: ['title', 'section', 'author', 'category', '_status', 'publishedAt'],
     group: 'Content',
     description: 'News, decrees and documents of the Nation of Azania.',
+    livePreview: livePreview(articlePath),
+    preview: previewButton(articlePath),
   },
   access: {
     read: canReadPublishedOrOwn,
@@ -81,6 +193,7 @@ export const Articles: CollectionConfig = {
     maxPerDoc: 30,
   },
   hooks: {
+    beforeValidate: [applyDefaultByline],
     beforeChange: [enforceResidentLimits, stampPublishedAt],
   },
   fields: [
@@ -140,6 +253,34 @@ export const Articles: CollectionConfig = {
       access: {
         // Residents always write as themselves.
         update: isEditorOrAdminField,
+      },
+    },
+    {
+      name: 'byline',
+      type: 'relationship',
+      relationTo: 'profiles',
+      admin: {
+        position: 'sidebar',
+        description:
+          'How the author is credited, e.g. "IPaaat, Co-Leader". Defaults to their first profile for this publication; manage profiles under Content → Profiles.',
+      },
+      // Also enforced on save: Payload validates the value against these options.
+      filterOptions: async ({ id, data, user, req }) => {
+        const choices: Where = {
+          and: [
+            { active: { equals: true } },
+            bylineChoices(idOf(data?.author), String(data?.section ?? 'government'), isStaff(user)),
+          ],
+        }
+        // The byline already saved stays valid (and listed), even after its
+        // profile is switched off, so old articles keep their credit.
+        const saved = id
+          ? await req.payload
+              .findByID({ collection: 'articles', id, depth: 0, draft: true, req })
+              .then((doc) => idOf(doc.byline))
+              .catch(() => undefined)
+          : undefined
+        return saved ? { or: [choices, { id: { equals: saved } }] } : choices
       },
     },
     {

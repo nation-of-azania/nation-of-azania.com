@@ -2,26 +2,20 @@ import Link from 'next/link'
 
 import type { Article } from '@/payload-types'
 
-import { articleHref, formatDate } from './format'
-
-/** A small coral wax-seal mark for pinned documents of state. */
-function Seal({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 12 12" aria-hidden="true" className={className}>
-      <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="6" cy="6" r="2.2" fill="currentColor" />
-    </svg>
-  )
-}
+import { GazetteCredit } from './GazetteByline'
+import { Seal } from './Seal'
+import { articleHref, formatDate, resolveByline } from './format'
 
 /**
  * A document-like card for pinned articles — the charter and standing
- * decrees shown under "Documents of State" on the homepage.
+ * decrees shown under "Documents of State" on the homepage. The foot names
+ * the signatory and the date of entry, as a register would.
  */
 export function DocumentCard({ article }: { article: Article }) {
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const href = articleHref(article)
+  const byline = resolveByline(article)
 
   return (
     <article className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-saffron-400">
@@ -42,10 +36,15 @@ export function DocumentCard({ article }: { article: Article }) {
           {article.excerpt}
         </p>
       ) : null}
-      {date ? (
-        <p className="mt-auto pt-5 text-xs text-ink-400">
-          Entered <time dateTime={dateTime}>{date}</time>
-        </p>
+      {byline || date ? (
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 pt-5">
+          {byline ? <GazetteCredit byline={byline} /> : null}
+          {date ? (
+            <p className="text-xs text-ink-400">
+              Entered <time dateTime={dateTime}>{date}</time>
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </article>
   )
