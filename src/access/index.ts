@@ -1,4 +1,4 @@
-import type { Access, FieldAccess, Where } from 'payload'
+import type { Access, FieldAccess } from 'payload'
 
 export type Role = 'resident' | 'editor' | 'admin'
 
@@ -21,22 +21,3 @@ export const isAdminField: FieldAccess = ({ req }) => hasRole(req.user, 'admin')
 
 /** Field-level: editors and admins. */
 export const isEditorOrAdminField: FieldAccess = ({ req }) => hasRole(req.user, 'editor', 'admin')
-
-/** Anyone can read published docs; authors their own; editors/admins everything. */
-export const canReadPublishedOrOwn: Access = ({ req }) => {
-  if (hasRole(req.user, 'editor', 'admin')) return true
-  if (req.user) {
-    const ownOrPublished: Where = {
-      or: [{ _status: { equals: 'published' } }, { author: { equals: req.user.id } }],
-    }
-    return ownOrPublished
-  }
-  return { _status: { equals: 'published' } }
-}
-
-/** Editors/admins update anything; residents only their own docs. */
-export const canUpdateOwnOrEditor: Access = ({ req }) => {
-  if (hasRole(req.user, 'editor', 'admin')) return true
-  if (req.user) return { author: { equals: req.user.id } }
-  return false
-}

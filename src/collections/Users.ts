@@ -1,6 +1,7 @@
 import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
 
 import { hasRole, isAdmin, isAdminField } from '../access'
+import { canUseAdmin, LEVEL_LABELS, LEVELS } from '../access/scope'
 import { minecraftNameField } from '../fields/minecraftName'
 
 /**
@@ -49,18 +50,21 @@ export const Users: CollectionConfig = {
     },
   },
   access: {
-    // Gate the admin panel to staff, checked against the database on every
-    // admin request. Residents get their own account page on the front end
-    // (src/app/(frontend)/account): Payload's "Unauthorized" page redirects
-    // there (src/components/admin/RedirectToAccount.tsx).
-    // (Inlined rather than the `isEditorOrAdmin` Access helper: `access.admin`
-    // must return a plain boolean, not a Where query.)
-    admin: ({ req }) => hasRole(req.user, 'editor', 'admin'),
+    // The admin panel is for staff and for members granted access to at least
+    // one context, checked against the database on every admin request, so a
+    // change applies immediately. Everyone else has their own account page on
+    // the front end (src/app/(frontend)/account): Payload's "Unauthorized"
+    // page redirects there (src/components/admin/RedirectToAccount.tsx).
+    admin: ({ req }) => canUseAdmin(req.user),
     create: isAdmin,
     delete: isAdmin,
-    // Everyone can see who exists (needed for author bylines in the admin UI);
-    // email stays visible only to admins and the account owner (field-level).
-    read: ({ req }) => Boolean(req.user),
+    // Staff see every account (author bylines in the admin UI). Members, who
+    // may be representatives of other nations, see only their own.
+    read: ({ req }) => {
+      if (hasRole(req.user, 'editor', 'admin')) return true
+      if (req.user) return { id: { equals: req.user.id } }
+      return false
+    },
     update: ({ req }) => {
       if (hasRole(req.user, 'admin')) return true
       if (req.user) return { id: { equals: req.user.id } }
@@ -92,9 +96,9 @@ export const Users: CollectionConfig = {
       required: true,
       defaultValue: 'resident',
       options: [
-        { label: 'Resident: no admin access', value: 'resident' },
-        { label: 'Can publish', value: 'editor' },
-        { label: 'Admin', value: 'admin' },
+        { label: 'Resident: no admin access, except the contexts granted below', value: 'resident' },
+        { label: 'Editor: publish in every context', value: 'editor' },
+        { label: 'Admin: everything, including accounts and contexts', value: 'admin' },
       ],
       access: {
         // Only admins may grant or change roles.
@@ -104,8 +108,39 @@ export const Users: CollectionConfig = {
       saveToJWT: true,
       admin: {
         description:
-          'Residents have the resident area only, no admin access. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.',
+          'Residents have the resident area, plus the contexts granted under Context access. Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.',
       },
+    },
+    {
+      name: 'contextAccess',
+      type: 'array',
+      label: 'Context access',
+      labels: { singular: 'Grant', plural: 'Grants' },
+      access: {
+        create: isAdminField,
+        update: isAdminField,
+      },
+      admin: {
+        description:
+          'For members: each grant covers a context and everything below it. Write drafts, publish, or manage (publish, and create and edit the contexts below). Editors and admins don’t need grants.',
+        condition: (data) => data?.role !== 'admin' && data?.role !== 'editor',
+      },
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            { name: 'context', type: 'relationship', relationTo: 'contexts', required: true, admin: { width: '60%' } },
+            {
+              name: 'level',
+              type: 'select',
+              required: true,
+              defaultValue: 'write',
+              options: LEVELS.map((value) => ({ label: LEVEL_LABELS[value], value })),
+              admin: { width: '40%' },
+            },
+          ],
+        },
+      ],
     },
   ],
 }

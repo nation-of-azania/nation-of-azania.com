@@ -3,7 +3,14 @@ import Link from 'next/link'
 
 import type { Article } from '@/payload-types'
 
-import { articleHref, formatDate, resolveByline, resolveImage } from '@/components/site/format'
+import {
+  articleHref,
+  formatDate,
+  resolveByline,
+  resolveImage,
+  sectionOf,
+  typeLabel,
+} from '@/components/site/format'
 
 import { TimesCredit } from './TimesByline'
 
@@ -14,8 +21,7 @@ import { TimesCredit } from './TimesByline'
  */
 export function TimesCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
-  const category =
-    article.category && typeof article.category === 'object' ? article.category : null
+  const kicker = sectionOf(article)?.name ?? typeLabel(article)
   const byline = resolveByline(article)
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
@@ -38,8 +44,8 @@ export function TimesCard({ article }: { article: Article }) {
       )}
       <div className="mt-3.5 flex flex-1 flex-col">
         <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-cinnabar-700">
-          {category ? <span>{category.name}</span> : null}
-          {category && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
+          {kicker ? <span>{kicker}</span> : null}
+          {kicker && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
           {date ? (
             <time dateTime={dateTime} className="font-medium text-news-500">
               {date}

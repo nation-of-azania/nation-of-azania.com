@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { ArticleCard } from '@/components/site/ArticleCard'
@@ -7,21 +6,14 @@ import { DocumentCard } from '@/components/site/DocumentCard'
 import { FlagTick } from '@/components/site/FlagTick'
 import { LinkButton } from '@/components/site/LinkButton'
 import { SectionHeading } from '@/components/site/SectionHeading'
-import { getLatestArticles, getPinnedArticles } from '@/lib/queries'
+import { archiveHref } from '@/lib/site'
 
-export const revalidate = 120
+import type { HomeProps } from '../types'
 
-export const metadata: Metadata = {
-  title: 'Official Gazette of the Nation',
-  description:
-    'The official record of the Nation of Azania on the Rulercraft realm — charter, decrees, dispatches and chronicles from Port Azania and the coast.',
-}
-
-export default async function GovHomePage() {
-  const [pinned, latest] = await Promise.all([
-    getPinnedArticles('government', 4),
-    getLatestArticles('government', 6),
-  ])
+/** The Gazette's front page: masthead, Documents of State, latest dispatches. */
+export function Home({ top, pages, pinned, latest }: HomeProps) {
+  const archive = archiveHref(top)
+  const about = pages[0]
 
   return (
     <>
@@ -44,12 +36,14 @@ export default async function GovHomePage() {
             standing are always welcome.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-4">
-            <LinkButton href="/gov/articles" variant="primary">
+            <LinkButton href={archive} variant="primary">
               Read the Gazette
             </LinkButton>
-            <LinkButton href="/gov/about" variant="outline">
-              About the Nation
-            </LinkButton>
+            {about ? (
+              <LinkButton href={about.href} variant="outline">
+                {about.label}
+              </LinkButton>
+            ) : null}
           </div>
         </div>
       </section>
@@ -86,7 +80,7 @@ export default async function GovHomePage() {
           title="Latest from the Gazette"
           action={
             <Link
-              href="/gov/articles"
+              href={archive}
               className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
             >
               All articles →

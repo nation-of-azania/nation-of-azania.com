@@ -1,13 +1,13 @@
 import type { Payload } from 'payload'
 
 import { aboutContent } from './content'
-import { CATEGORIES, ensureCategory, ensurePage, ensureUser, log } from './helpers'
+import { ensureContext, ensurePage, ensureUser, log, TOP_LEVEL_CONTEXTS } from './helpers'
 
 /**
  * First-deploy bootstrap for production, run by the Vercel build after the
  * migrations (scripts/prepare-production-db.ts). It acts only while the users
  * table is empty, i.e. on the very first deploy, and creates just enough to
- * start: the article categories, the About page, and the admin account from
+ * start: the top-level contexts, the About page, and the admin account from
  * SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD. No demo accounts and no demo
  * articles reach production; real content is written in the admin panel.
  *
@@ -34,10 +34,12 @@ export async function bootstrapProduction(payload: Payload): Promise<void> {
   }
 
   log('Empty database — bootstrapping the Nation of Azania…')
-  for (const name of CATEGORIES) await ensureCategory(payload, name)
+  const contexts = []
+  for (const context of TOP_LEVEL_CONTEXTS) contexts.push(await ensureContext(payload, { ...context }))
   await ensurePage(payload, 'about', {
     title: 'About Azania',
     content: aboutContent(),
+    context: contexts[0].id,
     _status: 'published',
   })
   // The seed username doubles as the admin's Minecraft name (it keeps its case

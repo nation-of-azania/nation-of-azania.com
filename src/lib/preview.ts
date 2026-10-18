@@ -18,26 +18,38 @@ const originOf = (req: PayloadRequest): string => {
   return `${protocol}://${host}`
 }
 
-/** Where a document lives on the site; null until it has a slug. */
-type PathOf = (data: Record<string, unknown>) => string | null
+/** Where a document lives on the site; null until it has a slug and a context. */
+type PathOf = (data: Record<string, unknown>, req: PayloadRequest) => Promise<string | null>
 
-export const articlePath: PathOf = (data) =>
-  typeof data.slug === 'string' && data.slug
-    ? data.section === 'times'
-      ? `/times/${data.slug}`
-      : `/gov/articles/${data.slug}`
-    : null
+/** The stored path of the document's context, e.g. "/intl/transport/roads". */
+const contextPathOf = async (data: Record<string, unknown>, req: PayloadRequest) => {
+  const context = data.context as number | { id?: number; path?: string | null } | null | undefined
+  if (context && typeof context === 'object' && context.path) return context.path
+  const id = typeof context === 'number' ? context : context?.id
+  if (!id) return null
+  const doc = await req.payload.findByID({ collection: 'contexts', id, depth: 0, req }).catch(() => null)
+  return doc?.path ?? null
+}
 
-export const pagePath: PathOf = (data) =>
-  typeof data.slug === 'string' && data.slug ? `/gov/${data.slug}` : null
+/** Articles live in their top-level context's archive: /<top>/articles/<slug>. */
+export const articlePath: PathOf = async (data, req) => {
+  const contextPath = typeof data.slug === 'string' && data.slug ? await contextPathOf(data, req) : null
+  return contextPath ? `/${contextPath.split('/')[1]}/articles/${data.slug}` : null
+}
+
+/** Pages live under their context: /<context path>/<slug>. */
+export const pagePath: PathOf = async (data, req) => {
+  const contextPath = typeof data.slug === 'string' && data.slug ? await contextPathOf(data, req) : null
+  return contextPath ? `${contextPath}/${data.slug}` : null
+}
 
 const previewUrl = (req: PayloadRequest, path: string) =>
   `${originOf(req)}/preview?path=${encodeURIComponent(path)}`
 
 /** `admin.livePreview` for a collection whose documents live at `pathOf(data)`. */
 export const livePreview = (pathOf: PathOf): LivePreviewConfig => ({
-  url: ({ data, req }) => {
-    const path = pathOf(data)
+  url: async ({ data, req }) => {
+    const path = await pathOf(data, req)
     return path ? previewUrl(req, path) : null
   },
   breakpoints: [
@@ -50,7 +62,7 @@ export const livePreview = (pathOf: PathOf): LivePreviewConfig => ({
 /** `admin.preview`: the "Preview" button, opening the draft in a new tab. */
 export const previewButton =
   (pathOf: PathOf): GeneratePreviewURL =>
-  (doc, { req }) => {
-    const path = pathOf(doc)
+  async (doc, { req }) => {
+    const path = await pathOf(doc, req)
     return path ? previewUrl(req, path) : null
   }

@@ -1,16 +1,17 @@
 import Link from 'next/link'
 
+import { archiveHref, type SiteNav } from '@/lib/site'
+
 import { Crest } from './Crest'
 
-const FOOTER_LINKS = [
-  { href: '/gov/articles', label: 'The Gazette', prefetch: undefined },
-  { href: '/gov/about', label: 'About the Nation', prefetch: undefined },
-  { href: '/times', label: 'The Azanian Times', prefetch: undefined },
-  { href: '/admin', label: 'Registry (Admin)', prefetch: false },
-] as const
-
 /** Deep-sea colophon with the crest, the national motto and site links. */
-export function Footer() {
+export function Footer({ nav }: { nav: SiteNav }) {
+  const links = [
+    { href: archiveHref(nav.top), label: 'The Gazette', prefetch: undefined },
+    ...nav.pages.map((link) => ({ ...link, prefetch: undefined })),
+    ...nav.elsewhere.map((link) => ({ ...link, prefetch: undefined })),
+    { href: '/admin', label: 'Registry (Admin)', prefetch: false },
+  ]
   return (
     <footer className="mt-24 border-t border-saffron-400/70 bg-sea-950 text-sand-200">
       <div className="mx-auto max-w-6xl px-6 py-14">
@@ -37,7 +38,7 @@ export function Footer() {
           <nav aria-label="Footer">
             <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-300">The Record</p>
             <ul className="mt-4 space-y-2.5 text-sm">
-              {FOOTER_LINKS.map((link) => (
+              {links.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}

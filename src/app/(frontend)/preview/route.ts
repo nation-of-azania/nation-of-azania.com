@@ -3,12 +3,12 @@ import { draftMode, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayload } from 'payload'
 
-import { hasRole } from '@/access'
+import { canUseAdmin } from '@/access/scope'
 
 /**
  * Entry point for live preview (src/lib/preview.ts): turns on Next.js draft
- * mode for a signed-in editor or admin, then redirects to the page, which
- * renders its latest draft while draft mode is on. Only same-site paths are
+ * mode for anyone signed in who can use the admin, then redirects to the
+ * page, which renders the latest draft that person may read. Only same-site paths are
  * accepted, so this can't be used as an open redirect.
  */
 export async function GET(request: Request) {
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
 
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: await headers() }).catch(() => ({ user: null }))
-  if (!hasRole(user, 'editor', 'admin')) {
-    return new Response('Sign in to the admin panel as an editor to preview drafts.', {
+  if (!canUseAdmin(user)) {
+    return new Response('Sign in to the admin panel to preview drafts.', {
       status: 403,
     })
   }

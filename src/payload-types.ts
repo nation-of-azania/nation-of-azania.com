@@ -68,23 +68,28 @@ export interface Config {
   blocks: {};
   collections: {
     articles: Article;
+    contexts: Context;
     pages: Page;
     profiles: Profile;
     media: Media;
-    categories: Category;
     users: User;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    contexts: {
+      subContexts: 'contexts';
+      articles: 'articles';
+    };
+  };
   collectionsSelect: {
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
+    contexts: ContextsSelect<false> | ContextsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     profiles: ProfilesSelect<false> | ProfilesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
-    categories: CategoriesSelect<false> | CategoriesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -124,7 +129,7 @@ export interface UserAuthOperations {
   };
 }
 /**
- * News, decrees and documents of the Nation of Azania.
+ * Everything published in a context: decrees, news, standards, case studies…
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "articles".
@@ -133,7 +138,7 @@ export interface Article {
   id: number;
   title: string;
   /**
-   * Short summary shown in article lists and on the homepage.
+   * Short summary shown in article lists and on landing pages.
    */
   excerpt?: string | null;
   content?: {
@@ -156,21 +161,39 @@ export interface Article {
    */
   slug?: string | null;
   /**
-   * Which publication carries this article: the state Gazette (/gov) or the independent Azanian Times (/times).
+   * Where this is published, e.g. Government › Ministry of Infrastructure. It sets the design and the URL.
    */
-  section: 'government' | 'times';
+  context: number | Context;
+  /**
+   * What kind of text this is. The choices follow the context’s design.
+   */
+  type:
+    | 'dispatch'
+    | 'decree'
+    | 'statement'
+    | 'explanation'
+    | 'notice'
+    | 'news'
+    | 'feature'
+    | 'analysis'
+    | 'opinion'
+    | 'announcement'
+    | 'standard'
+    | 'resolution'
+    | 'report'
+    | 'case-study';
+  design?: ('gazette' | 'times' | 'international') | null;
   /**
    * Set automatically on first publish; can be backdated.
    */
   publishedAt?: string | null;
   author?: (number | null) | User;
   /**
-   * How the author is credited, e.g. "IPaaat, Co-Leader". Defaults to their first profile for this publication; manage profiles under Content → Profiles.
+   * How the author is credited, e.g. "IPaaat, Co-Leader". Defaults to their first profile for this context; manage profiles under Content → Profiles.
    */
   byline?: (number | null) | Profile;
-  category?: (number | null) | Category;
   /**
-   * Pinned articles appear in the "Documents of State" section on the homepage.
+   * Pinned articles lead their context’s landing page ("Documents of State" in the Gazette).
    */
   pinned?: boolean | null;
   featuredImage?: (number | null) | Media;
@@ -179,79 +202,75 @@ export interface Article {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  /**
-   * Shown in the admin panel, and as the byline of articles without a byline profile.
-   */
-  name: string;
-  /**
-   * Used as the default name and head on this person’s byline profiles.
-   */
-  minecraftName?: string | null;
-  /**
-   * Residents have the resident area only, no admin access. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.
-   */
-  role: 'resident' | 'editor' | 'admin';
-  updatedAt: string;
-  createdAt: string;
-  email?: string | null;
-  username: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
-}
-/**
- * How people are credited on articles: a name and a role per publication. Create one for each role you write in; switch it off when the role ends.
+ * Where articles are published and who speaks: Government and its ministries, the Times and its desks, international initiatives. Nest them as deep as needed; access is granted per context under Users.
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "profiles".
+ * via the `definition` "contexts".
  */
-export interface Profile {
+export interface Context {
   id: number;
-  /**
-   * Shown in the byline. Defaults to the owner’s Minecraft name.
-   */
   name: string;
   /**
-   * Their role in this publication, e.g. "Co-Leader" or "Editor-in-Chief".
+   * The URL segment. Leave empty to generate from the name; unique among siblings.
    */
-  title: string;
+  slug?: string | null;
   /**
-   * Where this byline can be used.
+   * Empty for a top-level context. Sub-contexts inherit the design and, unless set below, the emblem and accent.
    */
-  publication: 'government' | 'times' | 'both';
+  parent?: (number | null) | Context;
   /**
-   * Their head is the avatar unless one is uploaded below. Defaults to the owner’s.
+   * The look of this context and everything inside it. Top-level contexts only.
    */
-  minecraftName?: string | null;
+  design?: ('gazette' | 'times' | 'international') | null;
   /**
-   * Optional. Replaces the Minecraft head.
+   * One line under the name, e.g. "Standards for building roads across member nations".
    */
-  avatar?: (number | null) | Media;
+  tagline?: string | null;
   /**
-   * The account that writes as this profile. Leave empty for a shared byline such as "The Editors".
+   * Introduces the context on its landing page.
    */
-  owner?: (number | null) | User;
+  intro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   /**
-   * Switch off when the role ends: past articles keep this byline, new ones can no longer choose it.
+   * Optional. Sub-contexts without one show the nearest emblem above them.
    */
-  active?: boolean | null;
+  emblem?: (number | null) | Media;
+  /**
+   * Optional. Inherited from the context above when empty.
+   */
+  accent?: ('sea' | 'lagoon' | 'saffron' | 'coral' | 'cinnabar' | 'olive' | 'violet' | 'slate') | null;
+  /**
+   * Lower numbers come first among siblings.
+   */
+  order?: number | null;
+  /**
+   * Unlisted contexts stay reachable by URL but are left out of menus.
+   */
+  listed?: boolean | null;
+  subContexts?: {
+    docs?: (number | Context)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  articles?: {
+    docs?: (number | Article)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  path?: string | null;
   label?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -308,20 +327,94 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
+ * via the `definition` "users".
  */
-export interface Category {
+export interface User {
   id: number;
+  /**
+   * Shown in the admin panel, and as the byline of articles without a byline profile.
+   */
   name: string;
   /**
-   * Leave empty to generate from name.
+   * Used as the default name and head on this person’s byline profiles.
    */
-  slug?: string | null;
+  minecraftName?: string | null;
+  /**
+   * Residents have the resident area, plus the contexts granted under Context access. Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.
+   */
+  role: 'resident' | 'editor' | 'admin';
+  /**
+   * For members: each grant covers a context and everything below it. Write drafts, publish, or manage (publish, and create and edit the contexts below). Editors and admins don’t need grants.
+   */
+  contextAccess?:
+    | {
+        context: number | Context;
+        level: 'write' | 'publish' | 'manage';
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  email?: string | null;
+  username: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
+}
+/**
+ * How people are credited on articles: a name and a role in a context. Create one for each role you write in; switch it off when the role ends.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profiles".
+ */
+export interface Profile {
+  id: number;
+  /**
+   * Shown in the byline. Defaults to the owner’s Minecraft name.
+   */
+  name: string;
+  /**
+   * Their role in this context, e.g. "Co-Leader" or "Editor-in-Chief".
+   */
+  title: string;
+  /**
+   * Where this byline signs: these contexts and everything below them, e.g. Government for "Co-Leader".
+   */
+  contexts: (number | Context)[];
+  /**
+   * Their head is the avatar unless one is uploaded below. Defaults to the owner’s.
+   */
+  minecraftName?: string | null;
+  /**
+   * Optional. Replaces the Minecraft head.
+   */
+  avatar?: (number | null) | Media;
+  /**
+   * The account that writes as this profile. Leave empty for a shared byline such as "The Editors".
+   */
+  owner?: (number | null) | User;
+  /**
+   * Switch off when the role ends: past articles keep this byline, new ones can no longer choose it.
+   */
+  active?: boolean | null;
+  label?: string | null;
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Hand-crafted standing pages (About, Government, …) served at /gov/<slug>.
+ * Standing pages (About, …), each in a context and served at <context path>/<slug>.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages".
@@ -348,6 +441,10 @@ export interface Page {
    * Leave empty to generate from title.
    */
   slug?: string | null;
+  /**
+   * The page appears under this context’s URL.
+   */
+  context: number | Context;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -381,6 +478,10 @@ export interface PayloadLockedDocument {
         value: number | Article;
       } | null)
     | ({
+        relationTo: 'contexts';
+        value: number | Context;
+      } | null)
+    | ({
         relationTo: 'pages';
         value: number | Page;
       } | null)
@@ -391,10 +492,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
-      } | null)
-    | ({
-        relationTo: 'categories';
-        value: number | Category;
       } | null)
     | ({
         relationTo: 'users';
@@ -451,16 +548,39 @@ export interface ArticlesSelect<T extends boolean = true> {
   excerpt?: T;
   content?: T;
   slug?: T;
-  section?: T;
+  context?: T;
+  type?: T;
+  design?: T;
   publishedAt?: T;
   author?: T;
   byline?: T;
-  category?: T;
   pinned?: T;
   featuredImage?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contexts_select".
+ */
+export interface ContextsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  parent?: T;
+  design?: T;
+  tagline?: T;
+  intro?: T;
+  emblem?: T;
+  accent?: T;
+  order?: T;
+  listed?: T;
+  subContexts?: T;
+  articles?: T;
+  path?: T;
+  label?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -470,6 +590,7 @@ export interface PagesSelect<T extends boolean = true> {
   title?: T;
   content?: T;
   slug?: T;
+  context?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -481,7 +602,7 @@ export interface PagesSelect<T extends boolean = true> {
 export interface ProfilesSelect<T extends boolean = true> {
   name?: T;
   title?: T;
-  publication?: T;
+  contexts?: T;
   minecraftName?: T;
   avatar?: T;
   owner?: T;
@@ -544,22 +665,19 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories_select".
- */
-export interface CategoriesSelect<T extends boolean = true> {
-  name?: T;
-  slug?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
   minecraftName?: T;
   role?: T;
+  contextAccess?:
+    | T
+    | {
+        context?: T;
+        level?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;

@@ -1,39 +1,59 @@
-import { getPayload, type PaginatedDocs } from 'payload'
 import config from '@payload-config'
+import { draftMode, headers } from 'next/headers'
+import { getPayload, type PaginatedDocs, type Where } from 'payload'
 
-import type { Article, Page } from '@/payload-types'
+import { canUseAdmin } from '@/access/scope'
+import type { ArticleType } from '@/contexts/designs'
+import type { Article, Page, User } from '@/payload-types'
 
 /**
- * Read-side data access for the public frontend. Every helper returns only
- * PUBLISHED content and swallows database errors (returning empty results) so
- * that `next build` succeeds even before the database has been initialized.
- * The one exception is `{ draft: true }` on the slug lookups, which returns
- * the latest draft: pages pass it only in Next.js draft mode, which the
- * /preview route enables for signed-in staff (live preview in the admin).
+ * Read-side data access for the public frontend. Every listing returns only
+ * PUBLISHED content and swallows database errors (returning empty results)
+ * so that `next build` succeeds before the database has been initialized.
  *
- * Articles belong to one of two publications, selected by `section`:
- *  - 'government' — the state Gazette, served under /gov
- *  - 'times'      — the independent Azanian Times, served under /times
- * Every article query is scoped to a section so the two sites never bleed
- * into each other.
+ * Articles are scoped by context: callers pass the ids of a context and
+ * everything below it (see idsBelow in ./site.ts), so one context's listing
+ * never shows another's articles.
+ *
+ * The slug lookups take a `viewer` while Next.js draft mode is on (live
+ * preview, turned on by /preview): they then return the latest draft, read
+ * as that person with access control applied, so a preview shows exactly the
+ * drafts its viewer may see in the admin.
  */
 
 const getClient = () => getPayload({ config })
 
-const PUBLISHED = { _status: { equals: 'published' as const } }
+const PUBLISHED: Where = { _status: { equals: 'published' } }
 
 export const ARTICLES_PER_PAGE = 9
 
-export type Section = 'government' | 'times'
+const inContexts = (ids: number[]): Where => ({ context: { in: ids.length ? ids : [-1] } })
 
-const inSection = (section: Section) => ({ section: { equals: section } })
+/** Someone previewing drafts; null outside draft mode. */
+export type Viewer = User | null
 
-export async function getPinnedArticles(section: Section, limit = 6): Promise<Article[]> {
+/** The signed-in person previewing drafts, while draft mode is on. */
+export async function getViewer(): Promise<Viewer> {
+  if (!(await draftMode()).isEnabled) return null
+  try {
+    const payload = await getClient()
+    const { user } = await payload.auth({ headers: await headers() })
+    return user && canUseAdmin(user) ? (user as User) : null
+  } catch {
+    return null
+  }
+}
+
+/** Options for reading as the viewer: drafts, with their access applied. */
+const asViewer = (viewer: Viewer) =>
+  viewer ? { draft: true, overrideAccess: false, user: viewer } : { draft: false }
+
+export async function getPinnedArticles(contextIds: number[], limit = 6): Promise<Article[]> {
   try {
     const payload = await getClient()
     const result = await payload.find({
       collection: 'articles',
-      where: { and: [PUBLISHED, inSection(section), { pinned: { equals: true } }] },
+      where: { and: [PUBLISHED, inContexts(contextIds), { pinned: { equals: true } }] },
       sort: '-publishedAt',
       limit,
       depth: 2,
@@ -45,18 +65,21 @@ export async function getPinnedArticles(section: Section, limit = 6): Promise<Ar
 }
 
 export async function getLatestArticles(
-  section: Section,
+  contextIds: number[],
   limit = 6,
   { includePinned = false }: { includePinned?: boolean } = {},
 ): Promise<Article[]> {
   try {
     const payload = await getClient()
-    const where = includePinned
-      ? { and: [PUBLISHED, inSection(section)] }
-      : { and: [PUBLISHED, inSection(section), { pinned: { not_equals: true } }] }
     const result = await payload.find({
       collection: 'articles',
-      where,
+      where: {
+        and: [
+          PUBLISHED,
+          inContexts(contextIds),
+          ...(includePinned ? [] : [{ pinned: { not_equals: true } }]),
+        ],
+      },
       sort: '-publishedAt',
       limit,
       depth: 2,
@@ -68,14 +91,17 @@ export async function getLatestArticles(
 }
 
 export async function getArticlesPage(
-  section: Section,
+  contextIds: number[],
   page = 1,
+  { type }: { type?: ArticleType | null } = {},
 ): Promise<PaginatedDocs<Article> | null> {
   try {
     const payload = await getClient()
     return await payload.find({
       collection: 'articles',
-      where: { and: [PUBLISHED, inSection(section)] },
+      where: {
+        and: [PUBLISHED, inContexts(contextIds), ...(type ? [{ type: { equals: type } }] : [])],
+      },
       sort: '-publishedAt',
       page,
       limit: ARTICLES_PER_PAGE,
@@ -86,21 +112,38 @@ export async function getArticlesPage(
   }
 }
 
+/** The article types in use among a context's published articles. */
+export async function getTypesInUse(contextIds: number[]): Promise<Set<string>> {
+  try {
+    const payload = await getClient()
+    const { docs } = await payload.find({
+      collection: 'articles',
+      where: { and: [PUBLISHED, inContexts(contextIds)] },
+      select: { type: true },
+      pagination: false,
+      depth: 0,
+    })
+    return new Set(docs.map((doc) => doc.type))
+  } catch {
+    return new Set()
+  }
+}
+
 export async function getArticleBySlug(
-  section: Section,
+  contextIds: number[],
   slug: string,
-  { draft = false }: { draft?: boolean } = {},
+  viewer: Viewer = null,
 ): Promise<Article | null> {
   try {
     const payload = await getClient()
     const result = await payload.find({
       collection: 'articles',
       where: {
-        and: [...(draft ? [] : [PUBLISHED]), inSection(section), { slug: { equals: slug } }],
+        and: [...(viewer ? [] : [PUBLISHED]), inContexts(contextIds), { slug: { equals: slug } }],
       },
-      draft,
       limit: 1,
       depth: 2,
+      ...asViewer(viewer),
     })
     return result.docs[0] ?? null
   } catch {
@@ -108,33 +151,25 @@ export async function getArticleBySlug(
   }
 }
 
-export async function getAllArticleSlugs(section: Section): Promise<string[]> {
-  try {
-    const payload = await getClient()
-    const result = await payload.find({
-      collection: 'articles',
-      where: { and: [PUBLISHED, inSection(section)] },
-      limit: 200,
-      select: { slug: true },
-    })
-    return result.docs.map((doc) => doc.slug).filter((slug): slug is string => Boolean(slug))
-  } catch {
-    return []
-  }
-}
-
 export async function getPageBySlug(
+  contextId: number,
   slug: string,
-  { draft = false }: { draft?: boolean } = {},
+  viewer: Viewer = null,
 ): Promise<Page | null> {
   try {
     const payload = await getClient()
     const result = await payload.find({
       collection: 'pages',
-      where: { and: [...(draft ? [] : [PUBLISHED]), { slug: { equals: slug } }] },
-      draft,
+      where: {
+        and: [
+          ...(viewer ? [] : [PUBLISHED]),
+          { context: { equals: contextId } },
+          { slug: { equals: slug } },
+        ],
+      },
       limit: 1,
       depth: 2,
+      ...asViewer(viewer),
     })
     return result.docs[0] ?? null
   } catch {
@@ -142,17 +177,29 @@ export async function getPageBySlug(
   }
 }
 
-export async function getAllPageSlugs(): Promise<string[]> {
+/** Every published article and page, as [context id, slug], for static generation. */
+export async function getPublishedSlugs(): Promise<{
+  articles: { context: number; slug: string }[]
+  pages: { context: number; slug: string }[]
+}> {
+  const idOf = (value: number | { id: number }) => (typeof value === 'number' ? value : value.id)
   try {
     const payload = await getClient()
-    const result = await payload.find({
-      collection: 'pages',
-      where: PUBLISHED,
-      limit: 200,
-      select: { slug: true },
-    })
-    return result.docs.map((doc) => doc.slug).filter((slug): slug is string => Boolean(slug))
+    const [articles, pages] = await Promise.all(
+      (['articles', 'pages'] as const).map((collection) =>
+        payload.find({
+          collection,
+          where: PUBLISHED,
+          select: { slug: true, context: true },
+          limit: 500,
+          depth: 0,
+        }),
+      ),
+    )
+    const pairs = (docs: { slug?: string | null; context: number | { id: number } }[]) =>
+      docs.flatMap((doc) => (doc.slug ? [{ context: idOf(doc.context), slug: doc.slug }] : []))
+    return { articles: pairs(articles.docs), pages: pairs(pages.docs) }
   } catch {
-    return []
+    return { articles: [], pages: [] }
   }
 }

@@ -1,16 +1,32 @@
-import type { Article, Media } from '@/payload-types'
+import { TYPE_LABELS } from '@/contexts/designs'
+import type { Article, Context, Media } from '@/payload-types'
+
+/** The article's context, when populated (depth ≥ 1). */
+export const contextOf = (article: Pick<Article, 'context'>): Context | null =>
+  article.context && typeof article.context === 'object' ? article.context : null
 
 /**
- * Canonical public URL for an article, routed by its publication:
- *  - Azanian Times pieces live at /times/[slug]
- *  - Government Gazette pieces live at /gov/articles/[slug]
+ * Canonical public URL for an article: the archive of its top-level context,
+ * /<top>/articles/<slug>, however deep its own context sits. Needs the
+ * context populated (depth ≥ 1).
  */
-export function articleHref(
-  article: Pick<Article, 'slug'> & { section?: Article['section'] | null },
-): string {
-  const slug = article.slug
-  if (article.section === 'times') return slug ? `/times/${slug}` : '/times'
-  return slug ? `/gov/articles/${slug}` : '/gov/articles'
+export function articleHref(article: Pick<Article, 'slug' | 'context'>): string {
+  const top = contextOf(article)?.path?.split('/')[1]
+  if (!top) return '/'
+  return article.slug ? `/${top}/articles/${article.slug}` : `/${top}/articles`
+}
+
+/** "Decree", "Case study": the article's type, for kickers. */
+export const typeLabel = (article: Pick<Article, 'type'>): string =>
+  TYPE_LABELS[article.type as keyof typeof TYPE_LABELS] ?? ''
+
+/**
+ * The sub-context an article sits in, for kickers ("Public Works"); null for
+ * articles filed directly in a top-level context.
+ */
+export function sectionOf(article: Pick<Article, 'context'>): Context | null {
+  const context = contextOf(article)
+  return context?.parent ? context : null
 }
 
 /**

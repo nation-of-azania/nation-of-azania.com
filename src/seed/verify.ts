@@ -41,8 +41,8 @@ try {
   console.log('[verify] Checking seeded content…')
 
   // ── Users ─────────────────────────────────────────────────────────────────
-  const users = await payload.find({ collection: 'users', limit: 10 })
-  check(users.totalDocs === 4, 'users: 4 accounts', `found ${users.totalDocs}`)
+  const users = await payload.find({ collection: 'users', limit: 10, depth: 0 })
+  check(users.totalDocs === 5, 'users: 5 accounts', `found ${users.totalDocs}`)
   for (const role of ['admin', 'editor', 'resident'] as const) {
     check(
       users.docs.some((user) => user.role === role),
@@ -57,17 +57,65 @@ try {
     admin?.minecraftName ?? 'missing',
   )
 
+  // ── Contexts ──────────────────────────────────────────────────────────
+  const contexts = await payload.find({ collection: 'contexts', limit: 50, depth: 0 })
+  check(contexts.totalDocs === 10, 'contexts: 10', `found ${contexts.totalDocs}`)
+  const contextByPath = new Map(contexts.docs.map((context) => [context.path, context]))
+  const topLevel = contexts.docs.filter((context) => !context.parent)
+  check(
+    topLevel.map((context) => context.slug).sort().join(',') === 'gov,intl,times',
+    'contexts: three top-level contexts',
+    topLevel.map((context) => context.path).join(', '),
+  )
+  check(
+    contextByPath.get('/gov')?.design === 'gazette' &&
+      contextByPath.get('/times')?.design === 'times' &&
+      contextByPath.get('/intl')?.design === 'international',
+    'contexts: each top level carries its design',
+  )
+  const deepest = contextByPath.get('/intl/transport/roads/case-studies')
+  check(Boolean(deepest), 'contexts: four levels deep', deepest?.path ?? 'missing')
+  check(
+    deepest?.label === 'International › Transport Catalogue › Road Initiative › Case Studies',
+    'contexts: label is the breadcrumb',
+    deepest?.label ?? 'missing',
+  )
+  check(!deepest?.design, 'contexts: sub-contexts carry no design of their own')
+  const contextId = (path: string) => contextByPath.get(path)?.id
+
+  // ── Access grants ─────────────────────────────────────────────────────────
+  const userNamed = (username: string) => users.docs.find((user) => user.username === username)
+  const grantsOf = (username: string) =>
+    (userNamed(username)?.contextAccess ?? []).map((row) => `${row.context}:${row.level}`)
+  check(
+    grantsOf('delegate').join() === `${contextId('/intl')}:manage`,
+    'grants: the delegate manages International, and nothing else',
+    grantsOf('delegate').join() || 'none',
+  )
+  check(
+    grantsOf('resident').join() === `${contextId('/gov')}:write`,
+    'grants: the resident writes in Government',
+    grantsOf('resident').join() || 'none',
+  )
+  check(
+    grantsOf('marlo').join() === `${contextId('/times')}:publish`,
+    'grants: the Times correspondent publishes in the Times',
+    grantsOf('marlo').join() || 'none',
+  )
+
   // ── Byline profiles ───────────────────────────────────────────────────────
   // depth 0 keeps relationship values as raw ids (including inside lexical blocks).
   const articles = await payload.find({ collection: 'articles', limit: 20, depth: 0 })
   const articlesBySlug = new Map(articles.docs.map((article) => [article.slug, article]))
   const profiles = await payload.find({ collection: 'profiles', limit: 20, depth: 0 })
-  check(profiles.totalDocs === 6, 'profiles: 6', `found ${profiles.totalDocs}`)
+  check(profiles.totalDocs === 8, 'profiles: 8', `found ${profiles.totalDocs}`)
   const adminProfiles = profiles.docs.filter((profile) => profile.owner === admin?.id)
+  const profileContexts = (profile: (typeof profiles.docs)[number]) =>
+    (profile.contexts ?? []).map((context) => (typeof context === 'object' ? context.id : context))
   check(
-    adminProfiles.length === 2 &&
-      new Set(adminProfiles.map((profile) => profile.publication)).size === 2,
-    'profiles: admin wears two hats (Gazette + Times)',
+    adminProfiles.length === 3 &&
+      new Set(adminProfiles.flatMap(profileContexts)).size === 3,
+    'profiles: admin wears three hats (Government, Times, International)',
     adminProfiles.map((profile) => profile.label).join(', '),
   )
   check(
@@ -85,17 +133,6 @@ try {
     return profiles.docs.find((profile) => profile.id === article?.byline)
   }
 
-  // ── Categories ────────────────────────────────────────────────────────────
-  const categories = await payload.find({ collection: 'categories', limit: 10 })
-  check(categories.totalDocs === 6, 'categories: 6', `found ${categories.totalDocs}`)
-  check(
-    ['decrees', 'gazette', 'culture', 'public-works', 'markets', 'opinion'].every((slug) =>
-      categories.docs.some((category) => category.slug === slug),
-    ),
-    'categories: slugs auto-generated',
-    categories.docs.map((category) => category.slug).join(', '),
-  )
-
   // ── Media ─────────────────────────────────────────────────────────────────
   const media = await payload.find({ collection: 'media', limit: 10 })
   check(media.totalDocs === 4, 'media: 4 documents', `found ${media.totalDocs}`)
@@ -112,13 +149,25 @@ try {
   check(images.length === 2, 'media: 2 banner images', images.map((i) => i.filename).join(', '))
 
   // ── Articles ──────────────────────────────────────────────────────────────
-  check(articles.totalDocs === 9, 'articles: 9 total', `found ${articles.totalDocs}`)
+  check(articles.totalDocs === 12, 'articles: 12 total', `found ${articles.totalDocs}`)
   const published = articles.docs.filter((doc) => doc._status === 'published')
   const drafts = articles.docs.filter((doc) => doc._status === 'draft')
-  check(published.length === 8, 'articles: 8 published', `found ${published.length}`)
-  const times = articles.docs.filter((doc) => doc.section === 'times')
-  check(times.length === 4, 'articles: 4 in the Azanian Times', `found ${times.length}`)
+  check(published.length === 11, 'articles: 11 published', `found ${published.length}`)
   check(drafts.length === 1, 'articles: 1 draft', drafts.map((d) => d.slug).join(', '))
+  for (const design of ['gazette', 'times', 'international'] as const) {
+    const count = articles.docs.filter((doc) => doc.design === design).length
+    check(count >= 3, `articles: ${design} design follows the context`, `${count} article(s)`)
+  }
+  const caseStudy = articlesBySlug.get('case-study-the-long-mole-approach-road')
+  check(
+    caseStudy?.context === deepest?.id && caseStudy?.type === 'case-study',
+    'articles: the case study sits four levels deep, typed as a case study',
+    `${caseStudy?.context} / ${caseStudy?.type}`,
+  )
+  check(
+    articlesBySlug.get('the-charter-of-azania')?.type === 'decree',
+    'articles: the Charter is a decree',
+  )
 
   const charter = articles.docs.find((doc) => doc.slug === 'the-charter-of-azania')
   check(Boolean(charter), 'charter: exists (slug auto-generated from title)')
@@ -156,7 +205,7 @@ try {
     draft?.slug ?? 'missing',
   )
   const draftAuthor = typeof draft?.author === 'object' ? draft?.author?.id : draft?.author
-  const residentUser = users.docs.find((user) => user.role === 'resident')
+  const residentUser = userNamed('resident')
   check(draftAuthor === residentUser?.id, 'draft: authored by the resident account')
 
   // Block coverage across all articles (every block type should be exercised).
@@ -184,13 +233,18 @@ try {
   )
   check(
     bylineOf('the-long-mole-is-complete')?.title === 'Co-Leader',
-    'byline: defaults to the author’s Gazette profile',
+    'byline: defaults to the author’s Government profile, from a sub-context',
     bylineOf('the-long-mole-is-complete')?.label ?? 'none',
   )
   check(
     bylineOf('salt-and-spice-climb-as-the-trade-winds-turn')?.title === 'Editor-in-Chief',
     'byline: same author, Times profile in the Times',
     bylineOf('salt-and-spice-climb-as-the-trade-winds-turn')?.label ?? 'none',
+  )
+  check(
+    bylineOf('road-standard-rs-1-cross-section-and-drainage')?.title === 'Delegate of Norvessa',
+    'byline: the delegate is credited as delegate in International',
+    bylineOf('road-standard-rs-1-cross-section-and-drainage')?.label ?? 'none',
   )
   check(
     !articlesBySlug.get('proposal-a-regatta-on-the-old-harbour')?.byline,
@@ -203,6 +257,7 @@ try {
   const about = pages.docs.find((doc) => doc.slug === 'about')
   check(Boolean(about), 'pages: about exists with explicit slug "about"')
   check(about?._status === 'published', 'pages: about published')
+  check(about?.context === contextId('/gov'), 'pages: about belongs to Government')
 
   console.log(
     failures === 0 ? '[verify] All checks passed.' : `[verify] ${failures} check(s) FAILED.`,

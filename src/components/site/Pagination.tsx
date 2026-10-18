@@ -5,6 +5,8 @@ type PaginationProps = {
   totalPages: number
   hasPrevPage: boolean
   hasNextPage: boolean
+  /** The URL of a page of the listing. */
+  hrefFor: (page: number) => string
 }
 
 /**
@@ -12,12 +14,11 @@ type PaginationProps = {
  * Next, as plain links against a hairline rule. Renders nothing for a single
  * page.
  */
-export function Pagination({ page, totalPages, hasPrevPage, hasNextPage }: PaginationProps) {
+export function Pagination({ page, totalPages, hasPrevPage, hasNextPage, hrefFor }: PaginationProps) {
   if (totalPages <= 1) return null
 
-  // Page 1 keeps a clean URL without the query string.
-  const prevHref = page - 1 <= 1 ? '/gov/articles' : `/gov/articles?page=${page - 1}`
-  const nextHref = `/gov/articles?page=${page + 1}`
+  const prevHref = hrefFor(page - 1)
+  const nextHref = hrefFor(page + 1)
   const linkClasses = 'text-sm font-medium text-sea-700 transition-colors hover:text-sea-600'
   const mutedClasses = 'select-none text-sm text-ink-400/60'
 

@@ -5,14 +5,11 @@ import type {
   CollectionConfig,
 } from 'payload'
 
-import { hasRole, isAuthenticated, isEditorOrAdminField } from '../access'
-import { minecraftNameField } from '../fields/minecraftName'
+import { ValidationError } from 'payload'
 
-export const PUBLICATION_LABELS = {
-  government: 'Gazette',
-  times: 'Times',
-  both: 'Gazette & Times',
-} as const
+import { hasRole, isAuthenticated, isEditorOrAdminField } from '../access'
+import { can, contextIdsWith, getScope } from '../access/scope'
+import { minecraftNameField } from '../fields/minecraftName'
 
 const idOf = (value: unknown): number | undefined =>
   typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id
@@ -25,8 +22,9 @@ const canManage: Access = ({ req }) => {
 }
 
 /**
- * Residents always own the profiles they create. Name and Minecraft name
- * default to the owner's, so a profile usually needs only a role.
+ * Members always own the profiles they create, and make them only for contexts
+ * they can write in. Name and Minecraft name default to the owner's, so a
+ * profile usually needs only a role and a context.
  */
 const fillDefaults: CollectionBeforeValidateHook = async ({
   data,
@@ -35,8 +33,17 @@ const fillDefaults: CollectionBeforeValidateHook = async ({
   req,
 }) => {
   if (!data) return data
-  if (operation === 'create' && req.user && !hasRole(req.user, 'editor', 'admin')) {
-    data.owner = req.user.id
+  if (req.user && !hasRole(req.user, 'editor', 'admin')) {
+    if (operation === 'create') data.owner = req.user.id
+    const scope = await getScope(req)
+    const contexts: unknown[] = Array.isArray(data.contexts) ? data.contexts : []
+    if (contexts.some((context) => !can(scope, idOf(context), 'write'))) {
+      throw new ValidationError({
+        collection: 'profiles',
+        errors: [{ path: 'contexts', message: 'Choose only contexts you can write in.' }],
+        req,
+      })
+    }
   }
   const ownerId = idOf(data.owner ?? originalDoc?.owner)
   if (ownerId && (!data.name || !data.minecraftName)) {
@@ -51,30 +58,35 @@ const fillDefaults: CollectionBeforeValidateHook = async ({
   return data
 }
 
-/** The admin panel's label for a profile, e.g. "IPaaat · Co-Leader (Gazette)". */
-const setLabel: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+/** The admin panel's label for a profile, e.g. "IPaaat · Co-Leader (Government)". */
+const setLabel: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   const name = data.name ?? originalDoc?.name
   const title = data.title ?? originalDoc?.title
-  const publication = (data.publication ??
-    originalDoc?.publication) as keyof typeof PUBLICATION_LABELS
-  data.label = `${name} · ${title} (${PUBLICATION_LABELS[publication] ?? publication})`
+  const { tree } = await getScope(req)
+  const contexts: unknown[] = data.contexts ?? originalDoc?.contexts ?? []
+  const where = contexts
+    .map((context) => tree.byId.get(idOf(context) ?? -1)?.name)
+    .filter(Boolean)
+    .join(', ')
+  data.label = `${name} · ${title}${where ? ` (${where})` : ''}`
   return data
 }
 
 /**
  * Byline profiles: how a person is credited on an article. One account can
- * hold several, e.g. "IPaaat, Co-Leader" in the Gazette and "IPaaat,
- * Editor-in-Chief" in the Times. Profiles without an owner are shared
- * bylines ("The Editors", or someone without an account).
+ * hold several, e.g. "IPaaat, Co-Leader" for Government and "IPaaat,
+ * Editor-in-Chief" for the Times. A profile signs articles in the contexts it
+ * was made for and everything below them. Profiles without an owner are
+ * shared bylines ("The Editors", or someone without an account).
  */
 export const Profiles: CollectionConfig = {
   slug: 'profiles',
   admin: {
     useAsTitle: 'label',
-    defaultColumns: ['name', 'title', 'publication', 'owner', 'active'],
+    defaultColumns: ['name', 'title', 'contexts', 'owner', 'active'],
     group: 'Content',
     description:
-      'How people are credited on articles: a name and a role per publication. Create one for each role you write in; switch it off when the role ends.',
+      'How people are credited on articles: a name and a role in a context. Create one for each role you write in; switch it off when the role ends.',
   },
   access: {
     read: () => true,
@@ -99,16 +111,24 @@ export const Profiles: CollectionConfig = {
       label: 'Role',
       required: true,
       admin: {
-        description: 'Their role in this publication, e.g. "Co-Leader" or "Editor-in-Chief".',
+        description: 'Their role in this context, e.g. "Co-Leader" or "Editor-in-Chief".',
       },
     },
     {
-      name: 'publication',
-      type: 'select',
+      name: 'contexts',
+      type: 'relationship',
+      relationTo: 'contexts',
+      hasMany: true,
       required: true,
-      defaultValue: 'both',
-      options: Object.entries(PUBLICATION_LABELS).map(([value, label]) => ({ label, value })),
-      admin: { description: 'Where this byline can be used.' },
+      minRows: 1,
+      admin: {
+        description:
+          'Where this byline signs: these contexts and everything below them, e.g. Government for "Co-Leader".',
+      },
+      filterOptions: async ({ req }) => {
+        const scope = await getScope(req)
+        return scope.staff || !req.user ? true : { id: { in: [...contextIdsWith(scope, 'write'), -1] } }
+      },
     },
     minecraftNameField(
       'Their head is the avatar unless one is uploaded below. Defaults to the owner’s.',
@@ -131,7 +151,7 @@ export const Profiles: CollectionConfig = {
           'The account that writes as this profile. Leave empty for a shared byline such as "The Editors".',
       },
       access: {
-        // Residents always own their profiles (see fillDefaults).
+        // Members always own their profiles (see fillDefaults).
         create: isEditorOrAdminField,
         update: isEditorOrAdminField,
       },

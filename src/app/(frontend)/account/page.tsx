@@ -6,6 +6,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 
 import { hasRole } from '@/access'
+import { canUseAdmin, LEVEL_LABELS, type Level } from '@/access/scope'
 import { cn } from '@/blocks/components/shared'
 import { DetailsForm } from '@/components/members/DetailsForm'
 import { MemberHeader } from '@/components/members/MemberHeader'
@@ -13,7 +14,8 @@ import { PasswordForm } from '@/components/members/PasswordForm'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { LinkButton } from '@/components/site/LinkButton'
 import { DoubleRule, SectionHeading } from '@/components/site/SectionHeading'
-import { articleHref, formatDate, resolveByline } from '@/components/site/format'
+import { articleHref, contextOf, formatDate, resolveByline } from '@/components/site/format'
+import { getSiteTree } from '@/lib/site'
 import type { Article, Profile } from '@/payload-types'
 
 export const metadata: Metadata = { title: 'Your Register' }
@@ -30,11 +32,11 @@ export const dynamic = 'force-dynamic'
 const ACCESS = {
   resident: {
     label: 'Resident',
-    note: 'You can follow the record from here, and keep your own details and password. To write for the Gazette or the Times, ask an administrator.',
+    note: 'You keep your own details and password here. To write somewhere, ask an administrator to grant you access to it.',
   },
   editor: {
-    label: 'Can publish',
-    note: 'You may edit and publish anything in the Gazette and the Times.',
+    label: 'Editor',
+    note: 'You may edit and publish anything, in every context.',
   },
   admin: {
     label: 'Admin',
@@ -42,11 +44,8 @@ const ACCESS = {
   },
 } as const
 
-const PUBLICATION_LABEL: Record<Profile['publication'], string> = {
-  government: 'The Azania Gazette',
-  times: 'The Azanian Times',
-  both: 'Gazette & Times',
-}
+const idOf = (value: number | { id: number } | null | undefined) =>
+  value == null ? undefined : typeof value === 'number' ? value : value.id
 
 function StatusBadge({ status }: { status?: Article['_status'] }) {
   const published = status === 'published'
@@ -71,6 +70,21 @@ export default async function AccountPage() {
 
   const access = ACCESS[(user.role ?? 'resident') as keyof typeof ACCESS]
   const isStaff = hasRole(user, 'editor', 'admin')
+  const hasDesk = canUseAdmin(user)
+  const tree = await getSiteTree()
+  const contextName = (value: number | { id: number } | null | undefined) => {
+    const id = idOf(value)
+    return id != null ? (tree.byId.get(id)?.label ?? tree.byId.get(id)?.name) : undefined
+  }
+  // Where a resident was granted access, e.g. "Publish · The Azanian Times".
+  const grants = isStaff
+    ? []
+    : (user.contextAccess ?? []).flatMap((grant) => {
+        const name = contextName(grant.context)
+        return name && grant.level
+          ? [{ name, level: LEVEL_LABELS[grant.level as Level].split(' (')[0] }]
+          : []
+      })
   const displayName = user.name ?? user.username ?? 'Resident'
   // The resident as the site would credit them without a profile: display
   // name, and their head if the account has a Minecraft name.
@@ -84,7 +98,7 @@ export default async function AccountPage() {
       collection: 'articles',
       where: { author: { equals: user.id } },
       sort: '-updatedAt',
-      depth: 0,
+      depth: 1,
       limit: 24,
       overrideAccess: false,
       user,
@@ -161,11 +175,33 @@ export default async function AccountPage() {
                   </dd>
                   <dd className="mt-2 text-xs leading-relaxed text-ink-500">{access.note}</dd>
                 </div>
+                {grants.length > 0 ? (
+                  <div>
+                    <dt className="text-ink-400">Granted access</dt>
+                    <dd>
+                      <ul className="mt-1 flex flex-col gap-1">
+                        {grants.map((grant) => (
+                          <li key={`${grant.name}-${grant.level}`} className="text-ink-900">
+                            <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-sea-800">
+                              {grant.level}
+                            </span>{' '}
+                            · {grant.name}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-xs leading-relaxed text-ink-500">
+                        Each grant covers everything below that context too.
+                      </p>
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
-              {isStaff ? (
+              {hasDesk ? (
                 <div className="mt-6 border-t border-sand-300 pt-5">
                   <p className="text-sm leading-relaxed text-ink-500">
-                    You hold publishing rights to the record.
+                    {isStaff
+                      ? 'You hold publishing rights to the record.'
+                      : 'Write where you were granted access, in the Publishing Desk.'}
                   </p>
                   <LinkButton href="/admin" prefetch={false} variant="primary" className="mt-3 w-full">
                     Open the Publishing Desk
@@ -208,7 +244,7 @@ export default async function AccountPage() {
                           <span className="font-medium text-ink-900">{byline.name}</span>
                           {byline.title ? `, ${byline.title}` : null}
                           <span className="block text-xs text-ink-400">
-                            {PUBLICATION_LABEL[profile.publication]}
+                            {(profile.contexts ?? []).map(contextName).filter(Boolean).join(', ')}
                             {profile.active === false ? ' · retired' : ''}
                           </span>
                         </p>
@@ -217,7 +253,7 @@ export default async function AccountPage() {
                   })}
                 </ul>
               )}
-              {isStaff ? (
+              {hasDesk ? (
                 <p className="mt-4 text-xs text-ink-400">
                   Bylines are kept under{' '}
                   <Link
@@ -231,7 +267,7 @@ export default async function AccountPage() {
                 </p>
               ) : (
                 <p className="mt-4 text-xs text-ink-400">
-                  To write under a role, ask an editor to add a byline for you.
+                  To write under a role, ask an administrator for access to a context.
                 </p>
               )}
             </section>
@@ -260,7 +296,7 @@ export default async function AccountPage() {
                       <div className="min-w-0">
                         <p className="truncate font-display text-lg text-sea-950">{article.title}</p>
                         <p className="mt-0.5 text-[12px] uppercase tracking-[0.14em] text-ink-400">
-                          {article.section === 'times' ? 'The Azanian Times' : 'The Azania Gazette'}
+                          {contextOf(article)?.label ?? contextOf(article)?.name}
                           {formatDate(article.updatedAt) ? ` · ${formatDate(article.updatedAt)}` : ''}
                         </p>
                       </div>

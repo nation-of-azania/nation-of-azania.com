@@ -1,14 +1,15 @@
 import Link from 'next/link'
 
-const FOOTER_LINKS = [
-  { href: '/times', label: 'Front Page', prefetch: undefined },
-  { href: '/gov', label: 'The Azania Gazette', prefetch: undefined },
-  { href: '/gov/about', label: 'About Azania', prefetch: undefined },
-  { href: '/admin', label: 'Registry (Admin)', prefetch: false },
-] as const
+import { archiveHref, contextHref, type SiteNav } from '@/lib/site'
 
 /** The Azanian Times colophon: deep cinnabar, lagoon accents, an independent tone. */
-export function TimesFooter() {
+export function TimesFooter({ nav }: { nav: SiteNav }) {
+  const links = [
+    { href: contextHref(nav.top), label: 'Front Page', prefetch: undefined },
+    { href: archiveHref(nav.top), label: 'Archive', prefetch: undefined },
+    ...nav.elsewhere.map((link) => ({ ...link, prefetch: undefined })),
+    { href: '/admin', label: 'Registry (Admin)', prefetch: false },
+  ]
   return (
     <footer className="bg-cinnabar-900 text-news-100">
       <div className="mx-auto max-w-6xl px-6 py-14">
@@ -28,7 +29,7 @@ export function TimesFooter() {
           <nav aria-label="Footer">
             <p className="text-[11px] uppercase tracking-[0.2em] text-lagoon-300">The Paper</p>
             <ul className="mt-4 space-y-2.5 text-sm">
-              {FOOTER_LINKS.map((link) => (
+              {links.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}

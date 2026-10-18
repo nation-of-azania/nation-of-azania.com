@@ -5,7 +5,14 @@ import type { Article } from '@/payload-types'
 
 import { Crest } from './Crest'
 import { GazetteCredit } from './GazetteByline'
-import { articleHref, formatDate, resolveByline, resolveImage } from './format'
+import {
+  articleHref,
+  formatDate,
+  resolveByline,
+  resolveImage,
+  sectionOf,
+  typeLabel,
+} from './format'
 
 /**
  * The standard gazette card, shared by the homepage and the article index.
@@ -14,8 +21,7 @@ import { articleHref, formatDate, resolveByline, resolveImage } from './format'
  */
 export function ArticleCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
-  const category =
-    article.category && typeof article.category === 'object' ? article.category : null
+  const kicker = sectionOf(article)?.name ?? typeLabel(article)
   const byline = resolveByline(article)
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
@@ -41,9 +47,9 @@ export function ArticleCard({ article }: { article: Article }) {
       </div>
       <div className="flex flex-1 flex-col p-5">
         <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
-          {category ? (
+          {kicker ? (
             <>
-              <span className="text-sea-700">{category.name}</span>
+              <span className="text-sea-700">{kicker}</span>
               <span aria-hidden="true">·</span>
             </>
           ) : null}

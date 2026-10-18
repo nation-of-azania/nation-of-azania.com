@@ -1,46 +1,25 @@
-import type { Metadata } from 'next'
-import { draftMode } from 'next/headers'
 import Image from 'next/image'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 
 import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
-import { formatDate, resolveByline, resolveImage } from '@/components/site/format'
+import {
+  formatDate,
+  resolveByline,
+  resolveImage,
+  sectionOf,
+  typeLabel,
+} from '@/components/site/format'
 import { TimesByline } from '@/components/times/TimesByline'
-import { getAllArticleSlugs, getArticleBySlug } from '@/lib/queries'
+import { contextHref } from '@/lib/site'
 
-export const revalidate = 120
+import type { ArticleProps } from '../types'
 
-type Props = {
-  // Next 16: params is a Promise and must be awaited.
-  params: Promise<{ slug: string }>
-}
-
-export async function generateStaticParams() {
-  const slugs = await getAllArticleSlugs('times')
-  return slugs.map((slug) => ({ slug }))
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
-  const { isEnabled: draft } = await draftMode()
-  const article = await getArticleBySlug('times', slug, { draft })
-  if (!article) return { title: 'Story not found' }
-  return {
-    title: article.title,
-    description: article.excerpt ?? undefined,
-  }
-}
-
-export default async function TimesArticlePage({ params }: Props) {
-  const { slug } = await params
-  const { isEnabled: draft } = await draftMode()
-  const article = await getArticleBySlug('times', slug, { draft })
-  if (!article) notFound()
-
-  const category =
-    article.category && typeof article.category === 'object' ? article.category : null
+/** A Times story: kicker, Archivo headline, dek, byline, a cinnabar rule. */
+export function Article({ article, chain, draft }: ArticleProps) {
+  const top = chain[0]
+  const section = sectionOf(article)
+  const kicker = section?.name ?? typeLabel(article)
   const byline = resolveByline(article)
   const hero = resolveImage(article.featuredImage, 'hero')
   const dateTime = article.publishedAt ?? article.createdAt
@@ -51,8 +30,16 @@ export default async function TimesArticlePage({ params }: Props) {
       {draft ? <PreviewTools /> : null}
       <header>
         <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
-          {category ? <span>{category.name}</span> : null}
-          {category && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
+          {kicker ? (
+            section ? (
+              <Link href={contextHref(section)} className="hover:text-cinnabar-800">
+                {kicker}
+              </Link>
+            ) : (
+              <span>{kicker}</span>
+            )
+          ) : null}
+          {kicker && date ? <span aria-hidden="true" className="text-news-300">·</span> : null}
           {date ? (
             <time dateTime={dateTime} className="font-medium text-news-500">
               {date}
@@ -92,10 +79,10 @@ export default async function TimesArticlePage({ params }: Props) {
 
       <footer className="mt-14 border-t border-news-200 pt-6">
         <Link
-          href="/times"
+          href={top ? contextHref(top) : '/'}
           className="text-sm font-semibold text-cinnabar-700 transition-colors hover:text-cinnabar-800"
         >
-          ← The Azanian Times
+          ← {top?.name ?? 'Front Page'}
         </Link>
       </footer>
     </article>

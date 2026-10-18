@@ -13,10 +13,10 @@ export const slugify = (input: string): string =>
  * URL slug, auto-generated from another field (default: `title`) when left
  * empty. Editable in the sidebar for manual overrides.
  */
-export const slugField = (source = 'title'): TextField => ({
+export const slugField = (source = 'title', { unique = true }: { unique?: boolean } = {}): TextField => ({
   name: 'slug',
   type: 'text',
-  unique: true,
+  unique,
   index: true,
   admin: {
     position: 'sidebar',

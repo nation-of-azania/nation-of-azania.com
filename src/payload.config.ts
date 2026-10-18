@@ -8,7 +8,7 @@ import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 import sharp from 'sharp'
 
 import { Articles } from './collections/Articles'
-import { Categories } from './collections/Categories'
+import { Contexts } from './collections/Contexts'
 import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Profiles } from './collections/Profiles'
@@ -86,7 +86,7 @@ export default buildConfig({
     },
     avatar: 'default',
   },
-  collections: [Articles, Pages, Profiles, Media, Categories, Users],
+  collections: [Articles, Contexts, Pages, Profiles, Media, Users],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || 'azania-insecure-dev-secret',
   // serverURL is intentionally NOT set: media URLs stay relative

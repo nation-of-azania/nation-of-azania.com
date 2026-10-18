@@ -1,29 +1,28 @@
-import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 
 import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
-import { articleHref, formatDate, resolveByline, resolveImage } from '@/components/site/format'
-import { getLatestArticles } from '@/lib/queries'
+import {
+  articleHref,
+  formatDate,
+  resolveByline,
+  resolveImage,
+  sectionOf,
+  typeLabel,
+} from '@/components/site/format'
 
-export const revalidate = 120
+import type { HomeProps } from '../types'
 
-export const metadata: Metadata = {
-  title: 'The Azanian Times',
-  description:
-    'The independent press of Azania — news, markets and opinion from Port Azania and the coast, published without the Chancellery’s leave.',
-}
-
-export default async function TimesFrontPage() {
-  const stories = await getLatestArticles('times', 12, { includePinned: true })
-  const lead = stories.find((s) => s.pinned) ?? stories[0]
-  const rest = lead ? stories.filter((s) => s.id !== lead.id) : []
+/** The Times' front page: a lead story (the pinned one, else the newest) over a grid. */
+export function Home({ top, pinned, latest }: HomeProps) {
+  const lead = pinned[0] ?? latest[0]
+  const rest = [...pinned, ...latest].filter((story) => story.id !== lead?.id)
 
   if (!lead) {
     return (
       <div className="mx-auto max-w-6xl px-6 py-24 text-center">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-cinnabar-700">The Azanian Times</p>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-cinnabar-700">{top.name}</p>
         <h1 className="mt-4 font-news text-3xl font-black text-news-900">
           The presses are warm, but the front page is bare.
         </h1>
@@ -34,8 +33,7 @@ export default async function TimesFrontPage() {
     )
   }
 
-  const leadCategory =
-    lead.category && typeof lead.category === 'object' ? lead.category : null
+  const leadKicker = sectionOf(lead)?.name ?? typeLabel(lead)
   const leadByline = resolveByline(lead)
   const leadImage = resolveImage(lead.featuredImage, 'hero')
   const leadDateTime = lead.publishedAt ?? lead.createdAt
@@ -49,7 +47,7 @@ export default async function TimesFrontPage() {
         <div className="order-2 flex flex-col justify-center md:order-1">
           <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
             <span className="bg-cinnabar-800 px-1.5 py-0.5 text-news-50">Lead Story</span>
-            {leadCategory ? <span>{leadCategory.name}</span> : null}
+            {leadKicker ? <span>{leadKicker}</span> : null}
             {leadDate ? (
               <>
                 <span aria-hidden="true" className="text-news-300">·</span>

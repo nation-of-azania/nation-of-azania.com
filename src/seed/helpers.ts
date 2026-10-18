@@ -3,7 +3,7 @@ import type { Payload } from 'payload'
 /**
  * Convergent "ensure" helpers shared by the dev seed (index.ts) and the
  * production first-deploy bootstrap (bootstrap.ts). Each looks an entity up
- * by a natural key (username, category name, media alt text, article title,
+ * by a natural key (username, context slug, media alt text, article title,
  * page slug) and creates it only when missing.
  */
 
@@ -17,8 +17,47 @@ const stamp = (created: boolean, label: string) => {
   log(`${created ? 'created ' : 'exists  '}${label}`)
 }
 
-/** The nation's article categories, created by both the seed and the bootstrap. */
-export const CATEGORIES = ['Decrees', 'Gazette', 'Culture', 'Public Works', 'Markets', 'Opinion']
+/**
+ * The top-level contexts, created by both the seed and the first-deploy
+ * bootstrap (and, for databases that predate contexts, by the migration).
+ * International starts unlisted: reachable by URL, left out of menus.
+ */
+export const TOP_LEVEL_CONTEXTS = [
+  { name: 'Government', slug: 'gov', design: 'gazette', tagline: 'The official record of the Nation of Azania', order: 1, listed: true },
+  { name: 'The Azanian Times', slug: 'times', design: 'times', tagline: 'Independent of the Chancellery', order: 2, listed: true },
+  { name: 'International', slug: 'intl', design: 'international', tagline: 'Initiatives among nations, hosted by Azania', order: 3, listed: false },
+] as const
+
+type ContextInput = {
+  name: string
+  slug: string
+  parent?: number
+  design?: 'gazette' | 'times' | 'international'
+  tagline?: string
+  order?: number
+  listed?: boolean
+  accent?: 'sea' | 'lagoon' | 'saffron' | 'coral' | 'cinnabar' | 'olive' | 'violet' | 'slate'
+}
+
+export async function ensureContext(payload: Payload, data: ContextInput) {
+  const found = await payload.find({
+    collection: 'contexts',
+    where: {
+      and: [
+        { slug: { equals: data.slug } },
+        data.parent ? { parent: { equals: data.parent } } : { parent: { exists: false } },
+      ],
+    },
+    limit: 1,
+  })
+  if (found.docs[0]) {
+    stamp(false, `context  ${found.docs[0].path}`)
+    return found.docs[0]
+  }
+  const doc = await payload.create({ collection: 'contexts', data })
+  stamp(true, `context  ${doc.path} (id ${doc.id})`)
+  return doc
+}
 
 export async function ensureUser(
   payload: Payload,
@@ -28,6 +67,7 @@ export async function ensureUser(
     name: string
     minecraftName?: string
     role: 'admin' | 'editor' | 'resident'
+    contextAccess?: { context: number; level: 'write' | 'publish' | 'manage' }[]
   },
 ) {
   // Payload stores usernames lowercased and trimmed; look them up the same way.
@@ -51,20 +91,14 @@ export async function ensureProfile(
   data: {
     name: string
     title: string
-    publication: 'government' | 'times' | 'both'
+    contexts: number[]
     owner?: number
     minecraftName?: string
   },
 ) {
   const found = await payload.find({
     collection: 'profiles',
-    where: {
-      and: [
-        { name: { equals: data.name } },
-        { title: { equals: data.title } },
-        { publication: { equals: data.publication } },
-      ],
-    },
+    where: { and: [{ name: { equals: data.name } }, { title: { equals: data.title } }] },
     limit: 1,
   })
   if (found.docs[0]) {
@@ -73,21 +107,6 @@ export async function ensureProfile(
   }
   const doc = await payload.create({ collection: 'profiles', data })
   stamp(true, `profile  ${doc.label} (id ${doc.id})`)
-  return doc
-}
-
-export async function ensureCategory(payload: Payload, name: string) {
-  const found = await payload.find({
-    collection: 'categories',
-    where: { name: { equals: name } },
-    limit: 1,
-  })
-  if (found.docs[0]) {
-    stamp(false, `category ${found.docs[0].slug}`)
-    return found.docs[0]
-  }
-  const doc = await payload.create({ collection: 'categories', data: { name } })
-  stamp(true, `category ${doc.slug} (id ${doc.id})`)
   return doc
 }
 
@@ -138,7 +157,7 @@ export async function ensureArticle(
 export async function ensurePage(payload: Payload, slug: string, data: Record<string, any>) {
   const found = await payload.find({
     collection: 'pages',
-    where: { slug: { equals: slug } },
+    where: { and: [{ slug: { equals: slug } }, { context: { equals: data.context } }] },
     limit: 1,
   })
   if (found.docs[0]) {

@@ -6,6 +6,7 @@ import { getPayload, type Payload } from 'payload'
 
 import {
   aboutContent,
+  caseStudyContent,
   charterContent,
   excerpts,
   foundingDayContent,
@@ -15,34 +16,36 @@ import {
   lighthouseContent,
   moleOverrunContent,
   regattaContent,
+  roadStandardContent,
   spicePricesContent,
+  transportCatalogueContent,
 } from './content'
 import {
-  CATEGORIES,
   ensureArticle,
-  ensureCategory,
+  ensureContext,
   ensureMedia,
   ensurePage,
   ensureProfile,
   ensureUser,
   log,
   seedStats,
+  TOP_LEVEL_CONTEXTS,
 } from './helpers'
 import { generateBannerImages } from './images'
 
 /**
- * Azania seed script — creates the demo nation for local development: users,
- * categories, media (including the Lighthouse .glb and a Litematica build),
- * articles and the About page.
+ * Azania seed script — creates the demo nation for local development:
+ * contexts, users, byline profiles, media (including the Lighthouse .glb and
+ * a Litematica build), articles and the About page.
  *
  *   pnpm seed        (= payload run src/seed/index.ts)
  *
- * CONVERGENT: every entity is looked up by a natural key (username, category
- * name, media alt text, article title, page slug) and created only when
- * missing. Running it again completes whatever a previous run didn't create —
- * a partially-failed seed heals itself on the next run — and a fully seeded
- * database is left untouched. Delete azania.db (local SQLite dev) to rebuild
- * from scratch.
+ * CONVERGENT: every entity is looked up by a natural key (username, context
+ * slug and parent, media alt text, article title, page slug and context) and
+ * created only when missing. Running it again completes whatever a previous
+ * run didn't create — a partially-failed seed heals itself on the next run —
+ * and a fully seeded database is left untouched. Delete azania.db (local
+ * SQLite dev) to rebuild from scratch.
  *
  * Production is NOT seeded with this demo content: its first deploy runs the
  * much smaller bootstrap in ./bootstrap.ts instead.
@@ -73,6 +76,12 @@ const TIMES_CORRESPONDENT = {
   password: 'azania-times-2026',
   name: 'Marlo Tidewell',
 } as const
+/** A delegate from another nation: manages International, and nothing of Azania's own. */
+const DELEGATE = {
+  username: 'delegate',
+  password: 'azania-delegate-2026',
+  name: 'Ilse Varnholt',
+} as const
 
 async function seed(payload: Payload): Promise<void> {
   // ── Credentials ───────────────────────────────────────────────────────────
@@ -91,7 +100,71 @@ async function seed(payload: Payload): Promise<void> {
 
   log('Converging the Nation of Azania (existing entries are kept as-is)…')
 
-  // ── 1. Users ──────────────────────────────────────────────────────────────
+  // ── 1. Contexts ───────────────────────────────────────────────────────────
+  // The top level carries the designs; everything below inherits its root's.
+  // Locally International is listed, so the demo shows all three.
+  const top: Record<string, number> = {}
+  for (const context of TOP_LEVEL_CONTEXTS) {
+    top[context.slug] = (await ensureContext(payload, { ...context, listed: true })).id
+  }
+  const chancellery = await ensureContext(payload, {
+    name: 'The Chancellery',
+    slug: 'chancellery',
+    parent: top.gov,
+    tagline: 'From the office of the Chancellor',
+    order: 1,
+  })
+  const infrastructure = await ensureContext(payload, {
+    name: 'Public Works',
+    slug: 'infrastructure',
+    parent: top.gov,
+    tagline: 'What the nation builds, and what it costs',
+    accent: 'saffron',
+    order: 2,
+  })
+  const markets = await ensureContext(payload, {
+    name: 'Markets',
+    slug: 'markets',
+    parent: top.times,
+    tagline: 'Prices on the Spice Quay',
+    accent: 'lagoon',
+    order: 1,
+  })
+  const opinion = await ensureContext(payload, {
+    name: 'Opinion',
+    slug: 'opinion',
+    parent: top.times,
+    tagline: 'Signed views, not the paper’s reporting',
+    accent: 'cinnabar',
+    order: 2,
+  })
+  // Four levels deep: International › Transport Catalogue › Road Initiative › Case Studies.
+  const transport = await ensureContext(payload, {
+    name: 'Transport Catalogue',
+    slug: 'transport',
+    parent: top.intl,
+    tagline: 'Shared standards for the roads, bridges and harbours between nations',
+    accent: 'slate',
+    order: 1,
+  })
+  const roads = await ensureContext(payload, {
+    name: 'Road Initiative',
+    slug: 'roads',
+    parent: transport.id,
+    tagline: 'Trunk roads that meet at the border',
+    accent: 'olive',
+    order: 1,
+  })
+  const caseStudies = await ensureContext(payload, {
+    name: 'Case Studies',
+    slug: 'case-studies',
+    parent: roads.id,
+    tagline: 'Roads built to the standard, and what they taught',
+    order: 1,
+  })
+
+  // ── 2. Users ──────────────────────────────────────────────────────────────
+  // Editors and admins act everywhere; residents only where a grant says so.
   const admin = await ensureUser(payload, {
     name: adminUsername,
     minecraftName: adminUsername,
@@ -100,57 +173,76 @@ async function seed(payload: Payload): Promise<void> {
     role: 'admin',
   })
   const editor = await ensureUser(payload, { ...EDITOR, role: 'editor' })
-  const resident = await ensureUser(payload, { ...RESIDENT, role: 'resident' })
-  const timesEditor = await ensureUser(payload, { ...TIMES_CORRESPONDENT, role: 'editor' })
+  const resident = await ensureUser(payload, {
+    ...RESIDENT,
+    role: 'resident',
+    contextAccess: [{ context: top.gov, level: 'write' }],
+  })
+  const timesEditor = await ensureUser(payload, {
+    ...TIMES_CORRESPONDENT,
+    role: 'resident',
+    contextAccess: [{ context: top.times, level: 'publish' }],
+  })
+  const delegate = await ensureUser(payload, {
+    ...DELEGATE,
+    role: 'resident',
+    contextAccess: [{ context: top.intl, level: 'manage' }],
+  })
 
-  // ── 1b. Byline profiles ───────────────────────────────────────────────────
-  // One person, several hats: the admin is Co-Leader in the Gazette and
-  // Editor-in-Chief of the Times. Profiles without an owner are shared bylines.
-  // Real players get their Minecraft head; the fictional demo staff don't.
+  // ── 3. Byline profiles ────────────────────────────────────────────────────
+  // One person, several hats: the admin is Co-Leader in Government,
+  // Editor-in-Chief of the Times and Azania's representative abroad. Profiles
+  // without an owner are shared bylines. Real players get their Minecraft
+  // head; the fictional demo staff don't.
   await ensureProfile(payload, {
     name: adminUsername,
     title: 'Co-Leader',
-    publication: 'government',
+    contexts: [top.gov],
     owner: admin.id,
   })
   await ensureProfile(payload, {
     name: adminUsername,
     title: 'Editor-in-Chief',
-    publication: 'times',
+    contexts: [top.times],
+    owner: admin.id,
+  })
+  const representative = await ensureProfile(payload, {
+    name: adminUsername,
+    title: 'Representative of Azania',
+    contexts: [top.intl],
     owner: admin.id,
   })
   const chancellor = await ensureProfile(payload, {
     name: 'Luixiter',
     title: 'Chancellor',
-    publication: 'government',
+    contexts: [top.gov],
     minecraftName: 'Luixiter',
   })
   await ensureProfile(payload, {
     name: EDITOR.name,
     title: 'Keeper of the Light',
-    publication: 'government',
+    contexts: [top.gov],
     owner: editor.id,
   })
   await ensureProfile(payload, {
     name: TIMES_CORRESPONDENT.name,
     title: 'Harbour Correspondent',
-    publication: 'times',
+    contexts: [top.times],
     owner: timesEditor.id,
   })
   const editors = await ensureProfile(payload, {
     name: 'The Editors',
     title: 'The Azanian Times',
-    publication: 'times',
+    contexts: [top.times],
+  })
+  await ensureProfile(payload, {
+    name: DELEGATE.name,
+    title: 'Delegate of Norvessa',
+    contexts: [top.intl],
+    owner: delegate.id,
   })
 
-  // ── 2. Categories ─────────────────────────────────────────────────────────
-  const categories: Record<string, number> = {}
-  for (const name of CATEGORIES) {
-    const category = await ensureCategory(payload, name)
-    categories[name] = category.id
-  }
-
-  // ── 3. Media ──────────────────────────────────────────────────────────────
+  // ── 4. Media ──────────────────────────────────────────────────────────────
   const lighthouse = await ensureMedia(
     payload,
     'The Lighthouse on Founders’ Point — a whitewashed, ochre-banded tower with a golden lantern',
@@ -171,15 +263,16 @@ async function seed(payload: Payload): Promise<void> {
   )
   const harbourBanner = await ensureMedia(payload, banners.harbour.alt, banners.harbour.filePath)
 
-  // ── 4. Articles ───────────────────────────────────────────────────────────
+  // ── 5. Government ─────────────────────────────────────────────────────────
   await ensureArticle(payload, {
     title: 'The Charter of Azania',
     data: {
       excerpt: excerpts.charter,
       content: charterContent(),
+      context: top.gov,
+      type: 'decree',
       author: admin.id,
       byline: chancellor.id,
-      category: categories['Decrees'],
       pinned: true,
       publishedAt: '2025-11-01T09:00:00.000Z',
       _status: 'published',
@@ -191,8 +284,9 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.lighthouse,
       content: lighthouseContent(lighthouse.id),
+      context: top.gov,
+      type: 'dispatch',
       author: editor.id,
-      category: categories['Culture'],
       publishedAt: '2026-07-02T14:00:00.000Z',
       _status: 'published',
     },
@@ -203,8 +297,9 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.foundingDay,
       content: foundingDayContent(dawnBanner.id),
+      context: chancellery.id,
+      type: 'explanation',
       author: editor.id,
-      category: categories['Gazette'],
       featuredImage: dawnBanner.id,
       publishedAt: '2026-06-12T08:00:00.000Z',
       _status: 'published',
@@ -216,8 +311,9 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.harbourMole,
       content: harbourMoleContent(dawnBanner.id, harbourBanner.id, warehouse.id),
+      context: infrastructure.id,
+      type: 'dispatch',
       author: admin.id,
-      category: categories['Public Works'],
       featuredImage: harbourBanner.id,
       publishedAt: '2026-06-28T10:30:00.000Z',
       _status: 'published',
@@ -230,21 +326,22 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.regatta,
       content: regattaContent(),
+      context: top.gov,
+      type: 'statement',
       author: resident.id,
-      category: categories['Culture'],
       _status: 'draft',
     },
   })
 
-  // ── 4b. The Azanian Times (section: 'times') ──────────────────────────────
+  // ── 6. The Azanian Times ──────────────────────────────────────────────────
   await ensureArticle(payload, {
     title: 'Captains Balk as New Harbour Dues Take Effect',
     data: {
       excerpt: excerpts.harbourDues,
       content: harbourDuesContent(),
-      section: 'times',
+      context: top.times,
+      type: 'news',
       author: timesEditor.id,
-      category: categories['Public Works'],
       featuredImage: harbourBanner.id,
       pinned: true,
       publishedAt: '2026-07-08T07:30:00.000Z',
@@ -257,9 +354,9 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.moleOverrun,
       content: moleOverrunContent(),
-      section: 'times',
+      context: top.times,
+      type: 'analysis',
       author: timesEditor.id,
-      category: categories['Public Works'],
       publishedAt: '2026-07-05T09:00:00.000Z',
       _status: 'published',
     },
@@ -270,9 +367,9 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.spicePrices,
       content: spicePricesContent(dawnBanner.id),
-      section: 'times',
+      context: markets.id,
+      type: 'news',
       author: admin.id,
-      category: categories['Markets'],
       featuredImage: dawnBanner.id,
       publishedAt: '2026-07-06T08:00:00.000Z',
       _status: 'published',
@@ -284,19 +381,63 @@ async function seed(payload: Payload): Promise<void> {
     data: {
       excerpt: excerpts.ledgersOpEd,
       content: ledgersOpEdContent(),
-      section: 'times',
+      context: opinion.id,
+      type: 'opinion',
       author: admin.id,
       byline: editors.id,
-      category: categories['Opinion'],
       publishedAt: '2026-07-03T18:00:00.000Z',
       _status: 'published',
     },
   })
 
-  // ── 5. Pages ──────────────────────────────────────────────────────────────
+  // ── 7. International ──────────────────────────────────────────────────────
+  await ensureArticle(payload, {
+    title: 'The Transport Catalogue Opens to Member Nations',
+    data: {
+      excerpt: excerpts.transportCatalogue,
+      content: transportCatalogueContent(),
+      context: transport.id,
+      type: 'announcement',
+      author: delegate.id,
+      pinned: true,
+      publishedAt: '2026-09-14T09:00:00.000Z',
+      _status: 'published',
+    },
+  })
+
+  await ensureArticle(payload, {
+    title: 'Road Standard RS-1: Cross-Section and Drainage',
+    data: {
+      excerpt: excerpts.roadStandard,
+      content: roadStandardContent(),
+      context: roads.id,
+      type: 'standard',
+      author: delegate.id,
+      publishedAt: '2026-09-28T09:00:00.000Z',
+      _status: 'published',
+    },
+  })
+
+  await ensureArticle(payload, {
+    title: 'Case Study: The Long Mole Approach Road',
+    data: {
+      excerpt: excerpts.caseStudy,
+      content: caseStudyContent(harbourBanner.id),
+      context: caseStudies.id,
+      type: 'case-study',
+      author: admin.id,
+      byline: representative.id,
+      featuredImage: harbourBanner.id,
+      publishedAt: '2026-10-05T09:00:00.000Z',
+      _status: 'published',
+    },
+  })
+
+  // ── 8. Pages ──────────────────────────────────────────────────────────────
   await ensurePage(payload, 'about', {
     title: 'About Azania',
     content: aboutContent(),
+    context: top.gov,
     _status: 'published',
   })
 
@@ -312,10 +453,13 @@ async function seed(payload: Payload): Promise<void> {
 [seed]
 [seed] Sign in:  ${serverURL}/admin
 [seed]   username: ${adminUsername}  (password: your SEED_ADMIN_PASSWORD)
-[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (can publish), ${RESIDENT.username} (resident)
+[seed]   Demo accounts: ${EDITOR.username} (editor), ${TIMES_CORRESPONDENT.username} (publishes in the Times),
+[seed]                  ${RESIDENT.username} (writes drafts in Government), ${DELEGATE.username} (manages International)
 [seed]
-[seed] Visit:    ${serverURL}/gov          — the Azania Gazette
+[seed] Visit:    ${serverURL}/gov          — Government, the Azania Gazette
 [seed]           ${serverURL}/times        — the Azanian Times (independent press)
+[seed]           ${serverURL}/intl         — International initiatives
+[seed]           ${serverURL}/intl/transport/roads/case-studies  — four levels deep
 [seed]           ${serverURL}/gov/about    — the standing page
 [seed] ────────────────────────────────────────────────────────────
 `)
@@ -326,7 +470,7 @@ try {
   await seed(payload)
   process.exit(0)
 } catch (error) {
-  console.error('[seed] FAILED:', error)
+  console.error('[seed] FAILED:', error, (error as { data?: unknown }).data)
   console.error(
     '[seed] The seed is convergent — fix the cause and re-run; completed entries are kept.',
   )

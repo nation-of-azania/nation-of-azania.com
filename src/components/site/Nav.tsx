@@ -1,21 +1,23 @@
 import Link from 'next/link'
 
+import { archiveHref, contextHref, type SiteNav } from '@/lib/site'
+
 import { AccountLink } from './AccountLink'
 import { Crest } from './Crest'
-
-const NAV_LINKS = [
-  { href: '/gov', label: 'Home' },
-  { href: '/gov/articles', label: 'Gazette' },
-  { href: '/gov/about', label: 'About' },
-] as const
 
 /**
  * The government masthead: deep-sea ground, sand text, crest and wordmark.
  * Topped by the national ribbon — saffron over coral, the sunset line above
- * the water — and carrying a standing link across to the independent
- * Azanian Times.
+ * the water — and carrying standing links across to the other top-level
+ * contexts (the independent Azanian Times, International).
  */
-export function Nav() {
+export function Nav({ nav }: { nav: SiteNav }) {
+  const links = [
+    { href: contextHref(nav.top), label: 'Home' },
+    { href: archiveHref(nav.top), label: 'Gazette' },
+    ...nav.sections,
+    ...nav.pages,
+  ]
   return (
     <header className="border-b border-saffron-400/70 bg-sea-900 text-sand-100">
       {/* National ribbon — saffron and coral over the sea. */}
@@ -26,7 +28,7 @@ export function Nav() {
         className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-10 gap-y-3 px-6 py-4"
       >
         <Link
-          href="/gov"
+          href={contextHref(nav.top)}
           className="group flex items-center gap-3.5 text-sand-50 focus-visible:outline-saffron-300"
         >
           <Crest className="h-10 w-auto shrink-0 text-saffron-300 transition-colors group-hover:text-saffron-200" />
@@ -40,7 +42,7 @@ export function Nav() {
           </span>
         </Link>
         <ul className="ms-auto flex flex-wrap items-center gap-x-7 gap-y-1">
-          {NAV_LINKS.map((link) => (
+          {links.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
@@ -50,15 +52,17 @@ export function Nav() {
               </Link>
             </li>
           ))}
-          <li>
-            <Link
-              href="/times"
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium uppercase tracking-[0.18em] text-cinnabar-300 transition-colors hover:text-cinnabar-200 focus-visible:outline-saffron-300"
-            >
-              Azanian Times
-              <span aria-hidden="true">↗</span>
-            </Link>
-          </li>
+          {nav.elsewhere.map((link) => (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium uppercase tracking-[0.18em] text-cinnabar-300 transition-colors hover:text-cinnabar-200 focus-visible:outline-saffron-300"
+              >
+                {link.label}
+                <span aria-hidden="true">↗</span>
+              </Link>
+            </li>
+          ))}
           <li aria-hidden="true" className="hidden h-4 w-px bg-sand-200/25 sm:block" />
           <li>
             <AccountLink className="text-[13px] font-medium uppercase tracking-[0.18em] text-sand-200 transition-colors hover:text-saffron-200 focus-visible:outline-saffron-300" />

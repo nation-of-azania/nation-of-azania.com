@@ -1,13 +1,14 @@
-import type { ReactNode } from 'react'
-
 import { Footer } from '@/components/site/Footer'
 import { Nav } from '@/components/site/Nav'
 
+import type { ShellProps } from '../types'
+
 /**
- * Chrome for the government Gazette (/gov): the civic sea-and-sand look, with
- * the national ribbon in saffron and coral over the deep-water masthead.
+ * Chrome for the Gazette design (Government, /gov): the civic sea-and-sand
+ * look, with the national ribbon in saffron and coral over the deep-water
+ * masthead.
  */
-export default function GovLayout({ children }: { children: ReactNode }) {
+export function Shell({ nav, children }: ShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-sand-50 text-ink-900">
       <a
@@ -16,11 +17,11 @@ export default function GovLayout({ children }: { children: ReactNode }) {
       >
         Skip to content
       </a>
-      <Nav />
+      <Nav nav={nav} />
       <main id="content" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}
       </main>
-      <Footer />
+      <Footer nav={nav} />
     </div>
   )
 }

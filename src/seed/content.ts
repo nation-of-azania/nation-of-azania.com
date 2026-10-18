@@ -424,6 +424,95 @@ export const spicePricesContent = (marketBannerMediaId: number): LexicalEditorSt
     ),
   )
 
+// ════════════════════════════════════════════════════════════════════════════
+// INTERNATIONAL — initiatives among nations, hosted by Azania
+// A neutral, multilateral voice: standards, resolutions and case studies that
+// member nations draft together. (Norvessa is a fictional demo nation.)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── The Transport Catalogue Opens to Member Nations (announcement) ──────────
+
+export const transportCatalogueContent = (): LexicalEditorState =>
+  root(
+    paragraph(
+      'The Transport Catalogue is open. It gathers, in one place, the standards member nations ',
+      'have agreed for building the roads, bridges and harbours that connect them, so that a ',
+      'road built in one nation meets a road built in the next without a step, a gap or an ',
+      'argument at the border.',
+    ),
+    block(
+      'callout',
+      {
+        style: 'note',
+        title: 'How the Catalogue works',
+        body: 'Each initiative drafts its standards in the open. A standard is adopted when the delegates of the participating nations agree to it, and every nation keeps the right to build as it pleases within its own borders.',
+      },
+      'How the Catalogue works',
+    ),
+    paragraph(
+      'The first initiative, on roads, has begun with the cross-section and drainage of a ',
+      'standard trunk road. Further initiatives on bridges and harbour moles will follow as ',
+      'nations bring them forward.',
+    ),
+  )
+
+// ── Road Standard RS-1: Cross-Section and Drainage (standard) ───────────────
+
+export const roadStandardContent = (): LexicalEditorState =>
+  root(
+    paragraph(
+      'This standard sets the cross-section of a trunk road between member nations: its width, ',
+      'its materials, and how it sheds water. It applies where a road crosses a border, and is ',
+      'recommended for every trunk road leading to one.',
+    ),
+    heading('1. Carriageway'),
+    paragraph(
+      'The carriageway is five blocks wide: three of stone brick between two kerbs of polished ',
+      'andesite, with a lamp post at every twelfth block on alternating sides.',
+    ),
+    heading('2. Drainage'),
+    paragraph(
+      'Every carriageway falls one slab toward its kerbs, and the kerbs carry water to a culvert ',
+      'at every low point. No road may send its water onto a neighbour’s land.',
+    ),
+    heading('3. Border crossings'),
+    paragraph(
+      'Where the road crosses a border, the two nations build to the same line and level for ',
+      'twenty blocks on either side, so the join cannot be seen.',
+    ),
+    paragraph(text('Adopted by the delegates of the Road Initiative.', ITALIC)),
+  )
+
+// ── Case Study: The Long Mole Approach Road (case study) ────────────────────
+
+export const caseStudyContent = (harbourMediaId: number): LexicalEditorState =>
+  root(
+    paragraph(
+      'Azania built the approach road to the Long Mole while the Road Initiative was still ',
+      'drafting RS-1, and agreed to build it to the draft. This case study records what that ',
+      'taught the initiative.',
+    ),
+    block(
+      'image',
+      {
+        image: harbourMediaId,
+        caption: 'The Long Mole at Port Azania, reached by the first road built to RS-1.',
+        layout: 'wide',
+      },
+      'The Long Mole',
+    ),
+    heading('What worked'),
+    paragraph(
+      'The five-block carriageway carried the masons’ carts without widening, and the kerbed ',
+      'drainage kept the road dry through the first storm season.',
+    ),
+    heading('What changed in the standard'),
+    paragraph(
+      'Lamp posts every eight blocks proved too many on a straight road; the standard now asks ',
+      'for every twelfth. The change was proposed by Azania and agreed by the delegates.',
+    ),
+  )
+
 // ── About Azania (standing page — also seeds production) ────────────────────
 
 export const aboutContent = (): LexicalEditorState =>
@@ -472,6 +561,12 @@ export const excerpts = {
     'The Gazette recorded the tea and the applause at the mole’s opening. It did not record the figure: nearly half again the first estimate, and two seasons late.',
   ledgersOpEd:
     'The Lighthouse was restored in the open, with posted accounts. An editorial on why so little of the rest of the nation’s business is.',
+  transportCatalogue:
+    'One catalogue for the roads, bridges and harbours that connect member nations, so that what one nation builds meets what the next one builds.',
+  roadStandard:
+    'The agreed cross-section of a trunk road between member nations: a five-block carriageway, kerbed drainage, and border crossings built to one line.',
+  caseStudy:
+    'Azania built the Long Mole approach road to the draft standard. What worked, and what it changed in RS-1.',
   spicePrices:
     'Salt, pepper and good rope are dearer on the Spice Quay this fortnight, as the trade winds turn and the last ships of the season come in light.',
 } as const

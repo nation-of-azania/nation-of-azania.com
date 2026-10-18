@@ -1,33 +1,17 @@
-import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { ArticleCard } from '@/components/site/ArticleCard'
 import { Crest } from '@/components/site/Crest'
 import { Pagination } from '@/components/site/Pagination'
 import { DoubleRule } from '@/components/site/SectionHeading'
-import { getArticlesPage } from '@/lib/queries'
+import { cn } from '@/blocks/components/shared'
+import { TYPE_LABELS } from '@/contexts/designs'
+import { archiveHref } from '@/lib/site'
 
-export const metadata: Metadata = {
-  title: 'The Gazette',
-  description:
-    'All published records of the Nation of Azania — decrees, dispatches and chronicles, newest first.',
-}
+import type { ArchiveProps } from '../types'
 
-type Props = {
-  // Next 16: searchParams is a Promise and must be awaited.
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}
-
-function parsePage(raw: string | string[] | undefined): number {
-  const value = Array.isArray(raw) ? raw[0] : raw
-  const parsed = Number.parseInt(value ?? '', 10)
-  return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
-}
-
-export default async function GovArticlesIndexPage({ searchParams }: Props) {
-  const { page: rawPage } = await searchParams
-  const page = parsePage(rawPage)
-  const result = await getArticlesPage('government', page)
+/** The Gazette's archive: every record under Government, newest first, by type. */
+export function Archive({ top, result, page, type, types }: ArchiveProps) {
   const docs = result?.docs ?? []
   const totalDocs = result?.totalDocs ?? 0
 
@@ -43,6 +27,25 @@ export default async function GovArticlesIndexPage({ searchParams }: Props) {
         <p className="mt-4 max-w-2xl text-ink-500">
           Decrees, dispatches and chronicles of the nation, newest first.
         </p>
+        {types.length > 1 ? (
+          <nav aria-label="Filter by type" className="mt-8 flex flex-wrap gap-2">
+            {[null, ...types].map((option) => (
+              <Link
+                key={option ?? 'all'}
+                href={archiveHref(top, option)}
+                aria-current={option === type ? 'page' : undefined}
+                className={cn(
+                  'border px-3 py-1 text-[12px] uppercase tracking-[0.14em] transition-colors',
+                  option === type
+                    ? 'border-sea-800 bg-sea-800 text-sand-50'
+                    : 'border-sand-300 text-sea-800 hover:border-saffron-400',
+                )}
+              >
+                {option ? TYPE_LABELS[option] : 'All'}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
         <DoubleRule className="mt-8" />
         {totalDocs > 0 ? (
           <p className="mt-3 text-right text-[11px] uppercase tracking-[0.2em] text-ink-400">
@@ -63,6 +66,7 @@ export default async function GovArticlesIndexPage({ searchParams }: Props) {
             totalPages={result?.totalPages ?? 1}
             hasPrevPage={result?.hasPrevPage ?? false}
             hasNextPage={result?.hasNextPage ?? false}
+            hrefFor={(target) => archiveHref(top, type, target)}
           />
         </>
       ) : totalDocs > 0 ? (
@@ -71,7 +75,7 @@ export default async function GovArticlesIndexPage({ searchParams }: Props) {
             There is no page {page} in the record.
           </p>
           <p className="mt-3 text-sm text-ink-500">
-            <Link href="/gov/articles" className="font-medium text-sea-700 hover:text-sea-600">
+            <Link href={archiveHref(top, type)} className="font-medium text-sea-700 hover:text-sea-600">
               Return to the first page →
             </Link>
           </p>

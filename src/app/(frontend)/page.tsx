@@ -1,9 +1,12 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
-/**
- * The site root forwards to the government Gazette. The two publications live
- * at /gov (the state Gazette) and /times (the independent Azanian Times).
- */
-export default function RootIndex() {
-  redirect('/gov')
+import { getHomePath } from '@/lib/site'
+
+export const revalidate = 120
+
+/** The site root forwards to the first listed top-level context (Government). */
+export default async function RootIndex() {
+  const home = await getHomePath()
+  if (!home) notFound()
+  redirect(home)
 }

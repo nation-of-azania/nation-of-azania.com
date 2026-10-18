@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 import { Crest } from '@/components/site/Crest'
 import { LinkButton } from '@/components/site/LinkButton'
 
@@ -18,15 +16,9 @@ export default function NotFound() {
         been struck from it.
       </p>
       <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-        <LinkButton href="/gov" variant="primary">
+        <LinkButton href="/" variant="primary">
           Return home
         </LinkButton>
-        <Link
-          href="/gov/articles"
-          className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
-        >
-          Browse the Gazette →
-        </Link>
       </div>
     </div>
   )
