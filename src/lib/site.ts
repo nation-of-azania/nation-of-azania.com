@@ -2,7 +2,7 @@ import config from '@payload-config'
 import { getPayload } from 'payload'
 import { cache } from 'react'
 
-import { isAccent, isDesign, type Accent, type Design } from '@/contexts/designs'
+import { isDesign, type Design } from '@/contexts/designs'
 import { styleOfArticle, styleOfChain, type StyleId } from '@/contexts/styles'
 import { buildTree, type ContextTree } from '@/contexts/tree'
 import type { Article, Context, Media } from '@/payload-types'
@@ -64,19 +64,6 @@ export const topOf = (tree: SiteTree, context: Context): Context =>
   tree.ancestors(context.id)[0] ?? context
 
 /**
- * The accent in force at the end of a chain (top-level context first): the
- * context's own, else the nearest ancestor's; null when none is set anywhere
- * above it, so each design falls back to its own colour.
- */
-export function accentOf(chain: Pick<Context, 'accent'>[]): Accent | null {
-  for (let index = chain.length - 1; index >= 0; index -= 1) {
-    const accent = chain[index].accent
-    if (isAccent(accent)) return accent
-  }
-  return null
-}
-
-/**
  * The emblem shown at the end of a chain: the context's own upload, else the
  * nearest ancestor's. Only populated images count (the tree is loaded at
  * depth 1, so emblems arrive as Media); media also accepts models and audio.
@@ -108,6 +95,15 @@ export function articleStyle(
   return styleOfArticle(article, tree.ancestors(contextId), tree.designOf(contextId))
 }
 
+/**
+ * `articleStyle` for a card deep in a listing, which has the article but
+ * not the tree: the tree is cached per render, so this costs nothing after
+ * the first call. Cards are server components, so pages stay static.
+ */
+export const getArticleStyle = async (
+  article: Pick<Article, 'style' | 'context'>,
+): Promise<StyleId | null> => articleStyle(await getSiteTree(), article)
+
 /** Ids of the context and everything below it: what its listings show. */
 export const idsBelow = (tree: SiteTree, context: Context): number[] =>
   tree.descendants(context.id).map((record) => record.id)
@@ -115,8 +111,6 @@ export const idsBelow = (tree: SiteTree, context: Context): number[] =>
 export type NavLink = {
   href: string
   label: string
-  /** A section's accent, inherited (see accentOf), for a swatch beside its name. */
-  accent?: Accent | null
 }
 
 /** What a design's chrome needs to link around. */
@@ -136,11 +130,7 @@ export const sectionsOf = (tree: SiteTree, context: Context): NavLink[] =>
   tree
     .childrenOf(context.id)
     .filter((child) => child.listed !== false)
-    .map((child) => ({
-      href: contextHref(child),
-      label: child.name,
-      accent: accentOf(tree.ancestors(child.id)),
-    }))
+    .map((child) => ({ href: contextHref(child), label: child.name }))
 
 export const getSiteNav = cache(async (top: Context): Promise<SiteNav> => {
   const tree = await getSiteTree()

@@ -3,9 +3,9 @@ import Link from 'next/link'
 import { RichText } from '@/components/RichText'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { Emblem } from '@/components/site/Emblem'
-import { accentStyle } from '@/components/site/format'
+import { dress } from '@/components/styles'
 import { TimesCard } from '@/components/times/TimesCard'
-import { accentOf, contextHref, emblemOf } from '@/lib/site'
+import { contextHref, emblemOf } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
@@ -13,8 +13,11 @@ import type { SectionProps } from '../types'
  * A desk of the Times (Markets, Opinion…) at any depth: its name in the
  * desk's own colour over a rule of the same, its emblem — or its initial,
  * stamped — beside it, then its desks within and its stories, pinned first.
+ * A desk in a style takes the style's colours, and its mark in place of the
+ * initial when it has no emblem.
  */
-export function Section({ context, chain, subContexts, pages, pinned, latest }: SectionProps) {
+export function Section({ context, chain, style, subContexts, pages, pinned, latest }: SectionProps) {
+  const { attrs, Mark } = dress('times', style)
   const ancestors = chain.slice(0, -1)
   const parent = ancestors[ancestors.length - 1]
   const level = ancestors.length > 1 && parent ? `Within ${parent.name}` : 'A desk of the Times'
@@ -25,12 +28,12 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
   ]
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 md:py-12" style={accentStyle(accentOf(chain), 'cinnabar')}>
-      <header className="border-b-[3px] border-(--accent) pb-6">
+    <div {...attrs} className="mx-auto max-w-6xl px-6 py-10 md:py-12">
+      <header className="border-b-[3px] border-(--accent-ink) pb-6">
         <Breadcrumb
           chain={ancestors}
           className="text-[11px] font-semibold uppercase tracking-[0.16em] text-news-500"
-          linkClassName="transition-colors hover:text-cinnabar-700"
+          linkClassName="transition-colors hover:text-(--accent-ink)"
           separatorClassName="text-news-300"
         />
         <div className="mt-4 flex items-center gap-5">
@@ -39,12 +42,16 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
             size={72}
             className="bg-(--accent-wash) p-1.5"
             fallback={
-              <span
-                aria-hidden="true"
-                className="font-news text-4xl font-black uppercase leading-none text-(--accent-ink)"
-              >
-                {context.name.charAt(0)}
-              </span>
+              Mark ? (
+                <Mark className="h-10 w-10 text-(--accent-ink)" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="font-news text-4xl font-black uppercase leading-none text-(--accent-ink)"
+                >
+                  {context.name.charAt(0)}
+                </span>
+              )
             }
           />
           <div className="min-w-0">
@@ -66,7 +73,7 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
       {within.length > 0 ? (
         <nav
           aria-label={`Within ${context.name}`}
-          className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-cinnabar-800"
+          className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-(--accent)"
         >
           <span className="text-news-500">Within this desk</span>
           {within.map((link) => (

@@ -2,25 +2,23 @@ import Link from 'next/link'
 
 import { AccountLink } from '@/components/site/AccountLink'
 import { NavLink } from '@/components/site/NavLink'
-import { ACCENTS } from '@/contexts/designs'
 import { archiveHref, contextHref, type SiteNav } from '@/lib/site'
 
 import { IntlMark } from './IntlMark'
 
 /**
  * The International masthead: a host strip naming the ground, a nameplate in
- * the record serif, and a bar of initiatives — each with its accent as a
- * swatch — that scrolls sideways on narrow screens rather than stacking.
- * Azania's own publications are a quiet line in the strip, as a host's
- * should be on neutral ground.
+ * the record serif, and a bar of initiatives that scrolls sideways on narrow
+ * screens rather than stacking. Azania's own publications are a quiet line
+ * in the strip, as a host's should be on neutral ground.
  */
 export function IntlNav({ nav }: { nav: SiteNav }) {
   const home = contextHref(nav.top)
   const primary = [
-    { href: home, label: 'Overview', exact: true, accent: null },
+    { href: home, label: 'Overview', exact: true },
     ...nav.sections.map((link) => ({ ...link, exact: false })),
-    { href: archiveHref(nav.top), label: 'Register', exact: false, accent: null },
-    ...nav.pages.map((link) => ({ ...link, exact: true, accent: null })),
+    { href: archiveHref(nav.top), label: 'Register', exact: false },
+    ...nav.pages.map((link) => ({ ...link, exact: true })),
   ]
   return (
     <header className="bg-paper-50 text-graphite-900">
@@ -70,15 +68,8 @@ export function IntlNav({ nav }: { nav: SiteNav }) {
               <NavLink
                 href={link.href}
                 exact={link.exact}
-                className="flex items-center gap-2 border-b-2 border-transparent py-3 text-graphite-700 transition-colors hover:text-graphite-900 aria-[current]:border-verdigris-600 aria-[current]:text-graphite-900"
+                className="block border-b-2 border-transparent py-3 text-graphite-700 transition-colors hover:text-graphite-900 aria-[current]:border-verdigris-600 aria-[current]:text-graphite-900"
               >
-                {link.accent ? (
-                  <span
-                    aria-hidden="true"
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: ACCENTS[link.accent].hex }}
-                  />
-                ) : null}
                 {link.label}
               </NavLink>
             </li>

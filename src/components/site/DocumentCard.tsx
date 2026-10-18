@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { dress } from '@/components/styles'
+import { getArticleStyle } from '@/lib/site'
 import type { Article } from '@/payload-types'
 
 import { GazetteCredit } from './GazetteByline'
@@ -10,19 +12,25 @@ import { articleHref, formatDate, kickerOf, resolveByline } from './format'
  * A document-like card for pinned articles — the charter and standing
  * decrees shown under "Documents of State" on the homepage. The kicker names
  * what the document is ("Pinned · The Chancellery · Decree"), and the foot
- * names the signatory and the date of entry, as a register would.
+ * names the signatory and the date of entry, as a register would. A styled
+ * document carries its style's mark in place of the seal.
  */
-export function DocumentCard({ article }: { article: Article }) {
+export async function DocumentCard({ article }: { article: Article }) {
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const href = articleHref(article)
   const byline = resolveByline(article)
   const { section, type } = kickerOf(article)
+  const { attrs, Mark } = dress('gazette', await getArticleStyle(article))
+  const Badge = Mark ?? Seal
 
   return (
-    <article className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-saffron-400">
-      <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-coral-700">
-        <Seal className="h-3.5 w-3.5 shrink-0" />
+    <article
+      {...attrs}
+      className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-(--accent)"
+    >
+      <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-(--seal-ink)">
+        <Badge className="h-3.5 w-3.5 shrink-0" />
         <span>Pinned</span>
         {section ? (
           <>

@@ -16,6 +16,7 @@ import {
   resolveByline,
   resolveImage,
 } from '@/components/site/format'
+import { dress } from '@/components/styles'
 import { archiveHref, contextHref } from '@/lib/site'
 
 import type { ArticleProps } from '../types'
@@ -25,9 +26,11 @@ import type { ArticleProps } from '../types'
  * byline. A document of state — a decree, a statement, a notice — is set as
  * an instrument instead: the crest and the nation's name as a letterhead,
  * the type under the seal, everything centred, and a signature block to
- * close it, with the Seal of the Nation pressed beside a decree's.
+ * close it, with the Seal of the Nation pressed beside a decree's. A record
+ * in a style keeps the letterhead and the crest, and takes the style's
+ * colours for its kicker and hairline and its mark in place of the seal.
  */
-export function Article({ article, chain, draft }: ArticleProps) {
+export function Article({ article, chain, style, draft }: ArticleProps) {
   const top = chain[0]
   const { section, type } = kickerOf(article)
   const byline = resolveByline(article)
@@ -36,9 +39,11 @@ export function Article({ article, chain, draft }: ArticleProps) {
   const date = formatDate(dateTime)
   const formal = isStateDocument(article)
   const decree = article.type === 'decree'
+  const { attrs, Mark } = dress('gazette', style)
+  const Badge = Mark ?? Seal
 
   return (
-    <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+    <article {...attrs} className="mx-auto max-w-3xl px-6 py-16 md:py-20">
       {draft ? <PreviewTools /> : null}
       <header className={cn(formal && 'text-center')}>
         {formal ? (
@@ -56,8 +61,8 @@ export function Article({ article, chain, draft }: ArticleProps) {
                 </>
               ) : null}
             </p>
-            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-coral-700">
-              <Seal className="h-3.5 w-3.5 shrink-0" />
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-(--seal-ink)">
+              <Badge className="h-3.5 w-3.5 shrink-0" />
               <span>{type}</span>
               {date ? (
                 <>
@@ -70,7 +75,7 @@ export function Article({ article, chain, draft }: ArticleProps) {
             </p>
           </div>
         ) : (
-          <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
+          <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
             {section ? (
               <>
                 <Link href={contextHref(section)} className="text-sea-700 hover:text-sea-600">
@@ -117,8 +122,8 @@ export function Article({ article, chain, draft }: ArticleProps) {
           >
             {byline ? <GazetteByline byline={byline} /> : null}
             {article.pinned ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-coral-700">
-                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-coral-600" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-(--seal-ink)">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-(--seal)" />
                 Pinned document
               </span>
             ) : null}

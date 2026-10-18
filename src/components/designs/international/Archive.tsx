@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { cn } from '@/blocks/components/shared'
 import { RecordList } from '@/components/intl/IntlRecord'
 import { Pagination } from '@/components/site/Pagination'
-import { accentStyle } from '@/components/site/format'
 import { TYPE_LABELS } from '@/contexts/designs'
 import { archiveHref } from '@/lib/site'
 
@@ -16,7 +15,7 @@ export function Archive({ top, result, page, type, types }: ArchiveProps) {
   const shown = type ? TYPE_LABELS[type] : 'All records'
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16" style={accentStyle(null, 'slate')}>
+    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
       <header>
         <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-graphite-500">{top.name}</p>
         <h1 className="mt-2 font-record text-4xl font-medium tracking-tight text-graphite-900 md:text-5xl">

@@ -135,27 +135,29 @@ const STRUCTURE = cn(
   '[&>*:last-child]:mb-0!',
 )
 
+// The Gazette and the Times read their accents from the style slots
+// (src/components/styles/slots.ts), so prose inside a styled record follows it.
 const GAZETTE_TONE = cn(
   '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-display',
   '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-sea-900',
   '[&_a:not([class])]:text-sea-700',
-  '[&_a:not([class])]:decoration-saffron-400',
+  '[&_a:not([class])]:decoration-(--accent)',
   '[&_a:not([class]):hover]:text-sea-800',
-  '[&_a:not([class]):hover]:decoration-saffron-600',
-  '[&_blockquote:not([class])]:border-saffron-400',
+  '[&_a:not([class]):hover]:decoration-(--accent-ink)',
+  '[&_blockquote:not([class])]:border-(--accent)',
   '[&_blockquote:not([class])]:text-ink-700',
-  '[&_li::marker]:text-saffron-600',
-  '[&_hr:not([class])]:border-saffron-400',
+  '[&_li::marker]:text-(--accent-ink)',
+  '[&_hr:not([class])]:border-(--accent)',
   '[&_code:not([class])]:bg-sand-200',
   '[&_img:not([class])]:border-sand-300',
 )
 
 const TIMES_TONE = cn(
   '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-display',
-  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-cinnabar-800',
-  '[&_a:not([class])]:text-cinnabar-700',
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-(--accent)',
+  '[&_a:not([class])]:text-(--accent-ink)',
   '[&_a:not([class])]:decoration-lagoon-500',
-  '[&_a:not([class]):hover]:text-cinnabar-800',
+  '[&_a:not([class]):hover]:text-(--accent)',
   '[&_a:not([class]):hover]:decoration-lagoon-600',
   '[&_blockquote:not([class])]:border-lagoon-500',
   '[&_blockquote:not([class])]:text-news-700',

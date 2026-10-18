@@ -3,6 +3,8 @@ import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
+import { dress } from '@/components/styles'
+import { getArticleStyle } from '@/lib/site'
 import type { Article } from '@/payload-types'
 
 import {
@@ -20,9 +22,11 @@ import { TimesCredit } from './TimesByline'
  * ("Markets · News"), Archivo headline, dek and byline. An opinion piece is
  * unmistakably one: a solid "Opinion" tag, and in place of a picture the
  * writer's head under a great opening quotation mark, since a signed view is
- * a person speaking. The whole card is clickable via a stretched title link.
+ * a person speaking. A story in a style wears it here too — its colours in
+ * the kicker, tag and ground, its mark in the tag — so it stands out a
+ * little in the grid. The whole card is clickable via a stretched title link.
  */
-export function TimesCard({ article }: { article: Article }) {
+export async function TimesCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
   const { parts } = kickerOf(article)
   const byline = resolveByline(article)
@@ -30,9 +34,10 @@ export function TimesCard({ article }: { article: Article }) {
   const date = formatDate(dateTime)
   const opinion = article.type === 'opinion'
   const words = opinion ? parts.filter((part) => part !== 'Opinion') : parts
+  const { attrs, Mark } = dress('times', await getArticleStyle(article))
 
   return (
-    <article className="group relative flex flex-col">
+    <article {...attrs} className="group relative flex flex-col">
       {image ? (
         <div className="overflow-hidden bg-news-100">
           <Image
@@ -45,27 +50,27 @@ export function TimesCard({ article }: { article: Article }) {
           />
         </div>
       ) : opinion && byline ? (
-        <div className="relative flex aspect-[3/2] w-full flex-col items-center justify-center overflow-hidden bg-cinnabar-100 px-6 text-center">
+        <div className="relative flex aspect-[3/2] w-full flex-col items-center justify-center overflow-hidden bg-(--accent-wash) px-6 text-center">
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -top-3 left-4 select-none font-display text-[160px] leading-none text-cinnabar-300/60"
+            className="pointer-events-none absolute -top-3 left-4 select-none font-display text-[160px] leading-none text-(--accent-tint)/60"
           >
             “
           </span>
           <BylineAvatar byline={byline} size={64} tone="times" className="relative" />
-          <p className="relative mt-3 font-news text-sm font-bold uppercase tracking-[0.1em] text-cinnabar-900">
+          <p className="relative mt-3 font-news text-sm font-bold uppercase tracking-[0.1em] text-(--accent-deep)">
             {byline.name}
           </p>
           {byline.title ? (
-            <p className="relative mt-1 text-xs text-cinnabar-800/80">{byline.title}</p>
+            <p className="relative mt-1 text-xs text-(--accent)/80">{byline.title}</p>
           ) : null}
         </div>
       ) : (
-        <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-3 bg-cinnabar-800/[0.06]">
+        <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-3 bg-(--accent)/6">
           <span aria-hidden="true" className="h-px w-16 bg-lagoon-500/50" />
           <span
             aria-hidden="true"
-            className="font-news text-[11px] font-bold uppercase tracking-[0.28em] text-cinnabar-800/40"
+            className="font-news text-[11px] font-bold uppercase tracking-[0.28em] text-(--accent)/40"
           >
             The Azanian Times
           </span>
@@ -73,9 +78,12 @@ export function TimesCard({ article }: { article: Article }) {
         </div>
       )}
       <div className="mt-3.5 flex flex-1 flex-col">
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-cinnabar-700">
+        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-(--accent-ink)">
           {opinion ? (
-            <span className="bg-cinnabar-800 px-1.5 py-0.5 text-[10px] text-news-50">Opinion</span>
+            <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
+              {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}
+              Opinion
+            </span>
           ) : null}
           {words.map((word, index) => (
             <span key={word} className="flex items-center gap-x-2">
@@ -101,12 +109,12 @@ export function TimesCard({ article }: { article: Article }) {
         <h3
           className={cn(
             'mt-1.5 font-news text-xl font-bold leading-tight text-news-900',
-            opinion && 'text-cinnabar-900',
+            opinion && 'text-(--accent-deep)',
           )}
         >
           <Link
             href={articleHref(article)}
-            className="transition-colors after:absolute after:inset-0 group-hover:text-cinnabar-800"
+            className="transition-colors after:absolute after:inset-0 group-hover:text-(--accent)"
           >
             {article.title}
           </Link>

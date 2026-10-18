@@ -9,6 +9,8 @@ import {
 } from 'next/font/google'
 import type { ReactNode } from 'react'
 
+import { slotVars } from '@/components/styles/slots'
+
 import './globals.css'
 
 // Headings and article titles: a warm, calligraphic serif with a ledger-book
@@ -79,7 +81,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable}`}
     >
-      <body className="font-body antialiased">{children}</body>
+      {/* The site's base dress is the Gazette's (sign-in, the account): its slots sit on the body, and each design's shell sets its own. */}
+      <body className="font-body antialiased" style={slotVars('gazette')}>
+        {children}
+      </body>
     </html>
   )
 }

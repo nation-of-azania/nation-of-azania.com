@@ -101,6 +101,24 @@
   --color-verdigris-100: #e6f0ed;
 
   /*
+   * Cherry Blossom — GirlieTown's style (src/components/styles/blossom),
+   * after the cherry trees of the Cherry Grove: deep rose for text (700
+   * passes AA on every design's ground; 600 on the Times' newsprint), the
+   * leaves' pink for rules and hairlines (400), the petals for tints (300,
+   * 200) and the palest blossom for a ground (100). `blossom-plank` is
+   * cherry planks, the soft pink wood, at its palest: the Gazette's ground
+   * for the style, since a record is built rather than strewn with petals.
+   */
+  --color-blossom-900: #5a1a3a;
+  --color-blossom-700: #9b2f5e;
+  --color-blossom-600: #b24070;
+  --color-blossom-400: #e58fb3;
+  --color-blossom-300: #f2b4cb;
+  --color-blossom-200: #f8d3e0;
+  --color-blossom-100: #fbe7ee;
+  --color-blossom-plank: #f7e9e5;
+
+  /*
    * Discord's own dark palette — used ONLY by the Discord Quote content block
    * (src/blocks/components/Discord), so a quoted exchange looks like the real
    * client rather than a re-skin of it. These are Discord's dark-theme values:

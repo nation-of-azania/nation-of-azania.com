@@ -5,7 +5,7 @@ import { InitiativeList } from '@/components/intl/InitiativeList'
 import { IntlCredit } from '@/components/intl/IntlByline'
 import { INTL_ACTION, IntlHeading } from '@/components/intl/IntlHeading'
 import { RecordList, RecordRef } from '@/components/intl/IntlRecord'
-import { accentStyle, articleHref, formatDate, resolveByline } from '@/components/site/format'
+import { articleHref, formatDate, resolveByline } from '@/components/site/format'
 import { archiveHref } from '@/lib/site'
 
 import type { HomeProps } from '../types'
@@ -18,7 +18,7 @@ import type { HomeProps } from '../types'
 export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
   const archive = archiveHref(top)
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16" style={accentStyle(null, 'slate')}>
+    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
       <section className="grid gap-10 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:gap-16">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-verdigris-700">

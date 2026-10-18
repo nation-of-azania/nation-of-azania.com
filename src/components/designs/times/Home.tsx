@@ -10,11 +10,17 @@ import {
   resolveByline,
   resolveImage,
 } from '@/components/site/format'
+import { dress } from '@/components/styles'
+import { getArticleStyle } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
-/** The Times' front page: a lead story (the pinned one, else the newest) over a grid. */
-export function Home({ top, pinned, latest }: HomeProps) {
+/**
+ * The Times' front page: a lead story (the pinned one, else the newest) over
+ * a grid. The lead wears its style's colours like any card, but keeps the
+ * paper's own "Lead Story" tag.
+ */
+export async function Home({ top, pinned, latest }: HomeProps) {
   const lead = pinned[0] ?? latest[0]
   const rest = [...pinned, ...latest].filter((story) => story.id !== lead?.id)
 
@@ -38,14 +44,18 @@ export function Home({ top, pinned, latest }: HomeProps) {
   const leadDateTime = lead.publishedAt ?? lead.createdAt
   const leadDate = formatDate(leadDateTime)
   const leadHref = articleHref(lead)
+  const { attrs } = dress('times', await getArticleStyle(lead))
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
       {/* Lead story */}
-      <section className="grid gap-8 border-b border-news-200 pb-12 md:grid-cols-2 md:gap-10">
+      <section
+        {...attrs}
+        className="grid gap-8 border-b border-news-200 pb-12 md:grid-cols-2 md:gap-10"
+      >
         <div className="order-2 flex flex-col justify-center md:order-1">
-          <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
-            <span className="bg-cinnabar-800 px-1.5 py-0.5 text-news-50">Lead Story</span>
+          <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
+            <span className="bg-(--accent) px-1.5 py-0.5 text-news-50">Lead Story</span>
             {leadKicker ? <span>{leadKicker}</span> : null}
             {leadDate ? (
               <>
@@ -57,7 +67,7 @@ export function Home({ top, pinned, latest }: HomeProps) {
             ) : null}
           </p>
           <h1 className="mt-3 font-news text-4xl font-black leading-[1.02] text-news-900 md:text-5xl">
-            <Link href={leadHref} className="transition-colors hover:text-cinnabar-800">
+            <Link href={leadHref} className="transition-colors hover:text-(--accent)">
               {lead.title}
             </Link>
           </h1>
@@ -68,7 +78,7 @@ export function Home({ top, pinned, latest }: HomeProps) {
             {leadByline ? <TimesByline byline={leadByline} /> : null}
             <Link
               href={leadHref}
-              className="font-semibold text-cinnabar-700 transition-colors hover:text-cinnabar-800"
+              className="font-semibold text-(--accent-ink) transition-colors hover:text-(--accent)"
             >
               Read the full story →
             </Link>

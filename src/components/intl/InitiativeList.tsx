@@ -1,20 +1,19 @@
 import Link from 'next/link'
 
 import { Emblem } from '@/components/site/Emblem'
-import { accentStyle } from '@/components/site/format'
-import { accentOf, contextHref, emblemOf } from '@/lib/site'
+import { contextHref, emblemOf } from '@/lib/site'
 import type { Context } from '@/payload-types'
 
 type Props = {
   /** The sub-contexts to list. */
   contexts: Context[]
-  /** The chain above them, for the accent and emblem each inherits. */
+  /** The chain above them, for the emblem each inherits. */
   chain: Context[]
 }
 
 /**
- * The initiatives under a context, each as a tile carrying its inherited
- * accent as a bar and its emblem when it has one. The whole tile is the link.
+ * The initiatives under a context, each as a tile with the registry's bar
+ * and its emblem when it has one. The whole tile is the link.
  */
 export function InitiativeList({ contexts, chain }: Props) {
   return (
@@ -24,7 +23,6 @@ export function InitiativeList({ contexts, chain }: Props) {
         return (
           <li
             key={context.id}
-            style={accentStyle(accentOf(own), 'slate')}
             className="group relative flex gap-4 border border-paper-200 bg-paper-100/60 p-5 transition-colors hover:border-(--accent)"
           >
             <span aria-hidden="true" className="w-1 shrink-0 self-stretch bg-(--accent)" />

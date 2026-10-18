@@ -2,6 +2,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
+import { dress } from '@/components/styles'
+import { getArticleStyle } from '@/lib/site'
 import type { Article } from '@/payload-types'
 
 import { Crest } from './Crest'
@@ -20,11 +22,13 @@ import {
  * The standard gazette card, shared by the homepage and the article index.
  * The kicker reads "Public Works · Dispatch". A document of state — a decree,
  * a statement, a notice — is set apart by the seal and a coral rule at its
- * head, and shows the crest in place of a picture. The whole card is
- * clickable via a stretched title link; relations are rendered only when
- * populated.
+ * head, and shows the crest in place of a picture. An article in a style
+ * wears it here too: the style's colours in the kicker and rules, its mark
+ * in place of the seal, and the same rule at its head, so it stands out a
+ * little in a mixed listing. The whole card is clickable via a stretched
+ * title link; relations are rendered only when populated.
  */
-export function ArticleCard({ article }: { article: Article }) {
+export async function ArticleCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
   const { section, type } = kickerOf(article)
   const byline = resolveByline(article)
@@ -32,15 +36,18 @@ export function ArticleCard({ article }: { article: Article }) {
   const date = formatDate(dateTime)
   const href = articleHref(article)
   const formal = isStateDocument(article)
+  const { attrs, wears, Mark } = dress('gazette', await getArticleStyle(article))
+  const Badge = Mark ?? Seal
 
   return (
     <article
+      {...attrs}
       className={cn(
-        'group relative flex flex-col border border-sand-300 bg-sand-50 transition-colors hover:border-saffron-400',
-        formal && 'border-t-2 border-t-coral-600 hover:border-t-coral-600',
+        'group relative flex flex-col border border-sand-300 bg-sand-50 transition-colors hover:border-(--accent)',
+        (formal || wears) && 'border-t-2 border-t-(--seal) hover:border-t-(--seal)',
       )}
     >
-      <div className="border-b border-sand-300 bg-sand-100">
+      <div className="border-b border-sand-300 bg-(--accent-wash)">
         {image ? (
           <Image
             src={image.url}
@@ -62,7 +69,7 @@ export function ArticleCard({ article }: { article: Article }) {
         )}
       </div>
       <div className="flex flex-1 flex-col p-5">
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
+        <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
           {section ? (
             <>
               <span className="text-sea-700">{section.name}</span>
@@ -70,8 +77,8 @@ export function ArticleCard({ article }: { article: Article }) {
             </>
           ) : null}
           {formal ? (
-            <span className="inline-flex items-center gap-1.5 text-coral-700">
-              <Seal className="h-3 w-3 shrink-0" />
+            <span className="inline-flex items-center gap-1.5 text-(--seal-ink)">
+              <Badge className="h-3 w-3 shrink-0" />
               {type}
             </span>
           ) : (

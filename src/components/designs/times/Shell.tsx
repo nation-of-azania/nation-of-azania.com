@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 
+import { slotVars } from '@/components/styles/slots'
 import { TimesFooter } from '@/components/times/TimesFooter'
 import { TimesNav } from '@/components/times/TimesNav'
 
@@ -21,10 +22,15 @@ const VOICE = {
 /**
  * Chrome for the Azanian Times (/times): cool newsprint ground, a cinnabar
  * and lagoon-teal palette, and the Archivo nameplate — the independent paper.
+ * Its style slots (the cinnabar scale) are set here for everything inside;
+ * a styled desk or story overrides them on its own element.
  */
 export function Shell({ nav, children }: ShellProps) {
   return (
-    <div style={VOICE} className="flex min-h-screen flex-col bg-news-50 text-news-900">
+    <div
+      style={{ ...VOICE, ...slotVars('times') }}
+      className="flex min-h-screen flex-col bg-news-50 text-news-900"
+    >
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-cinnabar-800 focus:px-4 focus:py-2 focus:text-sm focus:text-news-50"

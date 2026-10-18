@@ -1,6 +1,4 @@
-import type { CSSProperties } from 'react'
-
-import { ACCENTS, TYPE_LABELS, type Accent } from '@/contexts/designs'
+import { TYPE_LABELS } from '@/contexts/designs'
 import type { Article, Context, Media } from '@/payload-types'
 
 /** The article's context, when populated (depth ≥ 1). */
@@ -65,17 +63,6 @@ export const isStateDocument = (article: Pick<Article, 'type'>): boolean =>
  */
 export function documentNumber(title: string): string | null {
   return title.match(/\b([A-Z]{1,4}-\d{1,4}[A-Z]?)\b/)?.[1] ?? null
-}
-
-/**
- * A context's accent as CSS custom properties, for the utilities
- * `bg-(--accent)`, `text-(--accent-ink)` and `bg-(--accent-wash)`. Every
- * design passes its own fallback, so an unaccented context still reads in
- * the design's colour.
- */
-export function accentStyle(accent: Accent | null | undefined, fallback: Accent): CSSProperties {
-  const { hex, ink, wash } = ACCENTS[accent ?? fallback]
-  return { '--accent': hex, '--accent-ink': ink, '--accent-wash': wash } as CSSProperties
 }
 
 /**

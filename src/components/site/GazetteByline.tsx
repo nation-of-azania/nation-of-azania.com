@@ -45,7 +45,7 @@ export function GazetteByline({ byline, className }: Props) {
           {byline.name}
         </p>
         {byline.title ? (
-          <p className="mt-1 text-[11px] uppercase leading-none tracking-[0.18em] text-saffron-600">
+          <p className="mt-1 text-[11px] uppercase leading-none tracking-[0.18em] text-(--accent-ink)">
             {byline.title}
           </p>
         ) : null}
@@ -87,7 +87,7 @@ export function GazetteSignature({
       )}
     >
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">{heading}</p>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">{heading}</p>
         <div className="mt-4 flex items-center gap-4">
           <BylineAvatar byline={byline} size={48} tone="gazette" />
           <div className="min-w-0">

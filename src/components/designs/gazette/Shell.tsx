@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 
 import { Footer } from '@/components/site/Footer'
 import { Nav } from '@/components/site/Nav'
+import { slotVars } from '@/components/styles/slots'
 
 import type { ShellProps } from '../types'
 
@@ -21,11 +22,15 @@ const VOICE = {
 /**
  * Chrome for the Gazette design (Government, /gov): the civic sea-and-sand
  * look, with the national ribbon in saffron and coral over the deep-water
- * masthead.
+ * masthead. Its style slots (saffron, coral) are set here for everything
+ * inside; a styled office or record overrides them on its own element.
  */
 export function Shell({ nav, children }: ShellProps) {
   return (
-    <div style={VOICE} className="flex min-h-screen flex-col bg-sand-50 text-ink-900">
+    <div
+      style={{ ...VOICE, ...slotVars('gazette') }}
+      className="flex min-h-screen flex-col bg-sand-50 text-ink-900"
+    >
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-sea-900 focus:px-4 focus:py-2 focus:text-sm focus:text-sand-50"

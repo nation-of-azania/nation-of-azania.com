@@ -3,8 +3,7 @@ import Link from 'next/link'
 import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
-import { accentStyle } from '@/components/site/format'
-import { accentOf, contextHref } from '@/lib/site'
+import { contextHref } from '@/lib/site'
 
 import type { PageProps } from '../types'
 
@@ -12,7 +11,7 @@ import type { PageProps } from '../types'
 export function Page({ page, chain, draft }: PageProps) {
   const home = chain[chain.length - 1]
   return (
-    <article className="mx-auto max-w-3xl px-6 py-12 md:py-16" style={accentStyle(accentOf(chain), 'slate')}>
+    <article className="mx-auto max-w-3xl px-6 py-12 md:py-16">
       {draft ? <PreviewTools /> : null}
       <Breadcrumb
         chain={chain}

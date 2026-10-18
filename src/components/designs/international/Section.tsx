@@ -7,15 +7,14 @@ import { IntlMark } from '@/components/intl/IntlMark'
 import { RecordList } from '@/components/intl/IntlRecord'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { Emblem } from '@/components/site/Emblem'
-import { accentStyle } from '@/components/site/format'
-import { accentOf, archiveHref, emblemOf } from '@/lib/site'
+import { archiveHref, emblemOf } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
 /**
  * An initiative at any depth (Transport Catalogue › Road Initiative › Case
- * Studies): the way back up, the emblem and accent it carries or inherits,
- * what sits inside it, and its records as a ledger.
+ * Studies): the way back up, the emblem it carries or inherits, what sits
+ * inside it, and its records as a ledger.
  */
 export function Section({ context, chain, subContexts, pages, pinned, latest }: SectionProps) {
   const top = chain[0]
@@ -24,7 +23,7 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
   const level = ancestors.length > 1 && parent ? `Within ${parent.name}` : 'Initiative'
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16" style={accentStyle(accentOf(chain), 'slate')}>
+    <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
       <Breadcrumb
         chain={ancestors}
         className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite-500"

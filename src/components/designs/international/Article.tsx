@@ -7,8 +7,8 @@ import { RichText } from '@/components/RichText'
 import { IntlByline } from '@/components/intl/IntlByline'
 import { bylineLabelOf, dateLabelOf, recordRef } from '@/components/intl/IntlRecord'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
-import { accentStyle, formatDate, resolveByline, resolveImage } from '@/components/site/format'
-import { accentOf, archiveHref, contextHref } from '@/lib/site'
+import { formatDate, resolveByline, resolveImage } from '@/components/site/format'
+import { archiveHref, contextHref } from '@/lib/site'
 
 import type { ArticleProps } from '../types'
 
@@ -38,7 +38,7 @@ export function Article({ article, chain, draft }: ArticleProps) {
     number && date ? `${number}, ${filedIn?.name ?? top?.name}, ${new Date(dateTime).getFullYear()}` : null
 
   return (
-    <article className="mx-auto max-w-6xl px-6 py-12 md:py-16" style={accentStyle(accentOf(chain), 'slate')}>
+    <article className="mx-auto max-w-6xl px-6 py-12 md:py-16">
       {draft ? <PreviewTools /> : null}
       <Breadcrumb
         chain={chain}

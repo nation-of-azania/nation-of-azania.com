@@ -10,6 +10,7 @@ import {
   resolveByline,
   resolveImage,
 } from '@/components/site/format'
+import { dress } from '@/components/styles'
 import { TimesByline } from '@/components/times/TimesByline'
 import { contextHref } from '@/lib/site'
 
@@ -21,9 +22,11 @@ const OPINION_NOTE = 'A signed view, not the paper’s reporting.'
  * A Times story: kicker ("Markets · News"), Archivo headline, dek, byline, a
  * cinnabar rule. An opinion piece is a person speaking: a solid "Opinion"
  * tag, a great opening quotation mark behind the headline, the writer's head
- * at 64px, and the desk's standing note that this is a signed view.
+ * at 64px, and the desk's standing note that this is a signed view. A story
+ * in a style keeps all of this, in the style's colours, with the style's
+ * mark in the Opinion tag as the column's own badge.
  */
-export function Article({ article, chain, draft }: ArticleProps) {
+export function Article({ article, chain, style, draft }: ArticleProps) {
   const top = chain[0]
   const { section, parts } = kickerOf(article)
   const byline = resolveByline(article)
@@ -33,22 +36,26 @@ export function Article({ article, chain, draft }: ArticleProps) {
   const opinion = article.type === 'opinion'
   const words = opinion ? parts.filter((part) => part !== 'Opinion') : parts
   const note = (section?.name.toLowerCase() === 'opinion' && section.tagline) || OPINION_NOTE
+  const { attrs, Mark } = dress('times', style)
 
   return (
-    <article className="mx-auto max-w-3xl px-6 py-12 md:py-16">
+    <article {...attrs} className="mx-auto max-w-3xl px-6 py-12 md:py-16">
       {draft ? <PreviewTools /> : null}
       <header className="relative">
         {opinion ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -left-4 top-4 hidden select-none font-display text-[200px] leading-none text-cinnabar-200/70 md:-left-24 md:block"
+            className="pointer-events-none absolute -left-4 top-4 hidden select-none font-display text-[200px] leading-none text-(--accent-faint)/70 md:-left-24 md:block"
           >
             “
           </span>
         ) : null}
-        <p className="relative flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cinnabar-700">
+        <p className="relative flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
           {opinion ? (
-            <span className="bg-cinnabar-800 px-1.5 py-0.5 text-[10px] text-news-50">Opinion</span>
+            <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
+              {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}
+              Opinion
+            </span>
           ) : null}
           {words.map((word, index) => (
             <span key={word} className="flex items-center gap-x-2">
@@ -58,7 +65,7 @@ export function Article({ article, chain, draft }: ArticleProps) {
                 </span>
               ) : null}
               {section && word === section.name ? (
-                <Link href={contextHref(section)} className="hover:text-cinnabar-800">
+                <Link href={contextHref(section)} className="hover:text-(--accent)">
                   {word}
                 </Link>
               ) : (
@@ -94,7 +101,7 @@ export function Article({ article, chain, draft }: ArticleProps) {
                 {byline.name}
               </p>
               {byline.title ? <p className="mt-0.5 text-sm text-news-500">{byline.title}</p> : null}
-              <p className="mt-2 flex items-center gap-2 text-xs italic text-cinnabar-800">
+              <p className="mt-2 flex items-center gap-2 text-xs italic text-(--accent)">
                 <span aria-hidden="true" className="h-px w-4 bg-lagoon-500" />
                 {note}
               </p>
@@ -103,7 +110,7 @@ export function Article({ article, chain, draft }: ArticleProps) {
         ) : byline ? (
           <TimesByline byline={byline} className="mt-6" />
         ) : null}
-        <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-cinnabar-800" />
+        <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-(--accent)" />
       </header>
 
       {hero ? (
@@ -129,14 +136,14 @@ export function Article({ article, chain, draft }: ArticleProps) {
         {section ? (
           <Link
             href={contextHref(section)}
-            className="text-cinnabar-700 transition-colors hover:text-cinnabar-800"
+            className="text-(--accent-ink) transition-colors hover:text-(--accent)"
           >
             ← {section.name}
           </Link>
         ) : null}
         <Link
           href={top ? contextHref(top) : '/'}
-          className="text-cinnabar-700 transition-colors hover:text-cinnabar-800"
+          className="text-(--accent-ink) transition-colors hover:text-(--accent)"
         >
           {section ? 'Front Page' : `← ${top?.name ?? 'Front Page'}`}
         </Link>

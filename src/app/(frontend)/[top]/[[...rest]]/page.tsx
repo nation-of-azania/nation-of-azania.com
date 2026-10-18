@@ -16,6 +16,8 @@ import {
   getViewer,
 } from '@/lib/queries'
 import {
+  articleStyle,
+  contextStyle,
   designOf,
   getPageLinks,
   getSiteTree,
@@ -126,7 +128,14 @@ export default async function ContextRoute({ params, searchParams }: Props) {
   if ('article' in loaded && loaded.article) {
     const context = loaded.article.context
     const chain = tree.ancestors(typeof context === 'number' ? context : context.id)
-    return <views.Article article={loaded.article} chain={chain} draft={draft} />
+    return (
+      <views.Article
+        article={loaded.article}
+        chain={chain}
+        style={articleStyle(tree, loaded.article)}
+        draft={draft}
+      />
+    )
   }
   if ('page' in loaded && loaded.page && route.kind === 'page') {
     return <views.Page page={loaded.page} chain={route.chain} draft={draft} />
@@ -157,6 +166,7 @@ export default async function ContextRoute({ params, searchParams }: Props) {
         <views.Section
           context={route.context}
           chain={route.chain}
+          style={contextStyle(tree, route.context)}
           subContexts={subContexts}
           pages={pages}
           pinned={pinned}

@@ -88,6 +88,11 @@ must look right on the sand background without external wrappers.
   tricolour, used for the flag tick (`<FlagTick />`) and the masthead ribbon.
 - The Azanian Times: `cinnabar-950…100` (primary), `lagoon-700…300` (accent),
   `news-50…900` (newsprint ground and text).
+- Cherry Blossom (GirlieTown's style): `blossom-900…100` — rose for text
+  (700; 600 on newsprint), the leaves' pink for rules (400), petals for
+  tints — and `blossom-plank`, cherry planks at their palest, the Gazette's
+  ground for the style. Styles fill each design's accent slots
+  (`src/components/styles/slots.ts`); they never restyle a component.
 - Discord block only: `dc-*` (Discord's own dark palette — never used elsewhere).
 - Fonts: `font-display` (Alegreya — headings, titles), `font-mark` (Marcellus —
   the wordmark), `font-body` (Source Sans 3), `font-news` (Archivo — Times

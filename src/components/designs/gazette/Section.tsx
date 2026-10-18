@@ -8,19 +8,21 @@ import { DocumentCard } from '@/components/site/DocumentCard'
 import { Emblem } from '@/components/site/Emblem'
 import { FlagTick } from '@/components/site/FlagTick'
 import { SectionHeading } from '@/components/site/SectionHeading'
-import { accentStyle } from '@/components/site/format'
-import { accentOf, archiveHref, contextHref, emblemOf } from '@/lib/site'
+import { dress } from '@/components/styles'
+import { archiveHref, contextHref, emblemOf } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
 /**
  * An office of state (a ministry, the Chancellery) at any depth, set like a
- * letterhead: the way back up, its emblem — or the crest, in its accent —
- * beside its name, the double rule with its accent as the hairline, what
- * sits inside it, its standing documents and its latest dispatches.
+ * letterhead: the way back up, its emblem — or the crest — beside its name,
+ * the double rule, what sits inside it, its standing documents and its
+ * latest dispatches. An office in a style keeps all of that in the style's
+ * colours, with the style's mark in the frame when it has no emblem.
  */
-export function Section({ context, chain, subContexts, pages, pinned, latest }: SectionProps) {
+export function Section({ context, chain, style, subContexts, pages, pinned, latest }: SectionProps) {
   const top = chain[0]
+  const { attrs, Mark } = dress('gazette', style)
   const ancestors = chain.slice(0, -1)
   const parent = ancestors[ancestors.length - 1]
   const level = ancestors.length > 1 && parent ? `Within ${parent.name}` : 'An office of state'
@@ -32,11 +34,11 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
   const sparse = !context.intro && within.length === 0 && pinned.length === 0
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-16 md:py-20" style={accentStyle(accentOf(chain), 'saffron')}>
+    <div {...attrs} className="mx-auto max-w-6xl px-6 py-16 md:py-20">
       <header>
         <Breadcrumb
           chain={ancestors}
-          className="text-[11px] uppercase tracking-[0.2em] text-saffron-600"
+          className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)"
           linkClassName="text-sea-700 transition-colors hover:text-sea-600"
           separatorClassName="text-sand-300"
         />
@@ -45,7 +47,13 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
             media={emblemOf(chain)}
             size={104}
             className="border border-sand-300 bg-(--accent-wash) p-2"
-            fallback={<Crest className="h-14 w-auto text-(--accent-ink)" />}
+            fallback={
+              Mark ? (
+                <Mark className="h-14 w-14 text-(--accent-ink)" />
+              ) : (
+                <Crest className="h-14 w-auto text-(--accent-ink)" />
+              )
+            }
           />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2.5 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
@@ -70,7 +78,7 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
 
       {within.length > 0 ? (
         <nav aria-label={`Within ${context.name}`} className="mt-10">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">Within this office</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">Within this office</p>
           <ul className="mt-3 flex flex-wrap gap-3">
             {within.map((link) => (
               <li key={link.href}>
