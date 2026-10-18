@@ -2,6 +2,7 @@ import {
   APIError,
   ValidationError,
   type AccessResult,
+  type CollectionAfterChangeHook,
   type CollectionBeforeChangeHook,
   type CollectionBeforeValidateHook,
   type CollectionConfig,
@@ -17,6 +18,7 @@ import { contentBlocks } from '../blocks/config'
 import { DESIGNS, defaultTypeOf, isDesign, TYPE_LABELS, typesOf } from '../contexts/designs'
 import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles'
 import { slugField } from '../fields/slug'
+import { announceArticle } from '../lib/discord'
 import { articlePath, livePreview, previewButton } from '../lib/preview'
 
 const idOf = (value: unknown): number | undefined =>
@@ -108,6 +110,44 @@ const enforcePublishing: CollectionBeforeChangeHook = async ({ data, originalDoc
     throw new APIError('The 3D model and Litematica blocks need publishing access in this context.', 403)
   }
   return data
+}
+
+const ANNOUNCE = 'azaniaAnnounce'
+
+/**
+ * The first time an article goes live it gets `announcedAt`, and, when a
+ * signed-in person published it, a Discord announcement is queued for after
+ * the save (src/lib/discord.ts). The stored row decides "first": it holds the
+ * published version, whatever draft the editor was working from.
+ */
+const markFirstPublication: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
+  if (data._status !== 'published') return data
+  const id = idOf(originalDoc?.id)
+  const stored =
+    id != null
+      ? await req.payload.db.findOne<{ id: number; announcedAt?: string | null }>({
+          collection: 'articles',
+          where: { id: { equals: id } },
+          req,
+        })
+      : null
+  if (stored?.announcedAt) {
+    data.announcedAt = stored.announcedAt
+    return data
+  }
+  data.announcedAt = new Date().toISOString()
+  const slug = data.slug ?? originalDoc?.slug
+  if (req.user && slug) {
+    const queued = (req.context[ANNOUNCE] as Set<string> | undefined) ?? new Set<string>()
+    req.context[ANNOUNCE] = queued.add(slug)
+  }
+  return data
+}
+
+const announceFirstPublication: CollectionAfterChangeHook = async ({ doc, req }) => {
+  const queued = req.context[ANNOUNCE] as Set<string> | undefined
+  if (doc._status === 'published' && queued?.delete(doc.slug)) await announceArticle(req.payload, doc)
+  return doc
 }
 
 /** Stamp publishedAt the first time an article is published. */
@@ -259,7 +299,8 @@ export const Articles: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [applyContext, applyDefaultByline],
-    beforeChange: [enforcePublishing, stampPublishedAt],
+    beforeChange: [enforcePublishing, stampPublishedAt, markFirstPublication],
+    afterChange: [announceFirstPublication],
   },
   fields: [
     {
@@ -350,6 +391,12 @@ export const Articles: CollectionConfig = {
         date: { pickerAppearance: 'dayAndTime' },
         description: 'Set automatically on first publish; can be backdated.',
       },
+    },
+    {
+      // When it first went live, whatever publishedAt says; set by markFirstPublication.
+      name: 'announcedAt',
+      type: 'date',
+      admin: { hidden: true },
     },
     {
       name: 'author',

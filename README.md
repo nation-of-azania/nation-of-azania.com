@@ -447,6 +447,27 @@ example the Chancellor's, and give residents context grants where they should
 write. Each person adds their byline profiles under Content → Profiles (a
 role for the contexts they write in), and you can start writing.
 
+### Discord announcements (optional)
+
+The site can post each newly published article to a Discord channel: its
+title, excerpt, byline with the author's head, a link, and the link preview
+image, in the colour of its paper or style. It is off until a webhook is set.
+
+1. In Discord, open the channel's settings → *Integrations* → *Webhooks* →
+   *New Webhook*, name it and give it an avatar (the crest suits the
+   Gazette), and *Copy Webhook URL*.
+2. In Vercel (Settings → Environment Variables, Production), add either
+   - `DISCORD_WEBHOOK_URL`: every top-level context posts there, or
+   - `DISCORD_WEBHOOK_<SLUG>`, e.g. `DISCORD_WEBHOOK_GOV`,
+     `DISCORD_WEBHOOK_TIMES`, `DISCORD_WEBHOOK_INTL`: that context posts
+     there instead, so each paper can have its own channel.
+3. Redeploy (or push to `main`).
+
+An article is announced once, when someone first publishes it; edits,
+re-publishing, scripts and migrations never post, and articles published
+before a webhook was set are never announced later. A failed post is logged
+and never blocks publishing (`src/lib/discord.ts`).
+
 ### Custom domain, rollbacks and production commands
 
 - **Custom domain:** add it under Settings → Domains. Links pick it up on

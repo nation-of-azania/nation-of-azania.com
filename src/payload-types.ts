@@ -191,6 +191,7 @@ export interface Article {
    * Set automatically on first publish; can be backdated.
    */
   publishedAt?: string | null;
+  announcedAt?: string | null;
   author?: (number | null) | User;
   /**
    * How the author is credited, e.g. "IPaaat, Co-Leader". Defaults to their first profile for this context; manage profiles under Content → Profiles.
@@ -557,6 +558,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   style?: T;
   design?: T;
   publishedAt?: T;
+  announcedAt?: T;
   author?: T;
   byline?: T;
   pinned?: T;
