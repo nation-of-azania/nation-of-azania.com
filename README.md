@@ -64,7 +64,7 @@ right away. They exist only in your local database. Production never gets them
 | ---------- | ------------ | ---------------------- | -------------------------------------- |
 | `keeper`   | Can publish  | `azania-editor-2026`   | Ione Harrow, Keeper of the Light       |
 | `marlo`    | Can publish  | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
-| `resident` | Drafts only  | `azania-resident-2026` | A Resident of Azania (no profile)      |
+| `resident` | Resident     | `azania-resident-2026` | A Resident of Azania (no profile)      |
 
 Usernames are case-insensitive: Payload stores them lowercased, so `IPaaat`
 and `ipaaat` are the same account.
@@ -114,15 +114,27 @@ in Azania's publications (see [Bylines](#bylines-and-profiles)).
 
 | Access level (stored value) | Can                                                                          |
 | --------------------------- | ---------------------------------------------------------------------------- |
-| **Drafts only** (`resident`) | Sign in to the resident area and see their own articles. Access control lets them write **drafts of their own articles** but never publish, and never add the 3D model or Litematica blocks. |
+| **Resident** (`resident`)   | The resident area only, no admin access: their own account settings and articles. Access control would let them write **drafts of their own articles** but never publish, and never add the 3D model or Litematica blocks. |
 | **Can publish** (`editor`)  | Create, edit and publish any article or page; manage categories, media and every profile; use every block. |
 | **Admin** (`admin`)         | Everything above, plus manage accounts and assign access levels.            |
 
-Residents are kept out of `/admin` and sent to their branded register at
-`/account` (`src/middleware.ts` handles the redirect; `Users.access.admin`
-is the real, server-side gate). That also means residents have no in-browser
-editor yet: until the resident area gets one, an editor files a resident's
-article for them.
+Residents are kept out of `/admin` and sent to their account page at
+`/account`. `Users.access.admin` decides, against the database on every admin
+request, so an access change applies immediately, even to someone already
+signed in; Payload's "Unauthorized" page is replaced by a redirect
+(`src/components/admin/RedirectToAccount.tsx`). That also means residents have
+no in-browser editor yet: until the resident area gets one, an editor files a
+resident's article for them.
+
+### Your account
+
+Everyone manages their own account on `/account`, not in the admin panel:
+display name, Minecraft name (their head on bylines; byline profiles follow
+a change) and password. Changing the password asks for the current one and
+signs every other device out (`src/app/(frontend)/account/actions.ts`). The
+actions run as the signed-in user with access control on, so nobody can
+change their own access level. Forgotten passwords are reset by an admin
+(Users → edit), since accounts have no email.
 
 Enforcement happens on the server, twice. Collection and field **access
 control** (`src/access/index.ts`) restricts reads, writes and specific fields
@@ -149,7 +161,7 @@ Collections (`src/collections/`):
   [Bylines and profiles](#bylines-and-profiles).
 - **Categories**: a name plus an auto-generated slug.
 - **Users**: accounts. Display name, username, Minecraft name and access
-  level (`resident | editor | admin`, shown as Drafts only / Can publish /
+  level (`resident | editor | admin`, shown as Resident / Can publish /
   Admin). No email; see [No email, anywhere](#no-email-anywhere).
 
 ### Bylines and profiles
@@ -509,7 +521,6 @@ src/
 ├─ lib/                 # published-only data helpers, live preview config, Litematica parser
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)
-├─ middleware.ts        # keeps residents out of /admin
 └─ payload.config.ts    # the Payload config: collections, adapters, storage
 scripts/
 ├─ vercel-build.mjs           # Vercel's build command (migrate → build)

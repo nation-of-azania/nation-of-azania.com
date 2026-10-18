@@ -74,6 +74,16 @@ export function minecraftHeadUrl(minecraftName: string, size = 64): string {
 }
 
 /**
+ * Whether a string is shaped like a Minecraft username: 3–16 letters, digits
+ * or underscores, with an optional leading "." for Bedrock players. The same
+ * rule as the `minecraftName` field's validator (src/fields/minecraftName.ts),
+ * here for the browser, so a head can be previewed before anything is saved.
+ */
+export function isMinecraftName(value: string): boolean {
+  return /^\.?\w{3,16}$/.test(value.trim())
+}
+
+/**
  * The monogram shown in place of a missing avatar: the initials of the first
  * and last significant words, so "Ione Harrow" gives "IH", "The Editors" "E"
  * and a lone Minecraft name its first letter.

@@ -78,6 +78,11 @@ export default buildConfig({
         Icon: '/components/admin/RegistryGraphics#RegistryIcon',
       },
       afterLogin: ['/components/admin/RegistryGraphics#LoginHelp'],
+      views: {
+        // People without admin access go to their account page, decided from
+        // the database on each request (never from a possibly stale session).
+        unauthorized: { Component: '/components/admin/RedirectToAccount#RedirectToAccount' },
+      },
     },
     avatar: 'default',
   },

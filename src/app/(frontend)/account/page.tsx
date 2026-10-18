@@ -7,10 +7,12 @@ import config from '@payload-config'
 
 import { hasRole } from '@/access'
 import { cn } from '@/blocks/components/shared'
+import { DetailsForm } from '@/components/members/DetailsForm'
 import { MemberHeader } from '@/components/members/MemberHeader'
+import { PasswordForm } from '@/components/members/PasswordForm'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { LinkButton } from '@/components/site/LinkButton'
-import { DoubleRule } from '@/components/site/SectionHeading'
+import { DoubleRule, SectionHeading } from '@/components/site/SectionHeading'
 import { articleHref, formatDate, resolveByline } from '@/components/site/format'
 import type { Article, Profile } from '@/payload-types'
 
@@ -22,12 +24,13 @@ export const dynamic = 'force-dynamic'
  * Access levels say what an account may do in the Registry. They are not
  * roles in Azania — those ("Chancellor", "Harbour Correspondent") live on
  * byline profiles — so the labels here match the admin panel's and describe
- * permissions only.
+ * permissions only. Residents have this register and nothing behind it: no
+ * Publishing Desk, so nothing here should point them to one.
  */
 const ACCESS = {
   resident: {
     label: 'Resident',
-    note: 'You can follow the record from here. To write for the Gazette or the Times, ask an administrator for access.',
+    note: 'You can follow the record from here, and keep your own details and password. To write for the Gazette or the Times, ask an administrator.',
   },
   editor: {
     label: 'Can publish',
@@ -128,13 +131,18 @@ export default async function AccountPage() {
                   <p className="truncate font-display text-xl leading-tight text-sea-950">
                     {displayName}
                   </p>
-                  <p className="mt-1 truncate text-xs text-ink-400">
+                  <p className="mt-1 text-xs leading-snug text-ink-400">
                     {user.minecraftName ? (
                       <>
                         <span className="text-ink-500">{user.minecraftName}</span> on Rulercraft
                       </>
                     ) : (
-                      'No Minecraft name on record'
+                      <>
+                        No Minecraft name on record ·{' '}
+                        <a href="#your-details" className="font-medium text-sea-700 hover:text-sea-900">
+                          Add one
+                        </a>
+                      </>
                     )}
                   </p>
                 </div>
@@ -274,6 +282,22 @@ export default async function AccountPage() {
             </div>
           </section>
         </div>
+
+        {/*
+         * Settings. Residents cannot open the Publishing Desk, so the account
+         * itself is kept here, on the record's own pages, by its owner.
+         */}
+        <section aria-labelledby="your-account" className="mt-16">
+          <SectionHeading id="your-account" eyebrow="In your keeping" title="Your account" />
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-500">
+            Your name, your head and your password are yours to change here, with no need to ask
+            an administrator.
+          </p>
+          <div className="mt-8 grid gap-6 md:grid-cols-2">
+            <DetailsForm name={user.name} minecraftName={user.minecraftName ?? ''} />
+            <PasswordForm username={user.username} />
+          </div>
+        </section>
       </main>
     </div>
   )

@@ -312,7 +312,7 @@ async function seed(payload: Payload): Promise<void> {
 [seed]
 [seed] Sign in:  ${serverURL}/admin
 [seed]   username: ${adminUsername}  (password: your SEED_ADMIN_PASSWORD)
-[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (can publish), ${RESIDENT.username} (drafts only)
+[seed]   Demo accounts: ${EDITOR.username}, ${TIMES_CORRESPONDENT.username} (can publish), ${RESIDENT.username} (resident)
 [seed]
 [seed] Visit:    ${serverURL}/gov          — the Azania Gazette
 [seed]           ${serverURL}/times        — the Azanian Times (independent press)

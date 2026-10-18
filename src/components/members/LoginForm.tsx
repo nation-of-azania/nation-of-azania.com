@@ -5,6 +5,8 @@ import { type FormEvent, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 
+import { fieldClass as FIELD, labelClass as LABEL } from './FormControls'
+
 /**
  * The resident sign-in form. Username-only auth (the nation issues no email),
  * so we POST straight to Payload's REST login endpoint, which sets the
@@ -12,10 +14,6 @@ import { cn } from '@/blocks/components/shared'
  * token itself. On success we move into the resident area and refresh the
  * server components so they see the new session.
  */
-
-const FIELD =
-  'w-full border border-sand-300 bg-sand-50 px-3.5 py-2.5 text-ink-900 placeholder:text-ink-400 focus:border-saffron-400 focus:outline-none'
-const LABEL = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500'
 
 /** Only follow a `?next=` that is a same-site absolute path (no open redirects). */
 function safeNext(): string {

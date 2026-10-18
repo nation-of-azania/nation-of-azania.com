@@ -26,6 +26,7 @@ import { RegistryIcon as RegistryIcon_d6e5a03ac347c0f3fe350c498c861719 } from '.
 import { RegistryLogo as RegistryLogo_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
 import { LoginHelp as LoginHelp_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
+import { RedirectToAccount as RedirectToAccount_806e42c66bff9b09e32ca49401ea67dc } from '../../../components/admin/RedirectToAccount'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -58,5 +59,6 @@ export const importMap = {
   "/components/admin/RegistryGraphics#RegistryLogo": RegistryLogo_d6e5a03ac347c0f3fe350c498c861719,
   "/components/admin/RegistryGraphics#LoginHelp": LoginHelp_d6e5a03ac347c0f3fe350c498c861719,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
+  "/components/admin/RedirectToAccount#RedirectToAccount": RedirectToAccount_806e42c66bff9b09e32ca49401ea67dc,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

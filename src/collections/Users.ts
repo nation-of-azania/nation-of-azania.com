@@ -1,7 +1,35 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
 
 import { hasRole, isAdmin, isAdminField } from '../access'
 import { minecraftNameField } from '../fields/minecraftName'
+
+/**
+ * Byline profiles take their name and Minecraft name from the owner when
+ * created. When the owner's Minecraft name changes, profiles still showing the
+ * old one (as name or head) follow it; anything set differently by hand stays.
+ */
+const followMinecraftName: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
+  const before = previousDoc?.minecraftName
+  const after = doc.minecraftName
+  if (!before || before === after) return doc
+  const { docs } = await req.payload.find({
+    collection: 'profiles',
+    where: { owner: { equals: doc.id } },
+    limit: 0,
+    depth: 0,
+    req,
+  })
+  for (const profile of docs) {
+    const data = {
+      ...(profile.minecraftName === before ? { minecraftName: after ?? null } : {}),
+      ...(profile.name === before && after ? { name: after } : {}),
+    }
+    if (Object.keys(data).length) {
+      await req.payload.update({ collection: 'profiles', id: profile.id, data, depth: 0, req })
+    }
+  }
+  return doc
+}
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -21,9 +49,10 @@ export const Users: CollectionConfig = {
     },
   },
   access: {
-    // Gate the admin panel to staff. Residents get a branded register on the
-    // front end instead (src/app/(frontend)/account) and are redirected away
-    // from /admin by middleware.ts — this is the enforced, server-side boundary.
+    // Gate the admin panel to staff, checked against the database on every
+    // admin request. Residents get their own account page on the front end
+    // (src/app/(frontend)/account): Payload's "Unauthorized" page redirects
+    // there (src/components/admin/RedirectToAccount.tsx).
     // (Inlined rather than the `isEditorOrAdmin` Access helper: `access.admin`
     // must return a plain boolean, not a Where query.)
     admin: ({ req }) => hasRole(req.user, 'editor', 'admin'),
@@ -38,6 +67,9 @@ export const Users: CollectionConfig = {
       return false
     },
   },
+  hooks: {
+    afterChange: [followMinecraftName],
+  },
   fields: [
     {
       name: 'name',
@@ -45,7 +77,8 @@ export const Users: CollectionConfig = {
       label: 'Display name',
       required: true,
       admin: {
-        description: 'Shown in the admin panel, and as the byline of articles without a byline profile.',
+        description:
+          'Shown in the admin panel, and as the byline of articles without a byline profile.',
       },
     },
     minecraftNameField('Used as the default name and head on this person’s byline profiles.'),
