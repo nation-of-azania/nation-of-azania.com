@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import {
   Alegreya,
   Archivo,
@@ -10,6 +10,7 @@ import {
 } from 'next/font/google'
 import type { ReactNode } from 'react'
 
+import { CARD, DESIGN_THEME } from '@/components/og/tokens'
 import { slotVars } from '@/components/styles/slots'
 
 import './globals.css'
@@ -86,8 +87,18 @@ export const metadata: Metadata = {
   description:
     'The Nation of Azania on the Rulercraft realm — the Azania Gazette, official record of the Chancellery, and the independent Azanian Times.',
   icons: { icon: '/favicon.ico' },
-  openGraph: { siteName: 'Azania', type: 'website' },
+  // Pages of a publication set their own card (src/app/(frontend)/[top]/[[...rest]]/page.tsx);
+  // sign-in and a missing page unfurl as the nation itself.
+  openGraph: {
+    siteName: 'Azania',
+    type: 'website',
+    images: [{ url: '/og/azania', ...CARD, alt: 'The Nation of Azania' }],
+  },
+  twitter: { card: 'summary_large_image' },
 }
+
+/** The Gazette's sea beside an embed, until a page says otherwise. */
+export const viewport: Viewport = { themeColor: DESIGN_THEME.gazette }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

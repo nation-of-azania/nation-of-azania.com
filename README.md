@@ -271,6 +271,25 @@ an image is uploaded instead.
   it: past articles keep the title they were written under, and new articles
   can no longer choose it.
 
+### Link previews
+
+A link pasted into Discord unfurls as a clipping of its paper: the page's
+Open Graph tags name the publication (`og:site_name`), the title and
+summary, and a 1200×630 card drawn at **`/og/<path>`** in the design's own
+voice (`src/components/og`): the Gazette's masthead and double rule, the
+Times' nameplate and black headline, the registry's Plex and verdigris;
+Cherry Blossom's rose, Fredoka and pink box where a context wears it. The
+embed's side bar (`theme-color`) is the design's colour, or the style's.
+Every public path has a card (`/og/times` is the front page's), an unknown
+one gets the nation's, and a Discord webhook can ask for one directly.
+
+The route runs in Node with `next/og` (Satori), so it reads the fonts as
+static TTFs committed under `src/app/(frontend)/og/fonts/` and fetches
+heads and pictures itself, with a short timeout and a monogram or blank
+in place of anything slow. Cards are cached for a year at the CDN; the
+page's metadata versions the URL (`?v=<updatedAt>`) so they turn over
+with the page.
+
 ### Live preview
 
 The article and page editors have a **Live Preview** button (the eye icon
@@ -592,6 +611,7 @@ import map. Without that handler, the production admin panel renders blank.
 src/
 ├─ app/
 │  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
+│  │  └─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
 ├─ access/              # role helpers and context grants (scope.ts)
 ├─ blocks/
@@ -601,6 +621,7 @@ src/
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
 │  ├─ designs/          # each design's views: gazette/, times/, international/
+│  ├─ og/               # link-preview cards, one per design, drawn with Satori
 │  ├─ site/             # Gazette chrome (header, footer, crest, cards, …)
 │  ├─ times/            # Times chrome (masthead, footer, story cards)
 │  └─ members/          # resident area (login form, header)

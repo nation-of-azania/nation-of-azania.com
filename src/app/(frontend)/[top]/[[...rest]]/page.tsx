@@ -1,9 +1,10 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { cache } from 'react'
 
 import { DESIGN_VIEWS } from '@/components/designs'
-import { articleHref } from '@/components/site/format'
+import { cardImageFor, themeColorOf } from '@/components/og'
+import { articleHref, kickerOf, resolveByline, typeLabel } from '@/components/site/format'
 import { isDesign, typesOf, type ArticleType } from '@/contexts/designs'
 import {
   getArticleBySlug,
@@ -16,7 +17,9 @@ import {
   getViewer,
 } from '@/lib/queries'
 import {
+  archiveHref,
   articleStyle,
+  contextHref,
   contextStyle,
   designOf,
   getPageLinks,
@@ -87,29 +90,138 @@ const load = cache(async (top: string, path: string) => {
 
 const pathOf = (rest?: string[]) => (rest ?? []).map(decodeURIComponent).join('/')
 
+/**
+ * The page's metadata, with what a chat client unfurls a pasted link into:
+ * the publication as the site name, the title and summary, and the page's
+ * own card from /og/<path> (versioned by `updatedAt`, so the long-cached
+ * picture turns over with the page). An article is an `article` to Open
+ * Graph, with its date and byline; everything else a `website`.
+ */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { top, rest } = await params
   const loaded = await load(top, pathOf(rest))
   if (!loaded) return { title: 'Not found' }
   const { route } = loaded
-  if ('article' in loaded && loaded.article) {
-    return { title: loaded.article.title, description: loaded.article.excerpt ?? undefined }
+  const siteName = route.top.name
+
+  if ('article' in loaded && loaded.article && route.kind === 'article') {
+    const article = loaded.article
+    const path = `/${route.top.slug}/articles/${route.slug}`
+    const description = article.excerpt ?? undefined
+    const byline = resolveByline(article)
+    const { section } = kickerOf(article)
+    const image = { ...cardImageFor(path, article.updatedAt), alt: `${article.title} · ${siteName}` }
+    return {
+      title: article.title,
+      description,
+      authors: byline ? [{ name: byline.name }] : undefined,
+      openGraph: {
+        type: 'article',
+        siteName,
+        title: article.title,
+        description,
+        url: path,
+        images: [image],
+        publishedTime: article.publishedAt ?? article.createdAt,
+        modifiedTime: article.updatedAt,
+        authors: byline ? [byline.name] : undefined,
+        section: section?.name ?? siteName,
+        tags: [typeLabel(article)],
+      },
+      twitter: { card: 'summary_large_image', title: article.title, description, images: [image.url] },
+    }
   }
-  if ('page' in loaded && loaded.page) return { title: loaded.page.title }
+
+  if ('page' in loaded && loaded.page && route.kind === 'page') {
+    return website({
+      title: loaded.page.title,
+      description: undefined,
+      path: `${contextHref(route.context)}/${route.slug}`,
+      updatedAt: loaded.page.updatedAt,
+      siteName,
+    })
+  }
   return titleOf(route)
 }
 
+/**
+ * `website` metadata for a place in a publication: the document title (with
+ * the site's template unless `absolute`), the name an embed shows under
+ * the publication's (`name`, which defaults to the title), the summary,
+ * the canonical path and its card.
+ */
+function website({
+  title,
+  name = typeof title === 'string' ? title : title.absolute,
+  description,
+  path,
+  updatedAt,
+  siteName,
+}: {
+  title: string | { absolute: string }
+  name?: string
+  description: string | undefined
+  path: string
+  updatedAt: string | null | undefined
+  siteName: string
+}): Metadata {
+  const image = { ...cardImageFor(path, updatedAt), alt: name === siteName ? name : `${name} · ${siteName}` }
+  return {
+    title,
+    description,
+    openGraph: { type: 'website', siteName, title: name, description, url: path, images: [image] },
+    twitter: { card: 'summary_large_image', title: name, description, images: [image.url] },
+  }
+}
+
 function titleOf(route: Route): Metadata {
+  const siteName = route.top.name
   switch (route.kind) {
     case 'home':
-      return { title: { absolute: route.top.name }, description: route.top.tagline ?? undefined }
+      return website({
+        title: { absolute: route.top.name },
+        description: route.top.tagline ?? undefined,
+        path: contextHref(route.top),
+        updatedAt: route.top.updatedAt,
+        siteName,
+      })
     case 'archive':
-      return { title: `Archive · ${route.top.name}` }
+      return website({
+        title: `Archive · ${route.top.name}`,
+        name: 'Archive',
+        description: undefined,
+        path: archiveHref(route.top),
+        updatedAt: route.top.updatedAt,
+        siteName,
+      })
     case 'section':
-      return { title: route.context.label ?? route.context.name, description: route.context.tagline ?? undefined }
+      return website({
+        title: route.context.label ?? route.context.name,
+        name: route.context.name,
+        description: route.context.tagline ?? undefined,
+        path: contextHref(route.context),
+        updatedAt: route.context.updatedAt,
+        siteName,
+      })
     default:
       return {}
   }
+}
+
+/** The colour a chat client paints beside the embed: the design's, or the style's where one is worn. */
+export async function generateViewport({ params }: Props): Promise<Viewport> {
+  const { top, rest } = await params
+  const loaded = await load(top, pathOf(rest))
+  if (!loaded) return {}
+  const { route } = loaded
+  const tree = await getSiteTree()
+  const style =
+    'article' in loaded && loaded.article
+      ? articleStyle(tree, loaded.article)
+      : route.kind === 'section' || route.kind === 'page'
+        ? contextStyle(tree, route.context)
+        : contextStyle(tree, route.top)
+  return { themeColor: themeColorOf(designOf(route.top), style) }
 }
 
 const firstOf = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)
