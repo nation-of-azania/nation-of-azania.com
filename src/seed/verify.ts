@@ -1,6 +1,9 @@
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
+import { styleOfArticle } from '../contexts/styles'
+import { buildTree } from '../contexts/tree'
+
 /**
  * Post-seed verification — read-only checks against the seeded database.
  *
@@ -42,7 +45,7 @@ try {
 
   // ── Users ─────────────────────────────────────────────────────────────────
   const users = await payload.find({ collection: 'users', limit: 10, depth: 0 })
-  check(users.totalDocs === 5, 'users: 5 accounts', `found ${users.totalDocs}`)
+  check(users.totalDocs === 6, 'users: 6 accounts', `found ${users.totalDocs}`)
   for (const role of ['admin', 'editor', 'resident'] as const) {
     check(
       users.docs.some((user) => user.role === role),
@@ -59,7 +62,7 @@ try {
 
   // ── Contexts ──────────────────────────────────────────────────────────
   const contexts = await payload.find({ collection: 'contexts', limit: 50, depth: 0 })
-  check(contexts.totalDocs === 10, 'contexts: 10', `found ${contexts.totalDocs}`)
+  check(contexts.totalDocs === 12, 'contexts: 12', `found ${contexts.totalDocs}`)
   const contextByPath = new Map(contexts.docs.map((context) => [context.path, context]))
   const topLevel = contexts.docs.filter((context) => !context.parent)
   check(
@@ -108,7 +111,7 @@ try {
   const articles = await payload.find({ collection: 'articles', limit: 20, depth: 0 })
   const articlesBySlug = new Map(articles.docs.map((article) => [article.slug, article]))
   const profiles = await payload.find({ collection: 'profiles', limit: 20, depth: 0 })
-  check(profiles.totalDocs === 8, 'profiles: 8', `found ${profiles.totalDocs}`)
+  check(profiles.totalDocs === 9, 'profiles: 9', `found ${profiles.totalDocs}`)
   const adminProfiles = profiles.docs.filter((profile) => profile.owner === admin?.id)
   const profileContexts = (profile: (typeof profiles.docs)[number]) =>
     (profile.contexts ?? []).map((context) => (typeof context === 'object' ? context.id : context))
@@ -149,10 +152,10 @@ try {
   check(images.length === 2, 'media: 2 banner images', images.map((i) => i.filename).join(', '))
 
   // ── Articles ──────────────────────────────────────────────────────────────
-  check(articles.totalDocs === 12, 'articles: 12 total', `found ${articles.totalDocs}`)
+  check(articles.totalDocs === 14, 'articles: 14 total', `found ${articles.totalDocs}`)
   const published = articles.docs.filter((doc) => doc._status === 'published')
   const drafts = articles.docs.filter((doc) => doc._status === 'draft')
-  check(published.length === 11, 'articles: 11 published', `found ${published.length}`)
+  check(published.length === 13, 'articles: 13 published', `found ${published.length}`)
   check(drafts.length === 1, 'articles: 1 draft', drafts.map((d) => d.slug).join(', '))
   for (const design of ['gazette', 'times', 'international'] as const) {
     const count = articles.docs.filter((doc) => doc.design === design).length
@@ -167,6 +170,31 @@ try {
   check(
     articlesBySlug.get('the-charter-of-azania')?.type === 'decree',
     'articles: the Charter is a decree',
+  )
+
+  // ── Styles ────────────────────────────────────────────────────────────────
+  const tree = buildTree(contexts.docs)
+  const styleOf = (slug: string) => {
+    const article = articlesBySlug.get(slug)
+    const contextId = article?.context as number | undefined
+    return article && contextId != null
+      ? styleOfArticle(article, tree.ancestors(contextId), tree.designOf(contextId))
+      : undefined
+  }
+  check(
+    contextByPath.get('/gov/girlietown')?.style === 'blossom' &&
+      contextByPath.get('/times/opinion/girlie-opinion')?.style === 'blossom',
+    'styles: GirlieTown and its column wear Cherry Blossom',
+  )
+  check(
+    styleOf('girlietown-opens-its-cherry-grove-to-all-residents') === 'blossom' &&
+      styleOf('girlie-opinion-port-azania-could-use-a-little-more-pink') === 'blossom',
+    'styles: their articles inherit it, in the Gazette and in the Times',
+  )
+  check(
+    styleOf('the-charter-of-azania') === null &&
+      styleOf('opinion-shine-the-same-light-on-the-ledgers') === null,
+    'styles: everything else stays plain',
   )
 
   const charter = articles.docs.find((doc) => doc.slug === 'the-charter-of-azania')

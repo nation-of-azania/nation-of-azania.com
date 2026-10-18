@@ -513,6 +513,52 @@ export const caseStudyContent = (harbourMediaId: number): LexicalEditorState =>
     ),
   )
 
+// ════════════════════════════════════════════════════════════════════════════
+// GIRLIETOWN — DefinitelyCasi's town, in its Cherry Blossom style
+// A town office in the Gazette and a column in the Times. (Placeholder prose
+// for local development; Casi writes the real thing.)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── GirlieTown Opens Its Cherry Grove (statement, Gazette) ──────────────────
+
+export const cherryGroveContent = (): LexicalEditorState =>
+  root(
+    paragraph(
+      'From today the cherry grove on the hillside above GirlieTown is open to every resident ',
+      'of Azania. The grove was planted sapling by sapling over the summer, and the town now ',
+      'asks only that it be enjoyed and left as it was found.',
+    ),
+    block(
+      'callout',
+      {
+        style: 'note',
+        title: 'In the grove',
+        body: 'Petals may be gathered freely. Trees may not be felled, and saplings may not be taken. Benches are for everyone; please leave them as you found them.',
+      },
+      'In the grove',
+    ),
+    paragraph(
+      'Visitors arriving by the harbour road will find the path marked with lanterns. ',
+      'GirlieTown thanks everyone who helped plant it.',
+    ),
+  )
+
+// ── Girlie Opinion: Port Azania Could Use a Little More Pink (opinion, Times) ─
+
+export const morePinkContent = (): LexicalEditorState =>
+  root(
+    paragraph(
+      'Port Azania is a handsome city. The harbour is busy, the lighthouse is lovely, and ',
+      'every roof from the quay to the Chancellery is the same sensible brown.',
+    ),
+    paragraph(
+      'Sensible is fine. But a capital is allowed a little joy, and cherry planks cost no ',
+      'more than oak. A pink door here, a blossom tree in a square there, and the city would ',
+      'look like somewhere people choose to live rather than somewhere they keep their ships.',
+    ),
+    paragraph(text('Next week: why every bridge deserves flower boxes.', ITALIC)),
+  )
+
 // ── About Azania (standing page — also seeds production) ────────────────────
 
 export const aboutContent = (): LexicalEditorState =>
@@ -569,4 +615,8 @@ export const excerpts = {
     'Azania built the Long Mole approach road to the draft standard. What worked, and what it changed in RS-1.',
   spicePrices:
     'Salt, pepper and good rope are dearer on the Spice Quay this fortnight, as the trade winds turn and the last ships of the season come in light.',
+  cherryGrove:
+    'The cherry grove on the hillside above GirlieTown is open to every resident of Azania from today. A statement from the town.',
+  morePink:
+    'The harbour is handsome and the lighthouse is lovely, but every roof in the capital is the same sensible brown. A case for cherry planks.',
 } as const

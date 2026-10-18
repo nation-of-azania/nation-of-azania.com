@@ -9,7 +9,8 @@ import {
 } from 'payload'
 
 import { can, contextIdsWith, getScope, loadContextTree, NOTHING } from '../access/scope'
-import { ACCENTS, DESIGNS } from '../contexts/designs'
+import { DESIGNS } from '../contexts/designs'
+import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles'
 import { parentIdOf } from '../contexts/tree'
 import { slugify } from '../fields/slug'
 
@@ -18,7 +19,7 @@ import { slugify } from '../fields/slug'
  * depth, e.g. Government › Ministry of Infrastructure, or International ›
  * Transport Catalogue › Road Initiative › Case Studies. Each top-level context
  * picks a design; everything below inherits it, and can carry its own emblem,
- * accent, tagline and introduction. Access is granted per context on Users.
+ * style, tagline and introduction. Access is granted per context on Users.
  */
 
 /** URL segments a top-level context can't take: routes the site already uses. */
@@ -83,6 +84,11 @@ const placeInTree: CollectionBeforeChangeHook = async ({ data, operation, origin
     data.design ||= originalDoc?.design || 'gazette'
   } else {
     data.design = null
+  }
+  const style = data.style !== undefined ? data.style : originalDoc?.style
+  const design = parentId == null ? data.design : tree.designOf(parentId)
+  if (isStyle(style) && !styleSupports(style, design)) {
+    throw fail('style', `${STYLES[style].label} has no ${DESIGNS[design as keyof typeof DESIGNS].label.split(':')[0]} variant, so it can’t be used here.`, req)
   }
   const parentChain = parentId == null ? [] : tree.ancestors(parentId)
   data.path = `/${[...parentChain.map((context) => context.slug), slug].join('/')}`
@@ -174,7 +180,7 @@ export const Contexts: CollectionConfig = {
       relationTo: 'contexts',
       admin: {
         position: 'sidebar',
-        description: 'Empty for a top-level context. Sub-contexts inherit the design and, unless set below, the emblem and accent.',
+        description: 'Empty for a top-level context. Sub-contexts inherit the design and, unless set below, the emblem and style.',
       },
       filterOptions: async ({ id, req }) => {
         const scope = await getScope(req)
@@ -224,10 +230,16 @@ export const Contexts: CollectionConfig = {
       admin: { description: 'Optional. Sub-contexts without one show the nearest emblem above them.' },
     },
     {
-      name: 'accent',
+      // Styles are code (src/contexts/styles.ts); which context wears one is an admin's call.
+      name: 'style',
       type: 'select',
-      options: Object.entries(ACCENTS).map(([value, accent]) => ({ label: accent.label, value })),
-      admin: { description: 'Optional. Inherited from the context above when empty.' },
+      options: styleOptions('Plain: don’t inherit a style'),
+      access: { create: adminOnly, update: adminOnly },
+      admin: {
+        position: 'sidebar',
+        description:
+          'A hand-made look worn by this context, its articles and everything below it, e.g. GirlieTown’s Cherry Blossom. Empty: inherit from above.',
+      },
     },
     {
       name: 'order',

@@ -69,6 +69,7 @@ right away. They exist only in your local database. Production never gets them
 | `marlo`    | Resident, *Publish* in the Times         | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
 | `resident` | Resident, *Write drafts* in Government   | `azania-resident-2026` | A Resident of Azania (no profile)      |
 | `delegate` | Resident, *Manage* International         | `azania-delegate-2026` | Ilse Varnholt, Delegate of Norvessa    |
+| `casi`     | Resident, *Publish* in GirlieTown, *Write drafts* in Girlie Opinion | `azania-girlie-2026` | DefinitelyCasi, GirlieTown |
 
 Usernames are case-insensitive: Payload stores them lowercased, so `IPaaat`
 and `ipaaat` are the same account.
@@ -86,14 +87,15 @@ one in the panel (Users → edit → New Password).
 
 `pnpm seed` creates a demo nation with placeholder lore: a coastal trading
 nation with a harbour capital, Port Azania, and a lighthouse on Founders'
-Point. It includes ten contexts (the three top-level ones, two Government
-offices, two Times desks, and International's Transport Catalogue › Road
-Initiative › Case Studies, four levels deep), five accounts, eight byline
-profiles (IPaaat as Co-Leader in Government, Editor-in-Chief of the Times and
-Representative of Azania in International, a shared "Luixiter, Chancellor"
-and "The Editors", and the demo staff), four media items (two generated
-banner images, the Lighthouse `.glb` and a Litematica build), the About page,
-and twelve articles that exercise every content block:
+Point. It includes twelve contexts (the three top-level ones, two Government
+offices and GirlieTown, two Times desks with the Girlie Opinion column, and
+International's Transport Catalogue › Road Initiative › Case Studies, four
+levels deep), six accounts, nine byline profiles (IPaaat as Co-Leader in
+Government, Editor-in-Chief of the Times and Representative of Azania in
+International, a shared "Luixiter, Chancellor" and "The Editors",
+DefinitelyCasi for GirlieTown, and the demo staff), four media items (two
+generated banner images, the Lighthouse `.glb` and a Litematica build), the
+About page, and fourteen articles that exercise every content block:
 
 - **Government:** the Charter (a pinned decree), *"The Lighthouse on Founders'
   Point, Relit"* (an interactive 3D model you can orbit), the Founding Day
@@ -102,6 +104,8 @@ and twelve articles that exercise every content block:
   proposal that demonstrates the review workflow.
 - **Times:** a lead story, an analysis that quotes a Discord exchange, a
   markets report and an opinion piece.
+- **GirlieTown**, in its Cherry Blossom style: a statement in the Gazette and
+  a Girlie Opinion column in the Times.
 - **International:** the Transport Catalogue's opening announcement, the
   delegate's road standard RS-1, and a case study four levels deep.
 
@@ -214,12 +218,31 @@ URLs follow the tree:
 A context has a name, a URL slug (unique among its siblings; `admin`, `api`,
 `account` and the site's other paths are reserved, as is `articles` right
 below a top-level context), a tagline, an intro, an optional emblem and
-accent (sub-contexts without their own inherit them), an order, and *Show in
+style (sub-contexts without their own inherit them), an order, and *Show in
 navigation*. A context that still holds anything can't be deleted. Old Times
 links (`/times/<slug>`) redirect to `/times/articles/<slug>`.
 
 A new design is code: add it to `src/contexts/designs.ts` and build its views
 in `src/components/designs/` (`types.ts` lists what a design renders).
+
+### Styles
+
+A **style** is a hand-made look that belongs to someone in Azania, layered on
+a design: **Cherry Blossom** is GirlieTown's, after Minecraft's cherry trees.
+It stays within the brand. A GirlieTown statement is still a Gazette record
+and a Girlie Opinion column is still the Times, set off by pink accents and
+small blossom marks. Each style has a variant for every design it supports.
+
+- **Admins give a context a style** (Contexts → Style), and everything below
+  it inherits the style. A sub-context can set another style, or *Plain* to
+  stop inheriting.
+- **Articles wear their context's style**, on their own page and wherever
+  they're listed: front pages, section pages, archives. An author can set an
+  article to *Plain* instead. A context's style can't be picked on an
+  article elsewhere; only styles marked `open` in code could be.
+- **A style is code:** add it to `src/contexts/styles.ts`, build its
+  variants in `src/components/styles/`, run `pnpm migrate:create` (the
+  choices are a Postgres enum) and commit the migration.
 
 ### Bylines and profiles
 

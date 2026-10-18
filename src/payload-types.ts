@@ -182,6 +182,10 @@ export interface Article {
     | 'resolution'
     | 'report'
     | 'case-study';
+  /**
+   * Empty: the style of its context, e.g. GirlieTown’s Cherry Blossom, on its page and wherever it is listed.
+   */
+  style?: ('plain' | 'blossom') | null;
   design?: ('gazette' | 'times' | 'international') | null;
   /**
    * Set automatically on first publish; can be backdated.
@@ -215,7 +219,7 @@ export interface Context {
    */
   slug?: string | null;
   /**
-   * Empty for a top-level context. Sub-contexts inherit the design and, unless set below, the emblem and accent.
+   * Empty for a top-level context. Sub-contexts inherit the design and, unless set below, the emblem and style.
    */
   parent?: (number | null) | Context;
   /**
@@ -249,9 +253,9 @@ export interface Context {
    */
   emblem?: (number | null) | Media;
   /**
-   * Optional. Inherited from the context above when empty.
+   * A hand-made look worn by this context, its articles and everything below it, e.g. GirlieTown’s Cherry Blossom. Empty: inherit from above.
    */
-  accent?: ('sea' | 'lagoon' | 'saffron' | 'coral' | 'cinnabar' | 'olive' | 'violet' | 'slate') | null;
+  style?: ('plain' | 'blossom') | null;
   /**
    * Lower numbers come first among siblings.
    */
@@ -550,6 +554,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   slug?: T;
   context?: T;
   type?: T;
+  style?: T;
   design?: T;
   publishedAt?: T;
   author?: T;
@@ -572,7 +577,7 @@ export interface ContextsSelect<T extends boolean = true> {
   tagline?: T;
   intro?: T;
   emblem?: T;
-  accent?: T;
+  style?: T;
   order?: T;
   listed?: T;
   subContexts?: T;

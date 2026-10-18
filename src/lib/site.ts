@@ -3,8 +3,9 @@ import { getPayload } from 'payload'
 import { cache } from 'react'
 
 import { isAccent, isDesign, type Accent, type Design } from '@/contexts/designs'
+import { styleOfArticle, styleOfChain, type StyleId } from '@/contexts/styles'
 import { buildTree, type ContextTree } from '@/contexts/tree'
-import type { Context, Media } from '@/payload-types'
+import type { Article, Context, Media } from '@/payload-types'
 
 /**
  * The site's shape, read from the context tree. Every public URL starts with
@@ -88,6 +89,23 @@ export function emblemOf(chain: Pick<Context, 'emblem'>[]): Media | null {
     }
   }
   return null
+}
+
+/** The style a context wears, its own or inherited; null for its design's plain look. */
+export const contextStyle = (tree: SiteTree, context: Pick<Context, 'id'>): StyleId | null =>
+  styleOfChain(tree.ancestors(context.id), tree.designOf(context.id))
+
+/**
+ * The style an article wears, on its own page and wherever it is listed: its
+ * context's, unless the article is set to Plain (src/contexts/styles.ts).
+ */
+export function articleStyle(
+  tree: SiteTree,
+  article: Pick<Article, 'style' | 'context'>,
+): StyleId | null {
+  const contextId = typeof article.context === 'number' ? article.context : article.context?.id
+  if (contextId == null) return null
+  return styleOfArticle(article, tree.ancestors(contextId), tree.designOf(contextId))
 }
 
 /** Ids of the context and everything below it: what its listings show. */

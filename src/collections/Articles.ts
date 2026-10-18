@@ -15,6 +15,7 @@ import { isEditorOrAdminField } from '../access'
 import { can, contextIdsWith, getScope, type Scope } from '../access/scope'
 import { contentBlocks } from '../blocks/config'
 import { DESIGNS, defaultTypeOf, isDesign, TYPE_LABELS, typesOf } from '../contexts/designs'
+import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles'
 import { slugField } from '../fields/slug'
 import { articlePath, livePreview, previewButton } from '../lib/preview'
 
@@ -48,7 +49,8 @@ const fieldError = (req: PayloadRequest, path: string, message: string) =>
  * Places the article in its context: the author must be allowed to write
  * there (trusted local calls without a user are exempt), the article takes the
  * context's design, and its type must be one of that design's types. A type
- * left over from a previous context falls back to the new design's default.
+ * left over from a previous context falls back to the new design's default;
+ * so does a style of its own that the new design can't wear.
  */
 const applyContext: CollectionBeforeValidateHook = async ({ data, originalDoc, req }) => {
   if (!data) return data
@@ -70,6 +72,15 @@ const applyContext: CollectionBeforeValidateHook = async ({ data, originalDoc, r
       throw fieldError(req, 'type', `“${TYPE_LABELS[type as keyof typeof TYPE_LABELS] ?? type}” isn’t a type of this context.`)
     }
     data.type = defaultTypeOf(design)
+  }
+
+  // Context styles come with the context; only open styles are picked per article.
+  const style = data.style !== undefined ? data.style : originalDoc?.style
+  if (isStyle(style) && !(STYLES[style].open && styleSupports(style, design))) {
+    if (data.style !== undefined && data.style !== originalDoc?.style) {
+      throw fieldError(req, 'style', `${STYLES[style].label} comes with its context; it can’t be picked here.`)
+    }
+    data.style = null
   }
   return data
 }
@@ -304,6 +315,25 @@ export const Articles: CollectionConfig = {
               typesOf(data.design).includes((typeof option === 'string' ? option : option.value) as never),
             )
           : options,
+    },
+    {
+      name: 'style',
+      type: 'select',
+      options: styleOptions('Plain: without its context’s style'),
+      admin: {
+        position: 'sidebar',
+        description:
+          'Empty: the style of its context, e.g. GirlieTown’s Cherry Blossom, on its page and wherever it is listed.',
+      },
+      // Plain, and the open styles of the context's design; context styles come with the context.
+      filterOptions: ({ data, options }) =>
+        options.filter((option) => {
+          const value = typeof option === 'string' ? option : option.value
+          return (
+            !isStyle(value) ||
+            (STYLES[value].open && isDesign(data?.design) && styleSupports(value, data.design))
+          )
+        }),
     },
     {
       // The context's design, kept current by applyContext; drives the type menu.

@@ -1,5 +1,7 @@
 import type { Payload } from 'payload'
 
+import type { StyleId } from '../contexts/styles'
+
 /**
  * Convergent "ensure" helpers shared by the dev seed (index.ts) and the
  * production first-deploy bootstrap (bootstrap.ts). Each looks an entity up
@@ -36,7 +38,7 @@ type ContextInput = {
   tagline?: string
   order?: number
   listed?: boolean
-  accent?: 'sea' | 'lagoon' | 'saffron' | 'coral' | 'cinnabar' | 'olive' | 'violet' | 'slate'
+  style?: 'plain' | StyleId
 }
 
 export async function ensureContext(payload: Payload, data: ContextInput) {

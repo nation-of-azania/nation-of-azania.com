@@ -8,6 +8,7 @@ import {
   aboutContent,
   caseStudyContent,
   charterContent,
+  cherryGroveContent,
   excerpts,
   foundingDayContent,
   harbourDuesContent,
@@ -15,6 +16,7 @@ import {
   ledgersOpEdContent,
   lighthouseContent,
   moleOverrunContent,
+  morePinkContent,
   regattaContent,
   roadStandardContent,
   spicePricesContent,
@@ -76,6 +78,12 @@ const TIMES_CORRESPONDENT = {
   password: 'azania-times-2026',
   name: 'Marlo Tidewell',
 } as const
+/** GirlieTown's resident (a real player: DefinitelyCasi). Dev-only account. */
+const CASI = {
+  username: 'casi',
+  password: 'azania-girlie-2026',
+  name: 'DefinitelyCasi',
+} as const
 /** A delegate from another nation: manages International, and nothing of Azania's own. */
 const DELEGATE = {
   username: 'delegate',
@@ -119,7 +127,6 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'infrastructure',
     parent: top.gov,
     tagline: 'What the nation builds, and what it costs',
-    accent: 'saffron',
     order: 2,
   })
   const markets = await ensureContext(payload, {
@@ -127,7 +134,6 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'markets',
     parent: top.times,
     tagline: 'Prices on the Spice Quay',
-    accent: 'lagoon',
     order: 1,
   })
   const opinion = await ensureContext(payload, {
@@ -135,7 +141,6 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'opinion',
     parent: top.times,
     tagline: 'Signed views, not the paper’s reporting',
-    accent: 'cinnabar',
     order: 2,
   })
   // Four levels deep: International › Transport Catalogue › Road Initiative › Case Studies.
@@ -144,7 +149,6 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'transport',
     parent: top.intl,
     tagline: 'Shared standards for the roads, bridges and harbours between nations',
-    accent: 'slate',
     order: 1,
   })
   const roads = await ensureContext(payload, {
@@ -152,7 +156,6 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'roads',
     parent: transport.id,
     tagline: 'Trunk roads that meet at the border',
-    accent: 'olive',
     order: 1,
   })
   const caseStudies = await ensureContext(payload, {
@@ -160,6 +163,23 @@ async function seed(payload: Payload): Promise<void> {
     slug: 'case-studies',
     parent: roads.id,
     tagline: 'Roads built to the standard, and what they taught',
+    order: 1,
+  })
+  // GirlieTown wears its own style, Cherry Blossom, in both papers it writes for.
+  const girlieTown = await ensureContext(payload, {
+    name: 'GirlieTown',
+    slug: 'girlietown',
+    parent: top.gov,
+    tagline: 'A town of Azania, under the cherry trees',
+    style: 'blossom',
+    order: 3,
+  })
+  const girlieOpinion = await ensureContext(payload, {
+    name: 'Girlie Opinion',
+    slug: 'girlie-opinion',
+    parent: opinion.id,
+    tagline: 'A column from GirlieTown',
+    style: 'blossom',
     order: 1,
   })
 
@@ -182,6 +202,15 @@ async function seed(payload: Payload): Promise<void> {
     ...TIMES_CORRESPONDENT,
     role: 'resident',
     contextAccess: [{ context: top.times, level: 'publish' }],
+  })
+  const casi = await ensureUser(payload, {
+    ...CASI,
+    minecraftName: CASI.name,
+    role: 'resident',
+    contextAccess: [
+      { context: girlieTown.id, level: 'publish' },
+      { context: girlieOpinion.id, level: 'write' },
+    ],
   })
   const delegate = await ensureUser(payload, {
     ...DELEGATE,
@@ -234,6 +263,12 @@ async function seed(payload: Payload): Promise<void> {
     name: 'The Editors',
     title: 'The Azanian Times',
     contexts: [top.times],
+  })
+  await ensureProfile(payload, {
+    name: CASI.name,
+    title: 'GirlieTown',
+    contexts: [girlieTown.id, girlieOpinion.id],
+    owner: casi.id,
   })
   await ensureProfile(payload, {
     name: DELEGATE.name,
@@ -390,6 +425,33 @@ async function seed(payload: Payload): Promise<void> {
     },
   })
 
+  // ── 6b. GirlieTown (Cherry Blossom) ───────────────────────────────────────
+  await ensureArticle(payload, {
+    title: 'GirlieTown Opens Its Cherry Grove to All Residents',
+    data: {
+      excerpt: excerpts.cherryGrove,
+      content: cherryGroveContent(),
+      context: girlieTown.id,
+      type: 'statement',
+      author: casi.id,
+      publishedAt: '2026-10-10T16:00:00.000Z',
+      _status: 'published',
+    },
+  })
+
+  await ensureArticle(payload, {
+    title: 'Girlie Opinion: Port Azania Could Use a Little More Pink',
+    data: {
+      excerpt: excerpts.morePink,
+      content: morePinkContent(),
+      context: girlieOpinion.id,
+      type: 'opinion',
+      author: casi.id,
+      publishedAt: '2026-10-12T17:00:00.000Z',
+      _status: 'published',
+    },
+  })
+
   // ── 7. International ──────────────────────────────────────────────────────
   await ensureArticle(payload, {
     title: 'The Transport Catalogue Opens to Member Nations',
@@ -454,12 +516,14 @@ async function seed(payload: Payload): Promise<void> {
 [seed] Sign in:  ${serverURL}/admin
 [seed]   username: ${adminUsername}  (password: your SEED_ADMIN_PASSWORD)
 [seed]   Demo accounts: ${EDITOR.username} (editor), ${TIMES_CORRESPONDENT.username} (publishes in the Times),
-[seed]                  ${RESIDENT.username} (writes drafts in Government), ${DELEGATE.username} (manages International)
+[seed]                  ${RESIDENT.username} (writes drafts in Government), ${DELEGATE.username} (manages International),
+[seed]                  ${CASI.username} (GirlieTown, in its Cherry Blossom style)
 [seed]
 [seed] Visit:    ${serverURL}/gov          — Government, the Azania Gazette
 [seed]           ${serverURL}/times        — the Azanian Times (independent press)
 [seed]           ${serverURL}/intl         — International initiatives
 [seed]           ${serverURL}/intl/transport/roads/case-studies  — four levels deep
+[seed]           ${serverURL}/gov/girlietown  — GirlieTown, in Cherry Blossom
 [seed]           ${serverURL}/gov/about    — the standing page
 [seed] ────────────────────────────────────────────────────────────
 `)
