@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
+import { OpinionPortrait } from '@/components/times/OpinionPortrait'
 import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
 import {
@@ -43,6 +44,8 @@ export async function Home({ top, pinned, latest }: HomeProps) {
   const leadKicker = kickerOf(lead).parts.join(' · ')
   const leadByline = resolveByline(lead)
   const leadImage = resolveImage(lead.featuredImage, 'hero')
+  // An opinion lead without a picture shows its writer instead, as its card would.
+  const leadPortrait = !leadImage && lead.type === 'opinion' ? leadByline : null
   const leadDateTime = lead.publishedAt ?? lead.createdAt
   const leadDate = formatDate(leadDateTime)
   const leadHref = articleHref(lead)
@@ -60,7 +63,13 @@ export async function Home({ top, pinned, latest }: HomeProps) {
             : 'border-b border-news-200 pb-12',
         )}
       >
-        <div className="order-2 flex flex-col justify-center md:order-1">
+        <div
+          className={cn(
+            'order-2 flex flex-col justify-center md:order-1',
+            // Nothing to show beside it: the story takes the whole slot.
+            !leadImage && !leadPortrait && 'max-w-3xl md:col-span-2',
+          )}
+        >
           <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
             <span className="bg-(--accent) px-1.5 py-0.5 text-news-50">Lead Story</span>
             {leadKicker ? <span>{leadKicker}</span> : null}
@@ -103,6 +112,12 @@ export async function Home({ top, pinned, latest }: HomeProps) {
               className="aspect-[4/3] w-full object-cover"
             />
           </div>
+        ) : leadPortrait ? (
+          <OpinionPortrait
+            byline={leadPortrait}
+            boxed={boxed}
+            className="order-1 hidden aspect-[4/3] md:order-2 md:flex"
+          />
         ) : null}
       </section>
 

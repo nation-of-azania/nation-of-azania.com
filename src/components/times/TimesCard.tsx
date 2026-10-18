@@ -2,7 +2,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
-import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { dress } from '@/components/styles'
 import { getArticleStyle } from '@/lib/site'
 import type { Article } from '@/payload-types'
@@ -15,6 +14,7 @@ import {
   resolveImage,
 } from '@/components/site/format'
 
+import { OpinionPortrait } from './OpinionPortrait'
 import { TimesCredit } from './TimesByline'
 
 /**
@@ -59,26 +59,7 @@ export async function TimesCard({ article }: { article: Article }) {
           />
         </div>
       ) : opinion && byline ? (
-        <div
-          className={cn(
-            'relative flex aspect-[3/2] w-full flex-col items-center justify-center overflow-hidden bg-(--accent-wash) px-6 text-center',
-            boxed && 'rounded-xl',
-          )}
-        >
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-3 left-4 select-none font-display text-[160px] leading-none text-(--accent-tint)/60"
-          >
-            “
-          </span>
-          <BylineAvatar byline={byline} size={64} tone="times" className="relative" />
-          <p className="relative mt-3 font-news text-sm font-bold uppercase tracking-[0.1em] text-(--accent-deep)">
-            {byline.name}
-          </p>
-          {byline.title ? (
-            <p className="relative mt-1 text-xs text-(--accent)/80">{byline.title}</p>
-          ) : null}
-        </div>
+        <OpinionPortrait byline={byline} boxed={boxed} className="aspect-[3/2]" />
       ) : (
         <div
           className={cn(
