@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import {
   Alegreya,
   Archivo,
+  Fredoka,
   IBM_Plex_Mono,
   IBM_Plex_Serif,
   Marcellus,
@@ -61,6 +62,19 @@ const plexMono = IBM_Plex_Mono({
   preload: false,
 })
 
+// Cherry Blossom's voice (src/components/styles/blossom): a plump, rounded
+// sans for GirlieTown's headlines and labels. Medium, SemiBold and Bold
+// only, so a design's regular-weight headline (the Gazette's) falls to
+// Medium, where Fredoka is bubbly rather than thin, and its black to Bold.
+// Not preloaded: a plain page never sets a glyph in it.
+const fredoka = Fredoka({
+  subsets: ['latin'],
+  variable: '--font-fredoka',
+  display: 'swap',
+  weight: ['500', '600', '700'],
+  preload: false,
+})
+
 const SITE_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3000'
 
 export const metadata: Metadata = {
@@ -79,7 +93,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable}`}
+      className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable} ${fredoka.variable}`}
     >
       {/* The site's base dress is the Gazette's (sign-in, the account): its slots sit on the body, and each design's shell sets its own. */}
       <body className="font-body antialiased" style={slotVars('gazette')}>

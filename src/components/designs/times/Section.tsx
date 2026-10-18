@@ -13,8 +13,9 @@ import type { SectionProps } from '../types'
  * A desk of the Times (Markets, Opinion…) at any depth: its name in the
  * desk's own colour over a rule of the same, its emblem — or its initial,
  * stamped — beside it, then its desks within and its stories, pinned first.
- * A desk in a style takes the style's colours, and its mark in place of the
- * initial when it has no emblem.
+ * A desk in a style takes the style's colours and faces, and its mark in
+ * place of the initial when it has no emblem; its stories' cards wear the
+ * style's box, when it has one on.
  */
 export function Section({ context, chain, style, subContexts, pages, pinned, latest }: SectionProps) {
   const { attrs, Mark } = dress('times', style)
@@ -32,7 +33,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
       <header className="border-b-[3px] border-(--accent-ink) pb-6">
         <Breadcrumb
           chain={ancestors}
-          className="text-[11px] font-semibold uppercase tracking-[0.16em] text-news-500"
+          className="font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-news-500"
           linkClassName="transition-colors hover:text-(--accent-ink)"
           separatorClassName="text-news-300"
         />
@@ -55,7 +56,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
             }
           />
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
+            <p className="font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
               {level}
             </p>
             <h1 className="mt-1 text-balance font-news text-4xl font-black uppercase leading-none tracking-tight text-(--accent-ink) md:text-5xl">
@@ -73,7 +74,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
       {within.length > 0 ? (
         <nav
           aria-label={`Within ${context.name}`}
-          className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-(--accent)"
+          className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-label text-[12px] font-semibold uppercase tracking-[0.14em] text-(--accent)"
         >
           <span className="text-news-500">Within this desk</span>
           {within.map((link) => (

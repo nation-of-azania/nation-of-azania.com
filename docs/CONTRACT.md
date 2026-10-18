@@ -89,16 +89,21 @@ must look right on the sand background without external wrappers.
 - The Azanian Times: `cinnabar-950…100` (primary), `lagoon-700…300` (accent),
   `news-50…900` (newsprint ground and text).
 - Cherry Blossom (GirlieTown's style): `blossom-900…100` — rose for text
-  (700; 600 on newsprint), the leaves' pink for rules (400), petals for
-  tints — and `blossom-plank`, cherry planks at their palest, the Gazette's
-  ground for the style. Styles fill each design's accent slots
-  (`src/components/styles/slots.ts`); they never restyle a component.
+  (700; 600 on newsprint), mulberry (800) for the Times' fills, the leaves'
+  pink for rules (400), petals for tints and the pink box (300–100) — and
+  `blossom-plank`, cherry planks at their palest, the Gazette's ground for
+  the style. Styles fill each design's accent slots
+  (`src/components/styles/slots.ts`), may swap its faces and switch on its
+  box where it offers one (the Times'); they never restyle a component.
 - Discord block only: `dc-*` (Discord's own dark palette — never used elsewhere).
 - Fonts: `font-display` (Alegreya — headings, titles), `font-mark` (Marcellus —
   the wordmark), `font-body` (Source Sans 3), `font-news` (Archivo — Times
-  nameplate and headlines). Stream C loads them via `next/font/google` with CSS
-  variables `--font-alegreya`, `--font-marcellus`, `--font-source-sans` and
-  `--font-archivo` on `<html>` (tokens already reference those variables;
+  nameplate and headlines), `font-label` (the body face behind kickers and
+  tags, a token of its own so a style can swap it) and `font-bubbly` (Fredoka —
+  Cherry Blossom's headlines and labels; not preloaded). Stream C loads them
+  via `next/font/google` with CSS variables `--font-alegreya`,
+  `--font-marcellus`, `--font-source-sans`, `--font-archivo` and
+  `--font-fredoka` on `<html>` (tokens already reference those variables;
   loading them activates the real fonts).
 
 Voice: official gazette of a small proud harbour nation — restrained,

@@ -28,7 +28,8 @@ import type { ArticleProps } from '../types'
  * the type under the seal, everything centred, and a signature block to
  * close it, with the Seal of the Nation pressed beside a decree's. A record
  * in a style keeps the letterhead and the crest, and takes the style's
- * colours for its kicker and hairline and its mark in place of the seal.
+ * colours for its kicker and hairline, its faces for the headline and
+ * labels, and its mark in place of the seal.
  */
 export function Article({ article, chain, style, draft }: ArticleProps) {
   const top = chain[0]
@@ -49,7 +50,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
         {formal ? (
           <div className="flex flex-col items-center">
             <Crest className="h-12 w-auto text-sea-900" />
-            <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-ink-500">
+            <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 font-label text-[11px] uppercase tracking-[0.24em] text-ink-500">
               <FlagTick />
               <span>The Nation of Azania</span>
               {section ? (
@@ -61,7 +62,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
                 </>
               ) : null}
             </p>
-            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-(--seal-ink)">
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 font-label text-[11px] uppercase tracking-[0.24em] text-(--seal-ink)">
               <Badge className="h-3.5 w-3.5 shrink-0" />
               <span>{type}</span>
               {date ? (
@@ -75,7 +76,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
             </p>
           </div>
         ) : (
-          <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
+          <p className="flex flex-wrap items-center gap-x-2.5 font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
             {section ? (
               <>
                 <Link href={contextHref(section)} className="text-sea-700 hover:text-sea-600">
@@ -122,7 +123,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
           >
             {byline ? <GazetteByline byline={byline} /> : null}
             {article.pinned ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-(--seal-ink)">
+              <span className="inline-flex items-center gap-1.5 font-label text-[11px] uppercase tracking-[0.18em] text-(--seal-ink)">
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-(--seal)" />
                 Pinned document
               </span>

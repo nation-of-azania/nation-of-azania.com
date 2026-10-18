@@ -29,7 +29,7 @@ export async function DocumentCard({ article }: { article: Article }) {
       {...attrs}
       className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-(--accent)"
     >
-      <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-(--seal-ink)">
+      <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] uppercase tracking-[0.2em] text-(--seal-ink)">
         <Badge className="h-3.5 w-3.5 shrink-0" />
         <span>Pinned</span>
         {section ? (

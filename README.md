@@ -231,7 +231,11 @@ A **style** is a hand-made look that belongs to someone in Azania, layered on
 a design: **Cherry Blossom** is GirlieTown's, after Minecraft's cherry trees.
 It stays within the brand. A GirlieTown statement is still a Gazette record
 and a GirlieTea column is still the Times, set off by pink accents and
-small blossom marks. Each style has a variant for every design it supports.
+small blossom marks. A style can go further inside a post where its owner
+asks: Cherry Blossom sets headlines and labels in a bubbly face, and in the
+Times a GirlieTea post sits in a pink box, on its own page and on every
+card, while the page around it stays the paper's. Each style has a variant
+for every design it supports.
 
 - **Admins give a context a style** (Contexts → Style), and everything below
   it inherits the style. A sub-context can set another style, or *Plain* to

@@ -23,8 +23,10 @@ import { TimesCredit } from './TimesByline'
  * unmistakably one: a solid "Opinion" tag, and in place of a picture the
  * writer's head under a great opening quotation mark, since a signed view is
  * a person speaking. A story in a style wears it here too — its colours in
- * the kicker, tag and ground, its mark in the tag — so it stands out a
- * little in the grid. The whole card is clickable via a stretched title link.
+ * the kicker, tag and ground, its faces, its mark in the tag — so it stands
+ * out a little in the grid; with the style's box on, the card is the box: a
+ * rounded, bordered panel in the box colours, the picture inset in it. The
+ * whole card is clickable via a stretched title link.
  */
 export async function TimesCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
@@ -34,12 +36,19 @@ export async function TimesCard({ article }: { article: Article }) {
   const date = formatDate(dateTime)
   const opinion = article.type === 'opinion'
   const words = opinion ? parts.filter((part) => part !== 'Opinion') : parts
-  const { attrs, Mark } = dress('times', await getArticleStyle(article))
+  const { attrs, Mark, boxed } = dress('times', await getArticleStyle(article))
 
   return (
-    <article {...attrs} className="group relative flex flex-col">
+    <article
+      {...attrs}
+      className={cn(
+        'group relative flex flex-col',
+        boxed &&
+          'rounded-2xl border-2 border-(--box-edge) bg-(--box-ground) p-4 transition-colors hover:border-(--accent-tint) sm:p-5',
+      )}
+    >
       {image ? (
-        <div className="overflow-hidden bg-news-100">
+        <div className={cn('overflow-hidden bg-news-100', boxed && 'rounded-xl')}>
           <Image
             src={image.url}
             alt={image.alt}
@@ -50,7 +59,12 @@ export async function TimesCard({ article }: { article: Article }) {
           />
         </div>
       ) : opinion && byline ? (
-        <div className="relative flex aspect-[3/2] w-full flex-col items-center justify-center overflow-hidden bg-(--accent-wash) px-6 text-center">
+        <div
+          className={cn(
+            'relative flex aspect-[3/2] w-full flex-col items-center justify-center overflow-hidden bg-(--accent-wash) px-6 text-center',
+            boxed && 'rounded-xl',
+          )}
+        >
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -top-3 left-4 select-none font-display text-[160px] leading-none text-(--accent-tint)/60"
@@ -66,7 +80,12 @@ export async function TimesCard({ article }: { article: Article }) {
           ) : null}
         </div>
       ) : (
-        <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-3 bg-(--accent)/6">
+        <div
+          className={cn(
+            'flex aspect-[3/2] w-full flex-col items-center justify-center gap-3 bg-(--accent)/6',
+            boxed && 'rounded-xl',
+          )}
+        >
           <span aria-hidden="true" className="h-px w-16 bg-lagoon-500/50" />
           <span
             aria-hidden="true"
@@ -78,7 +97,7 @@ export async function TimesCard({ article }: { article: Article }) {
         </div>
       )}
       <div className="mt-3.5 flex flex-1 flex-col">
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-(--accent-ink)">
+        <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.14em] text-(--accent-ink)">
           {opinion ? (
             <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
               {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}

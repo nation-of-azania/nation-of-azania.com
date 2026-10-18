@@ -103,13 +103,17 @@
   /*
    * Cherry Blossom — GirlieTown's style (src/components/styles/blossom),
    * after the cherry trees of the Cherry Grove: deep rose for text (700
-   * passes AA on every design's ground; 600 on the Times' newsprint), the
-   * leaves' pink for rules and hairlines (400), the petals for tints (300,
-   * 200) and the palest blossom for a ground (100). `blossom-plank` is
-   * cherry planks, the soft pink wood, at its palest: the Gazette's ground
-   * for the style, since a record is built rather than strewn with petals.
+   * passes AA on every design's ground; 600 on the Times' newsprint and in
+   * its pink box), mulberry (800) for the Times' fills and rules — dark
+   * enough that a role line set over the wash at 80% still passes — the
+   * leaves' pink for rules and hairlines (400), the petals for tints and
+   * the box's edge (300, 200) and the palest blossom for grounds (100, the
+   * box; 200, the wash inside it). `blossom-plank` is cherry planks, the
+   * soft pink wood, at its palest: the Gazette's ground for the style,
+   * since a record is built rather than strewn with petals.
    */
   --color-blossom-900: #5a1a3a;
+  --color-blossom-800: #7d2353;
   --color-blossom-700: #9b2f5e;
   --color-blossom-600: #b24070;
   --color-blossom-400: #e58fb3;
@@ -146,11 +150,15 @@
   /* Wordmark and small inscriptions: an inscriptional Roman capital. */
   --font-mark: var(--font-marcellus), 'Marcellus', 'Alegreya', Georgia, serif;
   --font-body: var(--font-source-sans), 'Source Sans 3', system-ui, -apple-system, sans-serif;
+  /* Kickers, tags and eyebrows: the body face, as a token of its own so a style can swap it (src/components/styles/slots.ts). */
+  --font-label: var(--font-source-sans), 'Source Sans 3', system-ui, -apple-system, sans-serif;
   --font-news: var(--font-archivo), 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   /* International: a rational, low-contrast serif for record titles… */
   --font-record: var(--font-plex-serif), 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
   /* …and its mono sibling for document numbers, dates and labels (Tailwind's font-mono). */
   --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Cherry Blossom's voice: a plump, rounded sans for GirlieTown's headlines and labels (src/components/styles/blossom). */
+  --font-bubbly: var(--font-fredoka), 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
   /* Discord ships "gg sans"; visitors won't have it, so this is its fallback stack. */
   --font-discord: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }

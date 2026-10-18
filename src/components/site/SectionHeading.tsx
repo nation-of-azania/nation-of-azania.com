@@ -32,7 +32,7 @@ export function SectionHeading({ id, eyebrow, title, action, rule = true }: Sect
       {rule ? <DoubleRule /> : null}
       <div className="mt-6 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">{eyebrow}</p>
+          <p className="font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">{eyebrow}</p>
           <h2 id={id} className="mt-1.5 font-display text-2xl text-sea-950 md:text-3xl">
             {title}
           </h2>

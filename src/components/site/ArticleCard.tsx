@@ -61,7 +61,7 @@ export async function ArticleCard({ article }: { article: Article }) {
           <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-3">
             <Crest className={cn('h-16 w-auto', formal ? 'text-sea-900/30' : 'text-sand-300')} />
             {formal ? (
-              <span className="text-[10px] uppercase tracking-[0.24em] text-ink-400">
+              <span className="font-label text-[10px] uppercase tracking-[0.24em] text-ink-400">
                 The Nation of Azania
               </span>
             ) : null}
@@ -69,7 +69,7 @@ export async function ArticleCard({ article }: { article: Article }) {
         )}
       </div>
       <div className="flex flex-1 flex-col p-5">
-        <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
+        <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
           {section ? (
             <>
               <span className="text-sea-700">{section.name}</span>

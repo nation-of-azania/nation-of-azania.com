@@ -18,7 +18,7 @@ import type { SectionProps } from '../types'
  * letterhead: the way back up, its emblem — or the crest — beside its name,
  * the double rule, what sits inside it, its standing documents and its
  * latest dispatches. An office in a style keeps all of that in the style's
- * colours, with the style's mark in the frame when it has no emblem.
+ * colours and faces, with the style's mark in the frame when it has no emblem.
  */
 export function Section({ context, chain, style, subContexts, pages, pinned, latest }: SectionProps) {
   const top = chain[0]
@@ -38,7 +38,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
       <header>
         <Breadcrumb
           chain={ancestors}
-          className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)"
+          className="font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)"
           linkClassName="text-sea-700 transition-colors hover:text-sea-600"
           separatorClassName="text-sand-300"
         />
@@ -56,7 +56,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
             }
           />
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2.5 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
+            <p className="flex items-center gap-2.5 font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
               <FlagTick />
               {level}
             </p>
@@ -78,7 +78,7 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
 
       {within.length > 0 ? (
         <nav aria-label={`Within ${context.name}`} className="mt-10">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">Within this office</p>
+          <p className="font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">Within this office</p>
           <ul className="mt-3 flex flex-wrap gap-3">
             {within.map((link) => (
               <li key={link.href}>

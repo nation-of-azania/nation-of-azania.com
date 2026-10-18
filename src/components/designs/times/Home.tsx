@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { cn } from '@/blocks/components/shared'
 import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
 import {
@@ -17,8 +18,9 @@ import type { HomeProps } from '../types'
 
 /**
  * The Times' front page: a lead story (the pinned one, else the newest) over
- * a grid. The lead wears its style's colours like any card, but keeps the
- * paper's own "Lead Story" tag.
+ * a grid. The lead wears its style's colours like any card — and sits in
+ * its box when the style has one on — but keeps the paper's own "Lead
+ * Story" tag.
  */
 export async function Home({ top, pinned, latest }: HomeProps) {
   const lead = pinned[0] ?? latest[0]
@@ -44,17 +46,22 @@ export async function Home({ top, pinned, latest }: HomeProps) {
   const leadDateTime = lead.publishedAt ?? lead.createdAt
   const leadDate = formatDate(leadDateTime)
   const leadHref = articleHref(lead)
-  const { attrs } = dress('times', await getArticleStyle(lead))
+  const { attrs, boxed } = dress('times', await getArticleStyle(lead))
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
       {/* Lead story */}
       <section
         {...attrs}
-        className="grid gap-8 border-b border-news-200 pb-12 md:grid-cols-2 md:gap-10"
+        className={cn(
+          'grid gap-8 md:grid-cols-2 md:gap-10',
+          boxed
+            ? 'rounded-3xl border-2 border-(--box-edge) bg-(--box-ground) p-6 md:p-10'
+            : 'border-b border-news-200 pb-12',
+        )}
       >
         <div className="order-2 flex flex-col justify-center md:order-1">
-          <p className="flex flex-wrap items-center gap-x-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
+          <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
             <span className="bg-(--accent) px-1.5 py-0.5 text-news-50">Lead Story</span>
             {leadKicker ? <span>{leadKicker}</span> : null}
             {leadDate ? (
@@ -85,7 +92,7 @@ export async function Home({ top, pinned, latest }: HomeProps) {
           </div>
         </div>
         {leadImage ? (
-          <div className="order-1 overflow-hidden md:order-2">
+          <div className={cn('order-1 overflow-hidden md:order-2', boxed && 'rounded-2xl')}>
             <Image
               src={leadImage.url}
               alt={leadImage.alt}

@@ -7,7 +7,8 @@ import type { ResolvedByline } from './format'
 /**
  * How the Gazette credits people. An official record names the office with
  * the person — "Luixiter, Chancellor" — so the role is never dropped, and the
- * head is mounted in a small sand frame like a portrait in a register.
+ * head is mounted in a small sand frame like a portrait in a register. The
+ * office is a label (`font-label`), so a style may set it in its own face.
  */
 
 type Props = {
@@ -45,7 +46,7 @@ export function GazetteByline({ byline, className }: Props) {
           {byline.name}
         </p>
         {byline.title ? (
-          <p className="mt-1 text-[11px] uppercase leading-none tracking-[0.18em] text-(--accent-ink)">
+          <p className="mt-1 font-label text-[11px] uppercase leading-none tracking-[0.18em] text-(--accent-ink)">
             {byline.title}
           </p>
         ) : null}
@@ -87,13 +88,13 @@ export function GazetteSignature({
       )}
     >
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">{heading}</p>
+        <p className="font-label text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">{heading}</p>
         <div className="mt-4 flex items-center gap-4">
           <BylineAvatar byline={byline} size={48} tone="gazette" />
           <div className="min-w-0">
             <p className="font-display text-2xl leading-none text-sea-950">{byline.name}</p>
             {byline.title ? (
-              <p className="mt-2 text-[11px] uppercase leading-none tracking-[0.18em] text-ink-500">
+              <p className="mt-2 font-label text-[11px] uppercase leading-none tracking-[0.18em] text-ink-500">
                 {byline.title}
               </p>
             ) : null}
