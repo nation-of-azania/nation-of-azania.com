@@ -137,10 +137,11 @@ export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
 
   // Samples under IPaaat's own bylines (Co-Leader, Editor-in-Chief), which the
   // article hooks pick for these contexts. A fresh database has no accounts
-  // yet when migrations run; then there are no samples either.
-  const [author] = await lookup(payload, req, 'users', { role: { equals: 'admin' } })
+  // yet when migrations run; then there are no samples either. (Production
+  // ran an earlier version that took any admin; 20261018_131500 fixes that.)
+  const [author] = await lookup(payload, req, 'users', { username: { equals: 'ipaaat' } })
   if (!author) {
-    log(payload, 'no admin account yet; no sample articles')
+    log(payload, 'no IPaaat account yet; no sample articles')
     return
   }
   const samples = [
