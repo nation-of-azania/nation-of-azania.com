@@ -4,7 +4,7 @@ import type { Design } from './designs'
  * Styles: hand-made looks layered on a design, each belonging to someone in
  * Azania (Cherry Blossom is GirlieTown's). A style is code, not content: it
  * has a variant for every design it supports (src/components/styles/), so a
- * GirlieTown statement still reads as a Gazette record and a Girlie Opinion
+ * GirlieTown statement still reads as a Gazette record and a GirlieTea
  * column as the Times, each in GirlieTown's colours.
  *
  * Admins give a context a style (Contexts → Style). Everything below inherits

@@ -183,12 +183,12 @@ try {
   }
   check(
     contextByPath.get('/gov/girlietown')?.style === 'blossom' &&
-      contextByPath.get('/times/opinion/girlie-opinion')?.style === 'blossom',
+      contextByPath.get('/times/girlietea')?.style === 'blossom',
     'styles: GirlieTown and its column wear Cherry Blossom',
   )
   check(
     styleOf('girlietown-opens-its-cherry-grove-to-all-residents') === 'blossom' &&
-      styleOf('girlie-opinion-port-azania-could-use-a-little-more-pink') === 'blossom',
+      styleOf('girlietea-port-azania-could-use-a-little-more-pink') === 'blossom',
     'styles: their articles inherit it, in the Gazette and in the Times',
   )
   check(

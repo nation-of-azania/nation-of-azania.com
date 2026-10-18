@@ -5,6 +5,7 @@ import * as migration_20261017_160020_byline_profiles from './20261017_160020_by
 import * as migration_20261017_160850_ipaaat_byline_profiles from './20261017_160850_ipaaat_byline_profiles';
 import * as migration_20261018_062606_contexts from './20261018_062606_contexts';
 import * as migration_20261018_113846_styles from './20261018_113846_styles';
+import * as migration_20261018_123000_girlietown from './20261018_123000_girlietown';
 
 export const migrations = [
   {
@@ -41,5 +42,10 @@ export const migrations = [
     up: migration_20261018_113846_styles.up,
     down: migration_20261018_113846_styles.down,
     name: '20261018_113846_styles',
+  },
+  {
+    up: migration_20261018_123000_girlietown.up,
+    down: migration_20261018_123000_girlietown.down,
+    name: '20261018_123000_girlietown',
   },
 ];

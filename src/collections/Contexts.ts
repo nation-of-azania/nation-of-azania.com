@@ -8,7 +8,7 @@ import {
   ValidationError,
 } from 'payload'
 
-import { can, contextIdsWith, getScope, loadContextTree, NOTHING } from '../access/scope'
+import { can, contextIdsWith, forgetScope, getScope, loadContextTree, NOTHING } from '../access/scope'
 import { DESIGNS } from '../contexts/designs'
 import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles'
 import { parentIdOf } from '../contexts/tree'
@@ -160,8 +160,21 @@ export const Contexts: CollectionConfig = {
   },
   hooks: {
     beforeChange: [placeInTree],
-    afterChange: [cascadeToChildren],
+    // The tree changed: whatever this request does next must see the new one.
+    afterChange: [
+      ({ doc, req }) => {
+        forgetScope(req)
+        return doc
+      },
+      cascadeToChildren,
+    ],
     beforeDelete: [refuseNonEmpty],
+    afterDelete: [
+      ({ doc, req }) => {
+        forgetScope(req)
+        return doc
+      },
+    ],
   },
   fields: [
     { name: 'name', type: 'text', required: true },

@@ -174,13 +174,13 @@ async function seed(payload: Payload): Promise<void> {
     style: 'blossom',
     order: 3,
   })
-  const girlieOpinion = await ensureContext(payload, {
-    name: 'Girlie Opinion',
-    slug: 'girlie-opinion',
-    parent: opinion.id,
+  const girlieTea = await ensureContext(payload, {
+    name: 'GirlieTea',
+    slug: 'girlietea',
+    parent: top.times,
     tagline: 'A column from GirlieTown',
     style: 'blossom',
-    order: 1,
+    order: 3,
   })
 
   // ── 2. Users ──────────────────────────────────────────────────────────────
@@ -209,7 +209,7 @@ async function seed(payload: Payload): Promise<void> {
     role: 'resident',
     contextAccess: [
       { context: girlieTown.id, level: 'publish' },
-      { context: girlieOpinion.id, level: 'write' },
+      { context: girlieTea.id, level: 'write' },
     ],
   })
   const delegate = await ensureUser(payload, {
@@ -267,7 +267,7 @@ async function seed(payload: Payload): Promise<void> {
   await ensureProfile(payload, {
     name: CASI.name,
     title: 'GirlieTown',
-    contexts: [girlieTown.id, girlieOpinion.id],
+    contexts: [girlieTown.id, girlieTea.id],
     owner: casi.id,
   })
   await ensureProfile(payload, {
@@ -440,11 +440,11 @@ async function seed(payload: Payload): Promise<void> {
   })
 
   await ensureArticle(payload, {
-    title: 'Girlie Opinion: Port Azania Could Use a Little More Pink',
+    title: 'GirlieTea: Port Azania Could Use a Little More Pink',
     data: {
       excerpt: excerpts.morePink,
       content: morePinkContent(),
-      context: girlieOpinion.id,
+      context: girlieTea.id,
       type: 'opinion',
       author: casi.id,
       publishedAt: '2026-10-12T17:00:00.000Z',

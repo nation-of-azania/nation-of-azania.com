@@ -79,6 +79,15 @@ export async function getScope(req: PayloadRequest): Promise<Scope> {
   return promise
 }
 
+/**
+ * Drops the cached scope, so the next check reloads the tree. For requests
+ * that change contexts and go on to use them, such as a migration or a
+ * script making several documents in one request.
+ */
+export const forgetScope = (req: PayloadRequest): void => {
+  delete req.context[CACHE_KEY]
+}
+
 /** Whether the scope reaches `level` in the context. */
 export const can = (scope: Scope, contextId: number | null | undefined, level: Level): boolean =>
   scope.staff || (contextId != null && rank(scope.levels.get(contextId)) >= rank(level))

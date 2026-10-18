@@ -543,7 +543,7 @@ export const cherryGroveContent = (): LexicalEditorState =>
     ),
   )
 
-// ── Girlie Opinion: Port Azania Could Use a Little More Pink (opinion, Times) ─
+// ── GirlieTea: Port Azania Could Use a Little More Pink (opinion, Times) ────
 
 export const morePinkContent = (): LexicalEditorState =>
   root(

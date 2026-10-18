@@ -69,7 +69,7 @@ right away. They exist only in your local database. Production never gets them
 | `marlo`    | Resident, *Publish* in the Times         | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
 | `resident` | Resident, *Write drafts* in Government   | `azania-resident-2026` | A Resident of Azania (no profile)      |
 | `delegate` | Resident, *Manage* International         | `azania-delegate-2026` | Ilse Varnholt, Delegate of Norvessa    |
-| `casi`     | Resident, *Publish* in GirlieTown, *Write drafts* in Girlie Opinion | `azania-girlie-2026` | DefinitelyCasi, GirlieTown |
+| `casi`     | Resident, *Publish* in GirlieTown, *Write drafts* in GirlieTea | `azania-girlie-2026` | DefinitelyCasi, GirlieTown |
 
 Usernames are case-insensitive: Payload stores them lowercased, so `IPaaat`
 and `ipaaat` are the same account.
@@ -88,7 +88,7 @@ one in the panel (Users → edit → New Password).
 `pnpm seed` creates a demo nation with placeholder lore: a coastal trading
 nation with a harbour capital, Port Azania, and a lighthouse on Founders'
 Point. It includes twelve contexts (the three top-level ones, two Government
-offices and GirlieTown, two Times desks with the Girlie Opinion column, and
+offices and GirlieTown, two Times desks and the GirlieTea column, and
 International's Transport Catalogue › Road Initiative › Case Studies, four
 levels deep), six accounts, nine byline profiles (IPaaat as Co-Leader in
 Government, Editor-in-Chief of the Times and Representative of Azania in
@@ -105,7 +105,7 @@ About page, and fourteen articles that exercise every content block:
 - **Times:** a lead story, an analysis that quotes a Discord exchange, a
   markets report and an opinion piece.
 - **GirlieTown**, in its Cherry Blossom style: a statement in the Gazette and
-  a Girlie Opinion column in the Times.
+  a GirlieTea column in the Times.
 - **International:** the Transport Catalogue's opening announcement, the
   delegate's road standard RS-1, and a case study four levels deep.
 
@@ -230,7 +230,7 @@ in `src/components/designs/` (`types.ts` lists what a design renders).
 A **style** is a hand-made look that belongs to someone in Azania, layered on
 a design: **Cherry Blossom** is GirlieTown's, after Minecraft's cherry trees.
 It stays within the brand. A GirlieTown statement is still a Gazette record
-and a Girlie Opinion column is still the Times, set off by pink accents and
+and a GirlieTea column is still the Times, set off by pink accents and
 small blossom marks. Each style has a variant for every design it supports.
 
 - **Admins give a context a style** (Contexts → Style), and everything below

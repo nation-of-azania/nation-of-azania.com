@@ -2,7 +2,7 @@ import type { Variant } from '../types'
 import { Blossom } from './Blossom'
 
 /**
- * Cherry Blossom on the Times: a Girlie Opinion column is still the paper's
+ * Cherry Blossom on the Times: the GirlieTea column is still the paper's
  * Opinion, in its grotesque over newsprint. Rose takes the cinnabar's
  * places, petal pink the quotation mark's, and the blossom sits in the
  * column's Opinion tag as its own small badge.
