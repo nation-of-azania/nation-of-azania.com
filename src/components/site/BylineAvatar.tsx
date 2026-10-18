@@ -22,9 +22,11 @@ const HEAD_SOURCE_PX = 64
  * Each publication frames its people differently. The Gazette mounts them
  * like portrait miniatures — a hairline sand frame and a thin mat — and, for
  * people without a face, stamps their initials in sea on sand. The Times
- * prints them flat, as a newspaper would, with a cinnabar monogram.
+ * prints them flat, as a newspaper would, with a cinnabar monogram. The
+ * International registry files them like a delegate's badge: a hairline
+ * graphite frame and a verdigris monogram in the record serif.
  */
-export type AvatarTone = 'gazette' | 'times'
+export type AvatarTone = 'gazette' | 'times' | 'international'
 
 const TONE: Record<AvatarTone, { frame: string; mark: string }> = {
   gazette: {
@@ -34,6 +36,10 @@ const TONE: Record<AvatarTone, { frame: string; mark: string }> = {
   times: {
     frame: 'bg-news-100',
     mark: 'bg-cinnabar-100 font-news font-black text-cinnabar-800',
+  },
+  international: {
+    frame: 'box-content border border-paper-300 bg-paper-100',
+    mark: 'bg-verdigris-100 font-record font-medium text-verdigris-800',
   },
 }
 

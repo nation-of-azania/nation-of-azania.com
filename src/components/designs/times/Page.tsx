@@ -2,17 +2,27 @@ import Link from 'next/link'
 
 import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
+import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { contextHref } from '@/lib/site'
 
 import type { PageProps } from '../types'
 
-/** A standing page in the Times' dress. */
+/** A standing page in the Times' dress, with the way back up when it sits on a desk. */
 export function Page({ page, chain, draft }: PageProps) {
   const home = chain[chain.length - 1]
   return (
     <article className="mx-auto max-w-3xl px-6 py-12 md:py-16">
       {draft ? <PreviewTools /> : null}
       <header>
+        {chain.length > 1 ? (
+          <Breadcrumb
+            chain={chain}
+            current={page.title}
+            className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-news-500"
+            linkClassName="transition-colors hover:text-cinnabar-700"
+            separatorClassName="text-news-300"
+          />
+        ) : null}
         <h1 className="font-news text-4xl font-black leading-[1.03] text-news-900 md:text-5xl">
           {page.title}
         </h1>

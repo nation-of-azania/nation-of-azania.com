@@ -1,34 +1,45 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { cn } from '@/blocks/components/shared'
 import type { Article } from '@/payload-types'
 
 import { Crest } from './Crest'
 import { GazetteCredit } from './GazetteByline'
+import { Seal } from './Seal'
 import {
   articleHref,
   formatDate,
+  isStateDocument,
+  kickerOf,
   resolveByline,
   resolveImage,
-  sectionOf,
-  typeLabel,
 } from './format'
 
 /**
  * The standard gazette card, shared by the homepage and the article index.
- * The whole card is clickable via a stretched title link; relations are
- * rendered only when populated.
+ * The kicker reads "Public Works · Dispatch". A document of state — a decree,
+ * a statement, a notice — is set apart by the seal and a coral rule at its
+ * head, and shows the crest in place of a picture. The whole card is
+ * clickable via a stretched title link; relations are rendered only when
+ * populated.
  */
 export function ArticleCard({ article }: { article: Article }) {
   const image = resolveImage(article.featuredImage, 'card')
-  const kicker = sectionOf(article)?.name ?? typeLabel(article)
+  const { section, type } = kickerOf(article)
   const byline = resolveByline(article)
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const href = articleHref(article)
+  const formal = isStateDocument(article)
 
   return (
-    <article className="group relative flex flex-col border border-sand-300 bg-sand-50 transition-colors hover:border-saffron-400">
+    <article
+      className={cn(
+        'group relative flex flex-col border border-sand-300 bg-sand-50 transition-colors hover:border-saffron-400',
+        formal && 'border-t-2 border-t-coral-600 hover:border-t-coral-600',
+      )}
+    >
       <div className="border-b border-sand-300 bg-sand-100">
         {image ? (
           <Image
@@ -40,20 +51,40 @@ export function ArticleCard({ article }: { article: Article }) {
             className="aspect-[3/2] w-full object-cover"
           />
         ) : (
-          <div className="flex aspect-[3/2] w-full items-center justify-center">
-            <Crest className="h-16 w-auto text-sand-300" />
+          <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-3">
+            <Crest className={cn('h-16 w-auto', formal ? 'text-sea-900/30' : 'text-sand-300')} />
+            {formal ? (
+              <span className="text-[10px] uppercase tracking-[0.24em] text-ink-400">
+                The Nation of Azania
+              </span>
+            ) : null}
           </div>
         )}
       </div>
       <div className="flex flex-1 flex-col p-5">
         <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
-          {kicker ? (
+          {section ? (
             <>
-              <span className="text-sea-700">{kicker}</span>
+              <span className="text-sea-700">{section.name}</span>
               <span aria-hidden="true">·</span>
             </>
           ) : null}
-          {date ? <time dateTime={dateTime}>{date}</time> : null}
+          {formal ? (
+            <span className="inline-flex items-center gap-1.5 text-coral-700">
+              <Seal className="h-3 w-3 shrink-0" />
+              {type}
+            </span>
+          ) : (
+            <span>{type}</span>
+          )}
+          {date ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <time dateTime={dateTime} className="text-ink-400">
+                {date}
+              </time>
+            </>
+          ) : null}
         </p>
         <h3 className="mt-2.5 font-display text-xl leading-snug text-ink-900">
           <Link

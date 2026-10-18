@@ -6,12 +6,17 @@ import { Crest } from './Crest'
 
 /** Deep-sea colophon with the crest, the national motto and site links. */
 export function Footer({ nav }: { nav: SiteNav }) {
-  const links = [
-    { href: archiveHref(nav.top), label: 'The Gazette', prefetch: undefined },
-    ...nav.pages.map((link) => ({ ...link, prefetch: undefined })),
+  const record = [
+    { href: archiveHref(nav.top), label: 'The Gazette' },
+    ...nav.sections,
+    ...nav.pages,
+  ]
+  const elsewhere = [
     ...nav.elsewhere.map((link) => ({ ...link, prefetch: undefined })),
     { href: '/admin', label: 'Registry (Admin)', prefetch: false },
   ]
+  const linkClass =
+    'text-sand-200/85 transition-colors hover:text-saffron-200 focus-visible:outline-saffron-300'
   return (
     <footer className="mt-24 border-t border-saffron-400/70 bg-sea-950 text-sand-200">
       <div className="mx-auto max-w-6xl px-6 py-14">
@@ -35,22 +40,32 @@ export function Footer({ nav }: { nav: SiteNav }) {
               all.
             </p>
           </div>
-          <nav aria-label="Footer">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-300">The Record</p>
-            <ul className="mt-4 space-y-2.5 text-sm">
-              {links.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    prefetch={link.prefetch}
-                    className="text-sand-200/85 transition-colors hover:text-saffron-200 focus-visible:outline-saffron-300"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <div className="flex flex-wrap gap-x-16 gap-y-10">
+            <nav aria-label="The record">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-300">The Record</p>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {record.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className={linkClass}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <nav aria-label="Elsewhere">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-300">Elsewhere</p>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {elsewhere.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} prefetch={link.prefetch} className={linkClass}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
         </div>
         <div className="mt-12 border-t border-sand-200/15 pt-6 text-xs text-sand-200/60">
           <p>© {new Date().getFullYear()} The Nation of Azania.</p>

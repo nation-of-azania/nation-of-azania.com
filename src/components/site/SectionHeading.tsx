@@ -21,12 +21,14 @@ type SectionHeadingProps = {
   title: string
   /** Optional right-aligned action, e.g. an "All articles →" link. */
   action?: ReactNode
+  /** Leave out the double rule when one already runs just above. */
+  rule?: boolean
 }
 
-export function SectionHeading({ id, eyebrow, title, action }: SectionHeadingProps) {
+export function SectionHeading({ id, eyebrow, title, action, rule = true }: SectionHeadingProps) {
   return (
     <header>
-      <DoubleRule />
+      {rule ? <DoubleRule /> : null}
       <div className="mt-6 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">{eyebrow}</p>

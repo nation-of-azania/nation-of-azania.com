@@ -3,7 +3,9 @@ import Link from 'next/link'
 import { ArticleCard } from '@/components/site/ArticleCard'
 import { Crest } from '@/components/site/Crest'
 import { Pagination } from '@/components/site/Pagination'
+import { Seal } from '@/components/site/Seal'
 import { DoubleRule } from '@/components/site/SectionHeading'
+import { isStateDocument } from '@/components/site/format'
 import { cn } from '@/blocks/components/shared'
 import { TYPE_LABELS } from '@/contexts/designs'
 import { archiveHref } from '@/lib/site'
@@ -28,30 +30,42 @@ export function Archive({ top, result, page, type, types }: ArchiveProps) {
           Decrees, dispatches and chronicles of the nation, newest first.
         </p>
         {types.length > 1 ? (
-          <nav aria-label="Filter by type" className="mt-8 flex flex-wrap gap-2">
-            {[null, ...types].map((option) => (
-              <Link
-                key={option ?? 'all'}
-                href={archiveHref(top, option)}
-                aria-current={option === type ? 'page' : undefined}
-                className={cn(
-                  'border px-3 py-1 text-[12px] uppercase tracking-[0.14em] transition-colors',
-                  option === type
-                    ? 'border-sea-800 bg-sea-800 text-sand-50'
-                    : 'border-sand-300 text-sea-800 hover:border-saffron-400',
-                )}
-              >
-                {option ? TYPE_LABELS[option] : 'All'}
-              </Link>
-            ))}
+          <nav aria-label="Filter by type" className="mt-8">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-ink-400">Kind of record</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {[null, ...types].map((option) => (
+                <li key={option ?? 'all'}>
+                  <Link
+                    href={archiveHref(top, option)}
+                    aria-current={option === type ? 'page' : undefined}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 border px-3 py-1 text-[12px] uppercase tracking-[0.14em] transition-colors',
+                      option === type
+                        ? 'border-sea-800 bg-sea-800 text-sand-50'
+                        : 'border-sand-300 text-sea-800 hover:border-saffron-400',
+                    )}
+                  >
+                    {option && isStateDocument({ type: option }) ? (
+                      <Seal
+                        className={cn('h-3 w-3', option === type ? 'text-sand-200' : 'text-coral-700')}
+                      />
+                    ) : null}
+                    {option ? TYPE_LABELS[option] : 'All'}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </nav>
         ) : null}
         <DoubleRule className="mt-8" />
-        {totalDocs > 0 ? (
-          <p className="mt-3 text-right text-[11px] uppercase tracking-[0.2em] text-ink-400">
-            {totalDocs} {totalDocs === 1 ? 'record' : 'records'} in the archive
-          </p>
-        ) : null}
+        <p className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[11px] uppercase tracking-[0.2em] text-ink-400">
+          <span>{type ? `${TYPE_LABELS[type]} · every office` : 'Every kind, every office'}</span>
+          {totalDocs > 0 ? (
+            <span>
+              {totalDocs} {totalDocs === 1 ? 'record' : 'records'}
+            </span>
+          ) : null}
+        </p>
       </header>
 
       {docs.length > 0 ? (

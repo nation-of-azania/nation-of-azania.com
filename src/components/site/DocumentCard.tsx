@@ -4,24 +4,34 @@ import type { Article } from '@/payload-types'
 
 import { GazetteCredit } from './GazetteByline'
 import { Seal } from './Seal'
-import { articleHref, formatDate, resolveByline } from './format'
+import { articleHref, formatDate, kickerOf, resolveByline } from './format'
 
 /**
  * A document-like card for pinned articles — the charter and standing
- * decrees shown under "Documents of State" on the homepage. The foot names
- * the signatory and the date of entry, as a register would.
+ * decrees shown under "Documents of State" on the homepage. The kicker names
+ * what the document is ("Pinned · The Chancellery · Decree"), and the foot
+ * names the signatory and the date of entry, as a register would.
  */
 export function DocumentCard({ article }: { article: Article }) {
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const href = articleHref(article)
   const byline = resolveByline(article)
+  const { section, type } = kickerOf(article)
 
   return (
     <article className="group relative flex flex-col border border-sand-300 bg-sand-100 p-6 transition-colors hover:border-saffron-400">
-      <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-coral-700">
+      <p className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-coral-700">
         <Seal className="h-3.5 w-3.5 shrink-0" />
-        Pinned · Document of State
+        <span>Pinned</span>
+        {section ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="text-sea-700">{section.name}</span>
+          </>
+        ) : null}
+        <span aria-hidden="true">·</span>
+        <span>{type}</span>
       </p>
       <h3 className="mt-3.5 font-display text-xl leading-snug text-ink-900">
         <Link

@@ -2,9 +2,9 @@ import config from '@payload-config'
 import { getPayload } from 'payload'
 import { cache } from 'react'
 
-import { isDesign, type Design } from '@/contexts/designs'
+import { isAccent, isDesign, type Accent, type Design } from '@/contexts/designs'
 import { buildTree, type ContextTree } from '@/contexts/tree'
-import type { Context } from '@/payload-types'
+import type { Context, Media } from '@/payload-types'
 
 /**
  * The site's shape, read from the context tree. Every public URL starts with
@@ -62,11 +62,44 @@ export const archiveHref = (
 export const topOf = (tree: SiteTree, context: Context): Context =>
   tree.ancestors(context.id)[0] ?? context
 
+/**
+ * The accent in force at the end of a chain (top-level context first): the
+ * context's own, else the nearest ancestor's; null when none is set anywhere
+ * above it, so each design falls back to its own colour.
+ */
+export function accentOf(chain: Pick<Context, 'accent'>[]): Accent | null {
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const accent = chain[index].accent
+    if (isAccent(accent)) return accent
+  }
+  return null
+}
+
+/**
+ * The emblem shown at the end of a chain: the context's own upload, else the
+ * nearest ancestor's. Only populated images count (the tree is loaded at
+ * depth 1, so emblems arrive as Media); media also accepts models and audio.
+ */
+export function emblemOf(chain: Pick<Context, 'emblem'>[]): Media | null {
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const emblem = chain[index].emblem
+    if (emblem && typeof emblem === 'object' && (emblem.mimeType ?? 'image/').startsWith('image/')) {
+      return emblem
+    }
+  }
+  return null
+}
+
 /** Ids of the context and everything below it: what its listings show. */
 export const idsBelow = (tree: SiteTree, context: Context): number[] =>
   tree.descendants(context.id).map((record) => record.id)
 
-export type NavLink = { href: string; label: string }
+export type NavLink = {
+  href: string
+  label: string
+  /** A section's accent, inherited (see accentOf), for a swatch beside its name. */
+  accent?: Accent | null
+}
 
 /** What a design's chrome needs to link around. */
 export type SiteNav = {
@@ -85,7 +118,11 @@ export const sectionsOf = (tree: SiteTree, context: Context): NavLink[] =>
   tree
     .childrenOf(context.id)
     .filter((child) => child.listed !== false)
-    .map((child) => ({ href: contextHref(child), label: child.name }))
+    .map((child) => ({
+      href: contextHref(child),
+      label: child.name,
+      accent: accentOf(tree.ancestors(child.id)),
+    }))
 
 export const getSiteNav = cache(async (top: Context): Promise<SiteNav> => {
   const tree = await getSiteTree()

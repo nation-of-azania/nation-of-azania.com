@@ -1,4 +1,6 @@
-import { TYPE_LABELS } from '@/contexts/designs'
+import type { CSSProperties } from 'react'
+
+import { ACCENTS, TYPE_LABELS, type Accent } from '@/contexts/designs'
 import type { Article, Context, Media } from '@/payload-types'
 
 /** The article's context, when populated (depth ≥ 1). */
@@ -27,6 +29,53 @@ export const typeLabel = (article: Pick<Article, 'type'>): string =>
 export function sectionOf(article: Pick<Article, 'context'>): Context | null {
   const context = contextOf(article)
   return context?.parent ? context : null
+}
+
+/**
+ * The parts of a kicker, read as "Public Works · Dispatch": the sub-context
+ * the article sits in (null at the top level) and its type, plus `parts`,
+ * the words in order with a desk named after its type ("Opinion · Opinion")
+ * said once. Each design sets them in its own voice.
+ */
+export function kickerOf(article: Pick<Article, 'context' | 'type'>): {
+  section: Context | null
+  type: string
+  parts: string[]
+} {
+  const section = sectionOf(article)
+  const type = typeLabel(article)
+  const sameWord = section?.name.trim().toLowerCase() === type.toLowerCase()
+  return { section, type, parts: section && !sameWord ? [section.name, type] : [type] }
+}
+
+/**
+ * Gazette types that are instruments of state rather than prose — a decree,
+ * a statement, a notice — and so get the formal document treatment: the
+ * Chancellery's letterhead, and for decrees the signature and seal.
+ */
+const STATE_DOCUMENTS: ReadonlySet<Article['type']> = new Set(['decree', 'statement', 'notice'])
+
+export const isStateDocument = (article: Pick<Article, 'type'>): boolean =>
+  STATE_DOCUMENTS.has(article.type)
+
+/**
+ * A document number in a title, e.g. "RS-1" from "Road Standard RS-1:
+ * Cross-Section and Drainage" — the reference a standard or resolution is
+ * cited by. Null when the title carries none.
+ */
+export function documentNumber(title: string): string | null {
+  return title.match(/\b([A-Z]{1,4}-\d{1,4}[A-Z]?)\b/)?.[1] ?? null
+}
+
+/**
+ * A context's accent as CSS custom properties, for the utilities
+ * `bg-(--accent)`, `text-(--accent-ink)` and `bg-(--accent-wash)`. Every
+ * design passes its own fallback, so an unaccented context still reads in
+ * the design's colour.
+ */
+export function accentStyle(accent: Accent | null | undefined, fallback: Accent): CSSProperties {
+  const { hex, ink, wash } = ACCENTS[accent ?? fallback]
+  return { '--accent': hex, '--accent-ink': ink, '--accent-wash': wash } as CSSProperties
 }
 
 /**

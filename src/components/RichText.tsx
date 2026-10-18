@@ -165,15 +165,34 @@ const TIMES_TONE = cn(
   '[&_img:not([class])]:border-news-200',
 )
 
+// The International registry: record-serif headings in graphite, verdigris
+// links and rules, and numbered-clause headings kept a touch quieter.
+const INTERNATIONAL_TONE = cn(
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-record',
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:font-medium',
+  '[&_:is(h1,h2,h3,h4,h5,h6):not([class])]:text-graphite-900',
+  '[&_a:not([class])]:text-verdigris-700',
+  '[&_a:not([class])]:decoration-verdigris-300',
+  '[&_a:not([class]):hover]:text-verdigris-800',
+  '[&_a:not([class]):hover]:decoration-verdigris-600',
+  '[&_blockquote:not([class])]:border-verdigris-500',
+  '[&_blockquote:not([class])]:text-graphite-700',
+  '[&_li::marker]:text-verdigris-600',
+  '[&_hr:not([class])]:border-paper-300',
+  '[&_code:not([class])]:bg-paper-100',
+  '[&_img:not([class])]:border-paper-200',
+)
+
 const TONES = {
   gazette: cn(STRUCTURE, GAZETTE_TONE),
   times: cn(STRUCTURE, TIMES_TONE),
+  international: cn(STRUCTURE, INTERNATIONAL_TONE),
 } as const
 
 type RichTextProps = {
   className?: string
   data: Article['content'] | Page['content'] | null | undefined
-  /** Prose palette: the state Gazette (default) or the Azanian Times. */
+  /** Prose palette: the state Gazette (default), the Azanian Times, or the International registry. */
   tone?: keyof typeof TONES
 }
 

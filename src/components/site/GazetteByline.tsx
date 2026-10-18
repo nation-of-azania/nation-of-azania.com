@@ -59,14 +59,25 @@ type SignatureProps = Props & {
   dateTime?: string | null
   /** The same date, already formatted for reading. */
   date?: string | null
+  /** The line above the signatory; "Given under the hand of" for a decree. */
+  heading?: string
+  /** Press the Seal of the Nation beside the signature: decrees only. */
+  sealed?: boolean
 }
 
 /**
  * The signature block that closes a document of state: "Given under the hand
- * of" the signatory, with the Seal of the Nation pressed beside it, and the
- * date it entered the record.
+ * of" the signatory, with the Seal of the Nation pressed beside it for a
+ * decree, and the date it entered the record.
  */
-export function GazetteSignature({ byline, dateTime, date, className }: SignatureProps) {
+export function GazetteSignature({
+  byline,
+  dateTime,
+  date,
+  heading = 'Given under the hand of',
+  sealed = true,
+  className,
+}: SignatureProps) {
   return (
     <aside
       aria-label="Signature"
@@ -76,9 +87,7 @@ export function GazetteSignature({ byline, dateTime, date, className }: Signatur
       )}
     >
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">
-          Given under the hand of
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">{heading}</p>
         <div className="mt-4 flex items-center gap-4">
           <BylineAvatar byline={byline} size={48} tone="gazette" />
           <div className="min-w-0">
@@ -96,7 +105,7 @@ export function GazetteSignature({ byline, dateTime, date, className }: Signatur
           </p>
         ) : null}
       </div>
-      <WaxSeal className="ms-1" />
+      {sealed ? <WaxSeal className="ms-1" /> : null}
     </aside>
   )
 }

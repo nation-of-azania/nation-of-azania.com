@@ -6,12 +6,12 @@ import { DocumentCard } from '@/components/site/DocumentCard'
 import { FlagTick } from '@/components/site/FlagTick'
 import { LinkButton } from '@/components/site/LinkButton'
 import { SectionHeading } from '@/components/site/SectionHeading'
-import { archiveHref } from '@/lib/site'
+import { archiveHref, contextHref } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
-/** The Gazette's front page: masthead, Documents of State, latest dispatches. */
-export function Home({ top, pages, pinned, latest }: HomeProps) {
+/** The Gazette's front page: masthead, the offices of state, Documents of State, latest dispatches. */
+export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
   const archive = archiveHref(top)
   const about = pages[0]
 
@@ -47,6 +47,29 @@ export function Home({ top, pages, pinned, latest }: HomeProps) {
           </div>
         </div>
       </section>
+
+      {/* The offices of state: the context tree's first level under Government. */}
+      {sections.length > 0 ? (
+        <nav aria-label="Offices of state" className="border-b border-sand-300 bg-sand-100/60">
+          <ul className="mx-auto flex max-w-6xl flex-wrap gap-x-10 gap-y-2 px-6 py-4">
+            {sections.map((section) => (
+              <li key={section.id}>
+                <Link
+                  href={contextHref(section)}
+                  className="group inline-flex flex-wrap items-baseline gap-x-2 text-sm"
+                >
+                  <span className="font-display text-base text-sea-900 transition-colors group-hover:text-sea-700">
+                    {section.name}
+                  </span>
+                  {section.tagline ? (
+                    <span className="text-ink-500">— {section.tagline}</span>
+                  ) : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
 
       {/* Documents of State */}
       <section

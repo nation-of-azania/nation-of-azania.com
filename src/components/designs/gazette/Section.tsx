@@ -2,66 +2,118 @@ import Link from 'next/link'
 
 import { RichText } from '@/components/RichText'
 import { ArticleCard } from '@/components/site/ArticleCard'
+import { Breadcrumb } from '@/components/site/Breadcrumb'
+import { Crest } from '@/components/site/Crest'
 import { DocumentCard } from '@/components/site/DocumentCard'
-import { DoubleRule, SectionHeading } from '@/components/site/SectionHeading'
-import { contextHref } from '@/lib/site'
+import { Emblem } from '@/components/site/Emblem'
+import { FlagTick } from '@/components/site/FlagTick'
+import { SectionHeading } from '@/components/site/SectionHeading'
+import { accentStyle } from '@/components/site/format'
+import { accentOf, archiveHref, contextHref, emblemOf } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
-/** A sub-context of Government (a ministry, an office) at any depth. */
+/**
+ * An office of state (a ministry, the Chancellery) at any depth, set like a
+ * letterhead: the way back up, its emblem — or the crest, in its accent —
+ * beside its name, the double rule with its accent as the hairline, what
+ * sits inside it, its standing documents and its latest dispatches.
+ */
 export function Section({ context, chain, subContexts, pages, pinned, latest }: SectionProps) {
+  const top = chain[0]
+  const ancestors = chain.slice(0, -1)
+  const parent = ancestors[ancestors.length - 1]
+  const level = ancestors.length > 1 && parent ? `Within ${parent.name}` : 'An office of state'
+  const within = [
+    ...subContexts.map((child) => ({ href: contextHref(child), label: child.name })),
+    ...pages,
+  ]
+  // Nothing between the letterhead and the latest dispatches: one rule serves both.
+  const sparse = !context.intro && within.length === 0 && pinned.length === 0
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+    <div className="mx-auto max-w-6xl px-6 py-16 md:py-20" style={accentStyle(accentOf(chain), 'saffron')}>
       <header>
-        <nav aria-label="Breadcrumb">
-          <ol className="flex flex-wrap items-center gap-x-2 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
-            {chain.slice(0, -1).map((ancestor) => (
-              <li key={ancestor.id} className="flex items-center gap-x-2">
-                <Link href={contextHref(ancestor)} className="text-sea-700 hover:text-sea-600">
-                  {ancestor.name}
-                </Link>
-                <span aria-hidden="true">›</span>
-              </li>
-            ))}
-          </ol>
-        </nav>
-        <h1 className="mt-3 font-display text-4xl text-sea-950 md:text-5xl">{context.name}</h1>
-        {context.tagline ? (
-          <p className="mt-4 max-w-2xl text-lg text-ink-500">{context.tagline}</p>
-        ) : null}
-        <DoubleRule className="mt-8" />
+        <Breadcrumb
+          chain={ancestors}
+          className="text-[11px] uppercase tracking-[0.2em] text-saffron-600"
+          linkClassName="text-sea-700 transition-colors hover:text-sea-600"
+          separatorClassName="text-sand-300"
+        />
+        <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
+          <Emblem
+            media={emblemOf(chain)}
+            size={104}
+            className="border border-sand-300 bg-(--accent-wash) p-2"
+            fallback={<Crest className="h-14 w-auto text-(--accent-ink)" />}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2.5 text-[11px] uppercase tracking-[0.2em] text-(--accent-ink)">
+              <FlagTick />
+              {level}
+            </p>
+            <h1 className="mt-3 text-balance font-display text-4xl text-sea-950 md:text-5xl">
+              {context.name}
+            </h1>
+            {context.tagline ? (
+              <p className="mt-3 max-w-2xl text-lg text-ink-500">{context.tagline}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="mt-8" aria-hidden="true">
+          <div className="h-[3px] bg-sea-800" />
+          <div className="mt-[2px] h-px bg-(--accent)" />
+        </div>
       </header>
 
       {context.intro ? <RichText data={context.intro} className="mt-10 max-w-3xl" /> : null}
 
-      {subContexts.length > 0 || pages.length > 0 ? (
-        <ul className="mt-10 flex flex-wrap gap-3">
-          {[
-            ...subContexts.map((child) => ({ href: contextHref(child), label: child.name })),
-            ...pages,
-          ].map((link) => (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                className="inline-block border border-sand-300 px-4 py-2 text-sm text-sea-800 transition-colors hover:border-saffron-400"
-              >
-                {link.label} →
-              </Link>
-            </li>
-          ))}
-        </ul>
+      {within.length > 0 ? (
+        <nav aria-label={`Within ${context.name}`} className="mt-10">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-saffron-600">Within this office</p>
+          <ul className="mt-3 flex flex-wrap gap-3">
+            {within.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="inline-block border border-sand-300 bg-sand-50 px-4 py-2 text-sm text-sea-800 transition-colors hover:border-(--accent)"
+                >
+                  {link.label} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       ) : null}
 
       {pinned.length > 0 ? (
-        <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          {pinned.map((article) => (
-            <DocumentCard key={article.id} article={article} />
-          ))}
-        </div>
+        <section aria-labelledby="section-documents" className="mt-14">
+          <SectionHeading id="section-documents" eyebrow="Standing Record" title="Documents" />
+          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            {pinned.map((article) => (
+              <DocumentCard key={article.id} article={article} />
+            ))}
+          </div>
+        </section>
       ) : null}
 
-      <section aria-labelledby="section-latest" className="mt-16">
-        <SectionHeading id="section-latest" eyebrow={context.name} title="Latest" />
+      <section aria-labelledby="section-latest" className={sparse ? 'mt-4' : 'mt-16'}>
+        <SectionHeading
+          id="section-latest"
+          eyebrow={context.name}
+          title="Latest"
+          rule={!sparse}
+          action={
+            top ? (
+              <Link
+                href={archiveHref(top)}
+                className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
+              >
+                The whole Gazette →
+              </Link>
+            ) : null
+          }
+        />
         {latest.length > 0 ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {latest.map((article) => (
@@ -69,7 +121,15 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
             ))}
           </div>
         ) : (
-          <p className="mt-8 text-sm italic text-ink-500">Nothing has been published here yet.</p>
+          <div className="mt-8 flex flex-col items-center border border-sand-300 bg-sand-100/60 px-6 py-14 text-center">
+            <Crest className="h-12 w-auto text-sand-300" />
+            <p className="mt-5 font-display text-xl text-ink-700">
+              {context.name} has entered nothing into the record yet.
+            </p>
+            <p className="mt-2 text-sm text-ink-500">
+              When its first dispatch is published, it will appear here.
+            </p>
+          </div>
         )}
       </section>
     </div>

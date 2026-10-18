@@ -6,10 +6,9 @@ import { TimesCard } from '@/components/times/TimesCard'
 import {
   articleHref,
   formatDate,
+  kickerOf,
   resolveByline,
   resolveImage,
-  sectionOf,
-  typeLabel,
 } from '@/components/site/format'
 
 import type { HomeProps } from '../types'
@@ -33,7 +32,7 @@ export function Home({ top, pinned, latest }: HomeProps) {
     )
   }
 
-  const leadKicker = sectionOf(lead)?.name ?? typeLabel(lead)
+  const leadKicker = kickerOf(lead).parts.join(' · ')
   const leadByline = resolveByline(lead)
   const leadImage = resolveImage(lead.featuredImage, 'hero')
   const leadDateTime = lead.publishedAt ?? lead.createdAt

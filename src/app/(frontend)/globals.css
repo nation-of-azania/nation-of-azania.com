@@ -77,6 +77,30 @@
   --color-news-900: #141311;
 
   /*
+   * International — the neutral ground among nations, hosted by Azania but
+   * carrying none of its colours: cool registry paper, graphite ink, and
+   * verdigris (weathered bronze, the colour of treaty plaques) for links,
+   * rules and the registry mark.
+   */
+  --color-paper-50: #f8f8f5;
+  --color-paper-100: #f1f1ed;
+  --color-paper-200: #e4e4de;
+  --color-paper-300: #cfcfc6;
+
+  --color-graphite-900: #1b1e22;
+  --color-graphite-700: #3a3f46;
+  --color-graphite-500: #5c636d;
+  --color-graphite-400: #6a727d;
+
+  --color-verdigris-800: #224b45;
+  --color-verdigris-700: #2b5f57;
+  --color-verdigris-600: #357166;
+  --color-verdigris-500: #468a7d;
+  --color-verdigris-300: #9cc5bb;
+  --color-verdigris-200: #c9e0da;
+  --color-verdigris-100: #e6f0ed;
+
+  /*
    * Discord's own dark palette — used ONLY by the Discord Quote content block
    * (src/blocks/components/Discord), so a quoted exchange looks like the real
    * client rather than a re-skin of it. These are Discord's dark-theme values:
@@ -105,6 +129,10 @@
   --font-mark: var(--font-marcellus), 'Marcellus', 'Alegreya', Georgia, serif;
   --font-body: var(--font-source-sans), 'Source Sans 3', system-ui, -apple-system, sans-serif;
   --font-news: var(--font-archivo), 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  /* International: a rational, low-contrast serif for record titles… */
+  --font-record: var(--font-plex-serif), 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  /* …and its mono sibling for document numbers, dates and labels (Tailwind's font-mono). */
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   /* Discord ships "gg sans"; visitors won't have it, so this is its fallback stack. */
   --font-discord: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
@@ -141,4 +169,16 @@
  */
 @utility pixelated {
   image-rendering: pixelated;
+}
+
+/*
+ * Section bars in the mastheads scroll sideways on narrow screens rather than
+ * stacking a dozen offices into a wall of links; the scrollbar itself would
+ * only add noise under a one-line menu.
+ */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

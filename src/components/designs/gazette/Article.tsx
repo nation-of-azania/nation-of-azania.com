@@ -1,57 +1,120 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { cn } from '@/blocks/components/shared'
 import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
+import { Crest } from '@/components/site/Crest'
+import { FlagTick } from '@/components/site/FlagTick'
 import { GazetteByline, GazetteSignature } from '@/components/site/GazetteByline'
+import { Seal } from '@/components/site/Seal'
 import { DoubleRule } from '@/components/site/SectionHeading'
 import {
   formatDate,
+  isStateDocument,
+  kickerOf,
   resolveByline,
   resolveImage,
-  sectionOf,
-  typeLabel,
 } from '@/components/site/format'
-import { archiveHref } from '@/lib/site'
+import { archiveHref, contextHref } from '@/lib/site'
 
 import type { ArticleProps } from '../types'
 
-/** A Gazette record: kicker, title, dek, byline, and a signature for documents of state. */
+/**
+ * A Gazette record: kicker ("Public Works · Dispatch"), title, dek and
+ * byline. A document of state — a decree, a statement, a notice — is set as
+ * an instrument instead: the crest and the nation's name as a letterhead,
+ * the type under the seal, everything centred, and a signature block to
+ * close it, with the Seal of the Nation pressed beside a decree's.
+ */
 export function Article({ article, chain, draft }: ArticleProps) {
   const top = chain[0]
-  const section = sectionOf(article)
+  const { section, type } = kickerOf(article)
   const byline = resolveByline(article)
   const hero = resolveImage(article.featuredImage, 'hero')
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
+  const formal = isStateDocument(article)
+  const decree = article.type === 'decree'
 
   return (
     <article className="mx-auto max-w-3xl px-6 py-16 md:py-20">
       {draft ? <PreviewTools /> : null}
-      <header>
-        <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
-          {section ? (
-            <>
-              <Link href={section.path ?? '#'} className="text-sea-700 hover:text-sea-600">
-                {section.name}
-              </Link>
-              <span aria-hidden="true">·</span>
-            </>
-          ) : null}
-          <span>{typeLabel(article)}</span>
-          {date ? <span aria-hidden="true">·</span> : null}
-          {date ? <time dateTime={dateTime}>{date}</time> : null}
-        </p>
-        <h1 className="mt-4 text-balance font-display text-4xl leading-[1.08] text-sea-950 md:text-5xl">
+      <header className={cn(formal && 'text-center')}>
+        {formal ? (
+          <div className="flex flex-col items-center">
+            <Crest className="h-12 w-auto text-sea-900" />
+            <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-ink-500">
+              <FlagTick />
+              <span>The Nation of Azania</span>
+              {section ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <Link href={contextHref(section)} className="text-sea-700 hover:text-sea-600">
+                    {section.name}
+                  </Link>
+                </>
+              ) : null}
+            </p>
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 text-[11px] uppercase tracking-[0.24em] text-coral-700">
+              <Seal className="h-3.5 w-3.5 shrink-0" />
+              <span>{type}</span>
+              {date ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <time dateTime={dateTime} className="text-ink-500">
+                    {date}
+                  </time>
+                </>
+              ) : null}
+            </p>
+          </div>
+        ) : (
+          <p className="flex flex-wrap items-center gap-x-2.5 text-[11px] uppercase tracking-[0.2em] text-saffron-600">
+            {section ? (
+              <>
+                <Link href={contextHref(section)} className="text-sea-700 hover:text-sea-600">
+                  {section.name}
+                </Link>
+                <span aria-hidden="true">·</span>
+              </>
+            ) : null}
+            <span>{type}</span>
+            {date ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <time dateTime={dateTime} className="text-ink-400">
+                  {date}
+                </time>
+              </>
+            ) : null}
+          </p>
+        )}
+        <h1
+          className={cn(
+            'mt-4 text-balance font-display text-4xl leading-[1.08] text-sea-950 md:text-5xl',
+            formal && 'mt-6',
+          )}
+        >
           {article.title}
         </h1>
         {article.excerpt ? (
-          <p className="mt-5 text-lg leading-relaxed text-ink-700 md:text-xl">
+          <p
+            className={cn(
+              'mt-5 text-lg leading-relaxed text-ink-700 md:text-xl',
+              formal && 'mx-auto max-w-2xl',
+            )}
+          >
             {article.excerpt}
           </p>
         ) : null}
         {byline || article.pinned ? (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div
+            className={cn(
+              'mt-6 flex flex-wrap items-center gap-x-6 gap-y-3',
+              formal ? 'justify-center' : 'justify-between',
+            )}
+          >
             {byline ? <GazetteByline byline={byline} /> : null}
             {article.pinned ? (
               <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-coral-700">
@@ -85,16 +148,31 @@ export function Article({ article, chain, draft }: ArticleProps) {
 
       <RichText data={article.content} className="mt-10" />
 
-      {byline && article.pinned ? (
-        <GazetteSignature byline={byline} dateTime={dateTime} date={date} className="mt-12" />
+      {byline && formal ? (
+        <GazetteSignature
+          byline={byline}
+          dateTime={dateTime}
+          date={date}
+          heading={decree ? 'Given under the hand of' : 'Issued by'}
+          sealed={decree}
+          className="mt-12"
+        />
       ) : null}
 
-      <footer className="mt-14 border-t border-sand-300 pt-6">
+      <footer className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-sand-300 pt-6 text-sm font-medium">
+        {section ? (
+          <Link
+            href={contextHref(section)}
+            className="text-sea-700 transition-colors hover:text-sea-600"
+          >
+            ← {section.name}
+          </Link>
+        ) : null}
         <Link
           href={top ? archiveHref(top) : '/'}
-          className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
+          className="text-sea-700 transition-colors hover:text-sea-600"
         >
-          ← The Gazette
+          {section ? 'The Gazette' : '← The Gazette'}
         </Link>
       </footer>
     </article>

@@ -29,10 +29,11 @@ function useSettled<T>(value: T, delayMs: number): T {
 }
 
 /**
- * The resident's display name and Minecraft name, with the credit the Gazette
- * would print for them drawn live above the fields: the name as typed, and
- * the head for the Minecraft name once it is one. The page is re-rendered by
- * the action on success, so the header and standing follow the saved details.
+ * The resident's display name and Minecraft name, with the credit any of the
+ * publications would print for them drawn live above the fields: the name as
+ * typed, and the head for the Minecraft name once it is one. The page is
+ * re-rendered by the action on success, so the header and standing follow
+ * the saved details.
  */
 export function DetailsForm({ name: savedName, minecraftName: savedMinecraftName }: Props) {
   const [name, setName] = useState(savedName)
@@ -65,7 +66,7 @@ export function DetailsForm({ name: savedName, minecraftName: savedMinecraftName
   // "Saved." gives way to "Unsaved changes" as soon as the details differ again.
   const shownState = state?.ok && dirty ? null : state
 
-  // The credit as the Gazette would set it. The head waits for the typing to
+  // The credit as a byline would set it. The head waits for the typing to
   // settle; the name does not, since it costs nothing to redraw.
   const settledMinecraftName = useSettled(minecraftName.trim(), 400)
   const headName = isMinecraftName(settledMinecraftName) ? settledMinecraftName : null
@@ -89,13 +90,13 @@ export function DetailsForm({ name: savedName, minecraftName: savedMinecraftName
         Your details
       </h3>
       <p className="mt-2 text-xs leading-relaxed text-ink-500">
-        How the Register and the papers name you. Byline profiles that carry your Minecraft name
-        follow it when it changes.
+        How the Register and every publication name you. Byline profiles that carry your
+        Minecraft name follow it when it changes.
       </p>
 
-      {/* The specimen: the byline, as it would be set on an article. */}
+      {/* The specimen: the byline, as it would be set on an article — in the Register's own dress, whichever publication prints it. */}
       <div className="mt-5 border border-sand-300 bg-sand-50 px-4 py-3.5">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-ink-400">As the Gazette credits you</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-ink-400">Your byline, as it will be credited</p>
         <div className="mt-3 flex items-center gap-3.5">
           <BylineAvatar byline={preview} size={48} tone="gazette" />
           <div className="min-w-0">
