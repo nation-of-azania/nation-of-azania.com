@@ -1,15 +1,18 @@
 # Azania CMS
 
 The self-hosted content management system and public website of **Azania**, a
-roleplay nation on the Rulercraft Minecraft server. One application serves the
-nation's two publications and the admin panel where residents draft, editors
-publish, and the Chancellery keeps order:
+roleplay nation on the Rulercraft Minecraft server. One application serves
+everything Azania publishes, and the admin panel where people write, editors
+publish, and the Chancellery keeps order. Content lives in **contexts**,
+nested as deep as needed, and each top-level context has its own look:
 
-- **The Azania Gazette** (`/gov`): the government's official record of
-  decrees, dispatches, documents of state and standing pages
+- **Government** (`/gov`): the Azania Gazette, the government's official
+  record of decrees, dispatches, documents of state and standing pages
 - **The Azanian Times** (`/times`): the nation's independent newspaper
-- **The resident area** (`/login`, `/account`): residents sign in and see
-  their own articles and drafts
+- **International** (`/intl`): initiatives among nations, hosted by Azania,
+  where delegates from other nations publish too
+- **The resident area** (`/login`, `/account`): everyone's own account,
+  access and articles
 
 Built with **Payload CMS 3** inside **Next.js 16** (App Router), React 19 and
 Tailwind CSS v4. Local development runs on SQLite. Production runs on Postgres
@@ -17,7 +20,7 @@ Tailwind CSS v4. Local development runs on SQLite. Production runs on Postgres
 itself**.
 
 - [Quick start (local)](#quick-start-local)
-- [Access levels and byline profiles](#access-levels-and-byline-profiles)
+- [Access: roles and context grants](#access-roles-and-context-grants)
 - [Content model](#content-model)
 - [Database adapters and migrations](#database-adapters-and-migrations)
 - [Deploying: push to main](#deploying-push-to-main)
@@ -43,7 +46,7 @@ cp .env.example .env          # Windows (cmd): copy .env.example .env
 
 # 2. Install and seed
 pnpm install
-pnpm seed                     # creates users, categories, media and articles
+pnpm seed                     # creates contexts, accounts, media and articles
 
 # 3. Run
 pnpm dev
@@ -51,7 +54,7 @@ pnpm dev
 
 Then visit:
 
-- **http://localhost:3000**: the public site (redirects to the Gazette at `/gov`)
+- **http://localhost:3000**: the public site (redirects to Government at `/gov`)
 - **http://localhost:3000/admin**: the admin panel. Sign in as `IPaaat` with
   `SEED_ADMIN_PASSWORD` from your `.env`, or `azania-dev-2026` if no `.env`
   sets it.
@@ -60,11 +63,12 @@ The seed also creates **demo accounts** so you can try every access level
 right away. They exist only in your local database. Production never gets them
 (see [First deploy](#first-deploy)). Their people are fictional.
 
-| Username   | Access level | Password               | Writes as                              |
-| ---------- | ------------ | ---------------------- | -------------------------------------- |
-| `keeper`   | Can publish  | `azania-editor-2026`   | Ione Harrow, Keeper of the Light       |
-| `marlo`    | Can publish  | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
-| `resident` | Resident     | `azania-resident-2026` | A Resident of Azania (no profile)      |
+| Username   | Access                                   | Password               | Writes as                              |
+| ---------- | ---------------------------------------- | ---------------------- | -------------------------------------- |
+| `keeper`   | Editor                                   | `azania-editor-2026`   | Ione Harrow, Keeper of the Light       |
+| `marlo`    | Resident, *Publish* in the Times         | `azania-times-2026`    | Marlo Tidewell, Harbour Correspondent  |
+| `resident` | Resident, *Write drafts* in Government   | `azania-resident-2026` | A Resident of Azania (no profile)      |
+| `delegate` | Resident, *Manage* International         | `azania-delegate-2026` | Ilse Varnholt, Delegate of Norvessa    |
 
 Usernames are case-insensitive: Payload stores them lowercased, so `IPaaat`
 and `ipaaat` are the same account.
@@ -82,21 +86,27 @@ one in the panel (Users → edit → New Password).
 
 `pnpm seed` creates a demo nation with placeholder lore: a coastal trading
 nation with a harbour capital, Port Azania, and a lighthouse on Founders'
-Point. It includes four accounts, six byline profiles (IPaaat as Co-Leader in
-the Gazette and Editor-in-Chief of the Times, a shared "Luixiter, Chancellor"
-and "The Editors", and the demo staff), six categories, four media items (two
-generated banner images, the Lighthouse `.glb` and a Litematica build), the
-About page, and nine articles that exercise every content block:
+Point. It includes ten contexts (the three top-level ones, two Government
+offices, two Times desks, and International's Transport Catalogue › Road
+Initiative › Case Studies, four levels deep), five accounts, eight byline
+profiles (IPaaat as Co-Leader in Government, Editor-in-Chief of the Times and
+Representative of Azania in International, a shared "Luixiter, Chancellor"
+and "The Editors", and the demo staff), four media items (two generated
+banner images, the Lighthouse `.glb` and a Litematica build), the About page,
+and twelve articles that exercise every content block:
 
-- **Gazette:** the Charter (pinned), *"The Lighthouse on Founders' Point,
-  Relit"* (an interactive 3D model you can orbit), the Founding Day feature,
-  *"The Long Mole Is Complete"* (embed, gallery and a Litematica build), and a
-  resident's **draft** proposal that demonstrates the review workflow.
-- **Times:** a lead story, an investigation that quotes a Discord exchange, a
-  markets report and an editorial.
+- **Government:** the Charter (a pinned decree), *"The Lighthouse on Founders'
+  Point, Relit"* (an interactive 3D model you can orbit), the Founding Day
+  explanation from the Chancellery, *"The Long Mole Is Complete"* in Public
+  Works (embed, gallery and a Litematica build), and a resident's **draft**
+  proposal that demonstrates the review workflow.
+- **Times:** a lead story, an analysis that quotes a Discord exchange, a
+  markets report and an opinion piece.
+- **International:** the Transport Catalogue's opening announcement, the
+  delegate's road standard RS-1, and a case study four levels deep.
 
-The seed is **convergent**. Every entry (user, category, media item, article,
-page) is looked up by a natural key and created only if it's missing.
+The seed is **convergent**. Every entry (context, user, profile, media item,
+article, page) is looked up by a natural key and created only if it's missing.
 Re-running it completes anything a failed run left out, and it never duplicates
 or overwrites what already exists. To rebuild locally from scratch, delete
 `azania.db` (and optionally `./media`) and run `pnpm seed` again. A read-only
@@ -106,25 +116,40 @@ check of the seeded content:
 pnpm payload run src/seed/verify.ts
 ```
 
-## Access levels and byline profiles
+## Access: roles and context grants
 
-Two separate things describe a person here. Their **access level** is what
-they may do in the CMS; their **byline profiles** are how they're credited
-in Azania's publications (see [Bylines](#bylines-and-profiles)).
+Three things describe a person here. Their **role** sets their reach, their
+**context grants** give a resident access to particular contexts, and their
+**byline profiles** are how they're credited (see
+[Bylines](#bylines-and-profiles)).
 
-| Access level (stored value) | Can                                                                          |
-| --------------------------- | ---------------------------------------------------------------------------- |
-| **Resident** (`resident`)   | The resident area only, no admin access: their own account settings and articles. Access control would let them write **drafts of their own articles** but never publish, and never add the 3D model or Litematica blocks. |
-| **Can publish** (`editor`)  | Create, edit and publish any article or page; manage categories, media and every profile; use every block. |
-| **Admin** (`admin`)         | Everything above, plus manage accounts and assign access levels.            |
+| Role (stored value)        | Can                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| **Resident** (`resident`)  | Their own account on `/account`. Without grants, nothing else, and no admin access. With grants, the admin panel, limited to the granted contexts. |
+| **Editor** (`editor`)      | Publish anything in every context; manage media and every profile; use every block. |
+| **Admin** (`admin`)        | Everything, plus accounts, grants, top-level contexts and their designs.     |
 
-Residents are kept out of `/admin` and sent to their account page at
-`/account`. `Users.access.admin` decides, against the database on every admin
-request, so an access change applies immediately, even to someone already
-signed in; Payload's "Unauthorized" page is replaced by a redirect
-(`src/components/admin/RedirectToAccount.tsx`). That also means residents have
-no in-browser editor yet: until the resident area gets one, an editor files a
-resident's article for them.
+### Context grants
+
+An admin grants a resident access under Users → edit → *Context access*: a
+context and a level. A grant covers that context **and everything below it**.
+
+| Level            | Can                                                                          |
+| ---------------- | ---------------------------------------------------------------------------- |
+| **Write drafts** | Write articles there and edit their own, as drafts. Never publish.          |
+| **Publish**      | Also publish, edit and pin anyone's articles there, publish standing pages, use the 3D model and Litematica blocks, and sign with the shared bylines of those contexts. |
+| **Manage**       | Also create, rename, move and delete sub-contexts below the granted context. |
+
+A delegate from another nation, for example, gets *Manage* on International.
+They run their initiatives there and build them out as deep as they like, but
+they never see Government's drafts and can't touch the Times. Grants are read
+from the database on every request (`src/access/scope.ts`), so a change
+applies at once, even to someone already signed in.
+
+Residents without grants are kept out of `/admin` and sent to `/account`.
+`Users.access.admin` decides on every admin request, and Payload's
+"Unauthorized" page is replaced by a redirect
+(`src/components/admin/RedirectToAccount.tsx`).
 
 ### Your account
 
@@ -137,49 +162,82 @@ change their own access level. Forgotten passwords are reset by an admin
 (Users → edit), since accounts have no email.
 
 Enforcement happens on the server, twice. Collection and field **access
-control** (`src/access/index.ts`) restricts reads, writes and specific fields
-(for example, only editors and admins can set `pinned` or reassign `author`).
-**Hooks** on the Articles collection (`src/collections/Articles.ts`) reject a
-resident's attempt to publish, to slip an exhibit block into the content, or
-to sign an article with someone else's profile, however the request arrives.
+control** (`src/access/`) restricts reads, writes and specific fields (for
+example, only those who can publish in an article's context can pin it, and
+only admins can grant access). **Hooks** on the collections reject writing
+outside one's contexts, publishing without the *Publish* level, slipping an
+exhibit block into the content, or signing with someone else's profile,
+however the request arrives.
 
 ## Content model
 
 Collections (`src/collections/`):
 
+- **Contexts**: where things are published, as a tree. See
+  [Contexts and designs](#contexts-and-designs).
 - **Articles**: title, excerpt, rich-text content, auto-generated slug,
-  author, category, featured image, a `pinned` flag, and a **section**
-  (`government` for the Gazette at `/gov`, `times` for the Times at `/times`).
-  Drafts and autosave are on. `publishedAt` is stamped on first publish and
-  can be backdated.
-- **Pages**: standing pages (About, …) served at `/gov/<slug>`. Same editor,
-  with drafts enabled.
+  author, byline, a **context** and a **type** (the types depend on the
+  context's design), featured image and a `pinned` flag. Drafts and autosave
+  are on. `publishedAt` is stamped on first publish and can be backdated.
+- **Pages**: standing pages (About, …) served under their context, e.g.
+  `/gov/about`. Same editor, with drafts enabled.
 - **Media**: uploads with required alt text. Images get `thumbnail`, `card`
   and `hero` renditions. It also accepts audio, `.glb` 3D models and
   `.litematic` schematics.
 - **Profiles**: byline profiles, one per role a person writes in. See
   [Bylines and profiles](#bylines-and-profiles).
-- **Categories**: a name plus an auto-generated slug.
-- **Users**: accounts. Display name, username, Minecraft name and access
-  level (`resident | editor | admin`, shown as Resident / Can publish /
-  Admin). No email; see [No email, anywhere](#no-email-anywhere).
+- **Users**: accounts. Display name, username, Minecraft name, role
+  (`resident | editor | admin`) and context grants. No email; see
+  [No email, anywhere](#no-email-anywhere).
+
+### Contexts and designs
+
+Contexts nest as deep as needed: *International › Transport Catalogue › Road
+Initiative › Case Studies* is four levels. Each top-level context has a
+**design** (set by admins), which dresses everything below it and decides
+which article types exist there:
+
+| Design            | Used by           | Article types                                         |
+| ----------------- | ----------------- | ----------------------------------------------------- |
+| **Gazette**       | Government        | Dispatch, Decree, Statement, Explanation, Notice      |
+| **Times**         | The Azanian Times | News, Feature, Analysis, Opinion                      |
+| **International** | International     | Announcement, Standard, Resolution, Report, Case study |
+
+URLs follow the tree:
+
+- `/<top>`: the context's front page
+- `/<top>/articles`: its archive, filterable by type (`?type=decree`)
+- `/<top>/articles/<slug>`: an article, wherever below `<top>` it sits
+- `/<top>/<sub>/…`: a sub-context, listing everything below it
+- `/<context path>/<slug>`: a standing page
+
+A context has a name, a URL slug (unique among its siblings; `admin`, `api`,
+`account` and the site's other paths are reserved, as is `articles` right
+below a top-level context), a tagline, an intro, an optional emblem and
+accent (sub-contexts without their own inherit them), an order, and *Show in
+navigation*. A context that still holds anything can't be deleted. Old Times
+links (`/times/<slug>`) redirect to `/times/articles/<slug>`.
+
+A new design is code: add it to `src/contexts/designs.ts` and build its views
+in `src/components/designs/` (`types.ts` lists what a design renders).
 
 ### Bylines and profiles
 
-An article is credited through its **byline**, a profile with a **name** and a
-**role** in one publication, e.g. "IPaaat, Co-Leader" in the Gazette and
-"IPaaat, Editor-in-Chief" in the Times. One account can hold any number of
+An article is credited through its **byline**, a profile with a **name**, a
+**role**, and the contexts it's used in (each including everything below it),
+e.g. "IPaaat, Co-Leader" in Government and "IPaaat, Editor-in-Chief" in the
+Times. One account can hold any number of
 profiles. The avatar is the player's **Minecraft head**, looked up from the
 profile's Minecraft name (mc-heads.net, through Vercel's image proxy), unless
 an image is uploaded instead.
 
-- **Everyone manages their own** profiles under Content → Profiles; editors
-  and admins can manage all of them. Name and Minecraft name default to the
+- **Everyone manages their own** profiles under Content → Profiles, for the
+  contexts they can write in; editors and admins can manage all of them. Name and Minecraft name default to the
   owner's.
 - **Shared profiles** have no owner: "The Editors", or someone who has no
-  account yet. Editors and admins can sign articles with them.
-- **The byline must fit:** one of the author's profiles (or, for staff, a
-  shared one) for the article's publication. A new article gets the author's
+  account yet. Anyone who can publish in their context can sign with them.
+- **The byline must fit:** one of the author's profiles (or, for those who
+  can publish there, a shared one) for the article's context. A new article gets the author's
   first matching profile, and changing the author switches it to theirs.
   Without any profile, the byline falls back to the author's display name.
 - **When a role ends**, switch its profile off (*Active*) instead of renaming
@@ -189,15 +247,14 @@ an image is uploaded instead.
 ### Live preview
 
 The article and page editors have a **Live Preview** button (the eye icon
-beside *Publish changes*): it opens the real Gazette or Times page beside the
-form, with phone, tablet and desktop widths, refreshed after every save.
+beside *Publish changes*): it opens the real page, in its context's design,
+beside the form, with phone, tablet and desktop widths, refreshed after every save.
 Autosave runs every 1.5 seconds, so it follows your typing closely. The
 **Preview** button next to it opens the same draft in a new tab.
 
 It works through Next.js draft mode: `/preview` (`src/app/(frontend)/preview`)
-checks that you're signed in as an editor or admin, turns draft mode on for
-your browser only, and the article and page routes then render the latest
-draft (`src/lib/preview.ts`, `src/components/PreviewTools.tsx`). Outside the
+checks that you're signed in with admin access, turns draft mode on for your
+browser only, and the pages then render the latest draft *you* may read (`src/lib/preview.ts`, `src/components/PreviewTools.tsx`). Outside the
 admin a bar marks the page as a draft preview, with *Exit preview* to return
 to the published version. Visitors never see drafts.
 
@@ -350,16 +407,18 @@ content edits in the admin panel need no deploy.
 
 The first production build finds an empty database. It runs every migration,
 then creates the **admin account** from `SEED_ADMIN_USERNAME` /
-`SEED_ADMIN_PASSWORD`, the six **categories** and the **About page**. Nothing
+`SEED_ADMIN_PASSWORD`, the three **top-level contexts** and the **About
+page**. International starts hidden from navigation; switch on its *Show in
+navigation* when it's ready. Nothing
 else: no demo accounts and no demo articles. From the second deploy on, the
 bootstrap sees that accounts exist and does nothing, so you can delete
 `SEED_ADMIN_PASSWORD` from Vercel once you've signed in at
 `https://nation-of-azania.vercel.app/admin`.
 
 Then create the other accounts in the admin panel (Users → Create New), for
-example the Chancellor's. Each person adds their byline profiles under
-Content → Profiles (a role per publication they write in), and you can start
-writing.
+example the Chancellor's, and give residents context grants where they should
+write. Each person adds their byline profiles under Content → Profiles (a
+role for the contexts they write in), and you can start writing.
 
 ### Custom domain, rollbacks and production commands
 
@@ -505,20 +564,22 @@ import map. Without that handler, the production admin panel renders blank.
 ```
 src/
 ├─ app/
-│  ├─ (frontend)/       # public site: / → /gov, /gov (Gazette), /times (Times), /login, /account, /preview
+│  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
-├─ access/              # role helpers shared by all collections
+├─ access/              # role helpers and context grants (scope.ts)
 ├─ blocks/
 │  ├─ config.ts         # the eight content-block schemas (single source of truth)
 │  └─ components/       # React renderers for each block (Model3D/ and Litematic/ are client-only)
-├─ collections/         # Articles, Pages, Profiles, Media, Categories, Users
+├─ collections/         # Articles, Contexts, Pages, Profiles, Media, Users
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
+│  ├─ designs/          # each design's views: gazette/, times/, international/
 │  ├─ site/             # Gazette chrome (header, footer, crest, cards, …)
 │  ├─ times/            # Times chrome (masthead, footer, story cards)
 │  └─ members/          # resident area (login form, header)
+├─ contexts/            # designs and article types, the context tree
 ├─ fields/              # shared fields: auto-generated slug, Minecraft name
-├─ lib/                 # published-only data helpers, live preview config, Litematica parser
+├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)
 └─ payload.config.ts    # the Payload config: collections, adapters, storage
