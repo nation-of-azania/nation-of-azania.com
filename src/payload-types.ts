@@ -193,7 +193,7 @@ export interface User {
    */
   minecraftName?: string | null;
   /**
-   * Drafts only: write drafts of their own articles. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.
+   * Residents have the resident area only, no admin access. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.
    */
   role: 'resident' | 'editor' | 'admin';
   updatedAt: string;

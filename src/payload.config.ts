@@ -59,8 +59,25 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    // Nothing of Payload shows to people: titles, link previews, favicon and
+    // the logo and icon are the Registry's own.
     meta: {
-      titleSuffix: ' · Azania CMS',
+      titleSuffix: '· Azania Registry',
+      description: 'The Registry of the Nation of Azania, where its publications are written.',
+      icons: [{ rel: 'icon', type: 'image/x-icon', url: '/favicon.ico' }],
+      defaultOGImageType: 'off',
+      openGraph: {
+        siteName: 'Azania',
+        title: 'Azania Registry',
+        description: 'The Registry of the Nation of Azania, where its publications are written.',
+      },
+    },
+    components: {
+      graphics: {
+        Logo: '/components/admin/RegistryGraphics#RegistryLogo',
+        Icon: '/components/admin/RegistryGraphics#RegistryIcon',
+      },
+      afterLogin: ['/components/admin/RegistryGraphics#LoginHelp'],
     },
     avatar: 'default',
   },

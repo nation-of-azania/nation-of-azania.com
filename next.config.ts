@@ -7,6 +7,8 @@ const __filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(__filename)
 
 const nextConfig: NextConfig = {
+  // No "X-Powered-By: Next.js, Payload" header: the stack stays invisible.
+  poweredByHeader: false,
   images: {
     // 100 serves Minecraft heads losslessly (BylineAvatar); 75 is the default.
     qualities: [75, 100],

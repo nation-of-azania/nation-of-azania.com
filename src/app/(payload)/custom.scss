@@ -35,3 +35,59 @@ html[data-theme='light'] {
   --theme-success-900: #0b1a27;
   --theme-success-950: #08131c;
 }
+
+/* The Azania crest in place of Payload's logo and icon (src/components/admin/RegistryGraphics.tsx). */
+.registry-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--theme-text);
+
+  svg {
+    height: 64px;
+    width: auto;
+  }
+}
+
+.registry-logo__words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.registry-logo__name {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.registry-logo__sub {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.registry-icon {
+  display: inline-flex;
+  color: var(--theme-text);
+
+  svg {
+    height: 28px;
+    width: auto;
+  }
+}
+
+/* Accounts have no email, so Payload's reset-by-email link leads nowhere; LoginHelp explains instead. */
+a[href$='/forgot'] {
+  display: none;
+}
+
+.registry-login-help {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--theme-elevation-500);
+}

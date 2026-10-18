@@ -59,7 +59,7 @@ export const Users: CollectionConfig = {
       required: true,
       defaultValue: 'resident',
       options: [
-        { label: 'Drafts only', value: 'resident' },
+        { label: 'Resident: no admin access', value: 'resident' },
         { label: 'Can publish', value: 'editor' },
         { label: 'Admin', value: 'admin' },
       ],
@@ -71,7 +71,7 @@ export const Users: CollectionConfig = {
       saveToJWT: true,
       admin: {
         description:
-          'Drafts only: write drafts of their own articles. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.',
+          'Residents have the resident area only, no admin access. Can publish: edit and publish anything. Admin: also manage accounts. Roles within Azania are set on Profiles.',
       },
     },
   ],

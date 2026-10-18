@@ -26,8 +26,8 @@ export const dynamic = 'force-dynamic'
  */
 const ACCESS = {
   resident: {
-    label: 'Drafts only',
-    note: 'You may draft articles for the Gazette or the Times. Someone who can publish reviews each one before it enters the record.',
+    label: 'Resident',
+    note: 'You can follow the record from here. To write for the Gazette or the Times, ask an administrator for access.',
   },
   editor: {
     label: 'Can publish',
