@@ -939,6 +939,64 @@ export interface DiscordBlockType {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MapBlockType".
+ */
+export interface MapBlockType {
+  /**
+   * A Towny town on the Rulercraft map, spelt as the map has it (e.g. GirlieTown). The clipping centres on its home block and outlines its claims. Leave empty to centre on coordinates instead.
+   */
+  town?: string | null;
+  /**
+   * Block coordinates to centre on. With a town, they move the centre within its claims.
+   */
+  x?: number | null;
+  z?: number | null;
+  zoom: 'close' | 'street' | 'town' | 'district' | 'region' | 'country';
+  map: 'flat' | 'biomes';
+  aspect: 'wide' | 'square' | 'banner';
+  /**
+   * Draw the town’s Towny claims on the clipping.
+   */
+  claims?: boolean | null;
+  /**
+   * A pin on the home block, or on the coordinates.
+   */
+  pin?: boolean | null;
+  /**
+   * The ruler, residents, nation and founding, as the map records them.
+   */
+  facts?: boolean | null;
+  /**
+   * What the reader is looking at. The coordinates and a link to the live map are added beneath.
+   */
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'map';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SkinBlockType".
+ */
+export interface SkinBlockType {
+  /**
+   * The player to show, as named in the game (e.g. DefinitelyCasi).
+   */
+  minecraftName: string;
+  /**
+   * Played once the viewer has loaded. Visitors who ask their device for less motion get the still pose, and can still turn the player by hand.
+   */
+  animation: 'idle' | 'walk' | 'wave' | 'still';
+  /**
+   * Optional, beneath the player’s name.
+   */
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'skin';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "Model3DBlockType".
  */
 export interface Model3DBlockType {

@@ -304,7 +304,7 @@ browser only, and the pages then render the latest draft *you* may read (`src/li
 admin a bar marks the page as a draft preview, with *Exit preview* to return
 to the published version. Visitors never see drafts.
 
-Article and page content is a Lexical rich-text field with eight custom blocks
+Article and page content is a Lexical rich-text field with ten custom blocks
 (schema in `src/blocks/config.ts`, renderers in `src/blocks/components/`):
 
 | Block       | Purpose                                                                  |
@@ -315,6 +315,8 @@ Article and page content is a Lexical rich-text field with eight custom blocks
 | `gallery`   | Grid of captioned images in 2 or 3 columns.                              |
 | `embed`     | YouTube/Vimeo player from a URL; other URLs render as a link card.       |
 | `discord`   | An exchange quoted from Discord, rendered the way Discord renders it. See below. |
+| `map`       | A clipping of the Rulercraft map around a Towny town or a pair of coordinates, as a figure: claims outlined, the town's facts, the coordinates and a link to the live map. See below. |
+| `skin`      | A player's Minecraft skin as a portrait: turnable in 3D, with a still render before it loads and wherever WebGL is missing. See below. |
 | `model3d`   | Interactive three.js viewer for a `.glb` from the media library, with optional auto-rotate (editors and admins only). |
 | `litematic` | Interactive viewer for a Litematica `.litematic` build (editors and admins only). |
 
@@ -339,6 +341,38 @@ Message text takes Discord's own markdown: `**bold**`, `*italic*`,
 `> quotes`, `||spoilers||`, links, `@mentions` and `#channels`. It's parsed
 into React elements, never HTML, so a pasted message can't inject markup.
 `pnpm test:discord` covers the parser, including that escaping.
+
+### Showing the map, and a player
+
+The `map` block puts a piece of the server's Dynmap (map.rulercraft.com) in an
+article the way a figure goes in a report. Name a **Towny town** and it
+centres on the town's home block, outlines its claims in the paper's colour
+(or the style's: GirlieTown's maps come out in rose) and can add a plate of
+the town's facts as the map records them — ruler, with their head; residents;
+nation; founded. Or give **x and z** to centre anywhere, with a town or
+without one. Zoom runs from *close* (about 150 blocks across) to *country*;
+the clipping can be wide, square or a banner, on the flat map or the biome
+map. Beneath it the figure sets the coordinates as a survey reference, with a
+*Copy* button that copies them as a `/tp` would take them, and a quiet link
+to the live map at the same spot.
+
+The clipping itself is a JPEG from `/mapclip` (`src/app/(frontend)/mapclip`),
+stitched on demand from Dynmap's tiles by `src/lib/dynmap.ts` and cached at
+the CDN, so the map server sees about one request per clipping a day. Saving
+never waits on it: the block checks only that it was given a town name or a
+pair of coordinates. A town the map doesn't know, or a map that isn't
+answering, is said in the figure's frame; a broken image never appears.
+
+The `skin` block is a portrait of a player: their skin in an interactive
+viewer ([skinview3d](https://github.com/bs-community/skinview3d), the one
+NameMC uses), turnable by hand, breathing, walking or waving, beside their
+name, a caption and a link to their NameMC page. The texture comes from
+mc-heads.net, which serves raw skins with CORS headers; the same service
+draws the still render shown until the viewer has loaded, and kept wherever
+WebGL is missing. The viewer is loaded only in the browser, only when the
+figure nears the viewport, and stops drawing while it's off screen; a reader
+who asks their device for less motion gets the still pose, which they can
+still turn. Both blocks are open to every writer.
 
 ## Database adapters and migrations
 
@@ -635,12 +669,13 @@ import map. Without that handler, the production admin panel renders blank.
 src/
 ├─ app/
 │  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
-│  │  └─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
+│  │  ├─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
+│  │  └─ mapclip/       # /mapclip?town=…: a clipping of the Rulercraft map, for the map block
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
 ├─ access/              # role helpers and context grants (scope.ts)
 ├─ blocks/
-│  ├─ config.ts         # the eight content-block schemas (single source of truth)
-│  └─ components/       # React renderers for each block (Model3D/ and Litematic/ are client-only)
+│  ├─ config.ts         # the ten content-block schemas (single source of truth)
+│  └─ components/       # React renderers for each block (Skin/, Model3D/ and Litematic/ load their viewers client-only)
 ├─ collections/         # Articles, Contexts, Pages, Profiles, Media, Users
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
@@ -651,7 +686,7 @@ src/
 │  └─ members/          # resident area (login form, header)
 ├─ contexts/            # designs and article types, the context tree
 ├─ fields/              # shared fields: auto-generated slug, Minecraft name
-├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser
+├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser, the Dynmap client (dynmap.ts)
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)
 └─ payload.config.ts    # the Payload config: collections, adapters, storage

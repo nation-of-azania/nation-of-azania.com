@@ -247,6 +247,8 @@ try {
     'discord',
     'model3d',
     'litematic',
+    'map',
+    'skin',
   ]
   for (const blockType of blockTypes) {
     const count = allContent.flatMap((content) => findBlocks(content, blockType)).length

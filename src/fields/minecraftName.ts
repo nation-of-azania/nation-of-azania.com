@@ -1,7 +1,7 @@
 import type { TextField } from 'payload'
 
 /** Java Edition usernames: 3–16 letters, digits or underscores. A leading "." marks a Bedrock player. */
-const MINECRAFT_NAME = /^\.?\w{3,16}$/
+export const MINECRAFT_NAME = /^\.?\w{3,16}$/
 
 /**
  * A Minecraft username. Optional; when set, the player's head is used as the

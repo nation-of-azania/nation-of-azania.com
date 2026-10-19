@@ -537,6 +537,21 @@ export const cherryGroveContent = (): LexicalEditorState =>
       },
       'In the grove',
     ),
+    block(
+      'map',
+      {
+        town: 'GirlieTown',
+        zoom: 'town',
+        map: 'flat',
+        aspect: 'wide',
+        claims: true,
+        pin: true,
+        facts: true,
+        caption:
+          'GirlieTown on the Rulercraft map, its claims outlined. The grove is on the hillside above the square; the pin marks the town’s home block.',
+      },
+      'GirlieTown on the map',
+    ),
     paragraph(
       'Visitors arriving by the harbour road will find the path marked with lanterns. ',
       'GirlieTown thanks everyone who helped plant it.',
@@ -555,6 +570,15 @@ export const morePinkContent = (): LexicalEditorState =>
       'Sensible is fine. But a capital is allowed a little joy, and cherry planks cost no ',
       'more than oak. A pink door here, a blossom tree in a square there, and the city would ',
       'look like somewhere people choose to live rather than somewhere they keep their ships.',
+    ),
+    block(
+      'skin',
+      {
+        minecraftName: 'DefinitelyCasi',
+        animation: 'idle',
+        caption: 'The columnist, as she is seen about the realm. Turn her around; the ribbons are pink.',
+      },
+      'DefinitelyCasi',
     ),
     paragraph(text('Next week: why every bridge deserves flower boxes.', ITALIC)),
   )

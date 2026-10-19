@@ -152,7 +152,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
         </figure>
       ) : null}
 
-      <RichText data={article.content} className="mt-10" />
+      <RichText data={article.content} style={style} className="mt-10" />
 
       {byline && formal ? (
         <GazetteSignature

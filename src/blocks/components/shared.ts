@@ -1,4 +1,17 @@
+import type { StyleId } from '@/contexts/styles'
 import type { Media } from '@/payload-types'
+
+/**
+ * The paper a block is set in — the prose tone RichText renders in — and the
+ * style the record wears, for blocks that dress to match: a figure in the
+ * Gazette is mounted like a print, in the Times printed flat, in the
+ * registry filed with a card. Colours come from the style's slot variables
+ * (`--accent`, `--accent-ink`; src/components/styles/slots.ts); `style` is
+ * for the one thing a variable can't reach, a colour drawn into an image.
+ */
+export type Tone = 'gazette' | 'times' | 'international'
+
+export type Voice = { tone: Tone; style: StyleId | null }
 
 /** Joins class names, skipping falsy entries. */
 export function cn(...classes: Array<false | null | string | undefined>): string {

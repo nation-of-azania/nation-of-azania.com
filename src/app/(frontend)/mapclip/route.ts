@@ -37,6 +37,12 @@ export async function GET(request: Request) {
   const townName = query.get('town')
   if (townName && !/^[\w-]{1,40}$/.test(townName)) return bad('Not a town name.')
   const town = townName ? await getTown(townName) : null
+  if (town === 'offline') {
+    return new Response('The map is not answering just now.', {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+  }
   if (townName && !town) return bad(`No town called "${townName}" on the map.`)
 
   const xParam = query.get('x')

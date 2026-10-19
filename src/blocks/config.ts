@@ -1,5 +1,8 @@
 import type { Block } from 'payload'
 
+import { MINECRAFT_NAME } from '../fields/minecraftName'
+import { ASPECTS, MAPS, ZOOMS } from '../lib/dynmap'
+
 /**
  * Lexical content blocks — the shared contract between the CMS schema and the
  * frontend renderer in `src/components/RichText.tsx`.
@@ -335,6 +338,193 @@ export const DiscordBlock: Block = {
   ],
 }
 
+/** A map's subject, as the Map block's fields see each other while validating. */
+type MapSubject = { town?: string | null; x?: number | null; z?: number | null }
+
+/** Towny town names: letters, digits, underscores and hyphens, as the map writes them. */
+const TOWN_NAME = /^[\w-]{1,40}$/
+/** The world's extent, in blocks, in either direction. */
+const WORLD_LIMIT = 100_000
+
+const options = (registry: Record<string, { label: string }>) =>
+  Object.entries(registry).map(([value, { label }]) => ({ label, value }))
+
+/** A coordinate is needed unless a town names the place; either way it must be on the map. */
+const coordinateValidate = (value: unknown, { siblingData }: { siblingData: MapSubject }) => {
+  if (value == null || value === '') {
+    return Boolean(siblingData?.town?.trim()) || 'Give x and z, or name a town above.'
+  }
+  return (
+    (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= WORLD_LIMIT) ||
+    `A block coordinate within ±${WORLD_LIMIT.toLocaleString('en-GB')}.`
+  )
+}
+
+/**
+ * The Map block names its place by town or by coordinates; only the shape is
+ * checked here, never the map server, so saving never waits on it. A town
+ * the map doesn't know is reported on the page, in the figure's frame.
+ */
+export const MapBlock: Block = {
+  slug: 'map',
+  interfaceName: 'MapBlockType',
+  labels: { singular: 'Map', plural: 'Maps' },
+  admin: { disableBlockName: false },
+  fields: [
+    {
+      name: 'town',
+      type: 'text',
+      label: 'Town',
+      admin: {
+        description:
+          'A Towny town on the Rulercraft map, spelt as the map has it (e.g. GirlieTown). The clipping centres on its home block and outlines its claims. Leave empty to centre on coordinates instead.',
+      },
+      hooks: {
+        beforeValidate: [({ value }) => (typeof value === 'string' ? value.trim() || undefined : value)],
+      },
+      validate: (value: null | string | undefined, { siblingData }: { siblingData: MapSubject }) => {
+        if (!value?.trim()) {
+          return (
+            (siblingData?.x != null && siblingData?.z != null) ||
+            'Name a town, or give x and z below.'
+          )
+        }
+        return TOWN_NAME.test(value.trim()) || 'Town names are letters, digits, _ and -, as on the map.'
+      },
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'x',
+          type: 'number',
+          admin: {
+            width: '50%',
+            description: 'Block coordinates to centre on. With a town, they move the centre within its claims.',
+          },
+          validate: coordinateValidate,
+        },
+        { name: 'z', type: 'number', admin: { width: '50%' }, validate: coordinateValidate },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'zoom',
+          type: 'select',
+          required: true,
+          defaultValue: 'town',
+          options: options(ZOOMS),
+          admin: { width: '40%' },
+        },
+        {
+          name: 'map',
+          type: 'select',
+          required: true,
+          defaultValue: 'flat',
+          options: options(MAPS),
+          admin: { width: '30%' },
+        },
+        {
+          name: 'aspect',
+          type: 'select',
+          required: true,
+          defaultValue: 'wide',
+          options: options(ASPECTS),
+          admin: { width: '30%' },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'claims',
+          type: 'checkbox',
+          defaultValue: true,
+          label: 'Outline the claims',
+          admin: {
+            width: '33%',
+            description: 'Draw the town’s Towny claims on the clipping.',
+            condition: (_, siblingData) => Boolean(siblingData?.town),
+          },
+        },
+        {
+          name: 'pin',
+          type: 'checkbox',
+          defaultValue: false,
+          label: 'Pin the centre',
+          admin: { width: '33%', description: 'A pin on the home block, or on the coordinates.' },
+        },
+        {
+          name: 'facts',
+          type: 'checkbox',
+          defaultValue: true,
+          label: 'Show town facts',
+          admin: {
+            width: '33%',
+            description: 'The ruler, residents, nation and founding, as the map records them.',
+            condition: (_, siblingData) => Boolean(siblingData?.town),
+          },
+        },
+      ],
+    },
+    {
+      name: 'caption',
+      type: 'text',
+      admin: { description: 'What the reader is looking at. The coordinates and a link to the live map are added beneath.' },
+    },
+  ],
+}
+
+/**
+ * A player's skin in an interactive viewer; the name follows the same rule
+ * as a byline's Minecraft name, here required, since the skin is the point.
+ */
+export const SkinBlock: Block = {
+  slug: 'skin',
+  interfaceName: 'SkinBlockType',
+  labels: { singular: 'Player Skin', plural: 'Player Skins' },
+  admin: { disableBlockName: false },
+  fields: [
+    {
+      name: 'minecraftName',
+      type: 'text',
+      label: 'Minecraft name',
+      required: true,
+      admin: { description: 'The player to show, as named in the game (e.g. DefinitelyCasi).' },
+      validate: (value: null | string | undefined) =>
+        (typeof value === 'string' && MINECRAFT_NAME.test(value.trim())) ||
+        'Enter a Minecraft username: 3–16 letters, digits or underscores.',
+      hooks: {
+        beforeValidate: [({ value }) => (typeof value === 'string' ? value.trim() || undefined : value)],
+      },
+    },
+    {
+      name: 'animation',
+      type: 'select',
+      required: true,
+      defaultValue: 'idle',
+      options: [
+        { label: 'Idle (breathing, arms at rest)', value: 'idle' },
+        { label: 'Walking on the spot', value: 'walk' },
+        { label: 'Waving', value: 'wave' },
+        { label: 'Still', value: 'still' },
+      ],
+      admin: {
+        description:
+          'Played once the viewer has loaded. Visitors who ask their device for less motion get the still pose, and can still turn the player by hand.',
+      },
+    },
+    {
+      name: 'caption',
+      type: 'text',
+      admin: { description: 'Optional, beneath the player’s name.' },
+    },
+  ],
+}
+
 /** Every block available in article/page content, in menu order. */
 export const contentBlocks: Block[] = [
   CalloutBlock,
@@ -343,6 +533,8 @@ export const contentBlocks: Block[] = [
   GalleryBlock,
   EmbedBlock,
   DiscordBlock,
+  MapBlock,
+  SkinBlock,
   Model3DBlock,
   LitematicBlock,
 ]

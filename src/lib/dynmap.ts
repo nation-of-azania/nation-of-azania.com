@@ -275,8 +275,12 @@ function townFacts(desc: string) {
   }
 }
 
-/** Every Towny town on the map, by lower-cased name; cached for an hour. */
-export async function getTowns(): Promise<Map<string, Town>> {
+/**
+ * Every Towny town on the map, by lower-cased name; cached for an hour. Null
+ * when the map can't be read and there is no cached copy to answer from, so
+ * a caller can tell "no such town" from "the map is down".
+ */
+export async function getTowns(): Promise<Map<string, Town> | null> {
   if (townyCache && Date.now() - townyCache.at < TOWNY_TTL_MS) return townyCache.towns
   const towns = new Map<string, Town>()
   try {
@@ -310,15 +314,21 @@ export async function getTowns(): Promise<Map<string, Town>> {
     townyCache = { at: Date.now(), towns }
   } catch {
     // Keep serving the last good copy if the map is down.
-    if (townyCache) return townyCache.towns
+    return townyCache?.towns ?? null
   }
   return towns
 }
 
-/** A Towny town by name (case-insensitive), or null. */
-export async function getTown(name: string | null | undefined): Promise<Town | null> {
+/**
+ * A Towny town by name (case-insensitive): the town; `null` when the map
+ * knows no such town; `'offline'` when the map can't be read and nothing is
+ * cached, so the caller can say so rather than "no such town".
+ */
+export async function getTown(name: string | null | undefined): Promise<Town | null | 'offline'> {
   if (!name?.trim()) return null
-  return (await getTowns()).get(name.trim().toLowerCase()) ?? null
+  const towns = await getTowns()
+  if (!towns) return 'offline'
+  return towns.get(name.trim().toLowerCase()) ?? null
 }
 
 /** The centre of a town: its home block, else the middle of its claims. */

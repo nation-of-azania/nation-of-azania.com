@@ -11,6 +11,7 @@ import {
   RichText as PayloadRichText,
 } from '@payloadcms/richtext-lexical/react'
 
+import type { StyleId } from '@/contexts/styles'
 import type {
   Article,
   CalloutBlockType,
@@ -19,9 +20,11 @@ import type {
   GalleryBlockType,
   ImageBlockType,
   LitematicBlockType,
+  MapBlockType,
   Model3DBlockType,
   Page,
   QuoteBlockType,
+  SkinBlockType,
 } from '@/payload-types'
 
 import { CalloutBlock } from '@/blocks/components/Callout'
@@ -30,9 +33,11 @@ import { EmbedBlock } from '@/blocks/components/Embed'
 import { GalleryBlock } from '@/blocks/components/Gallery'
 import { ImageBlock } from '@/blocks/components/Image'
 import { LitematicBlock } from '@/blocks/components/Litematic'
+import { MapBlock } from '@/blocks/components/Map'
 import { Model3DBlock } from '@/blocks/components/Model3D'
 import { QuoteBlock } from '@/blocks/components/Quote'
-import { cn } from '@/blocks/components/shared'
+import { cn, type Tone, type Voice } from '@/blocks/components/shared'
+import { SkinBlock } from '@/blocks/components/Skin'
 
 type ContentBlocks =
   | CalloutBlockType
@@ -41,8 +46,10 @@ type ContentBlocks =
   | GalleryBlockType
   | ImageBlockType
   | LitematicBlockType
+  | MapBlockType
   | Model3DBlockType
   | QuoteBlockType
+  | SkinBlockType
 
 type NodeTypes = DefaultNodeTypes | SerializedBlockNode<ContentBlocks>
 
@@ -60,23 +67,32 @@ function internalDocToHref({ linkNode }: { linkNode: SerializedLinkNode }): stri
   return '#'
 }
 
-const converters: JSXConvertersFunction<NodeTypes> = ({ defaultConverters }) => ({
-  ...defaultConverters,
-  ...LinkJSXConverter({ internalDocToHref }),
-  blocks: {
-    callout: ({ node }) => <CalloutBlock {...node.fields} />,
-    discord: ({ node }) => <DiscordBlock {...node.fields} />,
-    embed: ({ node }) => <EmbedBlock {...node.fields} />,
-    gallery: ({ node }) => <GalleryBlock {...node.fields} />,
-    image: ({ node }) => <ImageBlock {...node.fields} />,
-    litematic: ({ node }) => <LitematicBlock {...node.fields} />,
-    model3d: ({ node }) => <Model3DBlock {...node.fields} />,
-    quote: ({ node }) => <QuoteBlock {...node.fields} />,
-  },
-  // Nodes/blocks without a converter render nothing instead of crashing or
-  // emitting the library's "unknown node" chip.
-  unknown: () => null,
-})
+/**
+ * The converter map, built for the paper the text is set in: most blocks
+ * look the same everywhere, but a figure that follows its paper's voice (the
+ * map, the skin) is told which paper, and which style the record wears.
+ */
+const convertersFor =
+  (voice: Voice): JSXConvertersFunction<NodeTypes> =>
+  ({ defaultConverters }) => ({
+    ...defaultConverters,
+    ...LinkJSXConverter({ internalDocToHref }),
+    blocks: {
+      callout: ({ node }) => <CalloutBlock {...node.fields} />,
+      discord: ({ node }) => <DiscordBlock {...node.fields} />,
+      embed: ({ node }) => <EmbedBlock {...node.fields} />,
+      gallery: ({ node }) => <GalleryBlock {...node.fields} />,
+      image: ({ node }) => <ImageBlock {...node.fields} />,
+      litematic: ({ node }) => <LitematicBlock {...node.fields} />,
+      map: ({ node }) => <MapBlock {...node.fields} {...voice} />,
+      model3d: ({ node }) => <Model3DBlock {...node.fields} />,
+      quote: ({ node }) => <QuoteBlock {...node.fields} />,
+      skin: ({ node }) => <SkinBlock {...node.fields} {...voice} />,
+    },
+    // Nodes/blocks without a converter render nothing instead of crashing or
+    // emitting the library's "unknown node" chip.
+    unknown: () => null,
+  })
 
 /**
  * Prose typography for the default Lexical nodes, in two tones. The default
@@ -185,32 +201,35 @@ const INTERNATIONAL_TONE = cn(
   '[&_img:not([class])]:border-paper-200',
 )
 
-const TONES = {
+const TONES: Record<Tone, string> = {
   gazette: cn(STRUCTURE, GAZETTE_TONE),
   times: cn(STRUCTURE, TIMES_TONE),
   international: cn(STRUCTURE, INTERNATIONAL_TONE),
-} as const
+}
 
 type RichTextProps = {
   className?: string
   data: Article['content'] | Page['content'] | null | undefined
   /** Prose palette: the state Gazette (default), the Azanian Times, or the International registry. */
-  tone?: keyof typeof TONES
+  tone?: Tone
+  /** The style the record wears, for the blocks that draw in its colour (the map's claims); null or absent for the design's own. */
+  style?: StyleId | null
 }
 
 /**
  * Renders Lexical rich text content, including every custom block (callout,
- * quote, image, gallery, embed, discord, model3d, litematic). Server-safe: the
- * only client code is the Discord block's audio/spoiler island and the
- * Model3D/Litematic dynamic imports.
+ * quote, image, gallery, embed, discord, map, skin, model3d, litematic).
+ * Server-safe: the only client code is the Discord block's audio/spoiler
+ * island, the map's image and copy button, and the Skin/Model3D/Litematic
+ * dynamic imports.
  */
-export function RichText({ data, className, tone = 'gazette' }: RichTextProps) {
+export function RichText({ data, className, tone = 'gazette', style = null }: RichTextProps) {
   if (!data?.root?.children?.length) return null
 
   return (
     <div className={cn(TONES[tone], className)}>
       <PayloadRichText
-        converters={converters}
+        converters={convertersFor({ tone, style })}
         data={data as SerializedEditorState}
         disableContainer
       />

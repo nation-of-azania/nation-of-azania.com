@@ -144,7 +144,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
           </figure>
         ) : null}
 
-        <RichText data={article.content} tone="times" className="mt-10" />
+        <RichText data={article.content} tone="times" style={style} className="mt-10" />
       </div>
 
       <footer className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-news-200 pt-6 text-sm font-semibold">
