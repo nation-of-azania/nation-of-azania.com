@@ -112,19 +112,36 @@ const cascadeToChildren: CollectionAfterChangeHook = async ({ doc, previousDoc, 
   return doc
 }
 
-/** Contexts that still hold anything can't be deleted; move or delete their contents first. */
+/**
+ * Contexts that still hold anything can't be deleted: move or delete their
+ * contents first. Access grants and Discord channels that name the context
+ * count too, since they would otherwise point at nothing.
+ */
 const refuseNonEmpty: CollectionBeforeDeleteHook = async ({ id, req }) => {
   const where = { context: { equals: id } }
-  const [children, articles, pages] = await Promise.all([
+  const [children, articles, pages, grants, discord] = await Promise.all([
     req.payload.count({ collection: 'contexts', where: { parent: { equals: id } }, req }),
     req.payload.count({ collection: 'articles', where, req }),
     req.payload.count({ collection: 'pages', where, req }),
+    req.payload.count({ collection: 'users', where: { 'contextAccess.context': { equals: id } }, req }),
+    req.payload.findGlobal({ slug: 'discord', depth: 0, req }).catch(() => null),
   ])
   if (children.totalDocs + articles.totalDocs + pages.totalDocs > 0) {
     throw new APIError(
       `This context still holds ${children.totalDocs} sub-context(s), ${articles.totalDocs} article(s) and ${pages.totalDocs} page(s). Move or delete them first.`,
       400,
     )
+  }
+  if (grants.totalDocs > 0) {
+    throw new APIError(
+      `${grants.totalDocs} account(s) have access granted to this context. Remove those grants under Users first.`,
+      400,
+    )
+  }
+  const channelId = (channel: { context?: unknown }) =>
+    typeof channel.context === 'object' ? (channel.context as { id?: unknown } | null)?.id : channel.context
+  if ((discord?.channels ?? []).some((channel) => String(channelId(channel)) === String(id))) {
+    throw new APIError('A Discord channel is set for this context. Remove it under Settings → Discord first.', 400)
   }
 }
 

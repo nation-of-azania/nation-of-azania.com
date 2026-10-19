@@ -7,11 +7,13 @@ import type { Article, Context, Media, Profile, User } from '../payload-types'
 
 /**
  * Announces newly published articles in Discord, through channel webhooks.
- * Optional: nothing is sent unless a webhook is configured.
+ * Optional: nothing is sent unless a webhook is configured, which admins do
+ * in the admin panel (Settings → Discord, src/globals/Discord.ts): a channel
+ * per context, the most specific one winning. Environment variables still
+ * work as a fallback:
  *
- *   DISCORD_WEBHOOK_URL       every top-level context posts here
- *   DISCORD_WEBHOOK_<SLUG>    one top-level context posts here instead,
- *                             e.g. DISCORD_WEBHOOK_GOV, DISCORD_WEBHOOK_TIMES
+ *   DISCORD_WEBHOOK_<SLUG>    a top-level context, e.g. DISCORD_WEBHOOK_TIMES
+ *   DISCORD_WEBHOOK_URL       everything else
  *
  * Each article is announced once, when it is first published by someone
  * signed in (Articles' `announcedAt`); later edits, migrations and the seed
@@ -31,12 +33,37 @@ const STYLE_COLOURS: Record<StyleId, string> = {
 const TIMEOUT_MS = 5000
 
 /** Discord's own hosts, and localhost for trying it out; anything else is ignored. */
-const isWebhookUrl = (url: string) =>
+export const isWebhookUrl = (url: string) =>
   /^https:\/\/(?:\w+\.)?discord(?:app)?\.com\/api\/webhooks\//.test(url) ||
   /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\//.test(url)
 
-/** The webhook for a top-level context, or null when none is configured. */
-export function webhookFor(topSlug: string | null | undefined): string | null {
+type DiscordSettings = {
+  enabled?: boolean | null
+  channels?: { context?: number | { id: number } | null; webhookUrl?: string | null }[] | null
+}
+
+/**
+ * The webhook for an article in `chain` (top-level context first): the
+ * deepest context with a channel in the admin's settings, else the
+ * environment's; null when none is set or announcements are switched off.
+ */
+export async function webhookFor(payload: Payload, chain: Pick<Context, 'id' | 'slug'>[]): Promise<string | null> {
+  const settings = (await payload
+    .findGlobal({ slug: 'discord', depth: 0 })
+    .catch(() => null)) as DiscordSettings | null
+  if (settings?.enabled === false) return null
+  const channels = new Map(
+    (settings?.channels ?? []).flatMap((channel) => {
+      const id = idOf(channel.context)
+      const url = channel.webhookUrl?.trim()
+      return id != null && url && isWebhookUrl(url) ? [[id, url] as const] : []
+    }),
+  )
+  for (const context of [...chain].reverse()) {
+    const url = channels.get(context.id)
+    if (url) return url
+  }
+  const topSlug = chain[0]?.slug
   const own = topSlug ? process.env[`DISCORD_WEBHOOK_${topSlug.toUpperCase().replace(/\W/g, '_')}`] : undefined
   const url = (own || process.env.DISCORD_WEBHOOK_URL || '').trim()
   return url && isWebhookUrl(url) ? url : null
@@ -72,7 +99,7 @@ export async function announceArticle(payload: Payload, article: Article): Promi
     if (contextId == null || !tree.byId.has(contextId)) return false
     const chain = tree.ancestors(contextId)
     const top = chain[0]
-    const url = webhookFor(top?.slug)
+    const url = await webhookFor(payload, chain)
     if (!url || !article.slug) return false
 
     const design = tree.designOf(contextId)

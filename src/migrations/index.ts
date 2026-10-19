@@ -8,6 +8,8 @@ import * as migration_20261018_113846_styles from './20261018_113846_styles';
 import * as migration_20261018_123000_girlietown from './20261018_123000_girlietown';
 import * as migration_20261018_131500_girlietown_samples from './20261018_131500_girlietown_samples';
 import * as migration_20261018_155642_discord_announcements from './20261018_155642_discord_announcements';
+import * as migration_20261019_021903_discord_settings from './20261019_021903_discord_settings';
+import * as migration_20261019_022500_luixtiter from './20261019_022500_luixtiter';
 
 export const migrations = [
   {
@@ -59,5 +61,15 @@ export const migrations = [
     up: migration_20261018_155642_discord_announcements.up,
     down: migration_20261018_155642_discord_announcements.down,
     name: '20261018_155642_discord_announcements',
+  },
+  {
+    up: migration_20261019_021903_discord_settings.up,
+    down: migration_20261019_021903_discord_settings.down,
+    name: '20261019_021903_discord_settings',
+  },
+  {
+    up: migration_20261019_022500_luixtiter.up,
+    down: migration_20261019_022500_luixtiter.down,
+    name: '20261019_022500_luixtiter',
   },
 ];

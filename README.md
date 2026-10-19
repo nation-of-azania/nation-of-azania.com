@@ -92,7 +92,7 @@ offices and GirlieTown, two Times desks and the GirlieTea column, and
 International's Transport Catalogue › Road Initiative › Case Studies, four
 levels deep), six accounts, nine byline profiles (IPaaat as Co-Leader in
 Government, Editor-in-Chief of the Times and Representative of Azania in
-International, a shared "Luixiter, Chancellor" and "The Editors",
+International, a shared "Luixtiter, Chancellor" and "The Editors",
 DefinitelyCasi for GirlieTown, and the demo staff), four media items (two
 generated banner images, the Lighthouse `.glb` and a Litematica build), the
 About page, and fourteen articles that exercise every content block:
@@ -470,22 +470,25 @@ role for the contexts they write in), and you can start writing.
 
 The site can post each newly published article to a Discord channel: its
 title, excerpt, byline with the author's head, a link, and the link preview
-image, in the colour of its paper or style. It is off until a webhook is set.
+image, in the colour of its paper or style. It is off until a channel is set.
 
 1. In Discord, open the channel's settings → *Integrations* → *Webhooks* →
    *New Webhook*, name it and give it an avatar (the crest suits the
    Gazette), and *Copy Webhook URL*.
-2. In Vercel (Settings → Environment Variables, Production), add either
-   - `DISCORD_WEBHOOK_URL`: every top-level context posts there, or
-   - `DISCORD_WEBHOOK_<SLUG>`, e.g. `DISCORD_WEBHOOK_GOV`,
-     `DISCORD_WEBHOOK_TIMES`, `DISCORD_WEBHOOK_INTL`: that context posts
-     there instead, so each paper can have its own channel.
-3. Redeploy (or push to `main`).
+2. In the admin panel, open **Settings → Discord** (admins only) and add a
+   channel: a context and the webhook URL. A channel takes the articles of
+   its context and everything below it, and the most specific one wins, so
+   Government, the Times and GirlieTea can each have their own channel.
+   *Announce new articles* switches everything off at once.
 
 An article is announced once, when someone first publishes it; edits,
 re-publishing, scripts and migrations never post, and articles published
-before a webhook was set are never announced later. A failed post is logged
-and never blocks publishing (`src/lib/discord.ts`).
+before a channel was set are never announced later. A failed post is logged
+and never blocks publishing (`src/lib/discord.ts`). Webhook URLs are
+secrets (anyone holding one can post to its channel), so only admins can
+read the settings. As a fallback, the environment variables
+`DISCORD_WEBHOOK_<SLUG>` (e.g. `DISCORD_WEBHOOK_TIMES`) and
+`DISCORD_WEBHOOK_URL` work too.
 
 ### Custom domain, rollbacks and production commands
 
