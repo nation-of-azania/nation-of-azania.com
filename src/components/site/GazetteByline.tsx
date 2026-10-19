@@ -6,7 +6,7 @@ import type { ResolvedByline } from './format'
 
 /**
  * How the Gazette credits people. An official record names the office with
- * the person — "Luixiter, Chancellor" — so the role is never dropped, and the
+ * the person — "Luixtiter, Chancellor" — so the role is never dropped, and the
  * head is mounted in a small sand frame like a portrait in a register. The
  * office is a label (`font-label`), so a style may set it in its own face.
  */

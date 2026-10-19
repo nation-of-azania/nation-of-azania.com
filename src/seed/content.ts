@@ -35,7 +35,7 @@ export const charterContent = (): LexicalEditorState =>
       {
         style: 'decree',
         title: 'Proclamation of the Founding Council',
-        body: 'By decree of the Founding Council, given under the Seal of the Nation and the hand of Chancellor Luixiter, this Charter is adopted as the supreme law of Azania, binding upon every resident, officer and guest within her borders and her waters.',
+        body: 'By decree of the Founding Council, given under the Seal of the Nation and the hand of Chancellor Luixtiter, this Charter is adopted as the supreme law of Azania, binding upon every resident, officer and guest within her borders and her waters.',
       },
       'Founding proclamation',
     ),
@@ -570,7 +570,7 @@ export const aboutContent = (): LexicalEditorState =>
     ),
     heading('How the nation is led'),
     paragraph(
-      'Azania is led by Chancellor Luixiter, together with IPaaat as Co-Leader. Decisions ',
+      'Azania is led by Chancellor Luixtiter, together with IPaaat as Co-Leader. Decisions ',
       'of the government are published in the Gazette.',
     ),
     heading('How to join'),

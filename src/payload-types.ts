@@ -100,8 +100,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    discord: Discord;
+  };
+  globalsSelect: {
+    discord: DiscordSelect<false> | DiscordSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -742,6 +746,51 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * Newly published articles are announced in Discord. Each channel takes the articles of a context and everything below it; the most specific channel wins.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discord".
+ */
+export interface Discord {
+  id: number;
+  /**
+   * Off: nothing is posted anywhere, whatever is set below.
+   */
+  enabled?: boolean | null;
+  channels?:
+    | {
+        /**
+         * Its articles, and those of everything below it.
+         */
+        context: number | Context;
+        /**
+         * In Discord: the channel’s settings → Integrations → Webhooks → Copy Webhook URL.
+         */
+        webhookUrl: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discord_select".
+ */
+export interface DiscordSelect<T extends boolean = true> {
+  enabled?: T;
+  channels?:
+    | T
+    | {
+        context?: T;
+        webhookUrl?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

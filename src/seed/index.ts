@@ -242,10 +242,10 @@ async function seed(payload: Payload): Promise<void> {
     owner: admin.id,
   })
   const chancellor = await ensureProfile(payload, {
-    name: 'Luixiter',
+    name: 'Luixtiter',
     title: 'Chancellor',
     contexts: [top.gov],
-    minecraftName: 'Luixiter',
+    minecraftName: 'Luixtiter',
   })
   await ensureProfile(payload, {
     name: EDITOR.name,

@@ -255,7 +255,7 @@ try {
 
   // ── Bylines ───────────────────────────────────────────────────────────────
   check(
-    bylineOf('the-charter-of-azania')?.name === 'Luixiter',
+    bylineOf('the-charter-of-azania')?.name === 'Luixtiter',
     'byline: charter credited to the Chancellor (shared profile)',
     bylineOf('the-charter-of-azania')?.label ?? 'none',
   )
