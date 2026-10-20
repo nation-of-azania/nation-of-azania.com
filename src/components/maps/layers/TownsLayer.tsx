@@ -44,10 +44,11 @@ const onPage = (projection: Projection, town: MapTown) =>
 
 /**
  * Where a town's name may go, best first. Out at the scale of the nation,
- * above its home block (its lozenge), else below. Once the reader is inside
- * the town, the name moves to the top edge of the main claim, like a
- * district's name on a street map, and is left off when they are closer
- * still: the panel names the town, and the roads and places want the room.
+ * above its home block (its lozenge), else below, else to either side.
+ * Once the reader is inside the town, the name moves to the top edge of
+ * the main claim, like a district's name on a street map, and is left off
+ * when they are closer still: the panel names the town, and the roads and
+ * places want the room.
  */
 function nameCandidates(projection: Projection, town: MapTown): TownLabel[] {
   if (!town.home) return []
@@ -69,7 +70,14 @@ function nameCandidates(projection: Projection, town: MapTown): TownLabel[] {
   })
   if (zoom < INSIDE) {
     const [x, y] = projection.project(town.home)
-    return [box(x, y - lift, 'home', 1), box(x, y + lift + fontSize - 2, 'home', 1)]
+    // Clear of a pin at the home (12 px) and its ring.
+    const beside = 16 + width / 2
+    return [
+      box(x, y - lift, 'home', 1),
+      box(x, y + lift + fontSize - 2, 'home', 1),
+      box(x + beside, y + fontSize / 2 - 2, 'home', 1),
+      box(x - beside, y + fontSize / 2 - 2, 'home', 1),
+    ]
   }
   if (zoom >= TOO_CLOSE) return []
   const claim = homeClaimBounds(town)

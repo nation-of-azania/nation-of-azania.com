@@ -1,21 +1,16 @@
 import config from '@payload-config'
-import { headers as nextHeaders } from 'next/headers'
-import { createLocalReq, getPayload, type Where } from 'payload'
+import { getPayload, type Where } from 'payload'
 import { cache } from 'react'
 
-import { getMapRights } from '@/access/maps'
-import { getScope } from '@/access/scope'
 import {
   mapEvent,
   mapPlace,
   mapRoad,
   mapTown,
   mapView,
-  NO_RIGHTS,
   type MapData,
   type MapEvent,
   type MapPlace,
-  type MapRights,
   type MapRoad,
   type MapTown,
   type MapViewData,
@@ -24,10 +19,12 @@ import type { Article } from '@/payload-types'
 
 /**
  * Read-side data for Azania Maps' pages (src/app/(frontend)/maps): the
- * nation as the map draws it, who the visitor is on the map, and the
- * particulars of whatever they've opened. Everything the site stores is
- * read here; the pictures come from the tile cache. Database errors give
- * empty results, so `next build` succeeds before the database exists.
+ * nation as the map draws it and the particulars of whatever's opened.
+ * Nothing here looks at who's asking — the pages are cached for everyone
+ * alike, and the browser asks /api/users/me for the visitor's own rights
+ * (src/maps/data.ts → mapRightsOf). Everything the site stores is read
+ * here; the pictures come from the tile cache. Database errors give empty
+ * results, so `next build` succeeds before the database exists.
  */
 
 const getClient = () => getPayload({ config })
@@ -60,31 +57,6 @@ export const getMapData = cache(async (): Promise<MapData> => {
     return { towns: [], places: [], roads: [], events: [] }
   }
 })
-
-/** The visitor's rights on the map, from their session cookie. */
-export const getMapRightsForRequest = cache(async (): Promise<MapRights> => {
-  try {
-    const payload = await getClient()
-    const headers = await nextHeaders()
-    const { user } = await payload.auth({ headers })
-    if (!user) return NO_RIGHTS
-    const rights = getMapRights(user)
-    const views =
-      rights.anywhere || (await getScope(await createLocalReq({ user }, payload))).levels.size > 0
-    return {
-      user: { id: user.id, name: user.name },
-      anywhere: rights.anywhere,
-      towns: rights.towns,
-      views,
-    }
-  } catch {
-    return NO_RIGHTS
-  }
-})
-
-/** Whether a visitor may change a feature: anywhere, or inside a town they're mayor of. */
-export const mayEdit = (rights: MapRights, town: number | null): boolean =>
-  rights.anywhere || (town != null && rights.towns.includes(town))
 
 /** The articles that name a town, place or event among their locations. */
 export async function getArticlesAbout(

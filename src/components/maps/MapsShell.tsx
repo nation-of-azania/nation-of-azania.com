@@ -17,6 +17,9 @@ import { cn } from '@/blocks/components/shared'
 import {
   heartland,
   homeClaimBounds,
+  mapRightsOf,
+  NO_RIGHTS,
+  roadPoints,
   spoken,
   type MapData,
   type MapEvent,
@@ -28,13 +31,11 @@ import {
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
-import type { MapName } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
   decodeAt,
   decodeLayers,
-  decodeMapName,
   mapsQuery,
   sameSelection,
   selectionHref,
@@ -49,7 +50,7 @@ import { EditorPanel } from './editor/EditorPanel'
 import { createStore, useHydrated, useMediaQuery, useSearch, useStore } from './hooks'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
 import { emptyEvent, emptyPlace, emptyRoad, emptyView, type Editor } from './state'
-import { DrawMenu, LayerMenu, Legend, MapToggle, ZoomButtons, type DrawChoice } from './ui/Controls'
+import { DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { Icon } from './ui/icons'
 import { Coordinates, StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
@@ -70,7 +71,6 @@ const MapScene = dynamic<SceneProps>(() => import('./MapScene').then((module) =>
 
 type ShellProps = {
   data: MapData
-  rights: MapRights
   /** The page's panel: a town, a place, …, or the map's own front. */
   children: ReactNode
 }
@@ -112,22 +112,32 @@ function describe(
   }
 }
 
-/** The block under the pointer, kept out of React state: it changes with every mouse move. */
+type Store<T> = ReturnType<typeof createStore<T>>
+
+/**
+ * The block under the pointer, else the middle of the view: both change
+ * with every move, so they live in small stores rather than React state,
+ * and only this readout re-renders for them.
+ */
 function PointerReadout({
-  store,
+  pointer,
   centre,
   towns,
+  bare,
 }: {
-  store: ReturnType<typeof createStore<Point | null>>
-  centre: Point | null
+  pointer: Store<Point | null>
+  centre: Store<MapPosition | null>
   towns: MapTown[]
+  bare?: boolean
 }) {
-  const pointer = useStore(store)
+  const under = useStore(pointer)
+  const position = useStore(centre)
   return (
     <Coordinates
+      bare={bare}
       className="pointer-events-auto"
-      hint={pointer ? 'Under the pointer' : 'Centre'}
-      point={pointer ?? centre}
+      hint={under ? 'Under the pointer' : 'Centre'}
+      point={under ?? position?.centre ?? null}
       towns={towns}
     />
   )
@@ -140,9 +150,11 @@ function PointerReadout({
  * rights is drawing. The shell owns the state the map and the panel
  * share: where the map is (also in the URL, to share), which layers show,
  * what's selected (the path), what's being drawn, and the clock the events
- * are judged by. The map itself is in ./MapScene.tsx, loaded only here.
+ * are judged by. The page itself is cached for everyone; the visitor's own
+ * rights are fetched here. The map itself is in ./MapScene.tsx, loaded
+ * only here.
  */
-export function MapsShell({ data: served, rights, children }: ShellProps) {
+export function MapsShell({ data: served, children }: ShellProps) {
   const router = useRouter()
   const pathname = usePathname()
   const hydrated = useHydrated()
@@ -159,21 +171,38 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
     setData(served)
   }
 
+  // Who the visitor is on the map: asked of the server once the page is here, since the page is the same for everyone.
+  const [rights, setRights] = useState<MapRights>(NO_RIGHTS)
+  const [rightsKnown, setRightsKnown] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { user?: unknown } | null) => {
+        if (cancelled) return
+        setRights(mapRightsOf(body?.user ?? null))
+        setRightsKnown(true)
+      })
+      .catch(() => !cancelled && setRightsKnown(true))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const selection = useMemo(() => selectionOf(pathname), [pathname])
   const query = useMemo(() => new URLSearchParams(search), [search])
 
-  // The address names the base map and the layers until the visitor chooses.
-  const [chosenMap, setMapName] = useState<MapName | null>(null)
+  // The address names the layers until the visitor chooses.
   const [chosenLayers, setLayers] = useState<MapLayer[] | null>(null)
-  const mapName = chosenMap ?? decodeMapName(query.get('map'))
   const layers = chosenLayers ?? decodeLayers(query.get('layers')) ?? ALL_LAYERS
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [status, setStatus] = useState<MapStatus | null>(null)
-  const [position, setPosition] = useState<MapPosition | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [sheet, setSheet] = useState<SheetState>(selection ? 'half' : 'peek')
+  // Where the map is and what's under the pointer: changing with every move, kept out of React state.
+  const centreStore = useMemo(() => createStore<MapPosition | null>(null), [])
   const pointerStore = useMemo(() => createStore<Point | null>(null), [])
   const sceneApi = useRef<SceneApi | null>(null)
   const pendingLook = useRef<LookTarget | null>(null)
@@ -192,11 +221,15 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
     [wide],
   )
 
+  const onApi = useCallback((scene: SceneApi) => {
+    // Kept, not cleared: a scene that mounts again (development's double mount) must look at the same place.
+    sceneApi.current = scene
+    if (pendingLook.current) scene.look(pendingLook.current)
+  }, [])
+
   /** Where the map opens: the address's spot, else the selected thing, else the nation's heartland. Fixed once the page is in the browser. */
-  const [initial] = useState<SceneProps['initial'] | null>(() => null)
   const opening = useMemo<SceneProps['initial'] | null>(() => {
     if (!hydrated) return null
-    if (initial) return initial
     const at = decodeAt(query.get('at'))
     if (at) return at
     const bounds = selection ? boundsFor(data, selection) : null
@@ -229,7 +262,6 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       .then((view) => {
         if (cancelled || !view) return
         setViewing(view)
-        setMapName(view.map)
         setLayers(view.layers)
         if (!placed) look({ centre: view.centre, span: view.span, aspect: view.aspect })
       })
@@ -257,14 +289,24 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
 
   // The map's spot in the address, so it can be shared, written quietly after each move.
   useEffect(() => {
-    if (!position) return
-    const handle = window.setTimeout(() => {
-      const next = `${window.location.pathname}${mapsQuery({ at: position, map: mapName, layers, view: viewing?.id ?? null })}`
-      if (next !== `${window.location.pathname}${window.location.search}`)
-        window.history.replaceState(window.history.state, '', next)
-    }, 300)
-    return () => window.clearTimeout(handle)
-  }, [position, mapName, layers, viewing])
+    let handle: number | undefined
+    const write = () => {
+      const position = centreStore.get()
+      if (!position) return
+      window.clearTimeout(handle)
+      handle = window.setTimeout(() => {
+        const next = `${window.location.pathname}${mapsQuery({ at: position, layers, view: viewing?.id ?? null })}`
+        if (next !== `${window.location.pathname}${window.location.search}`)
+          window.history.replaceState(window.history.state, '', next)
+      }, 300)
+    }
+    write()
+    const unsubscribe = centreStore.subscribe(write)
+    return () => {
+      unsubscribe()
+      window.clearTimeout(handle)
+    }
+  }, [centreStore, layers, viewing])
 
   // Opening something looks at it, and on a phone draws the sheet up.
   const [sheetFor, setSheetFor] = useState(selection)
@@ -288,16 +330,23 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
   const select = useCallback(
     (next: MapSelection | null) => {
       setEditor(null)
-      const query = mapsQuery({ at: position, map: mapName, layers, view: viewing?.id ?? null })
+      const query = mapsQuery({ at: centreStore.get(), layers, view: viewing?.id ?? null })
       startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
     },
-    [router, position, mapName, layers, viewing],
+    [router, centreStore, layers, viewing],
   )
 
   const mayEdit = useCallback(
     (town: number | null) => rights.anywhere || (town != null && rights.towns.includes(town)),
     [rights],
   )
+
+  // The pages are cached for everyone: have them regenerated now, then fetch the fresh one.
+  const refresh = useCallback(() => {
+    fetch('/maps/revalidate', { method: 'POST', credentials: 'include' })
+      .catch(() => {})
+      .finally(() => startTransition(() => router.refresh()))
+  }, [router])
 
   const openEditor = useCallback((next: Editor) => {
     setEditor(next)
@@ -328,7 +377,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
         return openEditor({
           kind: 'view',
           id: null,
-          draft: emptyView(mapName, layers),
+          draft: emptyView(layers),
           tool: 'pen',
           ink: 'red',
           weight: 2,
@@ -352,12 +401,10 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
         roads: kind === 'road' ? current.roads.filter((item) => item.id !== id) : current.roads,
         events: kind === 'event' ? current.events.filter((item) => item.id !== id) : current.events,
       }))
-      startTransition(() => {
-        router.push('/maps', { scroll: false })
-        router.refresh()
-      })
+      startTransition(() => router.push('/maps', { scroll: false }))
+      refresh()
     },
-    [router],
+    [router, refresh],
   )
 
   const editPlace = useCallback(
@@ -437,6 +484,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       editEvent,
       editAbout,
       remove,
+      refresh,
     }),
     [
       data,
@@ -454,6 +502,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       editEvent,
       editAbout,
       remove,
+      refresh,
     ],
   )
 
@@ -472,10 +521,10 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       }
     })
     setEditor(null)
-    startTransition(() => {
-      router.push(selectionHref({ kind, id: item.id } as MapSelection), { scroll: false })
-      router.refresh()
-    })
+    startTransition(() =>
+      router.push(selectionHref({ kind, id: item.id } as MapSelection), { scroll: false }),
+    )
+    refresh()
   }
 
   // Escape steps out of the editor, then out of the selection.
@@ -496,71 +545,70 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
   const canDraw = rights.anywhere || rights.towns.length > 0
   const liveEvents = data.events.filter((event) => eventPhase(event, now) === 'now').length
   const upcoming = data.events.filter((event) => eventPhase(event, now) === 'upcoming').length
-  // While a view is drawn, the map shows the view's own base map and layers.
-  const sceneMap = editor?.kind === 'view' ? editor.draft.map : mapName
+  // While a view is drawn, the map shows the view's own layers.
   const sceneLayers = editor?.kind === 'view' ? editor.draft.layers : layers
 
-  const panel = (
-    <div className="flex min-h-full flex-col">
-      {editor ? (
-        <EditorPanel
-          editor={editor}
-          onChange={setEditor}
-          onClose={closeEditor}
-          onSaved={saved}
-          onViewSaved={setViewing}
-          sceneApi={sceneApi}
-        />
-      ) : (
-        <>
-          {viewing ? (
-            <div className="flex items-center gap-2 border-b border-saffron-400/50 bg-saffron-100/70 px-4 py-2 text-xs text-saffron-600">
-              <Icon className="h-3.5 w-3.5 shrink-0" name="frame" />
-              <span className="min-w-0 flex-1 truncate">
-                Showing an article’s highlights: {viewing.title}
-              </span>
-              <button
-                className="font-semibold underline underline-offset-2 hover:text-saffron-500"
-                onClick={() => setViewing(null)}
-                type="button"
-              >
-                Clear
-              </button>
+  const back = (
+    <button
+      aria-label="Back to the map"
+      className="-ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
+      onClick={() => select(null)}
+      type="button"
+    >
+      <Icon className="h-4 w-4" name="back" />
+    </button>
+  )
+
+  const content = editor ? (
+    <EditorPanel
+      editor={editor}
+      onChange={setEditor}
+      onClose={closeEditor}
+      onSaved={saved}
+      onViewSaved={setViewing}
+      sceneApi={sceneApi}
+    />
+  ) : (
+    <>
+      {viewing ? (
+        <div className="flex items-center gap-2 border-b border-saffron-400/50 bg-saffron-100/70 px-4 py-2 text-xs text-saffron-600">
+          <Icon className="h-3.5 w-3.5 shrink-0" name="frame" />
+          <span className="min-w-0 flex-1 truncate">
+            Showing an article’s highlights: {viewing.title}
+          </span>
+          <button
+            className="font-semibold underline underline-offset-2 hover:text-saffron-500"
+            onClick={() => setViewing(null)}
+            type="button"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
+      {/* Beside the map, a way back above the page; on a phone the sheet's own line has it. */}
+      {wide && selection ? (
+        <div className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
+          <span className="mt-0.5">{back}</span>
+          {pending && described ? (
+            <div aria-busy="true" className="min-w-0 flex-1">
+              <p className="font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
+                {described.kind}
+              </p>
+              <p className="truncate font-display text-xl text-sea-950">{described.title}</p>
             </div>
-          ) : null}
-          {selection ? (
-            <div className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
-              <button
-                aria-label="Back to the map"
-                className="-ml-1 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
-                onClick={() => select(null)}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="back" />
-              </button>
-              {pending && described ? (
-                <div aria-busy="true" className="min-w-0 flex-1">
-                  <p className="font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
-                    {described.kind}
-                  </p>
-                  <p className="truncate font-display text-xl text-sea-950">{described.title}</p>
-                </div>
-              ) : (
-                <p className="min-w-0 flex-1 self-center text-[11px] uppercase tracking-[0.18em] text-ink-400">
-                  Azania Maps
-                </p>
-              )}
-            </div>
-          ) : null}
-          <div className={cn('flex-1', pending && 'opacity-60 transition-opacity')}>{children}</div>
-        </>
-      )}
-    </div>
+          ) : (
+            <p className="min-w-0 flex-1 self-center text-[11px] uppercase tracking-[0.18em] text-ink-400">
+              Azania Maps
+            </p>
+          )}
+        </div>
+      ) : null}
+      <div className={cn('flex-1', pending && 'opacity-60 transition-opacity')}>{children}</div>
+    </>
   )
 
   const controls = (
     <>
-      <MapToggle onChange={setMapName} value={mapName} />
       <LayerMenu
         layers={layers}
         onChange={setLayers}
@@ -579,7 +627,8 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
     </>
   )
 
-  const account = rights.user ? (
+  // Nothing until the visitor is known, so a signed-in reader never sees "Sign in" flash.
+  const account = !rightsKnown ? null : rights.user ? (
     <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-500">
       <Icon className="h-3.5 w-3.5" name="user" />
       {rights.user.name}
@@ -592,6 +641,33 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       Sign in
     </Link>
   )
+
+  /** The sheet's own line: at a peek, what it holds; drawn up, just the pill, since the page's head is right below. */
+  const handle =
+    sheet !== 'peek' ? null : described ? (
+      <span className="min-w-0 flex-1">
+        <span className="block font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
+          {described.kind}
+        </span>
+        <span className="block truncate font-display text-lg leading-tight text-sea-950">
+          {described.title}
+        </span>
+      </span>
+    ) : editor ? (
+      <span className="min-w-0 flex-1 truncate font-semibold text-sea-900">Drawing on the map</span>
+    ) : (
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="font-display text-lg leading-tight text-sea-950">Azania at a glance</span>
+        <span className="truncate text-xs text-ink-500">
+          {data.towns.length} towns
+          {liveEvents
+            ? ` · ${liveEvents} on now`
+            : upcoming
+              ? ` · ${upcoming} coming up`
+              : ''}
+        </span>
+      </span>
+    )
 
   return (
     <MapsContext.Provider value={actions}>
@@ -613,7 +689,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
               <Search className="mt-3" data={data} onPick={select} />
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto" ref={panelRef}>
-              {panel}
+              <div className="flex min-h-full flex-col">{content}</div>
             </div>
           </aside>
         ) : null}
@@ -626,16 +702,10 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
               editor={editor}
               initial={opening}
               layers={sceneLayers}
-              mapName={sceneMap}
               now={now}
-              onApi={(scene) => {
-                // Kept, not cleared: a scene that mounts again (development's
-                // double mount) must look at the same place.
-                sceneApi.current = scene
-                if (pendingLook.current) scene.look(pendingLook.current)
-              }}
+              onApi={onApi}
               onEditor={setEditor}
-              onMove={setPosition}
+              onMove={centreStore.set}
               onPointer={pointerStore.set}
               onSelect={select}
               rights={rights}
@@ -669,11 +739,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
               <div className="flex w-full items-end justify-between gap-3">
-                <PointerReadout
-                  centre={position?.centre ?? null}
-                  store={pointerStore}
-                  towns={data.towns}
-                />
+                <PointerReadout centre={centreStore} pointer={pointerStore} towns={data.towns} />
                 <WhatsOnStrip
                   className="pointer-events-auto w-full max-w-2xl"
                   data={data}
@@ -688,45 +754,16 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
 
         {/* Phone: the panel as a sheet. */}
         {!wide ? (
-          <Sheet
-            handle={
-              described ? (
-                <span className="min-w-0 flex-1">
-                  <span className="block font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
-                    {described.kind}
-                  </span>
-                  <span className="block truncate font-display text-lg leading-tight text-sea-950">
-                    {described.title}
-                  </span>
-                </span>
-              ) : editor ? (
-                <span className="min-w-0 flex-1 truncate font-semibold text-sea-900">
-                  Drawing on the map
-                </span>
-              ) : (
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="font-display text-lg leading-tight text-sea-950">
-                    Azania at a glance
-                  </span>
-                  <span className="truncate text-xs text-ink-500">
-                    {data.towns.length} towns
-                    {liveEvents
-                      ? ` · ${liveEvents} on now`
-                      : upcoming
-                        ? ` · ${upcoming} coming up`
-                        : ''}
-                  </span>
-                </span>
-              )
-            }
-            onState={setSheet}
-            state={sheet}
-          >
-            <div className="flex items-center justify-between border-b border-sand-300 px-4 py-2">
-              <Coordinates hint="Centre" point={position?.centre ?? null} towns={data.towns} />
+          <Sheet handle={handle} onState={setSheet} state={sheet}>
+            {/* One line of tools over the page: the way back, the map's centre, the account. */}
+            <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
+              {selection && !editor ? back : null}
+              <div className="min-w-0 flex-1">
+                <PointerReadout bare centre={centreStore} pointer={pointerStore} towns={data.towns} />
+              </div>
               {account}
             </div>
-            {panel}
+            <div className="flex min-h-full flex-col">{content}</div>
           </Sheet>
         ) : null}
       </div>
@@ -758,7 +795,7 @@ function lookFor(data: MapData, selection: MapSelection): LookTarget | null {
     }
     case 'road': {
       const road = data.roads.find((candidate) => candidate.id === selection.id)
-      const bounds = road ? pad(boundsOf(road.line)) : null
+      const bounds = road ? pad(boundsOf(roadPoints(road))) : null
       return bounds ? { bounds } : null
     }
     case 'event': {

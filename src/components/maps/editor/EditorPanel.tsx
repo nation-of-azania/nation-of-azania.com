@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode, type RefObject } from 'react'
 
 import { cn } from '@/blocks/components/shared'
@@ -100,8 +99,7 @@ function AboutForm({
   onChange,
   onClose,
 }: EditorPanelProps & { editor: Extract<Editor, { kind: 'about' }> }) {
-  const router = useRouter()
-  const { data } = useMaps()
+  const { data, refresh } = useMaps()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const town = data.towns.find((candidate) => candidate.id === editor.town)
@@ -111,7 +109,7 @@ function AboutForm({
     try {
       await api.saveAbout(editor.town, editor.text.trim())
       onClose()
-      router.refresh()
+      refresh()
     } catch (caught) {
       setError(messageOf(caught))
       setBusy(false)
@@ -183,7 +181,6 @@ function ViewsList({
       draft: {
         title: view.title,
         aspect: view.aspect,
-        map: view.map,
         layers: view.layers,
         drawings: view.drawings,
       },

@@ -7,6 +7,9 @@ import { EventPanel } from '@/components/maps/panels/EventPanel'
 import { findEvent, getArticlesAbout, getMapData } from '@/lib/maps'
 import type { Article } from '@/payload-types'
 
+/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+export const revalidate = 60
+
 type Props = { params: Promise<{ id: string }> }
 
 const idOf = (raw: string) => (/^\d{1,9}$/.test(raw) ? Number(raw) : null)

@@ -10,7 +10,7 @@ import {
   type MapRoad,
   type MapTown,
 } from '@/maps/data'
-import type { Point } from '@/maps/geo'
+import type { Bounds, Point } from '@/maps/geo'
 import { formatWhen, relativeDay, sortEvents } from '@/maps/time'
 
 import { useMaps } from '../context'
@@ -130,12 +130,15 @@ export function Survey({
   point,
   y,
   town,
+  fit,
   className,
 }: {
   point: Point
   y?: number | null
   /** The town whose own spawn this is: no walk, just its command. */
   town?: MapTown
+  /** Bounds to fit the map to, offered beside "Centre here": a town's main claim. */
+  fit?: Bounds | null
   className?: string
 }) {
   const { data } = useMaps()
@@ -172,6 +175,14 @@ export function Survey({
         >
           Centre here
         </Look>
+        {fit ? (
+          <Look
+            className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+            target={{ bounds: fit }}
+          >
+            Fit to town
+          </Look>
+        ) : null}
       </p>
       {route && command ? (
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] text-ink-700">

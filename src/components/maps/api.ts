@@ -100,7 +100,6 @@ export type ViewInput = {
   centre: { x: number; z: number }
   span: number
   aspect: string
-  map: string
   layers: string[]
   drawings: unknown[]
 }

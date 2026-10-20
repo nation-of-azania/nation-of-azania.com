@@ -73,7 +73,6 @@ export function EmbedScene({ frame, data, now, href, className, onReady }: Embed
         }
         className="absolute inset-0 z-0"
         initial={{ bounds, padding: 0 }}
-        mapName={frame.map}
         onReady={(map) => {
           mapRef.current = map
           map.whenReady(() => onReady?.())

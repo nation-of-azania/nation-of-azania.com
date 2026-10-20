@@ -41,11 +41,14 @@ export function Coordinates({
   point,
   hint,
   towns,
+  bare = false,
   className,
 }: {
   point: Point | null
   hint: string
   towns: MapTown[]
+  /** Without its own box: set in a line of other things, as on the phone's sheet. */
+  bare?: boolean
   className?: string
 }) {
   const [copied, copy] = useCopy()
@@ -55,19 +58,24 @@ export function Coordinates({
   return (
     <div
       className={cn(
-        'flex items-center gap-x-3 whitespace-nowrap border border-sand-300/80 bg-sand-50/95 px-2.5 py-1.5 font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
+        'flex min-w-0 items-center gap-x-3 whitespace-nowrap font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
+        bare ? 'overflow-hidden' : 'border border-sand-300/80 bg-sand-50/95 px-2.5 py-1.5',
         className,
       )}
     >
-      <span className="hidden text-ink-400 sm:inline">{hint}</span>
-      <span>
+      {!bare ? <span className="hidden text-ink-400 sm:inline">{hint}</span> : null}
+      <span className="shrink-0">
         <span className="opacity-60">X</span> {x} <span className="ml-1 opacity-60">Z</span> {z}
       </span>
       {route ? (
         <>
           <button
             aria-label={`Copy ${spawnCommand(route.town)}`}
-            className="inline-flex items-center gap-1 text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
+            className={cn(
+              'inline-flex items-center gap-1 text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500',
+              // In a line of other things it gives way; in its own box the walk gives way first.
+              bare ? 'min-w-0 truncate' : 'shrink-0',
+            )}
             onClick={() => copy(spawnCommand(route.town))}
             title={[
               'Copy the command',
@@ -77,11 +85,18 @@ export function Coordinates({
             type="button"
           >
             <Icon className="h-3 w-3 shrink-0" name={copied ? 'check' : 'copy'} />
-            <span aria-live="polite">{copied ? 'Copied' : spawnCommand(route.town)}</span>
+            <span aria-live="polite" className="truncate">
+              {copied ? 'Copied' : spawnCommand(route.town)}
+            </span>
           </button>
-          {route.walk ? <span className="hidden text-ink-400 xl:inline">{route.walk}</span> : null}
+          {route.walk ? (
+            <span className="hidden min-w-0 truncate text-ink-400 xl:inline">{route.walk}</span>
+          ) : null}
           {route.town.publicSpawn === false ? (
-            <span className="hidden text-saffron-600 lg:inline" title={privateSpawnNote(route.town)}>
+            <span
+              className="hidden min-w-0 truncate text-saffron-600 lg:inline"
+              title={privateSpawnNote(route.town)}
+            >
               residents only
             </span>
           ) : null}

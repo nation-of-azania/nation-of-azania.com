@@ -120,6 +120,31 @@ export const NO_RIGHTS: MapRights = { user: null, anywhere: false, towns: [], vi
 const idOf = (value: number | { id: number } | null | undefined): number | null =>
   value == null ? null : typeof value === 'number' ? value : value.id
 
+/**
+ * The visitor's rights on the map, worked out in the browser from their
+ * own account (/api/users/me), by the server's rule (src/access/maps.ts):
+ * staff and cartographers draw anywhere, mayors inside their towns, and
+ * map views are for staff, cartographers and anyone granted a context to
+ * write in. The pages themselves are cached for everyone alike, so this is
+ * the only thing about a visitor the map needs.
+ */
+export function mapRightsOf(user: unknown): MapRights {
+  const account = user as {
+    id?: number
+    name?: string
+    role?: string | null
+    cartographer?: boolean | null
+    mayorOf?: (number | { id: number })[] | null
+    contextAccess?: { context?: number | { id: number } | null; level?: string | null }[] | null
+  } | null
+  if (!account || typeof account.id !== 'number') return NO_RIGHTS
+  const anywhere = account.role === 'editor' || account.role === 'admin' || Boolean(account.cartographer)
+  const towns = (account.mayorOf ?? []).map(idOf).filter((id): id is number => id !== null)
+  const views =
+    anywhere || (account.contextAccess ?? []).some((grant) => idOf(grant.context) !== null && Boolean(grant.level))
+  return { user: { id: account.id, name: account.name ?? '' }, anywhere, towns, views }
+}
+
 const pathOf = (value: unknown): Point[] | null =>
   Array.isArray(value) && value.length > 0 && value.every(isPoint) ? (value as Point[]) : null
 

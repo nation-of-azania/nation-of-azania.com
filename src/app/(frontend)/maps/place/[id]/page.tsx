@@ -6,6 +6,9 @@ import { spoken } from '@/maps/data'
 import { PLACE_CATEGORIES } from '@/maps/registry'
 import { findPlace, getArticlesAbout, getMapData } from '@/lib/maps'
 
+/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+export const revalidate = 60
+
 type Props = { params: Promise<{ id: string }> }
 
 const idOf = (raw: string) => (/^\d{1,9}$/.test(raw) ? Number(raw) : null)

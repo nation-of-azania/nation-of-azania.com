@@ -6,6 +6,9 @@ import { roadLength } from '@/maps/data'
 import { ROAD_KINDS } from '@/maps/registry'
 import { findRoad, getMapData } from '@/lib/maps'
 
+/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+export const revalidate = 60
+
 type Props = { params: Promise<{ id: string }> }
 
 const idOf = (raw: string) => (/^\d{1,9}$/.test(raw) ? Number(raw) : null)

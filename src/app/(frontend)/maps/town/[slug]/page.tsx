@@ -5,6 +5,9 @@ import { TownPanel } from '@/components/maps/panels/TownPanel'
 import { spoken } from '@/maps/data'
 import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } from '@/lib/maps'
 
+/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+export const revalidate = 60
+
 type Props = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

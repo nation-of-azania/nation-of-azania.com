@@ -1,7 +1,6 @@
 import type { MapViewData } from '@/maps/data'
 import type { Point, RoadShape } from '@/maps/geo'
 import type { Drawing, Ink, MapLayer, PlaceCategory, RoadKind, ViewAspect } from '@/maps/registry'
-import type { MapName } from '@/maps/source'
 
 /**
  * What the editor on /maps is doing, if anything: one of these at a time,
@@ -43,7 +42,6 @@ export type EventDraft = {
 export type ViewDraft = {
   title: string
   aspect: ViewAspect
-  map: MapName
   layers: MapLayer[]
   drawings: Drawing[]
 }
@@ -113,10 +111,9 @@ export const emptyEvent = (): EventDraft => ({
   point: null,
   article: null,
 })
-export const emptyView = (map: MapName, layers: MapLayer[]): ViewDraft => ({
+export const emptyView = (layers: MapLayer[]): ViewDraft => ({
   title: '',
   aspect: 'wide',
-  map,
   layers,
   drawings: [],
 })

@@ -1,12 +1,11 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
 import type { MapData, MapRights, MapTown, MapViewData } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
 import { pixelsPerBlock } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
-import type { MapName } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
@@ -51,7 +50,6 @@ export type SceneApi = {
 export type SceneProps = {
   data: MapData
   rights: MapRights
-  mapName: MapName
   layers: MapLayer[]
   showPast: boolean
   now: number
@@ -73,7 +71,7 @@ export type SceneProps = {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { mapName, initial, editor, onApi, onMove, onPointer, onEditor } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -292,7 +290,6 @@ export function MapScene(props: SceneProps) {
       cursor={wantsClicks ? 'crosshair' : undefined}
       initial={initial}
       interactive={!penning}
-      mapName={mapName}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onMove={onMove}
@@ -304,8 +301,13 @@ export function MapScene(props: SceneProps) {
   )
 }
 
-/** The nation, in order: claims under roads under places under events under highlights under the editor. */
-function Layers({
+/**
+ * The nation, in order: claims under roads under places under events under
+ * highlights under the editor. Memoised, so the shell's own re-renders (a
+ * sheet dragged, the clock's tick) don't redraw the overlay; it redraws
+ * when the view settles (useProjection) or when what it shows changes.
+ */
+const Layers = memo(function Layers({
   data,
   rights,
   layers,
@@ -424,4 +426,4 @@ function Layers({
       ) : null}
     </>
   )
-}
+})

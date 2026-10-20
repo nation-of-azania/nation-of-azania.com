@@ -1,5 +1,5 @@
 import { isCoordinate, type Point } from './geo'
-import { isMapName, type MapName } from './source'
+import type { MapName } from './source'
 import { MAP_LAYERS, type MapLayer } from './registry'
 
 /**
@@ -15,9 +15,11 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  * and the view itself travels in the query, on any of them:
  *
  *   ?at=<x>,<z>,<zoom>          centre and zoom (zoom 0 is the map's native scale, 2 px per block)
- *   &map=biomes                 the biome map
  *   &layers=towns,roads         which layers show (all, when absent)
  *   &view=<id>                  an article's map view, framed with its highlights
+ *
+ * Old links carried `&map=biomes` for the biome map, which is no longer
+ * drawn; the parameter is ignored, so they still open.
  */
 
 export type MapSelection =
@@ -97,18 +99,17 @@ export function decodeLayers(value: string | null | undefined): MapLayer[] | nul
 /** The map's state as a query, for sharing and for the Map block's mark. */
 export function mapsQuery({
   at,
-  map,
   layers,
   view,
 }: {
   at?: MapPosition | null
+  /** Accepted for the callers that still name a base map; there is only the one, so it isn't written. */
   map?: MapName | null
   layers?: MapLayer[] | null
   view?: number | null
 }): string {
   const query = new URLSearchParams()
   if (at) query.set('at', encodeAt(at))
-  if (map && map !== 'flat') query.set('map', map)
   if (layers && layers.length !== ALL_LAYERS.length) query.set('layers', layers.join(','))
   if (view) query.set('view', String(view))
   const text = query.toString()
@@ -118,6 +119,3 @@ export function mapsQuery({
 /** A link into Azania Maps at a spot, as the Map block's mark gives it. */
 export const mapsHref = (options: Parameters<typeof mapsQuery>[0], path = MAPS_PATH): string =>
   `${path}${mapsQuery(options)}`
-
-export const decodeMapName = (value: string | null | undefined): MapName =>
-  isMapName(value) ? value : 'flat'

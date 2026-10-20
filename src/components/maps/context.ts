@@ -31,6 +31,8 @@ export type MapsActions = {
   remove: (kind: 'place' | 'road' | 'event', id: number) => Promise<void>
   /** Whether the visitor may change a feature in this town (null: between towns). */
   mayEdit: (town: number | null) => boolean
+  /** After a save: have the cached pages regenerated, then fetch the fresh one. */
+  refresh: () => void
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)
