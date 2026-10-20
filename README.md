@@ -282,6 +282,21 @@ Cherry Blossom's rose, Fredoka and pink box where a context wears it. The
 embed's side bar (`theme-color`) is the design's colour, or the style's.
 Every public path has a card (`/og/times` is the front page's), an unknown
 one gets the nation's, and a Discord webhook can ask for one directly.
+Under a short headline the card sets the article's excerpt as a standfirst,
+as many lines as the room allows, so a one-line title doesn't leave the
+card half sand.
+
+A page of [Azania Maps](#azania-maps) unfurls as a clipping of the map
+itself (`src/lib/ogMaps.ts`, drawn by `src/components/og/maps.tsx`): the
+panel beside the picture, as the map shows it. A town's card frames its
+claims, with the ruler's head, `/t spawn <Town>` and Towny's figures; a
+place's has its pin, large, and its lines; a road's its whole course, picked
+out in gold; an event's its pennant beside a calendar leaf, the time in UTC;
+`/maps` itself the heartland with every town named. The picture is the same
+clipping `/mapclip` draws, at the card's size, with the roads and places
+around it; the towns' names are set over it. When the Rulercraft map isn't
+answering the card goes out without the picture — the sea, and a word — and
+is cached only briefly, like any card drawn without one of its pictures.
 
 The route runs in Node with `next/og` (Satori), so it reads the fonts as
 static TTFs committed under `src/app/(frontend)/og/fonts/` and fetches
@@ -387,24 +402,32 @@ centres on the town's home block, outlines its claims in the paper's colour
 the town's facts as the map records them — ruler, with their head; residents;
 nation; founded. Or give **x and z** to centre anywhere, with a town or
 without one. Zoom runs from *close* (about 150 blocks across) to *country*;
-the clipping can be wide, square or a banner, on the flat map or the biome
-map. Beneath it the figure sets the coordinates as a survey reference, with a
-*Copy* button that copies them as a `/tp` would take them, and a quiet link
-to the live map at the same spot.
+the clipping can be wide, square or a banner. Beneath it the figure sets the
+coordinates as a survey reference and the way there as a player has it:
+players have no `/tp`, only `/t spawn <town>`, so a town's figure offers
+`/t spawn GirlieTown` with a *Copy* button (and says when the town's spawn
+is private, for its residents alone), and a figure on coordinates names the
+nearest public spawn and the walk from its home block — "/t spawn Oasis,
+then 700 blocks east" (`src/maps/spawn.ts`, shared with the live map's
+panels) — then a quiet link to the live map at the same spot.
 
 The clipping itself is a JPEG from `/mapclip` (`src/app/(frontend)/mapclip`),
 stitched on demand from Dynmap's tiles by `src/lib/dynmap.ts` and cached at
 the CDN, so the map server sees about one request per clipping a day. Saving
 never waits on it: the block checks only that it was given a town name or a
 pair of coordinates. A town the map doesn't know, or a map that isn't
-answering, is said in the figure's frame; a broken image never appears.
+answering, is said in the figure's frame; a broken image never appears. When
+the map answers nothing at all, `/mapclip` says so (a 503, uncached) rather
+than hand out bare ground that would pass for sea.
 
 The block has two more settings, which tie it to [Azania Maps](#azania-maps):
 
 - **Map view.** Choose a view by its title and the block shows that view
   instead of a clipping: the frame its author set, the layers they chose
   (towns, places, roads, events) and the highlights they drew. The clipping
-  fields step aside.
+  fields step aside. Under the field, *Draw a new view on Azania Maps ↗*
+  opens the map (`/maps?draw=view`), and once a view is chosen *Edit this
+  view ↗* opens it there (`src/components/admin/MapViewLink.tsx`).
 - **Let readers move the map.** Off, the figure is a still picture, quickest
   to load and drawn without any map library: the clipping from `/mapclip`
   (which takes a `span` in blocks for a view's exact frame) under an SVG
@@ -419,7 +442,8 @@ Either way the figure carries a small **Azania Maps** mark in its corner
 that opens `/maps` at the same spot — with the view's highlights, when it
 shows one — and the survey line links Azania Maps beside the Rulercraft map.
 A view since deleted is said in the frame, and while the Rulercraft map is
-down the layers still show over a plain ground.
+down the layers still show over a plain ground, with a small plate in the
+frame's corner saying so in the paper's own voice (Cherry Blossom in hers).
 
 The `skin` block is a portrait of a player: their skin in an interactive
 viewer ([skinview3d](https://github.com/bs-community/skinview3d), the one
@@ -465,13 +489,15 @@ block's still picture on the server.
   description and events; a road's class and length; an event's time in the
   reader's own time zone, its place, host and article. These pages are
   rendered on the server, so links unfurl and search engines read them. The
-  map's own spot travels in the query — `?at=<x>,<z>,<zoom>`, `&map=biomes`,
+  map's own spot travels in the query — `?at=<x>,<z>,<zoom>`,
   `&layers=towns,roads`, `&view=<id>` for an article's view with its
   highlights — written as the map moves, so any address can be shared.
+  Every one of these pages has its own link-preview card, a clipping of the
+  map with the thing on it (see [Link previews](#link-previews)).
 - **Tools.** Search across towns, places, roads and events; layer toggles
-  and a legend; the flat or the biome map; the block under the pointer (the
-  centre, on a phone) with a copy as `/tp x y z`; the nation at a glance,
-  with the census's trend, on the map's own front.
+  and a legend; the block under the pointer (the centre, on a phone) with a
+  copy as `/tp x y z`; the nation at a glance, with the census's trend, on
+  the map's own front.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*
