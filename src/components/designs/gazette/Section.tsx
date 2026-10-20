@@ -6,10 +6,11 @@ import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { Crest } from '@/components/site/Crest'
 import { DocumentCard } from '@/components/site/DocumentCard'
 import { Emblem } from '@/components/site/Emblem'
+import { FeedLink } from '@/components/site/FeedLink'
 import { FlagTick } from '@/components/site/FlagTick'
 import { SectionHeading } from '@/components/site/SectionHeading'
 import { dress } from '@/components/styles'
-import { archiveHref, contextHref, emblemOf } from '@/lib/site'
+import { archiveHref, contextHref, emblemOf, feedHref } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
@@ -112,14 +113,21 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
           title="Latest"
           rule={!sparse}
           action={
-            top ? (
-              <Link
-                href={archiveHref(top)}
-                className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
+            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm font-medium">
+              {top ? (
+                <Link href={archiveHref(top)} className="text-sea-700 transition-colors hover:text-sea-600">
+                  The whole Gazette →
+                </Link>
+              ) : null}
+              {/* In the office's own ink and face: rose Fredoka under Cherry Blossom. */}
+              <FeedLink
+                href={feedHref(context)}
+                className="font-label text-(--accent-ink) transition-colors hover:text-sea-700"
+                title={`${context.name} as an RSS feed`}
               >
-                The whole Gazette →
-              </Link>
-            ) : null
+                Subscribe
+              </FeedLink>
+            </span>
           }
         />
         {latest.length > 0 ? (

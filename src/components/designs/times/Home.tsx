@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
+import { FeedLink } from '@/components/site/FeedLink'
 import { OpinionPortrait } from '@/components/times/OpinionPortrait'
 import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
@@ -13,7 +14,7 @@ import {
   resolveImage,
 } from '@/components/site/format'
 import { dress } from '@/components/styles'
-import { getArticleStyle } from '@/lib/site'
+import { feedHref, getArticleStyle } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
@@ -124,8 +125,16 @@ export async function Home({ top, pinned, latest }: HomeProps) {
       {/* More from the Times */}
       {rest.length > 0 ? (
         <section className="mt-12">
-          <p className="mb-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-news-500">
-            More from the Times
+          <p className="mb-7 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-news-500">
+            <span>More from the Times</span>
+            {/* The paper's feed, set like a standing notice in the margin of the grid. */}
+            <FeedLink
+              href={feedHref(top)}
+              className="text-cinnabar-700 transition-colors hover:text-lagoon-600"
+              title={`${top.name} as an RSS feed`}
+            >
+              Subscribe
+            </FeedLink>
           </p>
           <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
             {rest.map((article) => (

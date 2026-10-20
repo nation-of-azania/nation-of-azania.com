@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
-import { archiveHref, contextHref, type SiteNav } from '@/lib/site'
+import { FeedLink } from '@/components/site/FeedLink'
+import { archiveHref, contextHref, feedHref, type SiteNav } from '@/lib/site'
 
 import { IntlMark } from './IntlMark'
 
@@ -43,6 +44,11 @@ export function IntlFooter({ nav }: { nav: SiteNav }) {
                 </Link>
               </li>
             ))}
+            <li>
+              <FeedLink href={feedHref(nav.top)} className={LINK} title={`${nav.top.name} as an RSS feed`}>
+                RSS feed
+              </FeedLink>
+            </li>
           </ul>
         </nav>
         <nav aria-label="The host">

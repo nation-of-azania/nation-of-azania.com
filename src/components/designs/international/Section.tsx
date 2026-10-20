@@ -7,7 +7,8 @@ import { IntlMark } from '@/components/intl/IntlMark'
 import { RecordList } from '@/components/intl/IntlRecord'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { Emblem } from '@/components/site/Emblem'
-import { archiveHref, emblemOf } from '@/lib/site'
+import { FeedLink } from '@/components/site/FeedLink'
+import { archiveHref, emblemOf, feedHref } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
@@ -87,11 +88,16 @@ export function Section({ context, chain, subContexts, pages, pinned, latest }: 
           id="records"
           label="Records"
           action={
-            top ? (
-              <Link href={archiveHref(top)} className={INTL_ACTION}>
-                The full register →
-              </Link>
-            ) : null
+            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+              {top ? (
+                <Link href={archiveHref(top)} className={INTL_ACTION}>
+                  The full register →
+                </Link>
+              ) : null}
+              <FeedLink href={feedHref(context)} className={INTL_ACTION} title={`${context.name} as an RSS feed`}>
+                Feed
+              </FeedLink>
+            </span>
           }
         />
         <RecordList

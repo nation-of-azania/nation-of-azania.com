@@ -12,6 +12,7 @@ import type { ReactNode } from 'react'
 
 import { CARD, DESIGN_THEME } from '@/components/og/tokens'
 import { slotVars } from '@/components/styles/slots'
+import { SITE_FEED_HREF, SITE_FEED_TITLE } from '@/lib/site'
 
 import './globals.css'
 
@@ -87,6 +88,9 @@ export const metadata: Metadata = {
   description:
     'The Nation of Azania on the Rulercraft realm — the Azania Gazette, official record of the Chancellery, and the independent Azanian Times.',
   icons: { icon: '/favicon.ico' },
+  // The site-wide feed, for pages outside a publication (sign-in, the
+  // account); a publication's pages name their own feeds first.
+  alternates: { types: { 'application/rss+xml': [{ url: SITE_FEED_HREF, title: SITE_FEED_TITLE }] } },
   // Pages of a publication set their own card (src/app/(frontend)/[top]/[[...rest]]/page.tsx);
   // sign-in and a missing page unfurl as the nation itself.
   openGraph: {
