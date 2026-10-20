@@ -3,15 +3,24 @@ import { PlaceGlyph } from '@/maps/icons'
 import { GROUND, GROUP_COLOURS } from '@/maps/palette'
 import { PLACE_CATEGORIES } from '@/maps/registry'
 
-import { halo, inBounds, LabelPlacer, pathOf, textWidth, type Projection } from './projection'
+import {
+  halo,
+  inBounds,
+  labelBeside,
+  LabelPlacer,
+  pathOf,
+  textWidth,
+  type Projection,
+  type Rect,
+} from './projection'
 
 type Props = {
   projection: Projection
   places: MapPlace[]
-  placer: LabelPlacer
+  /** Where the plan put each place's name (./labels.ts); none without it. */
+  labels?: Map<number, PlaceName>
   selected?: number | null
   onSelect?: (place: MapPlace) => void
-  labels?: boolean
 }
 
 /** Pixels across a cluster's cell: places closer than this merge from afar. */
@@ -20,8 +29,108 @@ const CELL = 56
 /** The pin's disc: a 14 px glyph in a 24 px disc. */
 const PIN = 12
 
+/** Names show from this zoom. */
+const NAMED_FROM = 0.5
+
 export const placeColour = (place: Pick<MapPlace, 'category'>) =>
   GROUP_COLOURS[PLACE_CATEGORIES[place.category]?.group ?? 'other']
+
+/** A pin as it will be drawn: the place (the one that stands for a cluster), where, and how big. */
+export type PlacedPin = {
+  place: MapPlace
+  x: number
+  y: number
+  scale: number
+  /** Every place in the pin: more than one from afar, where they merge. */
+  group: MapPlace[]
+}
+
+/** A place's name, placed: the text's anchor and position. */
+export type PlaceName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number }
+
+/**
+ * Where the pins go at this zoom, before anything is drawn: from afar,
+ * counted into clusters so a busy town reads as "12" rather than a smear;
+ * nearer, each place its own pin. Null when too far out for any. Shared
+ * by the drawing and by the label plan (./labels.ts), so names never land
+ * on a pin.
+ */
+export function placePins(
+  projection: Projection,
+  places: MapPlace[],
+  selected: number | null = null,
+): { clustered: boolean; items: PlacedPin[] } | null {
+  const { zoom, bounds } = projection
+  if (zoom < -3.5) return null
+  const visible = places.filter((place) => inBounds(bounds, place.point))
+
+  if (zoom < -1.5) {
+    const cells = new Map<string, MapPlace[]>()
+    for (const place of visible) {
+      const [x, y] = projection.project(place.point)
+      const key = `${Math.floor(x / CELL)}:${Math.floor(y / CELL)}`
+      cells.set(key, [...(cells.get(key) ?? []), place])
+    }
+    return {
+      clustered: true,
+      items: [...cells.values()].map((group) => {
+        const chosen = group.find((place) => place.id === selected) ?? group[0]
+        const [x, y] = group
+          .reduce(
+            ([sx, sy], place) => {
+              const [px, py] = projection.project(place.point)
+              return [sx + px, sy + py]
+            },
+            [0, 0],
+          )
+          .map((sum) => sum / group.length)
+        return { place: chosen, x, y, scale: group.length === 1 ? 0.6 : 1, group }
+      }),
+    }
+  }
+
+  const scale = zoom < -0.5 ? 0.8 : 1
+  // The selected place first, so its name is placed before the rest.
+  const ordered = [...visible].sort((a, b) => Number(b.id === selected) - Number(a.id === selected))
+  return {
+    clustered: false,
+    items: ordered.map((place) => {
+      const [x, y] = projection.project(place.point)
+      return { place, x, y, scale: place.id === selected ? scale * 1.2 : scale, group: [place] }
+    }),
+  }
+}
+
+/** The box a pin takes, which no label may cover. */
+export const pinRect = ({ x, y, scale }: PlacedPin): Rect => {
+  const r = PIN * scale + 1
+  return { x: x - r, y: y - r, width: r * 2, height: r * 2 }
+}
+
+/**
+ * Finds each place's name a spot beside its pin — to the right, else the
+ * left, below or above — close in; part of the label plan (./labels.ts).
+ * The selected place keeps its name whatever the crowd.
+ */
+export function placePlaceNames(
+  projection: Projection,
+  pins: PlacedPin[],
+  placer: LabelPlacer,
+  selected: number | null = null,
+): Map<number, PlaceName> {
+  const placed = new Map<number, PlaceName>()
+  if (projection.zoom < NAMED_FROM) return placed
+  const fontSize = 12
+  for (const { place, x, y, scale } of pins) {
+    const width = textWidth(place.name, fontSize)
+    const candidates = (['right', 'left', 'below', 'above'] as const).map((side) =>
+      labelBeside(x, y, width, fontSize, side, PIN * scale + 4),
+    )
+    const spot = placer.tryPlace(candidates) ?? (place.id === selected ? candidates[0] : null)
+    if (spot) placed.set(place.id, { anchor: spot.anchor, tx: spot.tx, ty: spot.ty })
+  }
+  return placed
+}
 
 /**
  * A place's pin: a disc in its group's colour with the category's glyph in
@@ -57,74 +166,41 @@ export function PlacePin({
 }
 
 /**
- * Places: from afar, counted into clusters so a busy town reads as "12"
- * rather than a smear; nearer, each a pin with its glyph; close in, the
- * names appear beside the pins where they fit, and a building's outline is
- * drawn under it.
+ * Places: from afar, clusters with a count; nearer, each a pin with its
+ * glyph; close in, the names beside the pins where the plan found room,
+ * and a building's outline drawn under it. A pin without a name shows it
+ * on hover.
  */
-export function PlacesLayer({
-  projection,
-  places,
-  placer,
-  selected,
-  onSelect,
-  labels = true,
-}: Props) {
-  const { zoom, bounds } = projection
+export function PlacesLayer({ projection, places, labels, selected, onSelect }: Props) {
+  const { zoom } = projection
   const interactive = Boolean(onSelect)
-  if (zoom < -3.5) return null
-  const visible = places.filter((place) => inBounds(bounds, place.point))
+  const pins = placePins(projection, places, selected)
+  if (!pins) return null
   const fontSize = 12
 
-  // Far out: clusters, except the selected place, which always shows.
-  if (zoom < -1.5) {
-    const cells = new Map<string, MapPlace[]>()
-    for (const place of visible) {
-      const [x, y] = projection.project(place.point)
-      const key = `${Math.floor(x / CELL)}:${Math.floor(y / CELL)}`
-      cells.set(key, [...(cells.get(key) ?? []), place])
-    }
+  if (pins.clustered) {
     return (
       <g className="az-places">
-        {[...cells.values()].map((group) => {
-          const chosen = group.find((place) => place.id === selected) ?? group[0]
-          const [x, y] = group
-            .reduce(
-              ([sx, sy], place) => {
-                const [px, py] = projection.project(place.point)
-                return [sx + px, sy + py]
-              },
-              [0, 0],
-            )
-            .map((sum) => sum / group.length)
-          if (group.length === 1) {
-            return (
-              <g
-                key={chosen.id}
-                className={interactive ? 'az-hit' : undefined}
-                onClick={onSelect ? () => onSelect(chosen) : undefined}
-                style={interactive ? { cursor: 'pointer' } : undefined}
-              >
-                <title>{chosen.name}</title>
-                <PlacePin
-                  place={chosen}
-                  scale={0.6}
-                  selected={selected === chosen.id}
-                  x={x}
-                  y={y}
-                />
-              </g>
-            )
-          }
-          return (
+        {pins.items.map(({ place, x, y, scale, group }) =>
+          group.length === 1 ? (
             <g
-              key={`cluster-${chosen.id}`}
+              key={place.id}
               className={interactive ? 'az-hit' : undefined}
-              onClick={onSelect ? () => onSelect(chosen) : undefined}
+              onClick={onSelect ? () => onSelect(place) : undefined}
+              style={interactive ? { cursor: 'pointer' } : undefined}
+            >
+              <title>{place.name}</title>
+              <PlacePin place={place} scale={scale} selected={selected === place.id} x={x} y={y} />
+            </g>
+          ) : (
+            <g
+              key={`cluster-${place.id}`}
+              className={interactive ? 'az-hit' : undefined}
+              onClick={onSelect ? () => onSelect(place) : undefined}
               style={interactive ? { cursor: 'pointer' } : undefined}
               transform={`translate(${x} ${y})`}
             >
-              <title>{group.map((place) => place.name).join(', ')}</title>
+              <title>{group.map((member) => member.name).join(', ')}</title>
               <circle fill={GROUND.sea800} r={12} stroke={GROUND.whitewash} strokeWidth={2} />
               <text
                 className="font-label"
@@ -137,22 +213,18 @@ export function PlacesLayer({
                 {group.length}
               </text>
             </g>
-          )
-        })}
+          ),
+        )}
       </g>
     )
   }
 
-  const scale = zoom < -0.5 ? 0.8 : 1
-  const named = labels && zoom >= 0.5
   const outlined = zoom >= 1
-  // The selected place labels first, then the rest in order.
-  const ordered = [...visible].sort((a, b) => Number(b.id === selected) - Number(a.id === selected))
 
   return (
     <g className="az-places">
       {outlined
-        ? ordered.map((place) =>
+        ? pins.items.map(({ place }) =>
             place.outline ? (
               <path
                 key={`outline-${place.id}`}
@@ -167,49 +239,29 @@ export function PlacesLayer({
             ) : null,
           )
         : null}
-      {ordered.map((place) => {
-        const [x, y] = projection.project(place.point)
+      {pins.items.map(({ place, x, y, scale }) => {
         const isSelected = selected === place.id
-        const width = textWidth(place.name, fontSize)
-        const labelRect = {
-          x: x + PIN * scale + 4,
-          y: y - fontSize / 2 - 3,
-          width: width + 6,
-          height: fontSize + 6,
-        }
-        const pinRect = {
-          x: x - PIN * scale,
-          y: y - PIN * scale,
-          width: PIN * scale * 2,
-          height: PIN * scale * 2,
-        }
-        placer.claim(pinRect)
-        const showLabel = named && (isSelected || placer.tryClaim(labelRect))
+        const name = labels?.get(place.id) ?? null
         return (
           <g
             key={place.id}
             className={interactive ? 'az-hit az-place' : 'az-place'}
-            data-labelled={showLabel ? '' : undefined}
+            data-labelled={name ? '' : undefined}
             onClick={onSelect ? () => onSelect(place) : undefined}
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
-            {!showLabel ? <title>{place.name}</title> : null}
-            <PlacePin
-              place={place}
-              scale={isSelected ? scale * 1.2 : scale}
-              selected={isSelected}
-              x={x}
-              y={y}
-            />
+            {!name ? <title>{place.name}</title> : null}
+            <PlacePin place={place} scale={scale} selected={isSelected} x={x} y={y} />
             <text
               className="font-body az-place-label"
               dy={fontSize * 0.36}
               fill={GROUND.ink}
               fontSize={fontSize}
               fontWeight={600}
-              opacity={showLabel ? 1 : 0}
-              x={x + PIN * scale + 6}
-              y={y}
+              opacity={name ? 1 : 0}
+              textAnchor={name?.anchor ?? 'start'}
+              x={name?.tx ?? x + PIN * scale + 6}
+              y={name?.ty ?? y}
               {...halo(GROUND.whitewash, 3)}
             >
               {place.name}

@@ -1,6 +1,17 @@
 import type { Event, MapView, Place, Road, Town } from '@/payload-types'
 
-import { boundsOf, isPoint, outlineToRing, type Bounds, type Outline, type Point } from './geo'
+import {
+  boundsOf,
+  isPoint,
+  outlineToRing,
+  outlinesChunks,
+  pathLength,
+  roadCourse,
+  type Bounds,
+  type Outline,
+  type Point,
+  type RoadShape,
+} from './geo'
 import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
@@ -30,6 +41,8 @@ export type MapTown = {
   residents: number
   chunks: number
   founded: string | null
+  /** Towny's "Public Teleport": whether any player may `/t spawn` here; null when the map doesn't say. */
+  publicSpawn: boolean | null
   home: Point | null
   claims: Outline[]
   /** Of the claims, for culling and fitting. */
@@ -51,7 +64,11 @@ export type MapRoad = {
   id: number
   name: string | null
   kind: RoadKind
+  /** The points as drawn; the course between them is `shape`'s (see roadPoints). */
   line: Point[]
+  shape: RoadShape
+  /** In a curved road, the points kept as sharp turns, by index. */
+  corners: number[]
   town: number | null
 }
 
@@ -132,6 +149,7 @@ export function mapTown(town: Town): MapTown {
     residents: town.residentCount ?? 0,
     chunks: town.chunks ?? 0,
     founded: town.founded ?? null,
+    publicSpawn: typeof town.publicSpawn === 'boolean' ? town.publicSpawn : null,
     home,
     claims,
     bounds: boundsOf(claims.flatMap(outlineToRing)),
@@ -160,9 +178,25 @@ export function mapRoad(road: Road): MapRoad | null {
     name: road.name ?? null,
     kind: road.kind in ROAD_KINDS ? road.kind : 'street',
     line,
+    shape: road.shape === 'curved' ? 'curved' : 'straight',
+    corners: Array.isArray(road.corners)
+      ? road.corners.filter((index): index is number => Number.isInteger(index))
+      : [],
     town: idOf(road.town),
   }
 }
+
+/**
+ * The course a road takes, as the map draws it and the server judges it
+ * (src/maps/geo.ts → roadCourse): its own points when straight, a polyline
+ * along the curve when curved.
+ */
+export const roadPoints = (road: Pick<MapRoad, 'line' | 'shape' | 'corners'>): Point[] =>
+  roadCourse(road.line, road.shape, road.corners)
+
+/** A road's length in blocks, along its course. */
+export const roadLength = (road: Pick<MapRoad, 'line' | 'shape' | 'corners'>): number =>
+  pathLength(roadPoints(road))
 
 export function mapEvent(event: Event): MapEvent | null {
   if (!isPoint([event.point?.x, event.point?.z])) return null
@@ -201,14 +235,6 @@ export function mapView(view: MapView): MapViewData | null {
 /** "Cape_Agulhas" as Towny spells it, "Cape Agulhas" as a reader says it. */
 export const spoken = (name: string): string => name.replace(/_/g, ' ')
 
-/** Length of a line in blocks. */
-export function lineLength(line: Point[]): number {
-  let total = 0
-  for (let i = 1; i < line.length; i++)
-    total += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1])
-  return total
-}
-
 /** A town's centre: its home block, else the middle of its claims. */
 export const townCentre = (town: MapTown): Point | null =>
   town.home ??
@@ -216,19 +242,96 @@ export const townCentre = (town: MapTown): Point | null =>
     ? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2]
     : null)
 
+/** The claim of a town that holds its home block, if one does. */
+export function homeClaim(town: MapTown): Outline | null {
+  if (!town.home) return null
+  const [hx, hz] = town.home
+  return (
+    town.claims.find((claim) => {
+      const b = boundsOf(outlineToRing(claim))
+      return b && hx >= b.minX && hx <= b.maxX && hz >= b.minZ && hz <= b.maxZ
+    }) ?? null
+  )
+}
+
 /**
  * The claim of a town that holds its home: the main settlement, as against
  * far-flung outposts. The whole town, when the home lies in none.
  */
 export function homeClaimBounds(town: MapTown): Bounds | null {
-  if (!town.home) return town.bounds
-  const [hx, hz] = town.home
-  const holding = town.claims.find((claim) => {
-    const ring = outlineToRing(claim)
-    const b = boundsOf(ring)
-    return b && hx >= b.minX && hx <= b.maxX && hz >= b.minZ && hz <= b.maxZ
-  })
+  const holding = homeClaim(town)
   return holding ? boundsOf(outlineToRing(holding)) : town.bounds
+}
+
+export type Outpost = { bounds: Bounds; chunks: number; centre: Point }
+
+/**
+ * A town's outposts: Towny claims away from the one holding the home block
+ * (Patown's main claim is near (-15368, 2008), its outposts elsewhere),
+ * largest first. Empty for a town in one piece.
+ */
+export function outpostsOf(town: MapTown): Outpost[] {
+  const main = homeClaim(town)
+  if (!main) return []
+  return town.claims
+    .filter((claim) => claim !== main)
+    .map((claim) => {
+      const bounds = boundsOf(outlineToRing(claim))!
+      return {
+        bounds,
+        chunks: outlinesChunks([claim]),
+        centre: [(bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2] as Point,
+      }
+    })
+    .sort((a, b) => b.chunks - a.chunks)
+}
+
+/** "/t spawn GirlieTown": the way players actually travel, Towny's town spawn. */
+export const spawnCommand = (town: Pick<MapTown, 'name'>): string => `/t spawn ${town.name}`
+
+/** The compass direction from one block to another, as a player reads it off F3: x grows east, z south. */
+export function compassDirection(from: Point, to: Point): string {
+  const names = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west']
+  const angle = (Math.atan2(to[0] - from[0], from[1] - to[1]) * 180) / Math.PI
+  return names[Math.round(((angle + 360) % 360) / 45) % 8]
+}
+
+export type SpawnRoute = {
+  town: MapTown
+  /** Blocks from the town's home block, as the crow flies. */
+  distance: number
+  /** "north-east", from the home block. */
+  direction: string
+  /** "then 40 blocks north-east"; empty at the spawn itself. */
+  walk: string
+}
+
+/**
+ * How a player gets to a spot: the nearest town's spawn and the walk from
+ * its home block. A public spawn is preferred over a private one that is
+ * nearer, within reason (twice the distance, or 500 blocks more); when the
+ * nearest spawn is private all the same, the caller says so.
+ */
+export function spawnRoute(towns: MapTown[], point: Point): SpawnRoute | null {
+  const reach = (town: MapTown) => Math.hypot(point[0] - town.home![0], point[1] - town.home![1])
+  const homed = towns.filter((town) => town.home).sort((a, b) => reach(a) - reach(b))
+  if (homed.length === 0) return null
+  const nearest = homed[0]
+  const open = homed.find((town) => town.publicSpawn !== false)
+  const chosen =
+    nearest.publicSpawn === false &&
+    open &&
+    reach(open) <= Math.max(reach(nearest) * 2, reach(nearest) + 500)
+      ? open
+      : nearest
+  const distance = Math.round(reach(chosen))
+  const direction = compassDirection(chosen.home!, point)
+  return {
+    town: chosen,
+    distance,
+    direction,
+    walk: distance < 8 ? '' : `then ${distance.toLocaleString('en-GB')} blocks ${direction}`,
+  }
 }
 
 /**

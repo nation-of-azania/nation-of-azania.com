@@ -65,7 +65,7 @@ export function TownPanel({
             </p>
           </div>
         </div>
-        {town.home ? <Survey className="mt-3" point={town.home} y={64} /> : null}
+        {town.home ? <Survey className="mt-3" point={town.home} town={town} y={64} /> : null}
       </PanelHead>
 
       <div className="mt-4 px-4">

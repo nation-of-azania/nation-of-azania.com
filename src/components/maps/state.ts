@@ -1,5 +1,5 @@
 import type { MapViewData } from '@/maps/data'
-import type { Point } from '@/maps/geo'
+import type { Point, RoadShape } from '@/maps/geo'
 import type { Drawing, Ink, MapLayer, PlaceCategory, RoadKind, ViewAspect } from '@/maps/registry'
 import type { MapName } from '@/maps/source'
 
@@ -19,7 +19,15 @@ export type PlaceDraft = {
   outline: Point[]
 }
 
-export type RoadDraft = { name: string; kind: RoadKind; line: Point[] }
+export type RoadDraft = {
+  name: string
+  kind: RoadKind
+  line: Point[]
+  /** Straight from point to point (the everyday choice), or curved smoothly through them. */
+  shape: RoadShape
+  /** In a curved road, the points kept as sharp turns, by index. */
+  corners: number[]
+}
 
 export type EventDraft = {
   title: string
@@ -88,7 +96,13 @@ export const emptyPlace = (): PlaceDraft => ({
   point: null,
   outline: [],
 })
-export const emptyRoad = (): RoadDraft => ({ name: '', kind: 'street', line: [] })
+export const emptyRoad = (): RoadDraft => ({
+  name: '',
+  kind: 'street',
+  line: [],
+  shape: 'straight',
+  corners: [],
+})
 export const emptyEvent = (): EventDraft => ({
   title: '',
   description: '',

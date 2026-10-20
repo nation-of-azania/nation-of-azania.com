@@ -84,7 +84,13 @@ export function useProjection(id = 'map'): Projection {
   const { map, version } = useLeaflet()
   return useMemo(() => {
     const zoom = map.getZoom()
-    const bounds = map.getBounds().pad(0.3)
+    const toBounds = (b: L.LatLngBounds): Bounds => ({
+      minX: b.getWest(),
+      maxX: b.getEast(),
+      minZ: b.getSouth(),
+      maxZ: b.getNorth(),
+    })
+    const view = map.getBounds()
     return {
       project: ([x, z]: Point) => {
         const p = map.latLngToLayerPoint(L.latLng(z, x))
@@ -92,12 +98,8 @@ export function useProjection(id = 'map'): Projection {
       },
       ppb: pixelsPerBlock(zoom),
       zoom,
-      bounds: {
-        minX: bounds.getWest(),
-        maxX: bounds.getEast(),
-        minZ: bounds.getSouth(),
-        maxZ: bounds.getNorth(),
-      },
+      bounds: toBounds(view.pad(0.3)),
+      view: toBounds(view),
       id,
     }
     // version is the signal that the map has moved.

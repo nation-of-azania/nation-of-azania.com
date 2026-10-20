@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { RoadPanel } from '@/components/maps/panels/RoadPanel'
-import { lineLength } from '@/maps/data'
+import { roadLength } from '@/maps/data'
 import { ROAD_KINDS } from '@/maps/registry'
 import { findRoad, getMapData } from '@/lib/maps'
 
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const road = idOf(id) != null ? findRoad(await getMapData(), idOf(id)!) : null
   if (!road) return { title: 'Not on the map' }
   const title = road.name ?? 'Unnamed road'
-  const description = `${ROAD_KINDS[road.kind].label} on Azania Maps, ${Math.round(lineLength(road.line)).toLocaleString('en-GB')} blocks long.`
+  const description = `${ROAD_KINDS[road.kind].label} on Azania Maps, ${Math.round(roadLength(road)).toLocaleString('en-GB')} blocks long.`
   return { title, description, openGraph: { title, description, url: `/maps/road/${road.id}` } }
 }
 

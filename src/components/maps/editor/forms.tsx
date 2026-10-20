@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { lineLength, spoken, type MapPlace } from '@/maps/data'
+import { roadLength, spoken, type MapPlace } from '@/maps/data'
 import { PlaceIcon } from '@/maps/icons'
 import { GROUP_COLOURS } from '@/maps/palette'
 import {
@@ -274,7 +274,7 @@ export function RoadForm({
   const [error, setError] = useState<string | null>(null)
   const ok = withinRights(draft.line, data, rights)
   const canSave = draft.line.length >= 2 && ok
-  const length = Math.round(lineLength(draft.line))
+  const length = Math.round(roadLength(draft))
 
   const save = async () => {
     setBusy(true)
@@ -284,6 +284,8 @@ export function RoadForm({
         name: draft.name.trim() || undefined,
         kind: draft.kind,
         line: draft.line,
+        shape: draft.shape,
+        corners: draft.shape === 'curved' ? draft.corners : [],
       })
       onSaved('road', road)
     } catch (caught) {

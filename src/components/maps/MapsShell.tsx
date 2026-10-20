@@ -116,9 +116,11 @@ function describe(
 function PointerReadout({
   store,
   centre,
+  towns,
 }: {
   store: ReturnType<typeof createStore<Point | null>>
   centre: Point | null
+  towns: MapTown[]
 }) {
   const pointer = useStore(store)
   return (
@@ -126,6 +128,7 @@ function PointerReadout({
       className="pointer-events-auto"
       hint={pointer ? 'Under the pointer' : 'Centre'}
       point={pointer ?? centre}
+      towns={towns}
     />
   )
 }
@@ -380,7 +383,13 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
       openEditor({
         kind: 'road',
         id: road.id,
-        draft: { name: road.name ?? '', kind: road.kind, line: road.line },
+        draft: {
+          name: road.name ?? '',
+          kind: road.kind,
+          line: road.line,
+          shape: road.shape,
+          corners: road.corners,
+        },
         drawing: false,
         vertex: null,
       }),
@@ -660,7 +669,11 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
               <div className="flex w-full items-end justify-between gap-3">
-                <PointerReadout centre={position?.centre ?? null} store={pointerStore} />
+                <PointerReadout
+                  centre={position?.centre ?? null}
+                  store={pointerStore}
+                  towns={data.towns}
+                />
                 <WhatsOnStrip
                   className="pointer-events-auto w-full max-w-2xl"
                   data={data}
@@ -710,7 +723,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
             state={sheet}
           >
             <div className="flex items-center justify-between border-b border-sand-300 px-4 py-2">
-              <Coordinates hint="Centre" point={position?.centre ?? null} />
+              <Coordinates hint="Centre" point={position?.centre ?? null} towns={data.towns} />
               {account}
             </div>
             {panel}

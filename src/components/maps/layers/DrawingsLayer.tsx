@@ -2,7 +2,7 @@ import type { Point } from '@/maps/geo'
 import { INK_COLOURS } from '@/maps/palette'
 import type { Drawing } from '@/maps/registry'
 
-import { halo, pathOf, type Projection } from './projection'
+import { halo, LabelPlacer, pathOf, textWidth, type Projection, type Rect } from './projection'
 
 type Props = {
   projection: Projection
@@ -14,10 +14,52 @@ type Props = {
 
 export const STROKE_WIDTHS = { 1: 2.5, 2: 4, 3: 6 } as const
 
+/** The size of a highlight's words. */
+const FONT = 15
+
 /** The centroid of a ring, for its label. */
 export function centroid(points: Point[]): Point {
   const n = points.length
   return [points.reduce((s, [x]) => s + x, 0) / n, points.reduce((s, [, z]) => s + z, 0) / n]
+}
+
+/**
+ * The boxes the highlights' pins and words take, claimed before the map's
+ * own labels are placed (./labels.ts): what a writer drew for an article
+ * outranks the names the map would put there itself.
+ */
+export function reserveDrawings(placer: LabelPlacer, projection: Projection, drawings: Drawing[]): void {
+  const words = (text: string, x: number, y: number, anchor: 'middle' | 'start'): Rect => {
+    const width = textWidth(text, FONT) + 8
+    return { x: anchor === 'middle' ? x - width / 2 : x - 4, y: y - FONT, width, height: FONT + 8 }
+  }
+  for (const drawing of drawings) {
+    switch (drawing.kind) {
+      case 'line': {
+        if (!drawing.label) break
+        const [x, y] = projection.project(drawing.points[drawing.points.length - 1])
+        placer.claim(words(drawing.label, x, y - STROKE_WIDTHS[drawing.weight ?? 2] - 6, 'middle'))
+        break
+      }
+      case 'area': {
+        if (!drawing.label) break
+        const [x, y] = projection.project(centroid(drawing.points))
+        placer.claim(words(drawing.label, x, y + FONT * 0.36, 'middle'))
+        break
+      }
+      case 'pin': {
+        const [x, y] = projection.project(drawing.at)
+        placer.claim({ x: x - 10, y: y - 27, width: 20, height: 28 })
+        if (drawing.label) placer.claim(words(drawing.label, x + 12, y - 16 + FONT * 0.36, 'start'))
+        break
+      }
+      case 'text': {
+        const [x, y] = projection.project(drawing.at)
+        placer.claim(words(drawing.text, x, y + FONT * 0.36, 'middle'))
+        break
+      }
+    }
+  }
 }
 
 /** An arrowhead at the end of a line, as a filled triangle in the same ink. */
@@ -75,7 +117,7 @@ export function HighlightPin({
  */
 export function DrawingsLayer({ projection, drawings, selected, onSelect }: Props) {
   const interactive = Boolean(onSelect)
-  const fontSize = 15
+  const fontSize = FONT
   return (
     <g className="az-drawings">
       {drawings.map((drawing, index) => {

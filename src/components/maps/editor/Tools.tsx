@@ -386,9 +386,8 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
         <g className="az-tools">
           {draft.line.length >= 2 ? (
             <RoadsLayer
-              labels={false}
               projection={projection}
-              roads={[{ id: -1, name: draft.name, kind: draft.kind, line: draft.line, town: null }]}
+              roads={[{ id: -1, ...draft, name: draft.name || null, town: null }]}
             />
           ) : null}
           {draft.line.length >= 1 ? (

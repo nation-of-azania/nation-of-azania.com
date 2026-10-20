@@ -1,5 +1,5 @@
-import { lineLength, type MapRoad } from '@/maps/data'
-import { boundsOf, type Point } from '@/maps/geo'
+import { roadPoints, type MapRoad } from '@/maps/data'
+import { boundsOf, pathLength, type Point } from '@/maps/geo'
 import { GROUND, ROAD_ORDER, ROAD_STYLES } from '@/maps/palette'
 
 import { boundsTouch, halo, LabelPlacer, pathOf, textWidth, type Projection } from './projection'
@@ -7,21 +7,23 @@ import { boundsTouch, halo, LabelPlacer, pathOf, textWidth, type Projection } fr
 type Props = {
   projection: Projection
   roads: MapRoad[]
-  /** Keeps names off the towns' and places' labels; without one, names go wherever they fall. */
-  placer?: LabelPlacer
+  /** Where the plan put each road's name (./labels.ts); none without it. */
+  labels?: Map<number, RoadName>
   selected?: number | null
   onSelect?: (road: MapRoad) => void
-  labels?: boolean
 }
 
-/** The point halfway along a line, by length: where its name sits. */
-function midpoint(line: Point[]): Point {
-  const total = lineLength(line)
+/** A road's name, placed: how far along the course it sits, as a fraction. */
+export type RoadName = { offset: number }
+
+/** The point a fraction of the way along a line, by length. */
+function pointAlong(line: Point[], fraction: number): Point {
+  const target = pathLength(line) * fraction
   let walked = 0
   for (let i = 1; i < line.length; i++) {
     const step = Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1])
-    if (walked + step >= total / 2) {
-      const t = step === 0 ? 0 : (total / 2 - walked) / step
+    if (walked + step >= target) {
+      const t = step === 0 ? 0 : (target - walked) / step
       return [
         line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t,
         line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t,
@@ -37,60 +39,116 @@ const roadWidth = (road: MapRoad, ppb: number) => {
   return Math.min(style.maxPx, Math.max(style.minPx, style.blocks * ppb))
 }
 
-/** Points ordered so a name along them reads left to right. */
-const readable = (projection: Projection, road: MapRoad) => {
-  const [x0] = projection.project(road.line[0])
-  const [x1] = projection.project(road.line[road.line.length - 1])
-  return x1 < x0 ? [...road.line].reverse() : road.line
+/** Whether a course reads left to right as drawn; a name along it is set the other way otherwise. */
+const forwards = (projection: Projection, course: Point[]) =>
+  projection.project(course[course.length - 1])[0] >= projection.project(course[0])[0]
+
+/** Between two values as the zoom runs from `from` to `to`, held outside. */
+const ease = (zoom: number, from: number, to: number, a: number, b: number) =>
+  a + (b - a) * Math.min(1, Math.max(0, (zoom - from) / (to - from)))
+
+/** The roads on the page, in drawing order: the widest class last, so it lies on top at a crossing. */
+function onPage(projection: Projection, roads: MapRoad[]) {
+  const courses = new Map(roads.map((road) => [road.id, roadPoints(road)]))
+  const visible = roads.filter((road) => {
+    const b = boundsOf(courses.get(road.id)!)
+    return b && boundsTouch(b, projection.bounds)
+  })
+  return { courses, ordered: ROAD_ORDER.flatMap((kind) => visible.filter((road) => road.kind === kind)) }
+}
+
+const nameSize = (zoom: number) => (zoom >= 1.5 ? 12 : 11)
+
+/** Where along a road its name may sit, best first: the middle, then either side of it. */
+const OFFSETS = [0.5, 0.38, 0.62, 0.26, 0.74]
+
+/**
+ * Finds each road's name a spot along it, the widest class first, once
+ * the road is long enough on the page to carry it; part of the label plan
+ * (./labels.ts). Names show from street scale.
+ */
+export function placeRoadNames(
+  projection: Projection,
+  roads: MapRoad[],
+  placer: LabelPlacer,
+): Map<number, RoadName> {
+  const placed = new Map<number, RoadName>()
+  const { zoom, ppb } = projection
+  if (zoom < -0.5) return placed
+  const fontSize = nameSize(zoom)
+  const { courses, ordered } = onPage(projection, roads)
+  for (const road of [...ordered].reverse()) {
+    if (!road.name) continue
+    const course = courses.get(road.id)!
+    const width = textWidth(road.name, fontSize)
+    if (ppb * pathLength(course) < width + 40) continue
+    for (const offset of OFFSETS) {
+      const [x, y] = projection.project(pointAlong(course, offset))
+      if (placer.tryClaim({ x: x - width / 2, y: y - fontSize, width, height: fontSize * 2 })) {
+        placed.set(road.id, { offset })
+        break
+      }
+    }
+  }
+  return placed
 }
 
 /**
  * Roads the way a road map draws them: every casing first, then every fill,
  * so two roads that meet merge at the junction instead of one crossing the
  * other; the widest class on top. Widths follow the zoom with a floor, so
- * a lane is a hairline from afar and a proper street up close. A name
- * runs along the line once there's room for it.
+ * a lane is a hairline from afar and a proper street up close. The fills
+ * are translucent, a wash over the ground rather than paint on it, and
+ * more so the closer the reader comes, so the road as built shows through
+ * its own marking; the casing thins to a faint edge there, so a street up
+ * close is a ribbon down its middle, not a pill. A curved road follows its
+ * course (src/maps/geo.ts → roadCourse). A name runs along the line where
+ * the plan found it room.
  */
-export function RoadsLayer({
-  projection,
-  roads,
-  placer,
-  selected,
-  onSelect,
-  labels = true,
-}: Props) {
-  const { ppb, zoom, bounds, id } = projection
+export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Props) {
+  const { ppb, zoom, id } = projection
   const interactive = Boolean(onSelect)
-  const visible = roads.filter((road) => {
-    const b = boundsOf(road.line)
-    return b && boundsTouch(b, bounds)
-  })
-  const ordered = ROAD_ORDER.flatMap((kind) => visible.filter((road) => road.kind === kind))
-  const paths = new Map(ordered.map((road) => [road.id, pathOf(projection, road.line)]))
-  const fontSize = 11
+  const { courses, ordered } = onPage(projection, roads)
+  const paths = new Map(ordered.map((road) => [road.id, pathOf(projection, courses.get(road.id)!)]))
+  // From a road map's opaque strokes far out to a wash up close.
+  const fillOpacity = ease(zoom, -1, 2, 0.94, 0.55)
+  const casingOpacity = ease(zoom, -1, 2, 0.9, 0.4)
+  const edge = ease(zoom, 0, 2, 2, 1.2)
+  const fontSize = nameSize(zoom)
+  const chosen = selected != null ? ordered.find((road) => road.id === selected) : null
 
   return (
     <g className="az-roads">
-      <g className="az-road-casings">
+      <g className="az-road-casings" opacity={casingOpacity}>
         {ordered.map((road) => {
           const style = ROAD_STYLES[road.kind]
-          const width = roadWidth(road, ppb)
-          const isSelected = selected === road.id
-          if (!style.casing && !isSelected) return null
+          if (!style.casing) return null
           return (
             <path
               key={road.id}
               d={paths.get(road.id)}
               fill="none"
-              stroke={isSelected ? GROUND.saffron : (style.casing ?? 'none')}
+              stroke={style.casing}
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={width + (isSelected ? 5 : 2)}
+              strokeWidth={roadWidth(road, ppb) + edge}
             />
           )
         })}
       </g>
-      <g className="az-road-fills">
+      {chosen ? (
+        <path
+          d={paths.get(chosen.id)}
+          fill="none"
+          stroke={GROUND.saffron}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeOpacity={0.9}
+          strokeWidth={roadWidth(chosen, ppb) + 6}
+        />
+      ) : null}
+      {/* One opacity for the group, so two roads meeting don't darken where they overlap. */}
+      <g className="az-road-fills" opacity={fillOpacity}>
         {ordered.map((road) => {
           const style = ROAD_STYLES[road.kind]
           const width = roadWidth(road, ppb)
@@ -134,29 +192,19 @@ export function RoadsLayer({
           )
         })}
       </g>
-      {labels && zoom >= -0.5 ? (
+      {labels?.size ? (
         <g className="az-road-names">
           {ordered.map((road) => {
-            if (!road.name) return null
-            const width = textWidth(road.name, fontSize)
-            if (ppb * lineLength(road.line) < width + 40) return null
-            if (placer) {
-              const [mx, my] = projection.project(midpoint(road.line))
-              if (
-                !placer.tryClaim({
-                  x: mx - width / 2,
-                  y: my - fontSize,
-                  width,
-                  height: fontSize * 2,
-                })
-              )
-                return null
-            }
+            const name = labels.get(road.id)
+            if (!name || !road.name) return null
+            const course = courses.get(road.id)!
+            // Set left to right; a course drawn the other way is read backwards.
+            const ahead = forwards(projection, course)
             const pathId = `${id}-road-${road.id}`
             return (
               <g key={road.id}>
                 <defs>
-                  <path d={pathOf(projection, readable(projection, road))} id={pathId} />
+                  <path d={pathOf(projection, ahead ? course : [...course].reverse())} id={pathId} />
                 </defs>
                 <text
                   className="font-body"
@@ -167,7 +215,11 @@ export function RoadsLayer({
                   letterSpacing={0.4}
                   {...halo(GROUND.whitewash, 3)}
                 >
-                  <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
+                  <textPath
+                    href={`#${pathId}`}
+                    startOffset={`${((ahead ? name.offset : 1 - name.offset) * 100).toFixed(1)}%`}
+                    textAnchor="middle"
+                  >
                     {road.name}
                   </textPath>
                 </text>

@@ -15,8 +15,8 @@ import { Tools } from './editor/Tools'
 import { useLatest } from './hooks'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
+import { planLabels } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
-import { LabelPlacer } from './layers/projection'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import {
@@ -318,7 +318,6 @@ function Layers({
   onEditor,
 }: SceneProps) {
   const projection = useProjection('maps')
-  const placer = new LabelPlacer()
   const phases: EventPhase[] = showPast ? ['upcoming', 'now', 'past'] : ['upcoming', 'now']
   const selectedTown =
     selection?.kind === 'town'
@@ -331,17 +330,43 @@ function Layers({
   const viewLayers = viewing?.layers
   const show = (layer: MapLayer) =>
     layers.includes(layer) && (!viewLayers || viewLayers.includes(layer))
-  const labelled = new Set<number>()
   const selectTown = (town: MapTown) => onSelect({ kind: 'town', slug: town.slug })
+  // What's being edited is drawn by the tools, not by its layer.
+  const places =
+    editor?.kind === 'place' && editor.id
+      ? data.places.filter((place) => place.id !== editor.id)
+      : data.places
+  const roads =
+    editor?.kind === 'road' && editor.id
+      ? data.roads.filter((road) => road.id !== editor.id)
+      : data.roads
+  const events =
+    editor?.kind === 'event' && editor.id
+      ? data.events.filter((event) => event.id !== editor.id)
+      : data.events
+  const selectedPlace = selection?.kind === 'place' ? selection.id : null
+  const selectedEvent = selection?.kind === 'event' ? selection.id : null
+  // An article's highlights, shown or being drawn, outrank the map's own names.
+  const drawings =
+    editor?.kind === 'view' ? editor.draft.drawings : viewing ? viewing.drawings : []
+  const labels = planLabels(projection, {
+    drawings,
+    towns: show('towns') ? data.towns : [],
+    roads: show('roads') ? roads : [],
+    places: show('places') ? places : [],
+    events: show('events') ? events : [],
+    now,
+    phases,
+    selectedPlace,
+    selectedEvent,
+  })
 
   return (
     <>
       {show('towns') ? (
         <TownsLayer
           emphasised={emphasised}
-          labelled={labelled}
           onSelect={selectTown}
-          placer={placer}
           projection={projection}
           selected={selectedTown}
           towns={data.towns}
@@ -349,48 +374,36 @@ function Layers({
       ) : null}
       {show('roads') ? (
         <RoadsLayer
+          labels={labels.roads}
           onSelect={(road) => onSelect({ kind: 'road', id: road.id })}
-          placer={placer}
           projection={projection}
-          roads={
-            editor?.kind === 'road' && editor.id
-              ? data.roads.filter((road) => road.id !== editor.id)
-              : data.roads
-          }
+          roads={roads}
           selected={selection?.kind === 'road' ? selection.id : null}
-        />
-      ) : null}
-      {show('events') ? (
-        <EventsLayer
-          events={
-            editor?.kind === 'event' && editor.id
-              ? data.events.filter((event) => event.id !== editor.id)
-              : data.events
-          }
-          now={now}
-          onSelect={(event) => onSelect({ kind: 'event', id: event.id })}
-          phases={phases}
-          placer={placer}
-          projection={projection}
-          selected={selection?.kind === 'event' ? selection.id : null}
         />
       ) : null}
       {show('places') ? (
         <PlacesLayer
+          labels={labels.places}
           onSelect={(place) => onSelect({ kind: 'place', id: place.id })}
-          placer={placer}
-          places={
-            editor?.kind === 'place' && editor.id
-              ? data.places.filter((place) => place.id !== editor.id)
-              : data.places
-          }
+          places={places}
           projection={projection}
-          selected={selection?.kind === 'place' ? selection.id : null}
+          selected={selectedPlace}
+        />
+      ) : null}
+      {show('events') ? (
+        <EventsLayer
+          events={events}
+          labels={labels.events}
+          now={now}
+          onSelect={(event) => onSelect({ kind: 'event', id: event.id })}
+          phases={phases}
+          projection={projection}
+          selected={selectedEvent}
         />
       ) : null}
       {show('towns') ? (
         <TownLabels
-          labelled={labelled}
+          labels={labels.towns}
           onSelect={selectTown}
           projection={projection}
           selected={selectedTown}
