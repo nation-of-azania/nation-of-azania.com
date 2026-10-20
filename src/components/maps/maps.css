@@ -90,9 +90,12 @@
   left: var(--az-nib, 50%);
   transform: translateX(-50%) rotate(135deg);
 }
-/* While a tool is in hand, the features step aside so clicks reach the map. */
+/* While a tool is in hand, the features step aside so clicks reach the map; the editor's own marks (a view's highlights, to pick) don't. */
 .az-maps[data-tool] .az-overlay .az-hit {
   pointer-events: none;
+}
+.az-maps[data-tool] .az-overlay .az-tools .az-hit {
+  pointer-events: auto;
 }
 .az-overlay text {
   user-select: none;
