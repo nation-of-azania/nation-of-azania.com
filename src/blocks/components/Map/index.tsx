@@ -5,7 +5,7 @@ import { COLOR, STYLE_THEME } from '@/components/og/tokens'
 import { BylineAvatar, type AvatarTone } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import { dress } from '@/components/styles'
-import { getMapData, getMapView } from '@/lib/maps'
+import { getMapData, getMapView, getTownByName } from '@/lib/maps'
 import { around, mapView, type MapData, type MapViewData } from '@/maps/data'
 import { routeFrom, spawnRoute, type SpawnRoute } from '@/maps/spawn'
 import { ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
@@ -13,7 +13,6 @@ import { clock } from '@/maps/time'
 import { frameBounds, zoomForSpan } from '@/maps/view'
 import {
   ASPECTS,
-  getTown,
   isAspectName,
   isZoomName,
   liveMapUrl,
@@ -265,7 +264,7 @@ export async function MapBlock({
   }
 
   const townName = townField?.trim() || null
-  const lookup = townName ? await getTown(townName) : null
+  const lookup = townName ? await getTownByName(townName) : null
   const town = lookup && lookup !== 'offline' ? lookup : null
   const hasCoordinates = typeof x === 'number' && Number.isFinite(x) && typeof z === 'number' && Number.isFinite(z)
   const centre = hasCoordinates ? { x, z } : town ? townCentre(town) : null

@@ -686,13 +686,18 @@ content edits in the admin panel need no deploy.
 2. **Import the repository into Vercel** (Add New → Project). A project named
    `nation-of-azania` gets the address `https://nation-of-azania.vercel.app`.
    Nothing needs configuring: `vercel.json` pins the Next.js framework preset
-   and the build command, and pnpm is detected from the lockfile. (Vercel
+   and the build command, and pnpm is detected from the lockfile. It also
+   runs the server in **Frankfurt (`fra1`)**, beside the database (step 3):
+   the admin asks the database dozens of things per page, and each one that
+   crosses the Atlantic costs about 80 ms. (Vercel
    detects the preset only once, at import, and falls back to "Other" if
    the repository was empty then. "Other" publishes nothing but `public/`,
    so every page 404s; the pin rules that out.) Under Settings → Git,
    confirm the **production branch is `main`**.
-3. **Add Postgres:** Storage → Create → **Neon** (from the Marketplace), then
-   connect it to the project. This sets `DATABASE_URL` for you. Any hosted
+3. **Add Postgres:** Storage → Create → **Neon** (from the Marketplace), in
+   the region `vercel.json` names (`fra1`; change `regions` there if the
+   database lives elsewhere), then connect it to the project. This sets
+   `DATABASE_URL` for you. Any hosted
    Postgres works if you paste the connection string yourself.
 4. **Add Blob storage:** Storage → Create → **Blob**, then connect it to the
    project. This sets `BLOB_READ_WRITE_TOKEN`. Uploads need it: without Blob

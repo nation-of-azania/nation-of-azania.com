@@ -1,5 +1,4 @@
 import {
-  getTown,
   isAspectName,
   isMapName,
   isZoomName,
@@ -7,6 +6,7 @@ import {
   townCentre,
   type Outline,
 } from '@/lib/dynmap'
+import { getTownByName } from '@/lib/maps'
 
 /**
  * A clipping of the Rulercraft map as a JPEG, for the Map block:
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
   const townName = query.get('town')
   if (townName && !/^[\w-]{1,40}$/.test(townName)) return bad('Not a town name.')
-  const town = townName ? await getTown(townName) : null
+  const town = townName ? await getTownByName(townName) : null
   if (town === 'offline') {
     return new Response('The map is not answering just now.', {
       status: 503,

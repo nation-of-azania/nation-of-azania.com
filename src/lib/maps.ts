@@ -1,6 +1,9 @@
 import config from '@payload-config'
+import { unstable_cache } from 'next/cache'
 import { getPayload, type Where } from 'payload'
 import { cache } from 'react'
+
+import { getTowns, type Town } from '@/lib/dynmap'
 
 import {
   mapEvent,
@@ -15,7 +18,8 @@ import {
   type MapTown,
   type MapViewData,
 } from '@/maps/data'
-import type { Article } from '@/payload-types'
+import type { Outline } from '@/maps/geo'
+import type { Article, Town as TownDoc } from '@/payload-types'
 
 /**
  * Read-side data for Azania Maps' pages (src/app/(frontend)/maps): the
@@ -156,6 +160,71 @@ export async function getTownRecord(
     return { about: town.about ?? null, residents, culture: town.culture ?? null }
   } catch {
     return null
+  }
+}
+
+/** A stored town in the shape the Rulercraft map gives it (src/lib/dynmap.ts → Town). */
+const townOf = (doc: TownDoc): Town => ({
+  id: doc.townyId ?? null,
+  name: doc.name,
+  home:
+    doc.home?.x != null && doc.home?.z != null
+      ? { x: doc.home.x, y: doc.home.y ?? 64, z: doc.home.z }
+      : null,
+  outlines: Array.isArray(doc.claims) ? (doc.claims as Outline[]) : [],
+  ruler: doc.ruler ?? null,
+  residents: Array.isArray(doc.residents)
+    ? doc.residents.filter((name): name is string => typeof name === 'string')
+    : [],
+  nation: doc.nation ?? null,
+  culture: doc.culture ?? null,
+  founded: doc.founded ?? null,
+  publicSpawn: doc.publicSpawn ?? null,
+})
+
+/** Any town on the live map, by lower-cased name, kept an hour; throws while the map is down, so that isn't kept. */
+const liveTown = unstable_cache(
+  async (key: string): Promise<Town | null> => {
+    const towns = await getTowns()
+    if (!towns) throw new Error('The Rulercraft map is not answering.')
+    return towns.get(key) ?? null
+  },
+  ['rulercraft-town'],
+  { revalidate: 3600 },
+)
+
+/**
+ * A town by name for the Map block and its clippings. Azania's own come from
+ * the database, synced from the Rulercraft map every day, so a page with a
+ * town map neither waits on the map's 5 MB marker file nor stops being
+ * cached; any other town comes from the live map, its answer kept an hour
+ * (the read inside unstable_cache doesn't make the page dynamic). Null when
+ * there's no such town; 'offline' when only the live map could say, and it
+ * isn't answering.
+ */
+export async function getTownByName(name: string | null | undefined): Promise<Town | null | 'offline'> {
+  const wanted = name?.trim()
+  if (!wanted) return null
+  const key = wanted.toLowerCase()
+  try {
+    const payload = await getClient()
+    const { docs } = await payload.find({
+      collection: 'towns',
+      where: {
+        and: [{ name: { like: wanted } }, { azanian: { equals: true } }, { present: { equals: true } }],
+      },
+      limit: 10,
+      depth: 0,
+    })
+    const stored = docs.find((doc) => doc.name.toLowerCase() === key)
+    if (stored) return townOf(stored)
+  } catch {
+    // No database (a build before it exists): ask the live map.
+  }
+  try {
+    return await liveTown(key)
+  } catch {
+    return 'offline'
   }
 }
 
