@@ -1,4 +1,4 @@
-import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
+import { sql, type MigrateDownArgs, type MigrateUpArgs } from '@payloadcms/db-postgres'
 
 /**
  * Content fix: the GirlieTown samples (20261018_123000_girlietown) were meant
@@ -11,8 +11,15 @@ import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
 
 const SAMPLES = ['GirlieTown Takes Its Place in the Gazette', 'A First Cup of GirlieTea']
 
-export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   const log = (message: string) => payload.logger.info(`[girlietown samples] ${message}`)
+  // Nothing to correct on a fresh database, and reading it through the local
+  // API would expect columns that later migrations add.
+  const { rows } = await db.execute(sql`SELECT EXISTS (SELECT 1 FROM "users") AS "any"`)
+  if (!(rows[0] as { any?: boolean } | undefined)?.any) {
+    log('fresh database; nothing to do')
+    return
+  }
   const {
     docs: [ipaaat],
   } = await payload.find({

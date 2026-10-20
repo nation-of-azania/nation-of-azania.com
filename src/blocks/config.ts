@@ -339,7 +339,10 @@ export const DiscordBlock: Block = {
 }
 
 /** A map's subject, as the Map block's fields see each other while validating. */
-type MapSubject = { town?: string | null; x?: number | null; z?: number | null }
+type MapSubject = { town?: string | null; x?: number | null; z?: number | null; view?: unknown }
+
+/** With a map view chosen, the view frames the map and the clipping fields step aside. */
+const withoutView = (_: unknown, siblingData: MapSubject) => siblingData?.view == null
 
 /** Towny town names: letters, digits, underscores and hyphens, as the map writes them. */
 const TOWN_NAME = /^[\w-]{1,40}$/
@@ -352,7 +355,7 @@ const options = (registry: Record<string, { label: string }>) =>
 /** A coordinate is needed unless a town names the place; either way it must be on the map. */
 const coordinateValidate = (value: unknown, { siblingData }: { siblingData: MapSubject }) => {
   if (value == null || value === '') {
-    return Boolean(siblingData?.town?.trim()) || 'Give x and z, or name a town above.'
+    return Boolean(siblingData?.town?.trim()) || siblingData?.view != null || 'Give x and z, or name a town above.'
   }
   return (
     (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= WORLD_LIMIT) ||
@@ -372,10 +375,30 @@ export const MapBlock: Block = {
   admin: { disableBlockName: false },
   fields: [
     {
+      name: 'view',
+      type: 'relationship',
+      relationTo: 'map-views',
+      label: 'Map view',
+      admin: {
+        description:
+          'A view drawn on Azania Maps (/maps), with its frame, layers and highlights. Leave empty to clip the map around a town or coordinates instead.',
+      },
+    },
+    {
+      name: 'interactive',
+      type: 'checkbox',
+      label: 'Let readers move the map',
+      defaultValue: false,
+      admin: {
+        description: 'Off: a still picture, quickest to load. On: readers can pan and zoom, and open it on Azania Maps.',
+      },
+    },
+    {
       name: 'town',
       type: 'text',
       label: 'Town',
       admin: {
+        condition: withoutView,
         description:
           'A Towny town on the Rulercraft map, spelt as the map has it (e.g. GirlieTown). The clipping centres on its home block and outlines its claims. Leave empty to centre on coordinates instead.',
       },
@@ -386,6 +409,7 @@ export const MapBlock: Block = {
         if (!value?.trim()) {
           return (
             (siblingData?.x != null && siblingData?.z != null) ||
+            siblingData?.view != null ||
             'Name a town, or give x and z below.'
           )
         }
@@ -400,11 +424,12 @@ export const MapBlock: Block = {
           type: 'number',
           admin: {
             width: '50%',
+            condition: withoutView,
             description: 'Block coordinates to centre on. With a town, they move the centre within its claims.',
           },
           validate: coordinateValidate,
         },
-        { name: 'z', type: 'number', admin: { width: '50%' }, validate: coordinateValidate },
+        { name: 'z', type: 'number', admin: { width: '50%', condition: withoutView }, validate: coordinateValidate },
       ],
     },
     {
@@ -416,7 +441,7 @@ export const MapBlock: Block = {
           required: true,
           defaultValue: 'town',
           options: options(ZOOMS),
-          admin: { width: '40%' },
+          admin: { width: '40%', condition: withoutView },
         },
         {
           name: 'map',
@@ -424,7 +449,7 @@ export const MapBlock: Block = {
           required: true,
           defaultValue: 'flat',
           options: options(MAPS),
-          admin: { width: '30%' },
+          admin: { width: '30%', condition: withoutView },
         },
         {
           name: 'aspect',
@@ -432,7 +457,7 @@ export const MapBlock: Block = {
           required: true,
           defaultValue: 'wide',
           options: options(ASPECTS),
-          admin: { width: '30%' },
+          admin: { width: '30%', condition: withoutView },
         },
       ],
     },
@@ -447,7 +472,7 @@ export const MapBlock: Block = {
           admin: {
             width: '33%',
             description: 'Draw the town’s Towny claims on the clipping.',
-            condition: (_, siblingData) => Boolean(siblingData?.town),
+            condition: (_, siblingData) => Boolean(siblingData?.town) && siblingData?.view == null,
           },
         },
         {
@@ -455,7 +480,7 @@ export const MapBlock: Block = {
           type: 'checkbox',
           defaultValue: false,
           label: 'Pin the centre',
-          admin: { width: '33%', description: 'A pin on the home block, or on the coordinates.' },
+          admin: { width: '33%', condition: withoutView, description: 'A pin on the home block, or on the coordinates.' },
         },
         {
           name: 'facts',
@@ -465,7 +490,7 @@ export const MapBlock: Block = {
           admin: {
             width: '33%',
             description: 'The ruler, residents, nation and founding, as the map records them.',
-            condition: (_, siblingData) => Boolean(siblingData?.town),
+            condition: (_, siblingData) => Boolean(siblingData?.town) && siblingData?.view == null,
           },
         },
       ],

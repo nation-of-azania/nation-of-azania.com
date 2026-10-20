@@ -10,6 +10,7 @@ import * as migration_20261018_131500_girlietown_samples from './20261018_131500
 import * as migration_20261018_155642_discord_announcements from './20261018_155642_discord_announcements';
 import * as migration_20261019_021903_discord_settings from './20261019_021903_discord_settings';
 import * as migration_20261019_022500_luixtiter from './20261019_022500_luixtiter';
+import * as migration_20261020_092846_azania_maps from './20261020_092846_azania_maps';
 
 export const migrations = [
   {
@@ -71,5 +72,10 @@ export const migrations = [
     up: migration_20261019_022500_luixtiter.up,
     down: migration_20261019_022500_luixtiter.down,
     name: '20261019_022500_luixtiter',
+  },
+  {
+    up: migration_20261020_092846_azania_maps.up,
+    down: migration_20261020_092846_azania_maps.down,
+    name: '20261020_092846_azania_maps'
   },
 ];

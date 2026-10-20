@@ -26,6 +26,7 @@ const eslintConfig = [
   },
   {
     ignores: [
+      '.claude/',
       '.next/',
       'node_modules/',
       'src/payload-types.ts',

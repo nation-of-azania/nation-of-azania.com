@@ -1,5 +1,7 @@
 import sharp from 'sharp'
 
+import { DYNMAP_URL, DYNMAP_WORLD, dynmapTileUrl, MAPS, type MapName } from '../maps/source'
+
 /**
  * The Rulercraft server's Dynmap (map.rulercraft.com): map clippings and
  * Towny towns, for the Map block. Dynmap publishes what it has rendered, not
@@ -15,14 +17,7 @@ import sharp from 'sharp'
  * where x = column·2ⁿ and y = −(row·2ⁿ).
  */
 
-export const DYNMAP_URL = 'https://map.rulercraft.com'
-export const DYNMAP_WORLD = 'RulerEarth'
-
-export const MAPS = {
-  flat: { label: 'Map', prefix: 'flat', dynmapName: 'flat', maxLevel: 5 },
-  biomes: { label: 'Biomes', prefix: 'biomes', dynmapName: 'Biomes', maxLevel: 4 },
-} as const
-export type MapName = keyof typeof MAPS
+export { DYNMAP_URL, DYNMAP_WORLD, isMapName, MAPS, type MapName } from '../maps/source'
 
 /** How much a clipping shows: tile level, and how many screen pixels per tile pixel. */
 export const ZOOMS = {
@@ -47,7 +42,6 @@ const FETCH_TIMEOUT_MS = 4000
 /** The colour Dynmap leaves where nothing is rendered (deep water reads close to it). */
 const UNRENDERED = { r: 24, g: 39, b: 56 }
 
-export const isMapName = (value: unknown): value is MapName => typeof value === 'string' && value in MAPS
 export const isZoomName = (value: unknown): value is ZoomName => typeof value === 'string' && value in ZOOMS
 export const isAspectName = (value: unknown): value is AspectName =>
   typeof value === 'string' && value in ASPECTS
@@ -72,14 +66,6 @@ const toPixels = (x: number, z: number, level: number) => ({
   px: (2 * x) / 2 ** level,
   py: (2 * z + TILE) / 2 ** level,
 })
-
-const tileUrl = (map: MapName, level: number, column: number, row: number) => {
-  const scale = 2 ** level
-  const x = column * scale
-  const y = -row * scale
-  const zoomPrefix = level > 0 ? `${'z'.repeat(level)}_` : ''
-  return `${DYNMAP_URL}/tiles/${DYNMAP_WORLD}/${MAPS[map].prefix}/${x >> 5}_${y >> 5}/${zoomPrefix}${x}_${y}.jpg`
-}
 
 async function fetchTile(url: string): Promise<Buffer | null> {
   try {
@@ -154,7 +140,7 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
   for (let row = rows.from; row <= rows.to; row++) {
     for (let column = columns.from; column <= columns.to; column++) tiles.push({ column, row })
   }
-  const images = await pool(tiles, 16, ({ column, row }) => fetchTile(tileUrl(map, level, column, row)))
+  const images = await pool(tiles, 16, ({ column, row }) => fetchTile(dynmapTileUrl(map, level, column, row)))
   const complete = images.every(Boolean)
 
   const canvasWidth = (columns.to - columns.from + 1) * TILE
@@ -217,6 +203,8 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
 // ── Towny ───────────────────────────────────────────────────────────────────
 
 export type Town = {
+  /** Towny's own id for the town, which survives renames; null if the map doesn't say. */
+  id: string | null
   name: string
   home: { x: number; y: number; z: number } | null
   outlines: Outline[]
@@ -266,7 +254,9 @@ function townFacts(desc: string) {
           .filter((name) => /^\.?\w{3,16}$/.test(name))
       : []
   const culture = cells.find((cell) => /Culture -/.test(cell))?.split('Culture -')[1]?.trim() || null
+  const id = cells.map((cell) => /^ID\s+([0-9a-f-]{36})$/i.exec(cell)?.[1]).find(Boolean) ?? null
   return {
+    id,
     ruler: after(/Ruler:/),
     residents,
     nation: nation && !/^No Nation$/i.test(nation) ? nation : null,
@@ -276,12 +266,13 @@ function townFacts(desc: string) {
 }
 
 /**
- * Every Towny town on the map, by lower-cased name; cached for an hour. Null
- * when the map can't be read and there is no cached copy to answer from, so
- * a caller can tell "no such town" from "the map is down".
+ * Every Towny town on the map, by lower-cased name; cached for an hour
+ * (`fresh` reads the map regardless). Null when the map can't be read and
+ * there is no cached copy to answer from, so a caller can tell "no such
+ * town" from "the map is down".
  */
-export async function getTowns(): Promise<Map<string, Town> | null> {
-  if (townyCache && Date.now() - townyCache.at < TOWNY_TTL_MS) return townyCache.towns
+export async function getTowns({ fresh = false }: { fresh?: boolean } = {}): Promise<Map<string, Town> | null> {
+  if (!fresh && townyCache && Date.now() - townyCache.at < TOWNY_TTL_MS) return townyCache.towns
   const towns = new Map<string, Town>()
   try {
     // About 5 MB: too big for Next's data cache, so it's kept in memory instead.
@@ -289,6 +280,7 @@ export async function getTowns(): Promise<Map<string, Town> | null> {
       signal: AbortSignal.timeout(10000),
       cache: 'no-store',
     })
+    if (!response.ok) throw new Error(`The map answered ${response.status}`)
     const file = (await response.json()) as MarkerFile
     const set = file.sets?.['towny.markerset']
     for (const area of Object.values(set?.areas ?? {})) {
@@ -313,8 +305,8 @@ export async function getTowns(): Promise<Map<string, Town> | null> {
     }
     townyCache = { at: Date.now(), towns }
   } catch {
-    // Keep serving the last good copy if the map is down.
-    return townyCache?.towns ?? null
+    // Keep serving the last good copy if the map is down, unless asked for a fresh one.
+    return fresh ? null : (townyCache?.towns ?? null)
   }
   return towns
 }

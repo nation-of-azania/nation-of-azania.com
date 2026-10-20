@@ -142,5 +142,39 @@ export const Users: CollectionConfig = {
         },
       ],
     },
+    {
+      // Drawing rights on Azania Maps (src/access/maps.ts). Mayors draw on
+      // /maps, not in this panel, so these grant no admin access.
+      type: 'collapsible',
+      label: 'Azania Maps',
+      admin: {
+        initCollapsed: true,
+        condition: (data) => data?.role !== 'admin' && data?.role !== 'editor',
+      },
+      fields: [
+        {
+          name: 'mayorOf',
+          type: 'relationship',
+          relationTo: 'towns',
+          hasMany: true,
+          label: 'Mayor of',
+          access: { create: isAdminField, update: isAdminField },
+          admin: {
+            description:
+              'Draw and edit places, roads and events inside these towns’ claims on Azania Maps, and write the town’s description. Towns → a town shows who Towny says rules it.',
+          },
+        },
+        {
+          name: 'cartographer',
+          type: 'checkbox',
+          label: 'Cartographer',
+          defaultValue: false,
+          access: { create: isAdminField, update: isAdminField },
+          admin: {
+            description: 'Draw anywhere on Azania Maps, including national roads and places between towns.',
+          },
+        },
+      ],
+    },
   ],
 }

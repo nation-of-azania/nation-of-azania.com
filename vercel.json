@@ -7,5 +7,11 @@
       "**": false,
       "main": true
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/maps/sync",
+      "schedule": "17 3 * * *"
+    }
+  ]
 }

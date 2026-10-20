@@ -13,6 +13,13 @@ import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Profiles } from './collections/Profiles'
 import { Users } from './collections/Users'
+import { Events } from './collections/maps/Events'
+import { MapViews } from './collections/maps/MapViews'
+import { Places } from './collections/maps/Places'
+import { Roads } from './collections/maps/Roads'
+import { TownCensus } from './collections/maps/TownCensus'
+import { Towns } from './collections/maps/Towns'
+import { AzaniaMaps } from './globals/AzaniaMaps'
 import { Discord } from './globals/Discord'
 
 const filename = fileURLToPath(import.meta.url)
@@ -87,9 +94,25 @@ export default buildConfig({
     },
     avatar: 'default',
   },
-  collections: [Articles, Contexts, Pages, Profiles, Media, Users],
-  globals: [Discord],
+  collections: [
+    Articles,
+    Contexts,
+    Pages,
+    Profiles,
+    Media,
+    Users,
+    Towns,
+    Places,
+    Roads,
+    Events,
+    MapViews,
+    TownCensus,
+  ],
+  globals: [Discord, AzaniaMaps],
   editor: lexicalEditor(),
+  // A visitor asking for something they may not see (an admin-only setting,
+  // a draft) is routine, not a server error worth a stack trace.
+  loggingLevels: { Forbidden: 'info', NotFound: 'info' },
   secret: process.env.PAYLOAD_SECRET || 'azania-insecure-dev-secret',
   // serverURL is intentionally NOT set: media URLs stay relative
   // (/api/media/file/…), which next/image's localPatterns matches and which

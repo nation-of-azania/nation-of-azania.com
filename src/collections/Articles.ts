@@ -458,5 +458,18 @@ export const Articles: CollectionConfig = {
       admin: { position: 'sidebar' },
       filterOptions: { mimeType: { contains: 'image' } },
     },
+    {
+      // Ties the paper to Azania Maps: the article shows where it happened,
+      // and the town, place or event lists the coverage.
+      name: 'locations',
+      type: 'relationship',
+      relationTo: ['towns', 'places', 'events'],
+      hasMany: true,
+      label: 'On Azania Maps',
+      admin: {
+        position: 'sidebar',
+        description: 'Towns, places or events this article is about. They link back to it on the map.',
+      },
+    },
   ],
 }

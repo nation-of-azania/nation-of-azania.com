@@ -34,6 +34,7 @@ import {
   TOP_LEVEL_CONTEXTS,
 } from './helpers'
 import { generateBannerImages } from './images'
+import { seedMaps } from './maps'
 
 /**
  * Azania seed script — creates the demo nation for local development:
@@ -503,6 +504,10 @@ async function seed(payload: Payload): Promise<void> {
     _status: 'published',
   })
 
+  // ── 9. Azania Maps ────────────────────────────────────────────────────────
+  // Towns come from the live Rulercraft map; casi is GirlieTown's mayor.
+  await seedMaps(payload, { admin: admin.id, casi: casi.id })
+
   // ── Summary ───────────────────────────────────────────────────────────────
   const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
   if (seedStats.created === 0) {
@@ -525,6 +530,7 @@ async function seed(payload: Payload): Promise<void> {
 [seed]           ${serverURL}/intl/transport/roads/case-studies  — four levels deep
 [seed]           ${serverURL}/gov/girlietown  — GirlieTown, in Cherry Blossom
 [seed]           ${serverURL}/gov/about    — the standing page
+[seed]           ${serverURL}/maps         — Azania Maps (casi is GirlieTown's mayor)
 [seed] ────────────────────────────────────────────────────────────
 `)
 }

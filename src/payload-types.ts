@@ -73,6 +73,12 @@ export interface Config {
     profiles: Profile;
     media: Media;
     users: User;
+    towns: Town;
+    places: Place;
+    roads: Road;
+    events: Event;
+    'map-views': MapView;
+    'town-census': TownCensus;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -91,6 +97,12 @@ export interface Config {
     profiles: ProfilesSelect<false> | ProfilesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    towns: TownsSelect<false> | TownsSelect<true>;
+    places: PlacesSelect<false> | PlacesSelect<true>;
+    roads: RoadsSelect<false> | RoadsSelect<true>;
+    events: EventsSelect<false> | EventsSelect<true>;
+    'map-views': MapViewsSelect<false> | MapViewsSelect<true>;
+    'town-census': TownCensusSelect<false> | TownCensusSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -102,9 +114,11 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     discord: Discord;
+    'azania-maps': AzaniaMap;
   };
   globalsSelect: {
     discord: DiscordSelect<false> | DiscordSelect<true>;
+    'azania-maps': AzaniaMapsSelect<false> | AzaniaMapsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -206,6 +220,25 @@ export interface Article {
    */
   pinned?: boolean | null;
   featuredImage?: (number | null) | Media;
+  /**
+   * Towns, places or events this article is about. They link back to it on the map.
+   */
+  locations?:
+    | (
+        | {
+            relationTo: 'towns';
+            value: number | Town;
+          }
+        | {
+            relationTo: 'places';
+            value: number | Place;
+          }
+        | {
+            relationTo: 'events';
+            value: number | Event;
+          }
+      )[]
+    | null;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -362,6 +395,14 @@ export interface User {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Draw and edit places, roads and events inside these towns’ claims on Azania Maps, and write the town’s description. Towns → a town shows who Towny says rules it.
+   */
+  mayorOf?: (number | Town)[] | null;
+  /**
+   * Draw anywhere on Azania Maps, including national roads and places between towns.
+   */
+  cartographer?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email?: string | null;
@@ -381,6 +422,77 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
+}
+/**
+ * Read from the Rulercraft map. Which towns count as Azanian is set under Settings → Azania Maps.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "towns".
+ */
+export interface Town {
+  id: number;
+  name: string;
+  /**
+   * Its address on Azania Maps: /maps/town/<slug>.
+   */
+  slug: string;
+  /**
+   * A few lines about the town, written by its mayor. Shown on its page on Azania Maps.
+   */
+  about?: string | null;
+  /**
+   * By its nation, or listed in the settings.
+   */
+  azanian?: boolean | null;
+  /**
+   * Off once the town is gone from Towny.
+   */
+  present?: boolean | null;
+  syncedAt?: string | null;
+  /**
+   * Towny’s id for the town; survives renames.
+   */
+  townyId: string;
+  nation?: string | null;
+  ruler?: string | null;
+  founded?: string | null;
+  culture?: string | null;
+  residentCount?: number | null;
+  chunks?: number | null;
+  /**
+   * Minecraft names, as the map lists them.
+   */
+  residents?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * The town’s home block.
+   */
+  home?: {
+    x?: number | null;
+    y?: number | null;
+    z?: number | null;
+  };
+  /**
+   * Claim outlines in blocks: [{ x: [...], z: [...] }, ...].
+   */
+  claims?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * How people are credited on articles: a name and a role in a context. Create one for each role you write in; switch it off when the role ends.
@@ -423,6 +535,129 @@ export interface Profile {
   createdAt: string;
 }
 /**
+ * Drawn on Azania Maps (/maps) by mayors and cartographers.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "places".
+ */
+export interface Place {
+  id: number;
+  name: string;
+  category:
+    | 'restaurant'
+    | 'cafe'
+    | 'bar'
+    | 'bakery'
+    | 'shop'
+    | 'market'
+    | 'bank'
+    | 'hotel'
+    | 'townhall'
+    | 'government'
+    | 'embassy'
+    | 'court'
+    | 'post'
+    | 'museum'
+    | 'library'
+    | 'theatre'
+    | 'worship'
+    | 'monument'
+    | 'castle'
+    | 'school'
+    | 'hospital'
+    | 'station'
+    | 'port'
+    | 'airfield'
+    | 'portal'
+    | 'park'
+    | 'viewpoint'
+    | 'beach'
+    | 'farm'
+    | 'mine'
+    | 'workshop'
+    | 'residence'
+    | 'landmark'
+    | 'other';
+  /**
+   * A line or two: what it is, who runs it, when it’s open.
+   */
+  description?: string | null;
+  /**
+   * Where the pin stands, in blocks.
+   */
+  point: {
+    x: number;
+    /**
+     * Height, for places underground or in the sky.
+     */
+    y?: number | null;
+    z: number;
+  };
+  /**
+   * Optional: the building’s footprint, [[x, z], …] in blocks.
+   */
+  outline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Set from where it is: the Azanian town whose claims hold it. Empty between towns.
+   */
+  town?: (number | null) | Town;
+  createdBy?: (number | null) | User;
+  updatedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Shown on Azania Maps (/maps) while upcoming, and kept afterwards.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "events".
+ */
+export interface Event {
+  id: number;
+  title: string;
+  description?: string | null;
+  startsAt: string;
+  /**
+   * Optional.
+   */
+  endsAt?: string | null;
+  /**
+   * Where it’s held, if that’s a place on the map. Otherwise set the point below.
+   */
+  place?: (number | null) | Place;
+  /**
+   * Where it’s held, in blocks. Taken from the place when there is one.
+   */
+  point?: {
+    x?: number | null;
+    z?: number | null;
+  };
+  /**
+   * Who’s holding it, as readers should see it.
+   */
+  host?: string | null;
+  /**
+   * Optional: the article announcing it.
+   */
+  article?: (number | null) | Article;
+  /**
+   * Set from where it is: the Azanian town whose claims hold it. Empty between towns.
+   */
+  town?: (number | null) | Town;
+  createdBy?: (number | null) | User;
+  updatedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Standing pages (About, …), each in a context and served at <context path>/<slug>.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -457,6 +692,106 @@ export interface Page {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * Drawn on Azania Maps (/maps) by mayors and cartographers.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "roads".
+ */
+export interface Road {
+  id: number;
+  /**
+   * Optional: plenty of paths have no name.
+   */
+  name?: string | null;
+  kind: 'highway' | 'main' | 'street' | 'path' | 'rail' | 'iceroad' | 'canal';
+  /**
+   * The road’s course, [[x, z], …] in blocks.
+   */
+  line:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Set from where it is: the Azanian town whose claims hold it. Empty between towns.
+   */
+  town?: (number | null) | Town;
+  createdBy?: (number | null) | User;
+  updatedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Drawn on Azania Maps (/maps) and shown in articles through the Map block.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "map-views".
+ */
+export interface MapView {
+  id: number;
+  /**
+   * For finding it again when choosing it in a Map block; readers don’t see it.
+   */
+  title: string;
+  /**
+   * The middle of the frame, in blocks.
+   */
+  centre: {
+    x: number;
+    z: number;
+  };
+  /**
+   * How many blocks the frame shows across.
+   */
+  span: number;
+  aspect: 'wide' | 'square' | 'banner';
+  map: 'flat' | 'biomes';
+  /**
+   * Which of Azania Maps’ own layers show under the highlights.
+   */
+  layers?: ('towns' | 'places' | 'roads' | 'events')[] | null;
+  /**
+   * The highlights, as drawn on /maps.
+   */
+  drawings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  createdBy?: (number | null) | User;
+  updatedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Recorded daily from the Rulercraft map.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "town-census".
+ */
+export interface TownCensus {
+  id: number;
+  key: string;
+  /**
+   * YYYY-MM-DD, UTC.
+   */
+  date: string;
+  town: number | Town;
+  residents: number;
+  chunks: number;
+  nation?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -505,6 +840,30 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'towns';
+        value: number | Town;
+      } | null)
+    | ({
+        relationTo: 'places';
+        value: number | Place;
+      } | null)
+    | ({
+        relationTo: 'roads';
+        value: number | Road;
+      } | null)
+    | ({
+        relationTo: 'events';
+        value: number | Event;
+      } | null)
+    | ({
+        relationTo: 'map-views';
+        value: number | MapView;
+      } | null)
+    | ({
+        relationTo: 'town-census';
+        value: number | TownCensus;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -567,6 +926,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   byline?: T;
   pinned?: T;
   featuredImage?: T;
+  locations?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -689,6 +1049,8 @@ export interface UsersSelect<T extends boolean = true> {
         level?: T;
         id?: T;
       };
+  mayorOf?: T;
+  cartographer?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -706,6 +1068,132 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "towns_select".
+ */
+export interface TownsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  about?: T;
+  azanian?: T;
+  present?: T;
+  syncedAt?: T;
+  townyId?: T;
+  nation?: T;
+  ruler?: T;
+  founded?: T;
+  culture?: T;
+  residentCount?: T;
+  chunks?: T;
+  residents?: T;
+  home?:
+    | T
+    | {
+        x?: T;
+        y?: T;
+        z?: T;
+      };
+  claims?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "places_select".
+ */
+export interface PlacesSelect<T extends boolean = true> {
+  name?: T;
+  category?: T;
+  description?: T;
+  point?:
+    | T
+    | {
+        x?: T;
+        y?: T;
+        z?: T;
+      };
+  outline?: T;
+  town?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "roads_select".
+ */
+export interface RoadsSelect<T extends boolean = true> {
+  name?: T;
+  kind?: T;
+  line?: T;
+  town?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "events_select".
+ */
+export interface EventsSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  startsAt?: T;
+  endsAt?: T;
+  place?: T;
+  point?:
+    | T
+    | {
+        x?: T;
+        z?: T;
+      };
+  host?: T;
+  article?: T;
+  town?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "map-views_select".
+ */
+export interface MapViewsSelect<T extends boolean = true> {
+  title?: T;
+  centre?:
+    | T
+    | {
+        x?: T;
+        z?: T;
+      };
+  span?: T;
+  aspect?: T;
+  map?: T;
+  layers?: T;
+  drawings?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "town-census_select".
+ */
+export interface TownCensusSelect<T extends boolean = true> {
+  key?: T;
+  date?: T;
+  town?: T;
+  residents?: T;
+  chunks?: T;
+  nation?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -776,6 +1264,37 @@ export interface Discord {
   createdAt?: string | null;
 }
 /**
+ * Which towns on the Rulercraft map are Azania’s. The map is read about once an hour while people use Azania Maps, and once a day for the census.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "azania-maps".
+ */
+export interface AzaniaMap {
+  id: number;
+  /**
+   * Every town in these Towny nations counts as Azanian. Spelt as the map has it; when the nation is renamed in game, rename it here.
+   */
+  nations?:
+    | {
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet. Spelt as the map has it.
+   */
+  towns?:
+    | {
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  syncedAt?: string | null;
+  syncNote?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "discord_select".
  */
@@ -788,6 +1307,29 @@ export interface DiscordSelect<T extends boolean = true> {
         webhookUrl?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "azania-maps_select".
+ */
+export interface AzaniaMapsSelect<T extends boolean = true> {
+  nations?:
+    | T
+    | {
+        name?: T;
+        id?: T;
+      };
+  towns?:
+    | T
+    | {
+        name?: T;
+        id?: T;
+      };
+  syncedAt?: T;
+  syncNote?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -943,6 +1485,14 @@ export interface DiscordBlockType {
  */
 export interface MapBlockType {
   /**
+   * A view drawn on Azania Maps (/maps), with its frame, layers and highlights. Leave empty to clip the map around a town or coordinates instead.
+   */
+  view?: (number | null) | MapView;
+  /**
+   * Off: a still picture, quickest to load. On: readers can pan and zoom, and open it on Azania Maps.
+   */
+  interactive?: boolean | null;
+  /**
    * A Towny town on the Rulercraft map, spelt as the map has it (e.g. GirlieTown). The clipping centres on its home block and outlines its claims. Leave empty to centre on coordinates instead.
    */
   town?: string | null;
@@ -951,9 +1501,9 @@ export interface MapBlockType {
    */
   x?: number | null;
   z?: number | null;
-  zoom: 'close' | 'street' | 'town' | 'district' | 'region' | 'country';
-  map: 'flat' | 'biomes';
-  aspect: 'wide' | 'square' | 'banner';
+  zoom?: ('close' | 'street' | 'town' | 'district' | 'region' | 'country') | null;
+  map?: ('flat' | 'biomes') | null;
+  aspect?: ('wide' | 'square' | 'banner') | null;
   /**
    * Draw the town’s Towny claims on the clipping.
    */

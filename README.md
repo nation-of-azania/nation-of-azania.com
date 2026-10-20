@@ -374,6 +374,40 @@ figure nears the viewport, and stops drawing while it's off screen; a reader
 who asks their device for less motion gets the still pose, which they can
 still turn. Both blocks are open to every writer.
 
+### Azania Maps
+
+Azania Maps (`/maps`) is the nation's own map, on top of the Rulercraft map's
+pictures:
+- Azania's **towns**, read from Towny.
+- **Places** with a category and icon (cafés, town halls, ports, …), optionally with a building outline.
+- Named **roads**, railways and waterways.
+- **Events** with a time and a place.
+- **Map views**: framed pieces of the map with highlights drawn on them, which an article's Map block can show.
+
+Everything is stored in block coordinates (`src/maps/geo.ts`), never pixels.
+The categories, road kinds and highlight inks are defined in code
+(`src/maps/registry.ts`), like the designs and styles.
+
+- **Which towns are Azanian:** set under Settings → Azania Maps. Every town of the named Towny nations counts, plus any town listed by name, such as towns that haven't joined yet.
+  - The nation still has its old Towny name, "Canada"; rename it there when it changes in game.
+  - `src/lib/towns.ts` reads the map's marker file into the **Towns** collection.
+  - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
+- **When the map is read:**
+  - after a page of Azania Maps finds the last reading an hour old;
+  - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.
+
+  `/maps/sync` reads at most every ten minutes, whoever calls it.
+- **Who draws:**
+  - Admins make a member **mayor** of towns (Users → Azania Maps). A mayor draws and edits places, roads and events inside those towns' claims, and writes the town's description. The claims are checked on every save.
+  - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
+  - Map views belong to whoever drew them and are for anyone who writes articles.
+  - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
+- **When the Rulercraft map is down:** tiles come through `/maps/tiles/<map>/<level>/<column>/<row>.jpg`, which the CDN caches for a day. While the map errors, the CDN keeps serving the last good tile for a month.
+  - Ground the map hasn't drawn comes back as an empty, cached tile.
+  - `/maps/status` says whether the map is answering, so the page can say it's showing saved pictures.
+  - Towns, places and everything else are the site's own data, so they never go dark.
+- **Articles:** an article can name the towns, places and events it's about ("On Azania Maps" in the sidebar), and the map lists the coverage.
+
 ## Database adapters and migrations
 
 `DATABASE_ADAPTER` selects the database:

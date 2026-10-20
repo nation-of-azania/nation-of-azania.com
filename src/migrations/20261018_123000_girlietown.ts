@@ -1,4 +1,4 @@
-import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
+import { sql, type MigrateDownArgs, type MigrateUpArgs } from '@payloadcms/db-postgres'
 import type { Payload, PayloadRequest, Where } from 'payload'
 
 import { ITALIC, paragraph, root, text } from '../seed/lexical'
@@ -57,7 +57,14 @@ async function ensureContext(
   return created
 }
 
-export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+  // A fresh database has no accounts while migrations run (the production
+  // bootstrap makes them afterwards), and reading users or articles through
+  // the local API would expect columns later migrations add. So on a fresh
+  // database only the contexts and Casi's byline are set up.
+  const { rows } = await db.execute(sql`SELECT EXISTS (SELECT 1 FROM "users") AS "any"`)
+  const accounts = Boolean((rows[0] as { any?: boolean } | undefined)?.any)
+
   const [gov] = await lookup(payload, req, 'contexts', {
     and: [{ slug: { equals: 'gov' } }, { parent: { exists: false } }],
   })
@@ -81,13 +88,15 @@ export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
   })
 
   // Casi's account, by username, Minecraft name or display name.
-  const candidates = await lookup(payload, req, 'users', {
-    or: [
-      { username: { equals: CASI.toLowerCase() } },
-      { minecraftName: { equals: CASI } },
-      { name: { equals: CASI } },
-    ],
-  })
+  const candidates = accounts
+    ? await lookup(payload, req, 'users', {
+        or: [
+          { username: { equals: CASI.toLowerCase() } },
+          { minecraftName: { equals: CASI } },
+          { name: { equals: CASI } },
+        ],
+      })
+    : []
   const casi = candidates.length === 1 ? candidates[0] : undefined
   if (!casi) {
     log(payload, `${candidates.length === 0 ? 'no account' : 'more than one account'} found for ${CASI}; grant her access under Users`)
@@ -139,7 +148,7 @@ export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
   // article hooks pick for these contexts. A fresh database has no accounts
   // yet when migrations run; then there are no samples either. (Production
   // ran an earlier version that took any admin; 20261018_131500 fixes that.)
-  const [author] = await lookup(payload, req, 'users', { username: { equals: 'ipaaat' } })
+  const [author] = accounts ? await lookup(payload, req, 'users', { username: { equals: 'ipaaat' } }) : []
   if (!author) {
     log(payload, 'no IPaaat account yet; no sample articles')
     return

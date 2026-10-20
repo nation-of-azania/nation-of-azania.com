@@ -1,4 +1,4 @@
-import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
+import { sql, type MigrateDownArgs, type MigrateUpArgs } from '@payloadcms/db-postgres'
 
 /**
  * Content fix: the Chancellor is Luixtiter in game, not "Luixiter". Corrects
@@ -32,8 +32,15 @@ function corrected(content: unknown): unknown {
   return changed ? result : null
 }
 
-export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   const log = (message: string) => payload.logger.info(`[luixtiter] ${message}`)
+  // Nothing to correct on a fresh database, and reading it through the local
+  // API would expect columns that later migrations add.
+  const { rows } = await db.execute(sql`SELECT EXISTS (SELECT 1 FROM "users") AS "any"`)
+  if (!(rows[0] as { any?: boolean } | undefined)?.any) {
+    log('fresh database; nothing to do')
+    return
+  }
 
   const { docs: profiles } = await payload.find({
     collection: 'profiles',
