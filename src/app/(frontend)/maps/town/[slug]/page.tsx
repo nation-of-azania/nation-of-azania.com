@@ -1,0 +1,34 @@
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+
+import { TownPanel } from '@/components/maps/panels/TownPanel'
+import { spoken } from '@/maps/data'
+import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } from '@/lib/maps'
+
+type Props = { params: Promise<{ slug: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const town = findTown(await getMapData(), slug)
+  if (!town) return { title: 'Not on the map' }
+  const name = spoken(town.name)
+  const description = `${name} on Azania Maps: ${town.residents} resident${town.residents === 1 ? '' : 's'}, ${town.chunks} claimed chunks${town.ruler ? `, ruled by ${town.ruler}` : ''}.`
+  return {
+    title: name,
+    description,
+    openGraph: { title: name, description, url: `/maps/town/${slug}` },
+  }
+}
+
+export default async function TownPage({ params }: Props) {
+  const { slug } = await params
+  const data = await getMapData()
+  const town = findTown(data, slug)
+  if (!town) notFound()
+  const [record, census, articles] = await Promise.all([
+    getTownRecord(town.id),
+    getTownCensus(town.id),
+    getArticlesAbout('towns', town.id),
+  ])
+  return <TownPanel articles={articles} census={census} data={data} record={record} town={town} />
+}

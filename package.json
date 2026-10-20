@@ -39,6 +39,7 @@
     "dotenv": "16.4.7",
     "gl-matrix": "^3.4.4",
     "graphql": "^16.8.1",
+    "leaflet": "1.9.4",
     "nbtify": "^2.2.0",
     "next": "16.2.6",
     "payload": "3.85.2",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
+    "@types/leaflet": "1.9.22",
     "@types/node": "22.19.9",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
