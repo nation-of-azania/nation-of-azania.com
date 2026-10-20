@@ -46,6 +46,7 @@ function townData(town: Town, azanian: boolean, at: string) {
     nation: town.nation,
     ruler: town.ruler,
     founded: town.founded,
+    publicSpawn: town.publicSpawn,
     culture: town.culture,
     residentCount: town.residents.length,
     residents: town.residents,

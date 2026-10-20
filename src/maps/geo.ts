@@ -106,3 +106,71 @@ export function boundsOf(points: Point[]): Bounds | null {
   const zs = points.map(([, z]) => z)
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) }
 }
+
+/** How a road runs between its points. */
+export type RoadShape = 'straight' | 'curved'
+
+const blend = (a: Point, b: Point, wa: number, wb: number): Point => [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb]
+
+/**
+ * A point on the centripetal Catmull–Rom curve from p1 to p2 (u from 0 to 1),
+ * steered by the neighbours p0 and p3. Centripetal parametrisation never
+ * loops or overshoots between close points, so a builder's curve stays where
+ * they put it.
+ */
+function catmullRom(p0: Point, p1: Point, p2: Point, p3: Point, u: number): Point {
+  const knot = (a: Point, b: Point) => Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]) ** 0.5, 1e-6)
+  const t0 = 0
+  const t1 = t0 + knot(p0, p1)
+  const t2 = t1 + knot(p1, p2)
+  const t3 = t2 + knot(p2, p3)
+  const t = t1 + u * (t2 - t1)
+  const a1 = blend(p0, p1, (t1 - t) / (t1 - t0), (t - t0) / (t1 - t0))
+  const a2 = blend(p1, p2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1))
+  const a3 = blend(p2, p3, (t3 - t) / (t3 - t2), (t - t2) / (t3 - t2))
+  const b1 = blend(a1, a2, (t2 - t) / (t2 - t0), (t - t0) / (t2 - t0))
+  const b2 = blend(a2, a3, (t3 - t) / (t3 - t1), (t - t1) / (t3 - t1))
+  return blend(b1, b2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1))
+}
+
+/** The point mirrored through `pivot`: a run's missing neighbour at its ends, so the curve leaves straight. */
+const mirror = (point: Point, pivot: Point): Point => [2 * pivot[0] - point[0], 2 * pivot[1] - point[1]]
+
+/**
+ * The course a road takes through its points: straight from point to point,
+ * or, curved, smoothly through every point, each bend flowing into the next.
+ * In a curved road, `corners` (indices of points) stay sharp turns, as at a
+ * junction. Returns a polyline about every `step` blocks along the curves,
+ * for drawing, for measuring and for checking against claims; a straight
+ * road returns its own points.
+ */
+export function roadCourse(points: Point[], shape: RoadShape = 'straight', corners: number[] = [], step = 2): Point[] {
+  if (shape !== 'curved' || points.length < 3) return points
+  const sharp = new Set(corners)
+  const course: Point[] = [points[0]]
+  let start = 0
+  for (let end = 1; end < points.length; end++) {
+    if (end < points.length - 1 && !sharp.has(end)) continue
+    // One smooth run, from a sharp point (or the start) to the next.
+    const run = points.slice(start, end + 1)
+    for (let i = 0; i < run.length - 1; i++) {
+      const p1 = run[i]
+      const p2 = run[i + 1]
+      if (run.length === 2) {
+        course.push(p2)
+        continue
+      }
+      const p0 = run[i - 1] ?? mirror(p2, p1)
+      const p3 = run[i + 2] ?? mirror(p1, p2)
+      const steps = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step))
+      for (let s = 1; s < steps; s++) course.push(catmullRom(p0, p1, p2, p3, s / steps))
+      course.push(p2)
+    }
+    start = end
+  }
+  return course
+}
+
+/** Length of a polyline in blocks. */
+export const pathLength = (points: Point[]): number =>
+  points.reduce((total, point, i) => (i ? total + Math.hypot(point[0] - points[i - 1][0], point[1] - points[i - 1][1]) : 0), 0)

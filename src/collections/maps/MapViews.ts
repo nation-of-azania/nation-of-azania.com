@@ -2,7 +2,6 @@ import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
 
 import { createMapView, editMapView } from '../../access/maps'
 import { drawingsProblem, MAP_LAYERS, options, VIEW_ASPECTS } from '../../maps/registry'
-import { MAPS } from '../../lib/dynmap'
 import { pointField } from './shared'
 
 const stampAuthor: CollectionBeforeChangeHook = ({ data, req, operation }) => {
@@ -54,7 +53,7 @@ export const MapViews: CollectionConfig = {
           min: 32,
           max: 40000,
           defaultValue: 600,
-          admin: { width: '33%', description: 'How many blocks the frame shows across.' },
+          admin: { width: '50%', description: 'How many blocks the frame shows across.' },
         },
         {
           name: 'aspect',
@@ -62,15 +61,7 @@ export const MapViews: CollectionConfig = {
           required: true,
           defaultValue: 'wide',
           options: options(VIEW_ASPECTS),
-          admin: { width: '33%' },
-        },
-        {
-          name: 'map',
-          type: 'select',
-          required: true,
-          defaultValue: 'flat',
-          options: Object.entries(MAPS).map(([value, { label }]) => ({ label, value })),
-          admin: { width: '33%' },
+          admin: { width: '50%' },
         },
       ],
     },

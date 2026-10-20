@@ -92,6 +92,13 @@ export async function seedMaps(payload: Payload, ids: Ids): Promise<void> {
     line: [[4262, 4950], [4296, 4950], [4330, 4950]],
     ...byCasi,
   })
+  await ensure(payload, 'roads', { name: { equals: 'Blossom Bend' } }, {
+    name: 'Blossom Bend',
+    kind: 'path',
+    shape: 'curved',
+    line: [[4270, 4975], [4285, 4962], [4300, 4970], [4318, 4958], [4330, 4945]],
+    ...byCasi,
+  })
   await ensure(payload, 'roads', { name: { equals: 'Coast Road' } }, {
     name: 'Coast Road',
     kind: 'highway',

@@ -112,6 +112,16 @@ export const Towns: CollectionConfig = {
           ],
         },
         {
+          name: 'publicSpawn',
+          type: 'checkbox',
+          label: 'Public spawn',
+          access: { update: synced },
+          admin: {
+            readOnly: true,
+            description: 'Towny’s "Public Teleport": whether any player may /t spawn here.',
+          },
+        },
+        {
           type: 'row',
           fields: [
             { name: 'culture', type: 'text', access: { update: synced }, admin: { readOnly: true, width: '33%' } },

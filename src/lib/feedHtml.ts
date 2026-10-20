@@ -176,9 +176,9 @@ const convertersFor =
       },
       // The clipping itself, drawn by /mapclip as on the page; the town is resolved there.
       map: ({ node }) => {
-        const { town, x, z, zoom, map, aspect, claims, pin, caption } = node.fields
+        const { town, x, z, zoom, aspect, claims, pin, caption } = node.fields
         const colour = (place.style && STYLE_THEME[place.style]) || CLAIM_INK[place.design]
-        const query = new URLSearchParams({ zoom: zoom || 'town', map: map || 'flat', aspect: aspect || 'wide' })
+        const query = new URLSearchParams({ zoom: zoom || 'town', aspect: aspect || 'wide' })
         query.set('colour', colour.slice(1))
         const townName = town?.trim()
         if (townName) query.set('town', townName)

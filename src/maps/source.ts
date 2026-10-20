@@ -9,9 +9,9 @@ import { TILE_SIZE } from './geo'
 export const DYNMAP_URL = 'https://map.rulercraft.com'
 export const DYNMAP_WORLD = 'RulerEarth'
 
+/** The flat map is the one Azania uses; Dynmap's others (biomes, 3D) aren't drawn here. */
 export const MAPS = {
   flat: { label: 'Map', prefix: 'flat', dynmapName: 'flat', maxLevel: 5 },
-  biomes: { label: 'Biomes', prefix: 'biomes', dynmapName: 'Biomes', maxLevel: 4 },
 } as const
 export type MapName = keyof typeof MAPS
 

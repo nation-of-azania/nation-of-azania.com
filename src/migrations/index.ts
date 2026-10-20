@@ -11,6 +11,7 @@ import * as migration_20261018_155642_discord_announcements from './20261018_155
 import * as migration_20261019_021903_discord_settings from './20261019_021903_discord_settings';
 import * as migration_20261019_022500_luixtiter from './20261019_022500_luixtiter';
 import * as migration_20261020_092846_azania_maps from './20261020_092846_azania_maps';
+import * as migration_20261020_140712_map_polish from './20261020_140712_map_polish';
 
 export const migrations = [
   {
@@ -76,6 +77,11 @@ export const migrations = [
   {
     up: migration_20261020_092846_azania_maps.up,
     down: migration_20261020_092846_azania_maps.down,
-    name: '20261020_092846_azania_maps'
+    name: '20261020_092846_azania_maps',
+  },
+  {
+    up: migration_20261020_140712_map_polish.up,
+    down: migration_20261020_140712_map_polish.down,
+    name: '20261020_140712_map_polish'
   },
 ];

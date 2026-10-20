@@ -14,7 +14,6 @@ import {
   ASPECTS,
   getTown,
   isAspectName,
-  isMapName,
   isZoomName,
   liveMapUrl,
   townCentre,
@@ -33,7 +32,6 @@ type MapProps = Pick<
   | 'claims'
   | 'facts'
   | 'interactive'
-  | 'map'
   | 'pin'
   | 'town'
   | 'view'
@@ -197,7 +195,6 @@ export async function MapBlock({
   x,
   z,
   zoom,
-  map,
   aspect,
   claims,
   pin,
@@ -210,7 +207,7 @@ export async function MapBlock({
 }: MapProps) {
   const voice = VOICES[tone]
   const zoomName = isZoomName(zoom) ? zoom : 'town'
-  const mapName = isMapName(map) ? map : 'flat'
+  const mapName = 'flat' as const
   const aspectName = isAspectName(aspect) ? aspect : 'wide'
   const { width, height } = ASPECTS[aspectName]
 

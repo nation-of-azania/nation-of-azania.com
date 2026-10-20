@@ -1,4 +1,4 @@
-import { isPoint, type Point } from './geo'
+import { isPoint, type Point, type RoadShape } from './geo'
 
 /**
  * What Azania Maps knows how to show, defined in code like the site's designs
@@ -71,6 +71,12 @@ export const ROAD_KINDS = {
   canal: { label: 'Canal or waterway' },
 } as const
 export type RoadKind = keyof typeof ROAD_KINDS
+
+/** How a road runs between its points (src/maps/geo.ts → roadCourse). Straight is the everyday choice. */
+export const ROAD_SHAPES = {
+  straight: { label: 'Straight from point to point' },
+  curved: { label: 'Curved smoothly through the points' },
+} as const satisfies Record<RoadShape, { label: string }>
 
 /** What a map can show on top of the Rulercraft tiles. */
 export const MAP_LAYERS = {

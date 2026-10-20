@@ -239,6 +239,8 @@ export type Town = {
   nation: string | null
   culture: string | null
   founded: string | null
+  /** Whether anyone may `/t spawn` to the town (Towny's "Public Teleport"); null if the map doesn't say. */
+  publicSpawn: boolean | null
 }
 
 const TOWNY_TTL_MS = 60 * 60 * 1000
@@ -281,6 +283,7 @@ function townFacts(desc: string) {
       : []
   const culture = cells.find((cell) => /Culture -/.test(cell))?.split('Culture -')[1]?.trim() || null
   const id = cells.map((cell) => /^ID\s+([0-9a-f-]{36})$/i.exec(cell)?.[1]).find(Boolean) ?? null
+  const teleport = after(/Public Teleport:/)
   return {
     id,
     ruler: after(/Ruler:/),
@@ -288,6 +291,7 @@ function townFacts(desc: string) {
     nation: nation && !/^No Nation$/i.test(nation) ? nation : null,
     culture,
     founded: after(/Founded:/),
+    publicSpawn: teleport == null ? null : /^enabled$/i.test(teleport),
   }
 }
 

@@ -1,6 +1,7 @@
 import type { Event, MapView, Place, Road, Town } from '@/payload-types'
 
 import { boundsOf, isPoint, outlineToRing, type Bounds, type Outline, type Point } from './geo'
+import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
   drawingsProblem,
@@ -73,7 +74,7 @@ export type MapViewData = {
   centre: Point
   span: number
   aspect: MapView['aspect']
-  map: MapView['map']
+  map: MapName
   layers: MapLayer[]
   drawings: Drawing[]
   createdBy: number | null
@@ -187,7 +188,7 @@ export function mapView(view: MapView): MapViewData | null {
     centre: [view.centre.x, view.centre.z],
     span: view.span,
     aspect: view.aspect,
-    map: view.map,
+    map: 'flat',
     layers: view.layers ?? [],
     drawings:
       drawingsProblem(view.drawings) === null && Array.isArray(view.drawings)

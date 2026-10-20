@@ -456,6 +456,10 @@ export interface Town {
   nation?: string | null;
   ruler?: string | null;
   founded?: string | null;
+  /**
+   * Towny’s "Public Teleport": whether any player may /t spawn here.
+   */
+  publicSpawn?: boolean | null;
   culture?: string | null;
   residentCount?: number | null;
   chunks?: number | null;
@@ -707,9 +711,25 @@ export interface Road {
   name?: string | null;
   kind: 'highway' | 'main' | 'street' | 'path' | 'rail' | 'iceroad' | 'canal';
   /**
-   * The road’s course, [[x, z], …] in blocks.
+   * The road’s points, [[x, z], …] in blocks.
    */
   line:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Curved roads bend smoothly through their points, one bend flowing into the next.
+   */
+  shape: 'straight' | 'curved';
+  /**
+   * In a curved road, the points that stay sharp turns (as at a junction), by position: [2, 5].
+   */
+  corners?:
     | {
         [k: string]: unknown;
       }
@@ -751,7 +771,6 @@ export interface MapView {
    */
   span: number;
   aspect: 'wide' | 'square' | 'banner';
-  map: 'flat' | 'biomes';
   /**
    * Which of Azania Maps’ own layers show under the highlights.
    */
@@ -1084,6 +1103,7 @@ export interface TownsSelect<T extends boolean = true> {
   nation?: T;
   ruler?: T;
   founded?: T;
+  publicSpawn?: T;
   culture?: T;
   residentCount?: T;
   chunks?: T;
@@ -1129,6 +1149,8 @@ export interface RoadsSelect<T extends boolean = true> {
   name?: T;
   kind?: T;
   line?: T;
+  shape?: T;
+  corners?: T;
   town?: T;
   createdBy?: T;
   updatedBy?: T;
@@ -1173,7 +1195,6 @@ export interface MapViewsSelect<T extends boolean = true> {
       };
   span?: T;
   aspect?: T;
-  map?: T;
   layers?: T;
   drawings?: T;
   createdBy?: T;
@@ -1502,7 +1523,6 @@ export interface MapBlockType {
   x?: number | null;
   z?: number | null;
   zoom?: ('close' | 'street' | 'town' | 'district' | 'region' | 'country') | null;
-  map?: ('flat' | 'biomes') | null;
   aspect?: ('wide' | 'square' | 'banner') | null;
   /**
    * Draw the town’s Towny claims on the clipping.

@@ -1,7 +1,7 @@
 import type { Block } from 'payload'
 
 import { MINECRAFT_NAME } from '../fields/minecraftName'
-import { ASPECTS, MAPS, ZOOMS } from '../lib/dynmap'
+import { ASPECTS, ZOOMS } from '../lib/dynmap'
 
 /**
  * Lexical content blocks — the shared contract between the CMS schema and the
@@ -441,15 +441,7 @@ export const MapBlock: Block = {
           required: true,
           defaultValue: 'town',
           options: options(ZOOMS),
-          admin: { width: '40%', condition: withoutView },
-        },
-        {
-          name: 'map',
-          type: 'select',
-          required: true,
-          defaultValue: 'flat',
-          options: options(MAPS),
-          admin: { width: '30%', condition: withoutView },
+          admin: { width: '50%', condition: withoutView },
         },
         {
           name: 'aspect',
@@ -457,7 +449,7 @@ export const MapBlock: Block = {
           required: true,
           defaultValue: 'wide',
           options: options(ASPECTS),
-          admin: { width: '30%', condition: withoutView },
+          admin: { width: '50%', condition: withoutView },
         },
       ],
     },
