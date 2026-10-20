@@ -7,6 +7,7 @@ import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import { dress } from '@/components/styles'
 import { getMapData, getMapView } from '@/lib/maps'
 import { around, mapView, type MapData, type MapViewData } from '@/maps/data'
+import { routeFrom, spawnRoute, type SpawnRoute } from '@/maps/spawn'
 import { ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
 import { clock } from '@/maps/time'
 import { frameBounds, zoomForSpan } from '@/maps/view'
@@ -20,10 +21,11 @@ import {
   ZOOMS,
   type Town,
 } from '@/lib/dynmap'
+import type { StyleId } from '@/contexts/styles'
 import type { MapBlockType } from '@/payload-types'
 
 import { cn, type Tone, type Voice } from '../shared'
-import { CopyCoordinates, MapClip } from './Client'
+import { CopyCommand, MapClip } from './Client'
 
 type MapProps = Pick<
   MapBlockType,
@@ -63,6 +65,8 @@ const VOICES: Record<
     link: string
     name: string
     note: string
+    /** The small plate in a still's corner while the Rulercraft map is down. */
+    offline: string
     plate: string
     survey: string
     value: string
@@ -79,6 +83,7 @@ const VOICES: Record<
     link: 'text-sea-700 underline decoration-(--accent) underline-offset-2 hover:text-sea-800',
     name: 'font-display text-lg leading-tight text-sea-900',
     note: 'bg-sand-200/60 text-ink-500',
+    offline: 'border border-sand-300 bg-sand-50/95 text-ink-500',
     plate: 'mt-1 border-t border-(--accent) px-2 pt-3 pb-1.5 sm:px-3',
     survey: 'mt-2 justify-center text-ink-500',
     value: 'text-sm text-ink-700',
@@ -94,6 +99,7 @@ const VOICES: Record<
     link: 'text-(--accent-ink) underline decoration-lagoon-500 underline-offset-2 hover:text-(--accent)',
     name: 'font-news text-lg leading-tight font-bold text-news-900',
     note: 'bg-news-100 text-news-500',
+    offline: 'border border-news-300 bg-news-50/95 text-news-700',
     plate: 'px-4 pt-3 pb-3.5',
     survey: 'mt-1.5 text-news-500',
     value: 'text-sm text-news-700',
@@ -109,6 +115,7 @@ const VOICES: Record<
     link: 'text-verdigris-700 underline decoration-verdigris-300 underline-offset-2 hover:text-verdigris-800',
     name: 'font-record text-lg leading-tight font-medium text-graphite-900',
     note: 'bg-paper-200/60 text-graphite-500',
+    offline: 'border border-paper-300 bg-paper-50/95 font-mono text-[10px] text-graphite-500',
     plate: 'mt-1 border-t border-paper-200 px-2 pt-3 pb-1.5 sm:px-3',
     survey: 'mt-1.5 text-graphite-500',
     value: 'text-sm text-graphite-900',
@@ -130,6 +137,32 @@ const CLAIM_INK: Record<Tone, string> = {
 
 /** "Cape_Agulhas" as Towny spells it, "Cape Agulhas" as a reader says it. */
 const spoken = (name: string) => name.replace(/_/g, ' ')
+
+/**
+ * Said in a still's corner while the Rulercraft map isn't answering, since
+ * the layers then stand on a plain ground that would pass for sea: each
+ * paper in its own voice, and Cherry Blossom in hers.
+ */
+const OFFLINE: Record<Tone, string> = {
+  gazette: 'The Rulercraft map is not answering just now. The ground will be drawn when it is; the nation’s own marks stand.',
+  times: 'Map pictures unavailable: the Rulercraft map isn’t answering. Our marks stay put.',
+  international: 'Base map unavailable — the Rulercraft map is not answering. Features as filed.',
+}
+const OFFLINE_BLOSSOM = 'The map’s having a little lie-down, so the ground’s gone plain for now. Our pins are still here.'
+
+function OfflineNote({ tone, style }: { tone: Tone; style: StyleId | null }) {
+  const blossom = style === 'blossom'
+  return (
+    <p
+      className={cn(
+        'absolute left-2 top-2 z-10 max-w-xs px-2.5 py-1.5 text-[11px] leading-snug',
+        blossom ? 'rounded-lg border border-blossom-300 bg-blossom-100/95 text-blossom-800' : VOICES[tone].offline,
+      )}
+    >
+      {blossom ? OFFLINE_BLOSSOM : OFFLINE[tone]}
+    </p>
+  )
+}
 
 /** The zoom, said in an alt text. */
 const ZOOM_WORDS = {
@@ -207,7 +240,6 @@ export async function MapBlock({
 }: MapProps) {
   const voice = VOICES[tone]
   const zoomName = isZoomName(zoom) ? zoom : 'town'
-  const mapName = 'flat' as const
   const aspectName = isAspectName(aspect) ? aspect : 'wide'
   const { width, height } = ASPECTS[aspectName]
 
@@ -224,6 +256,8 @@ export async function MapBlock({
         frame={frame}
         interactive={Boolean(interactive)}
         rounded={rounded}
+        style={style}
+        tone={tone}
         view={view}
         voice={voice}
       />
@@ -263,7 +297,7 @@ export async function MapBlock({
 
   // Claims and facts belong to a town; a clipping on coordinates has neither.
   const colour = (style && STYLE_THEME[style]) || CLAIM_INK[tone]
-  const query = new URLSearchParams({ zoom: zoomName, map: mapName, aspect: aspectName, colour: colour.slice(1) })
+  const query = new URLSearchParams({ zoom: zoomName, aspect: aspectName, colour: colour.slice(1) })
   if (town) query.set('town', town.name)
   if (hasCoordinates) {
     query.set('x', String(Math.round(x)))
@@ -273,8 +307,8 @@ export async function MapBlock({
   if (pin) query.set('pin', '1')
   const src = `/mapclip?${query}`
 
-  // The survey reference: the home block has a height; coordinates keep the
-  // player's own ("~" in a /tp), as the map knows nothing above sea level.
+  // The survey reference: the home block has a height; coordinates have
+  // none, as the map knows nothing above sea level.
   const atHome = Boolean(town?.home) && !hasCoordinates
   const cx = Math.round(centre.x)
   const cz = Math.round(centre.z)
@@ -284,8 +318,7 @@ export async function MapBlock({
     ...(cy != null ? [['Y', String(cy)]] : []),
     ['Z', String(cz)],
   ] as const
-  const clipboard = `${cx} ${cy ?? '~'} ${cz}`
-  const live = liveMapUrl({ x: cx, z: cz, zoom: zoomName, map: mapName })
+  const live = liveMapUrl({ x: cx, z: cz, zoom: zoomName })
 
   const alt = town
     ? `${spoken(town.name)} on the Rulercraft map, ${ZOOM_WORDS[zoomName]}${claims === false ? '' : ', its claims outlined'}`
@@ -305,16 +338,23 @@ export async function MapBlock({
     centre: [cx, cz],
     span,
     aspect: aspectName,
-    map: mapName,
+    map: 'flat',
     layers: ALL_LAYERS,
     drawings: [],
     town: azanian?.id ?? null,
   }
   const at = { centre: [cx, cz] as [number, number], zoom: zoomForSpan(span, COLUMN_PX) }
-  const mapsLink = azanian
-    ? mapsHref({ at, map: mapName }, townHref(azanian.slug))
-    : mapsHref({ at, map: mapName })
+  const mapsLink = azanian ? mapsHref({ at }, townHref(azanian.slug)) : mapsHref({ at })
   const now = clock()
+
+  // The way there as a player has it: the town's own spawn, or, from
+  // coordinates, the nearest public one and the walk from its home block.
+  const route = town
+    ? routeFrom(
+        { name: town.name, home: town.home ? [town.home.x, town.home.z] : null, publicSpawn: town.publicSpawn },
+        [cx, cz],
+      )
+    : spawnRoute([cx, cz], nation.towns)
   const still = (
     <MapClip
       alt={alt}
@@ -407,12 +447,9 @@ export async function MapBlock({
               </span>
             ))}
           </span>
-          {/* Kept together, so a narrow screen wraps the actions as one line under the reference. */}
+          {route ? <SpawnLine route={route} voice={voice} /> : null}
+          {/* Kept together, so a narrow screen wraps the links as one line under the reference. */}
           <span className="inline-flex items-baseline gap-x-3">
-            <CopyCoordinates className={voice.button} text={clipboard} />
-            <span aria-hidden="true" className="opacity-50">
-              ·
-            </span>
             <a className={voice.link} href={mapsLink}>
               Azania Maps
             </a>
@@ -432,6 +469,24 @@ export async function MapBlock({
 type VoiceOf = (typeof VOICES)[Tone]
 
 /**
+ * How a player gets there: `/t spawn <Town>` to copy — the command players
+ * have, where `/tp` is staff's — then the walk from the home block, and a
+ * word when only the town's residents may use its spawn.
+ */
+function SpawnLine({ route, voice }: { route: SpawnRoute; voice: VoiceOf }) {
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-2">
+      <span>
+        {route.command}
+        {route.then ? <span className="opacity-70">, {route.then}</span> : null}
+      </span>
+      <CopyCommand className={voice.button} text={route.command} />
+      {route.publicSpawn === false ? <span className="italic opacity-70">spawn is private</span> : null}
+    </span>
+  )
+}
+
+/**
  * A map view in the figure's frame: the article's piece of Azania Maps,
  * with the layers its author chose and the highlights they drew. Still by
  * default (the clipping under an SVG overlay, no map library); set to
@@ -441,6 +496,8 @@ type VoiceOf = (typeof VOICES)[Tone]
 async function ViewFigure({
   view,
   voice,
+  tone,
+  style,
   frame,
   rounded,
   caption,
@@ -448,6 +505,8 @@ async function ViewFigure({
 }: {
   view: MapViewData | null
   voice: VoiceOf
+  tone: Tone
+  style: StyleId | null
   frame: string
   rounded: boolean
   caption: string | null | undefined
@@ -489,18 +548,15 @@ async function ViewFigure({
   const data = around(nation, frameBounds(view.centre, view.span, view.aspect))
   const now = clock()
   const [cx, cz] = view.centre.map(Math.round)
-  const href = mapsHref({
-    at: { centre: view.centre, zoom: zoomForSpan(view.span, COLUMN_PX) },
-    map: view.map,
-    view: view.id,
-  })
+  const href = mapsHref({ at: { centre: view.centre, zoom: zoomForSpan(view.span, COLUMN_PX) }, view: view.id })
+  const route = spawnRoute([cx, cz], nation.towns)
   const alt = `Azania Maps around x ${cx}, z ${cz}, ${Math.round(view.span).toLocaleString('en-GB')} blocks across${view.drawings.length ? ', with highlights' : ''}`
   const still = (
     <MapStill
       alt={alt}
       data={data}
       frame={mapsFrame}
-      note="The Rulercraft map isn’t answering just now; the ground will appear when it is."
+      note={<OfflineNote style={style} tone={tone} />}
       now={now}
     >
       {interactive ? null : <MapsMark href={href} />}
@@ -542,15 +598,10 @@ async function ViewFigure({
               <span className="opacity-70">Z</span> {cz}
             </span>
           </span>
-          <span className="inline-flex items-baseline gap-x-3">
-            <CopyCoordinates className={voice.button} text={`${cx} ~ ${cz}`} />
-            <span aria-hidden="true" className="opacity-50">
-              ·
-            </span>
-            <a className={voice.link} href={href}>
-              Open on Azania Maps
-            </a>
-          </span>
+          {route ? <SpawnLine route={route} voice={voice} /> : null}
+          <a className={voice.link} href={href}>
+            Open on Azania Maps
+          </a>
         </p>
       </figcaption>
     </figure>

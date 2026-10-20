@@ -140,8 +140,8 @@ export function MapStill({
   data: MapData
   now: number
   alt: string
-  /** Shown over the backdrop when the clipping can't be drawn. */
-  note: string
+  /** Shown over the backdrop when the clipping can't be drawn: a line, or the paper's own plate. */
+  note: ReactNode
   className?: string
   /** Anything to lay over the picture: the mark. */
   children?: ReactNode
@@ -156,9 +156,13 @@ export function MapStill({
         alt={alt}
         className="absolute inset-0 block h-full w-full"
         fallback={
-          <p className="absolute left-2 top-2 z-10 max-w-xs border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[11px] leading-snug text-saffron-600">
-            {note}
-          </p>
+          typeof note === 'string' ? (
+            <p className="absolute left-2 top-2 z-10 max-w-xs border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[11px] leading-snug text-saffron-600">
+              {note}
+            </p>
+          ) : (
+            note
+          )
         }
         height={Math.round(1200 / ratio)}
         src={clipUrl(frame)}

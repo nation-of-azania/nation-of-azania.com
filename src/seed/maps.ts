@@ -127,7 +127,6 @@ export async function seedMaps(payload: Payload, ids: Ids): Promise<void> {
     centre: { x: 4296, z: 4945 },
     span: 160,
     aspect: 'wide',
-    map: 'flat',
     layers: ['towns', 'places', 'roads'],
     drawings: [
       { kind: 'line', points: [[4264, 4952], [4280, 4951], [4292, 4946]], ink: 'rose', weight: 2, arrow: true },

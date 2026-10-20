@@ -542,7 +542,6 @@ export const cherryGroveContent = (): LexicalEditorState =>
       {
         town: 'GirlieTown',
         zoom: 'town',
-        map: 'flat',
         aspect: 'wide',
         claims: true,
         pin: true,
