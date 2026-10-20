@@ -17,6 +17,9 @@ export async function generateMetadata(): Promise<Metadata> {
   })
 }
 
+/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+export const revalidate = 60
+
 /** The map's front: the nation at a glance, what's on, the towns. */
 export default async function MapsPage() {
   const [data, census] = await Promise.all([getMapData(), getNationCensus()])

@@ -8,6 +8,14 @@ import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } 
 
 import { mapsMetadata } from '../../metadata'
 
+/**
+ * Cached for everyone alike, a minute at a time (see ../layout.tsx): none
+ * is built ahead, each is rendered when first asked for and kept.
+ */
+export const revalidate = 60
+export const dynamicParams = true
+export const generateStaticParams = async () => []
+
 type Props = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

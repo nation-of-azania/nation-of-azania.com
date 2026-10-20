@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
@@ -14,7 +13,6 @@ import {
   type MapLayer,
   type ViewAspect,
 } from '@/maps/registry'
-import { MAPS, type MapName } from '@/maps/source'
 
 import { api } from '../api'
 import { useMaps } from '../context'
@@ -82,8 +80,7 @@ export function ViewForm({
   onViewSaved,
   sceneApi,
 }: EditorPanelProps & { editor: Extract<Editor, { kind: 'view' }> }) {
-  const router = useRouter()
-  const { rights } = useMaps()
+  const { rights, refresh } = useMaps()
   const { draft } = editor
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +132,6 @@ export function ViewForm({
         centre: { x: current.centre[0], z: current.centre[1] },
         span: current.span,
         aspect: draft.aspect,
-        map: draft.map,
         layers: draft.layers,
         drawings: keep(draft.drawings).map((d) =>
           d.kind === 'text' ? { ...d, text: d.text.trim() } : d,
@@ -149,7 +145,7 @@ export function ViewForm({
       })
       onViewSaved(view)
       setSavedAs(view.title)
-      router.refresh()
+      refresh()
     } catch (caught) {
       setError(messageOf(caught))
     } finally {
@@ -167,7 +163,7 @@ export function ViewForm({
     try {
       await api.remove('map-views', editor.id)
       onClose()
-      router.refresh()
+      refresh()
     } catch (caught) {
       setError(messageOf(caught))
       setBusy(false)
@@ -198,46 +194,26 @@ export function ViewForm({
         />
       </Field>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Field label="Frame">
-          <div className="flex" role="group" aria-label="Aspect">
-            {(Object.keys(VIEW_ASPECTS) as ViewAspect[]).map((aspect, index) => (
-              <button
-                aria-pressed={draft.aspect === aspect}
-                className={cn(
-                  BUTTON,
-                  'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
-                  index > 0 && '-ml-px',
-                )}
-                key={aspect}
-                onClick={() => onChange({ ...editor, draft: { ...draft, aspect } })}
-                type="button"
-              >
-                {aspect}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Base map">
-          <div className="flex" role="group" aria-label="Base map">
-            {(Object.keys(MAPS) as MapName[]).map((name, index) => (
-              <button
-                aria-pressed={draft.map === name}
-                className={cn(
-                  BUTTON,
-                  'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
-                  index > 0 && '-ml-px',
-                )}
-                key={name}
-                onClick={() => onChange({ ...editor, draft: { ...draft, map: name } })}
-                type="button"
-              >
-                {MAPS[name].label}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </div>
+      <Field label="Frame">
+        <div className="mt-4 flex" role="group" aria-label="Aspect">
+          {(Object.keys(VIEW_ASPECTS) as ViewAspect[]).map((aspect, index) => (
+            <button
+              aria-pressed={draft.aspect === aspect}
+              className={cn(
+                BUTTON,
+                'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                index > 0 && '-ml-px',
+              )}
+              key={aspect}
+              onClick={() => onChange({ ...editor, draft: { ...draft, aspect } })}
+              title={VIEW_ASPECTS[aspect].label}
+              type="button"
+            >
+              {aspect}
+            </button>
+          ))}
+        </div>
+      </Field>
       <p className="mt-2 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
         {frame
           ? `${frame.span.toLocaleString('en-GB')} blocks across · centre X ${frame.centre[0]} Z ${frame.centre[1]}`

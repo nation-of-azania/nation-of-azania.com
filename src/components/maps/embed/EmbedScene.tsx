@@ -9,8 +9,8 @@ import { frameBounds } from '@/maps/view'
 
 import { DrawingsLayer } from '../layers/DrawingsLayer'
 import { EventsLayer } from '../layers/EventsLayer'
+import { planLabels } from '../layers/labels'
 import { PlacesLayer } from '../layers/PlacesLayer'
-import { LabelPlacer } from '../layers/projection'
 import { RoadsLayer } from '../layers/RoadsLayer'
 import { TownLabels, TownsLayer } from '../layers/TownsLayer'
 import { fitBounds, MapCanvas, useProjection, type L } from '../leaflet/canvas'
@@ -73,7 +73,6 @@ export function EmbedScene({ frame, data, now, href, className, onReady }: Embed
         }
         className="absolute inset-0 z-0"
         initial={{ bounds, padding: 0 }}
-        mapName={frame.map}
         onReady={(map) => {
           mapRef.current = map
           map.whenReady(() => onReady?.())
@@ -88,32 +87,32 @@ export function EmbedScene({ frame, data, now, href, className, onReady }: Embed
 
 function Layers({ frame, data, now }: { frame: Frame; data: MapData; now: number }) {
   const projection = useProjection(`embed-${frame.centre.join('-')}`)
-  const placer = new LabelPlacer()
-  const labelled = new Set<number>()
   const show = (layer: MapLayer) => frame.layers.includes(layer)
+  const labels = planLabels(projection, {
+    drawings: frame.drawings,
+    towns: show('towns') ? data.towns : [],
+    roads: show('roads') ? data.roads : [],
+    places: show('places') ? data.places : [],
+    events: show('events') ? data.events : [],
+    now,
+  })
   return (
     <>
       {show('towns') ? (
-        <TownsLayer
-          labelled={labelled}
-          placer={placer}
-          projection={projection}
-          selected={frame.town ?? null}
-          towns={data.towns}
-        />
+        <TownsLayer projection={projection} selected={frame.town ?? null} towns={data.towns} />
       ) : null}
       {show('roads') ? (
-        <RoadsLayer placer={placer} projection={projection} roads={data.roads} />
-      ) : null}
-      {show('events') ? (
-        <EventsLayer events={data.events} now={now} placer={placer} projection={projection} />
+        <RoadsLayer labels={labels.roads} projection={projection} roads={data.roads} />
       ) : null}
       {show('places') ? (
-        <PlacesLayer placer={placer} places={data.places} projection={projection} />
+        <PlacesLayer labels={labels.places} places={data.places} projection={projection} />
+      ) : null}
+      {show('events') ? (
+        <EventsLayer events={data.events} labels={labels.events} now={now} projection={projection} />
       ) : null}
       {show('towns') ? (
         <TownLabels
-          labelled={labelled}
+          labels={labels.towns}
           projection={projection}
           selected={frame.town ?? null}
           towns={data.towns}

@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom'
 
 import { pixelsPerBlock } from '@/maps/palette'
 import { TILE_SIZE, WORLD_LIMIT, type Bounds, type Point } from '@/maps/geo'
-import { cachedTileUrl, MAPS, type MapName } from '@/maps/source'
+import { cachedTileUrl, MAPS } from '@/maps/source'
 
 import type { Projection } from '../layers/projection'
 
@@ -39,20 +39,21 @@ export const toLatLngBounds = (bounds: Bounds): L.LatLngBounds =>
   L.latLngBounds([bounds.minZ, bounds.minX], [bounds.maxZ, bounds.maxX])
 
 export const MAX_ZOOM = 3
-export const minZoomOf = (map: MapName) => -MAPS[map].maxLevel
+/** The flat map's coarsest level; Dynmap draws nothing coarser. */
+export const MIN_ZOOM = -MAPS.flat.maxLevel
 
 /** A 1×1 transparent PNG: what a tile shows while the map can't be reached, so the backdrop shows through. */
 const EMPTY_TILE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
-/** The Rulercraft map's tiles through the site's cache (src/maps/source.ts). */
+/** The Rulercraft map's tiles through the site's cache (src/maps/source.ts); only the native levels are ever asked for. */
 class AzaniaTileLayer extends L.TileLayer {
-  constructor(private readonly mapName: MapName) {
+  constructor() {
     super('', {
       tileSize: TILE_SIZE,
-      minZoom: minZoomOf(mapName),
+      minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
-      minNativeZoom: minZoomOf(mapName),
+      minNativeZoom: MIN_ZOOM,
       maxNativeZoom: 0,
       keepBuffer: 3,
       updateWhenZooming: false,
@@ -62,51 +63,189 @@ class AzaniaTileLayer extends L.TileLayer {
   }
 
   getTileUrl(coords: L.Coords): string {
-    return cachedTileUrl(this.mapName, -coords.z, coords.x, coords.y)
+    return cachedTileUrl('flat', -coords.z, coords.x, coords.y)
   }
 }
 
 export type MapPosition = { centre: Point; zoom: number }
 
-type MapContextValue = { map: L.Map; version: number }
+/**
+ * The view the overlay is drawn for: taken the moment the map settles, so
+ * what React renders and the transform that moves it into place can never
+ * disagree, however late the render runs.
+ */
+type View = { zoom: number; origin: L.Point; bounds: L.LatLngBounds }
+
+const takeView = (map: L.Map): View => ({
+  zoom: map.getZoom(),
+  origin: map.getPixelOrigin(),
+  bounds: map.getBounds(),
+})
+
+/**
+ * The transform that moves something drawn for one view into place for
+ * another: the projection is linear in the zoom's scale, so it's a scale
+ * and a shift. Empty when the two are the same.
+ */
+function alignment(from: View, to: View): string {
+  const s = 2 ** (to.zoom - from.zoom)
+  const dx = from.origin.x * s - to.origin.x
+  const dy = from.origin.y * s - to.origin.y
+  if (s === 1 && dx === 0 && dy === 0) return ''
+  return `matrix(${s} 0 0 ${s} ${dx} ${dy})`
+}
+
+/** Sets or clears the overlay's transform, touching the DOM only when it changes. */
+function setTransform(group: SVGGElement, transform: string): void {
+  if ((group.getAttribute('transform') ?? '') === transform) return
+  if (transform) group.setAttribute('transform', transform)
+  else group.removeAttribute('transform')
+}
+
+type MapContextValue = { map: L.Map; version: number; view: View }
 
 const MapContext = createContext<MapContextValue | null>(null)
 
-/** The Leaflet map and a counter that advances whenever the view settles. */
+/** The Leaflet map, the view it last settled at, and a counter that advances each time. */
 export function useLeaflet(): MapContextValue {
   const value = useContext(MapContext)
   if (!value) throw new Error('useLeaflet needs a MapCanvas above it.')
   return value
 }
 
-/** The projection for the overlay at the current view; recomputed when the view settles. */
+/** The projection for the overlay at the settled view; recomputed when the view settles. */
 export function useProjection(id = 'map'): Projection {
-  const { map, version } = useLeaflet()
+  const { map, view } = useLeaflet()
   return useMemo(() => {
-    const zoom = map.getZoom()
-    const bounds = map.getBounds().pad(0.3)
+    const toBounds = (b: L.LatLngBounds): Bounds => ({
+      minX: b.getWest(),
+      maxX: b.getEast(),
+      minZ: b.getSouth(),
+      maxZ: b.getNorth(),
+    })
     return {
       project: ([x, z]: Point) => {
-        const p = map.latLngToLayerPoint(L.latLng(z, x))
+        const p = map.project(L.latLng(z, x), view.zoom).subtract(view.origin)
         return [p.x, p.y]
       },
-      ppb: pixelsPerBlock(zoom),
-      zoom,
-      bounds: {
-        minX: bounds.getWest(),
-        maxX: bounds.getEast(),
-        minZ: bounds.getSouth(),
-        maxZ: bounds.getNorth(),
-      },
+      ppb: pixelsPerBlock(view.zoom),
+      zoom: view.zoom,
+      bounds: toBounds(view.bounds.pad(0.3)),
+      view: toBounds(view.bounds),
       id,
     }
-    // version is the signal that the map has moved.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, version, id])
+  }, [map, view, id])
+}
+
+/** Leaflet's own workings that a continuous zoom needs; what its pinch handler uses. */
+type MapInternals = L.Map & {
+  _animatingZoom?: boolean
+  _stop: () => L.Map
+  _moveStart: (zoomChanged: boolean, noMoveStart: boolean) => L.Map
+  _move: (center: L.LatLng, zoom: number, data?: object, supressEvent?: boolean) => L.Map
+  _moveEnd: (zoomChanged: boolean) => L.Map
+  _limitZoom: (zoom: number) => number
+}
+
+/** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
+const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
+
+/**
+ * Zooming with the wheel, by hand, the way a map app does it. Leaflet's own
+ * handler waits, snaps and animates each step for 250 ms, dropping whatever
+ * the wheel sends meanwhile; a trackpad, which sends dozens of small
+ * deltas a second, finds that slow and steppy. Here every delta moves a
+ * target zoom at once — in proportion for a trackpad, by a fixed step for
+ * a click-wheel's notch, by a tighter ratio for a trackpad pinch (which
+ * arrives as a wheel with Ctrl held) — and each frame eases the map
+ * towards it around the pointer, through Leaflet's pinch path: cheap
+ * transforms on the tiles and the overlay, nothing re-rendered, until the
+ * gesture ends and the map settles once. Fractional zooms scale the
+ * nearest native level's tiles; tiles are only ever asked for at those.
+ */
+function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
+  const internals = map as MapInternals
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  let target = 0
+  let current = 0
+  let anchor = L.point(0, 0)
+  let begun = false
+  let frame = 0
+  let last = 0
+  let lastWheel = 0
+
+  const finish = () => {
+    cancelAnimationFrame(frame)
+    frame = 0
+    if (!begun) return
+    begun = false
+    // Tiles for the level arrived at, then the map settles.
+    map.fire('zoom')
+    internals._moveEnd(true)
+  }
+
+  const step = (now: number) => {
+    frame = requestAnimationFrame(step)
+    // Leaflet is mid-animation (a button's zoom): let it finish first.
+    if (internals._animatingZoom) {
+      last = now
+      return
+    }
+    if (!begun) {
+      begun = true
+      internals._stop()
+      current = map.getZoom()
+      internals._moveStart(true, false)
+      last = now
+    }
+    const dt = Math.min(64, now - last)
+    last = now
+    current += (target - current) * (reduced() ? 1 : 1 - Math.exp(-dt / WHEEL.ease))
+    if (Math.abs(target - current) < 0.002) current = target
+    // Keep the block under the pointer under the pointer, as setZoomAround does.
+    const scale = map.getZoomScale(current, map.getZoom())
+    const half = map.getSize().divideBy(2)
+    const shift = anchor.subtract(half).multiplyBy(1 - 1 / scale)
+    const centre = map.containerPointToLatLng(half.add(shift))
+    internals._move(centre, current, { pinch: true, round: false })
+    if (current === target && now - lastWheel > 120) finish()
+  }
+
+  const onWheel = (event: WheelEvent) => {
+    event.preventDefault()
+    let dy = event.deltaY
+    if (event.deltaMode === 1) dy *= 16
+    else if (event.deltaMode === 2) dy *= container.clientHeight
+    if (!dy) return
+    const pinch = event.ctrlKey
+    // A click-wheel mouse sends whole notches, big and far apart; a trackpad a stream of small ones.
+    const notch = !pinch && (event.deltaMode !== 0 || Math.abs(dy) >= 60)
+    const dz = pinch
+      ? -dy / WHEEL.pinchPxPerLevel
+      : notch
+        ? -Math.sign(dy) * WHEEL.notchLevels * Math.min(2, Math.max(1, Math.abs(dy) / 100))
+        : -dy / WHEEL.scrollPxPerLevel
+    if (!frame) {
+      target = map.getZoom()
+      current = target
+      last = performance.now()
+    }
+    target = internals._limitZoom(target + dz)
+    anchor = map.mouseEventToContainerPoint(event)
+    lastWheel = performance.now()
+    if (!frame) frame = requestAnimationFrame(step)
+  }
+
+  container.addEventListener('wheel', onWheel, { passive: false })
+  return () => {
+    container.removeEventListener('wheel', onWheel)
+    cancelAnimationFrame(frame)
+    frame = 0
+    if (begun) finish()
+  }
 }
 
 type CanvasProps = {
-  mapName: MapName
   /** Where to open: a centre and zoom, or bounds to fit. */
   initial: MapPosition | { bounds: Bounds; padding?: number }
   className?: string
@@ -130,12 +269,14 @@ type CanvasProps = {
 /**
  * The map itself: a Leaflet map in a div, its tiles from the cache, and an
  * SVG overlay the children are rendered into through a portal. Leaflet's
- * own SVG renderer owns that overlay, so it is positioned and scaled by
- * Leaflet during pans and zoom animations like any path layer; the
- * children re-render once the view settles, at the new layer points.
+ * own SVG renderer owns that overlay, so during a drag, a pinch or a zoom
+ * animation it is moved and scaled by Leaflet like any path layer, with
+ * nothing of React's running. When the view settles, the children are
+ * re-rendered once, at the new layer points; until that render lands, a
+ * transform on the overlay moves what's already drawn into place, so no
+ * frame shows it askew.
  */
 export function MapCanvas({
-  mapName,
   initial,
   className,
   cursor,
@@ -151,9 +292,11 @@ export function MapCanvas({
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
-  const tilesRef = useRef<AzaniaTileLayer | null>(null)
   const [overlay, setOverlay] = useState<SVGGElement | null>(null)
   const [context, setContext] = useState<MapContextValue | null>(null)
+  // The view the overlay's contents were drawn for, and the view the map last settled at.
+  const drawn = useRef<View | null>(null)
+  const settled = useRef<View | null>(null)
   const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick })
   useEffect(() => {
     handlers.current = { onMove, onPointer, onClick, onDoubleClick }
@@ -164,11 +307,10 @@ export function MapCanvas({
     if (!container || mapRef.current) return
     const map = L.map(container, {
       crs: AzaniaCRS,
-      minZoom: minZoomOf(mapName),
+      minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       zoomSnap: 0,
       zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 90,
       zoomControl: false,
       attributionControl: false,
       maxBounds: toLatLngBounds({
@@ -181,7 +323,8 @@ export function MapCanvas({
       boxZoom: false,
       doubleClickZoom: false,
       dragging: interactive,
-      scrollWheelZoom: interactive && wheel,
+      // The wheel is ours (installWheelZoom), not Leaflet's.
+      scrollWheelZoom: false,
       touchZoom: interactive,
       keyboard: interactive,
     })
@@ -195,8 +338,7 @@ export function MapCanvas({
       map.setView(toLatLng(initial.centre), initial.zoom, { animate: false })
     }
 
-    const tiles = new AzaniaTileLayer(mapName).addTo(map)
-    tilesRef.current = tiles
+    new AzaniaTileLayer().addTo(map)
 
     // The overlay: Leaflet's SVG renderer, with a group of our own for React.
     const renderer = L.svg({ padding: 0.6 }).addTo(map)
@@ -207,8 +349,16 @@ export function MapCanvas({
     setOverlay(group)
 
     let version = 0
-    const settle = () => setContext({ map, version: ++version })
-    map.on('moveend zoomend viewreset resize', settle)
+    const settle = () => {
+      const view = takeView(map)
+      settled.current = view
+      // Leaflet has just repositioned the overlay for the new view (its own
+      // moveend ran first); move what's drawn into place before React runs.
+      // A pan leaves the layer points as they were, and the overlay untouched.
+      if (drawn.current) setTransform(group, alignment(drawn.current, view))
+      setContext({ map, version: ++version, view })
+    }
+    map.on('moveend', settle)
     map.on('moveend', () =>
       handlers.current.onMove?.({ centre: toPoint(map.getCenter()), zoom: map.getZoom() }),
     )
@@ -235,6 +385,8 @@ export function MapCanvas({
       observer.disconnect()
       map.remove()
       mapRef.current = null
+      drawn.current = null
+      settled.current = null
       setOverlay(null)
       setContext(null)
     }
@@ -242,19 +394,13 @@ export function MapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Switching between the flat and the biome map.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !tilesRef.current) return
-    if ((tilesRef.current as unknown as { mapName: MapName }).mapName === mapName) return
-    const previous = tilesRef.current
-    const next = new AzaniaTileLayer(mapName).addTo(map)
-    tilesRef.current = next
-    map.setMinZoom(minZoomOf(mapName))
-    // Keep the old tiles until the new ones have painted, so the ground never blinks.
-    next.once('load', () => previous.remove())
-    window.setTimeout(() => previous.remove(), 2500)
-  }, [mapName])
+  // The children have just been drawn for the settled view: they stand in
+  // place of their own accord, unless the map settled again meanwhile.
+  useLayoutEffect(() => {
+    if (!context || !overlay) return
+    drawn.current = context.view
+    setTransform(overlay, settled.current ? alignment(context.view, settled.current) : '')
+  }, [context, overlay])
 
   useEffect(() => {
     const map = mapRef.current
@@ -262,9 +408,15 @@ export function MapCanvas({
     const toggle = (handler: L.Handler | undefined, on: boolean) =>
       on ? handler?.enable() : handler?.disable()
     toggle(map.dragging, interactive)
-    toggle(map.scrollWheelZoom, interactive && wheel)
     toggle(map.touchZoom, interactive)
     toggle(map.keyboard, interactive)
+  }, [interactive])
+
+  useEffect(() => {
+    const map = mapRef.current
+    const container = containerRef.current
+    if (!map || !container || !interactive || !wheel) return
+    return installWheelZoom(map, container)
   }, [interactive, wheel])
 
   return (

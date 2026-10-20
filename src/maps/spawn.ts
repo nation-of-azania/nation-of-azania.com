@@ -19,9 +19,9 @@ export type SpawnTown = {
 
 export type Compass = 'north' | 'north-east' | 'east' | 'south-east' | 'south' | 'south-west' | 'west' | 'north-west'
 
-export type SpawnRoute = {
-  /** The town whose spawn is nearest. */
-  town: SpawnTown
+export type SpawnRoute<T extends SpawnTown = SpawnTown> = {
+  /** The town whose spawn to use. */
+  town: T
   /** "/t spawn GirlieTown", as a player types it. */
   command: string
   /** Blocks from the home block to the spot, rounded as a person would say it; 0 when it is the spot. */
@@ -65,27 +65,29 @@ export function thenWalk(distance: number, direction: Compass | null): string | 
 }
 
 /**
- * The route to a spot: the nearest town's spawn and the walk from there.
- * Public spawns are preferred, since anyone can use them; only when no
- * town has one is a private spawn offered, and the caller can say so.
+ * The route to a spot: the nearest town's spawn and the walk from there. A
+ * public spawn, which anyone can use, is preferred over a nearer private
+ * one within reason (twice the distance, or 500 blocks more); when the
+ * nearest usable spawn is private all the same, the caller says so. A town
+ * whose spawn the map doesn't describe counts as public.
  */
-export function spawnRoute(point: Point, towns: SpawnTown[]): SpawnRoute | null {
-  const placed = towns.filter((town): town is SpawnTown & { home: Point } => town.home !== null)
+export function spawnRoute<T extends SpawnTown>(point: Point, towns: T[]): SpawnRoute<T> | null {
+  const reach = (town: T & { home: Point }) => Math.hypot(point[0] - town.home[0], point[1] - town.home[1])
+  const placed = towns
+    .filter((town): town is T & { home: Point } => town.home !== null)
+    .sort((a, b) => reach(a) - reach(b))
   if (placed.length === 0) return null
-  const nearest = (candidates: typeof placed) =>
-    candidates.reduce((best, town) =>
-      Math.hypot(town.home[0] - point[0], town.home[1] - point[1]) <
-      Math.hypot(best.home[0] - point[0], best.home[1] - point[1])
-        ? town
-        : best,
-    )
-  const open = placed.filter((town) => town.publicSpawn === true)
-  const town = nearest(open.length ? open : placed)
-  return routeFrom(town, point)
+  const nearest = placed[0]
+  const open = placed.find((town) => town.publicSpawn !== false)
+  const chosen =
+    nearest.publicSpawn === false && open && reach(open) <= Math.max(reach(nearest) * 2, reach(nearest) + 500)
+      ? open
+      : nearest
+  return routeFrom(chosen, point)
 }
 
 /** The route from one town's spawn: the town itself, when the Map block shows it. */
-export function routeFrom(town: SpawnTown, point: Point): SpawnRoute {
+export function routeFrom<T extends SpawnTown>(town: T, point: Point): SpawnRoute<T> {
   const raw = town.home ? Math.hypot(point[0] - town.home[0], point[1] - town.home[1]) : 0
   const distance = raw <= AT_SPAWN ? 0 : roundDistance(raw)
   const direction = distance && town.home ? compassFrom(town.home, point) : null

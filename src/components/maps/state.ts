@@ -1,7 +1,6 @@
 import type { MapViewData } from '@/maps/data'
-import type { Point } from '@/maps/geo'
+import type { Point, RoadShape } from '@/maps/geo'
 import type { Drawing, Ink, MapLayer, PlaceCategory, RoadKind, ViewAspect } from '@/maps/registry'
-import type { MapName } from '@/maps/source'
 
 /**
  * What the editor on /maps is doing, if anything: one of these at a time,
@@ -19,7 +18,15 @@ export type PlaceDraft = {
   outline: Point[]
 }
 
-export type RoadDraft = { name: string; kind: RoadKind; line: Point[] }
+export type RoadDraft = {
+  name: string
+  kind: RoadKind
+  line: Point[]
+  /** Straight from point to point (the everyday choice), or curved smoothly through them. */
+  shape: RoadShape
+  /** In a curved road, the points kept as sharp turns, by index. */
+  corners: number[]
+}
 
 export type EventDraft = {
   title: string
@@ -35,7 +42,6 @@ export type EventDraft = {
 export type ViewDraft = {
   title: string
   aspect: ViewAspect
-  map: MapName
   layers: MapLayer[]
   drawings: Drawing[]
 }
@@ -88,7 +94,13 @@ export const emptyPlace = (): PlaceDraft => ({
   point: null,
   outline: [],
 })
-export const emptyRoad = (): RoadDraft => ({ name: '', kind: 'street', line: [] })
+export const emptyRoad = (): RoadDraft => ({
+  name: '',
+  kind: 'street',
+  line: [],
+  shape: 'straight',
+  corners: [],
+})
 export const emptyEvent = (): EventDraft => ({
   title: '',
   description: '',
@@ -99,10 +111,9 @@ export const emptyEvent = (): EventDraft => ({
   point: null,
   article: null,
 })
-export const emptyView = (map: MapName, layers: MapLayer[]): ViewDraft => ({
+export const emptyView = (layers: MapLayer[]): ViewDraft => ({
   title: '',
   aspect: 'wide',
-  map,
   layers,
   drawings: [],
 })

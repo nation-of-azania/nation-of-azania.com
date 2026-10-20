@@ -1,15 +1,23 @@
 'use client'
 
 import { cn } from '@/blocks/components/shared'
-import type { MapEvent, MapPlace, MapRoad, MapTown } from '@/maps/data'
-import type { Point } from '@/maps/geo'
+import {
+  spoken,
+  type MapEvent,
+  type MapPlace,
+  type MapRoad,
+  type MapTown,
+} from '@/maps/data'
+import { routeFrom, spawnRoute } from '@/maps/spawn'
+import type { Bounds, Point } from '@/maps/geo'
 import { formatWhen, relativeDay, sortEvents } from '@/maps/time'
 
 import { useMaps } from '../context'
 import { useHydrated } from '../hooks'
+import { emptyEvent, emptyPlace, emptyRoad } from '../state'
 import { TextButton } from '../ui/chrome'
 import { Icon } from '../ui/icons'
-import { tpCommand, useCopy } from '../ui/Readouts'
+import { privateSpawnNote, useCopy } from '../ui/Readouts'
 import { EventRow } from '../ui/WhatsOn'
 
 /**
@@ -110,59 +118,95 @@ export function Look({
   )
 }
 
-/** The survey line: coordinates, a Copy for /tp, and a Look. */
+/**
+ * The survey line: coordinates (players see them with F3), a Look, and the
+ * way there as a player can actually travel — `/t spawn <town>` for the
+ * nearest town, with the walk from its home block, copied by a click. A
+ * town's own line names its own spawn. A private spawn is said kindly: only
+ * the town's residents can use it.
+ */
 export function Survey({
   point,
   y,
+  town,
+  fit,
   className,
 }: {
   point: Point
   y?: number | null
+  /** The town whose own spawn this is: no walk, just its command. */
+  town?: MapTown
+  /** Bounds to fit the map to, offered beside "Centre here": a town's main claim. */
+  fit?: Bounds | null
   className?: string
 }) {
+  const { data } = useMaps()
   const [copied, copy] = useCopy()
   const [x, z] = point.map(Math.round)
+  // A town's own panel offers its own spawn, with no walk.
+  const route = town ? routeFrom(town, town.home ?? point) : spawnRoute(point, data.towns)
+  const command = route?.command ?? null
+  const closed = route?.town.publicSpawn === false
   return (
-    <p
-      className={cn(
-        'flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums',
-        className,
-      )}
-    >
-      <span className="inline-flex gap-x-2">
-        <span>
-          <span className="opacity-70">X</span> {x}
-        </span>
-        {y != null ? (
+    <div className={cn('space-y-1', className)}>
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
+        <span className="inline-flex gap-x-2">
+          <span>
+            <span className="opacity-70">X</span> {x}
+          </span>
+          {y != null ? (
+            <span>
+              <span aria-hidden="true" className="mr-2 opacity-50">
+                /
+              </span>
+              <span className="opacity-70">Y</span> {Math.round(y)}
+            </span>
+          ) : null}
           <span>
             <span aria-hidden="true" className="mr-2 opacity-50">
               /
             </span>
-            <span className="opacity-70">Y</span> {Math.round(y)}
+            <span className="opacity-70">Z</span> {z}
           </span>
-        ) : null}
-        <span>
-          <span aria-hidden="true" className="mr-2 opacity-50">
-            /
-          </span>
-          <span className="opacity-70">Z</span> {z}
         </span>
-      </span>
-      <button
-        aria-label={`Copy ${tpCommand(point, y)}`}
-        className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
-        onClick={() => copy(tpCommand(point, y))}
-        type="button"
-      >
-        {copied ? 'Copied' : 'Copy /tp'}
-      </button>
-      <Look
-        className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
-        target={{ centre: point, zoom: 1, minZoom: true }}
-      >
-        Centre here
-      </Look>
-    </p>
+        <Look
+          className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+          target={{ centre: point, zoom: 1, minZoom: true }}
+        >
+          Centre here
+        </Look>
+        {fit ? (
+          <Look
+            className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+            target={{ bounds: fit }}
+          >
+            Fit to town
+          </Look>
+        ) : null}
+      </p>
+      {route && command ? (
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] text-ink-700">
+          <button
+            aria-label={`Copy ${command}`}
+            className="inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+            onClick={() => copy(command)}
+            title="Copy the command"
+            type="button"
+          >
+            <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+            <span aria-live="polite">{copied ? 'Copied' : command}</span>
+          </button>
+          {route.then ? <span className="text-ink-500">{route.then}</span> : null}
+          {closed ? (
+            <span className="basis-full text-[11px] italic leading-snug text-ink-500">
+              {town
+                ? `Its spawn is private: only ${spoken(town.name)}’s residents can use it.`
+                : privateSpawnNote(route.town)}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -255,20 +299,7 @@ export function AddHere({ town }: { town: MapTown }) {
         className="px-2.5 py-1.5"
         onClick={() => {
           start()
-          edit({
-            kind: 'place',
-            id: null,
-            draft: {
-              name: '',
-              category: 'landmark',
-              description: '',
-              y: '',
-              point: null,
-              outline: [],
-            },
-            placing: true,
-            tracing: false,
-          })
+          edit({ kind: 'place', id: null, draft: emptyPlace(), placing: true, tracing: false })
         }}
       >
         <Icon className="h-3.5 w-3.5" name="pin" /> Add a place
@@ -277,13 +308,7 @@ export function AddHere({ town }: { town: MapTown }) {
         className="px-2.5 py-1.5"
         onClick={() => {
           start()
-          edit({
-            kind: 'road',
-            id: null,
-            draft: { name: '', kind: 'street', line: [] },
-            drawing: true,
-            vertex: null,
-          })
+          edit({ kind: 'road', id: null, draft: emptyRoad(), drawing: true, vertex: null })
         }}
       >
         <Icon className="h-3.5 w-3.5" name="road" /> Draw a road
@@ -294,16 +319,7 @@ export function AddHere({ town }: { town: MapTown }) {
           edit({
             kind: 'event',
             id: null,
-            draft: {
-              title: '',
-              description: '',
-              startsAt: '',
-              endsAt: '',
-              host: '',
-              place: null,
-              point: town.home,
-              article: null,
-            },
+            draft: { ...emptyEvent(), point: town.home },
             picking: false,
           })
         }

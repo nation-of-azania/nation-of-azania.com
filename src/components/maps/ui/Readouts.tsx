@@ -3,6 +3,8 @@
 import { useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
+import { spoken, type MapTown } from '@/maps/data'
+import { spawnRoute } from '@/maps/spawn'
 import type { Point } from '@/maps/geo'
 import { formatDate } from '@/components/site/format'
 
@@ -19,55 +21,88 @@ export function useCopy(): [copied: boolean, copy: (text: string) => void] {
         window.setTimeout(() => setCopied(false), 1600)
       })
       .catch(() => {
-        // No clipboard (an insecure context): the coordinates are on the page to select.
+        // No clipboard (an insecure context): the command is on the page to select.
       })
   }
   return [copied, copy]
 }
 
-/** "/tp 4296 64 4952", with ~ for a height nobody knows. */
-export const tpCommand = ([x, z]: Point, y?: number | null) =>
-  `/tp ${Math.round(x)} ${y ?? '~'} ${Math.round(z)}`
+/** Said of a spawn only its residents may use. */
+export const privateSpawnNote = (town: Pick<MapTown, 'name'>): string =>
+  `${spoken(town.name)}’s spawn is private: only its residents can use it.`
 
 /**
  * The block under the pointer (or the middle of the view, on a phone), in
- * the survey hand of the Map block, with a Copy that puts a /tp in the
- * clipboard. A live region that stays quiet: coordinates change too often
- * to be read aloud, so only the Copy speaks.
+ * the survey hand of the Map block, with a Copy that puts the nearest town's
+ * `/t spawn` in the clipboard — the command players actually have — and the
+ * walk from there. A live region that stays quiet: coordinates change too
+ * often to be read aloud, so only the Copy speaks.
  */
 export function Coordinates({
   point,
   hint,
+  towns,
+  bare = false,
   className,
 }: {
   point: Point | null
   hint: string
+  towns: MapTown[]
+  /** Without its own box: set in a line of other things, as on the phone's sheet. */
+  bare?: boolean
   className?: string
 }) {
   const [copied, copy] = useCopy()
   if (!point) return null
   const [x, z] = point.map(Math.round)
+  const route = spawnRoute(point, towns)
   return (
     <div
       className={cn(
-        'flex items-center gap-x-3 border border-sand-300/80 bg-sand-50/90 px-2.5 py-1.5 font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums backdrop-blur-sm',
+        'flex min-w-0 items-center gap-x-3 whitespace-nowrap font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
+        bare ? 'overflow-hidden' : 'border border-sand-300/80 bg-sand-50/95 px-2.5 py-1.5',
         className,
       )}
     >
-      <span className="hidden text-ink-400 sm:inline">{hint}</span>
-      <span>
+      {!bare ? <span className="hidden text-ink-400 sm:inline">{hint}</span> : null}
+      <span className="shrink-0">
         <span className="opacity-60">X</span> {x} <span className="ml-1 opacity-60">Z</span> {z}
       </span>
-      <button
-        aria-label={`Copy ${tpCommand([x, z])}`}
-        className="inline-flex items-center gap-1 text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
-        onClick={() => copy(tpCommand([x, z]))}
-        title="Copy as /tp"
-        type="button"
-      >
-        <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
-        <span aria-live="polite">{copied ? 'Copied' : '/tp'}</span>
-      </button>
+      {route ? (
+        <>
+          <button
+            aria-label={`Copy ${route.command}`}
+            className={cn(
+              'inline-flex items-center gap-1 text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500',
+              // In a line of other things it gives way; in its own box the walk gives way first.
+              bare ? 'min-w-0 truncate' : 'shrink-0',
+            )}
+            onClick={() => copy(route.command)}
+            title={[
+              'Copy the command',
+              route.then ? `, ${route.then}` : '',
+              route.town.publicSpawn === false ? `. ${privateSpawnNote(route.town)}` : '',
+            ].join('')}
+            type="button"
+          >
+            <Icon className="h-3 w-3 shrink-0" name={copied ? 'check' : 'copy'} />
+            <span aria-live="polite" className="truncate">
+              {copied ? 'Copied' : route.command}
+            </span>
+          </button>
+          {route.then ? (
+            <span className="hidden min-w-0 truncate text-ink-400 xl:inline">{route.then}</span>
+          ) : null}
+          {route.town.publicSpawn === false ? (
+            <span
+              className="hidden min-w-0 truncate text-saffron-600 lg:inline"
+              title={privateSpawnNote(route.town)}
+            >
+              residents only
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </div>
   )
 }
@@ -87,7 +122,7 @@ export function StatusNote({
   return (
     <p
       className={cn(
-        'flex items-center gap-2 border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[12px] leading-snug text-saffron-600 backdrop-blur-sm',
+        'flex items-center gap-2 border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[12px] leading-snug text-saffron-600',
         className,
       )}
       role="status"

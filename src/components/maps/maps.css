@@ -69,6 +69,8 @@
   transform-box: fill-box;
   transform-origin: center;
   animation: az-pulse 2.2s ease-out infinite;
+  /* Composited on its own, so the breathing doesn't repaint the whole overlay each frame. */
+  will-change: transform, opacity;
 }
 @keyframes az-breathe {
   0%,

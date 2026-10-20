@@ -11,10 +11,9 @@ import {
   type MapLayer,
   type PlaceGroup,
 } from '@/maps/registry'
-import { MAPS, type MapName } from '@/maps/source'
 
 import { EventMark } from '../layers/EventsLayer'
-import { BUTTON, EYEBROW, IconButton, Popover } from './chrome'
+import { EYEBROW, IconButton, Popover } from './chrome'
 import { Icon } from './icons'
 
 const LAYER_WORDS: Record<MapLayer, string> = {
@@ -22,35 +21,6 @@ const LAYER_WORDS: Record<MapLayer, string> = {
   places: 'Places',
   roads: 'Roads',
   events: 'Events',
-}
-
-/** The flat map or the biome map. */
-export function MapToggle({
-  value,
-  onChange,
-}: {
-  value: MapName
-  onChange: (map: MapName) => void
-}) {
-  return (
-    <div className="flex" role="group" aria-label="Base map">
-      {(Object.keys(MAPS) as MapName[]).map((name, index) => (
-        <button
-          aria-pressed={value === name}
-          className={cn(
-            BUTTON,
-            'h-10 px-3 text-xs font-semibold uppercase tracking-[0.14em]',
-            index > 0 && '-ml-px',
-          )}
-          key={name}
-          onClick={() => onChange(name)}
-          type="button"
-        >
-          {MAPS[name].label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 /** Which of the map's own layers show, and whether past events do. */

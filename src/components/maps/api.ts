@@ -76,7 +76,13 @@ export type PlaceInput = {
   outline?: [number, number][] | null
 }
 
-export type RoadInput = { name?: string; kind: string; line: [number, number][] }
+export type RoadInput = {
+  name?: string
+  kind: string
+  line: [number, number][]
+  shape: 'straight' | 'curved'
+  corners: number[]
+}
 
 export type EventInput = {
   title: string
@@ -94,7 +100,6 @@ export type ViewInput = {
   centre: { x: number; z: number }
   span: number
   aspect: string
-  map: string
   layers: string[]
   drawings: unknown[]
 }

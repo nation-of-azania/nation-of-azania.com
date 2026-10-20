@@ -11,8 +11,9 @@ import { frameBounds } from '@/maps/view'
 
 import { DrawingsLayer } from '../layers/DrawingsLayer'
 import { EventsLayer } from '../layers/EventsLayer'
+import { planLabels } from '../layers/labels'
 import { PlacesLayer } from '../layers/PlacesLayer'
-import { LabelPlacer, type Projection } from '../layers/projection'
+import type { Projection } from '../layers/projection'
 import { RoadsLayer } from '../layers/RoadsLayer'
 import { TownLabels, TownsLayer } from '../layers/TownsLayer'
 
@@ -54,6 +55,7 @@ export function frameProjection(frame: Frame, widthPx: number, id: string): Proj
     ppb,
     zoom: zoomForPixelsPerBlock(ppb),
     bounds: pad(bounds, 0.25),
+    view: bounds,
     id,
   }
 }
@@ -76,9 +78,16 @@ export function FrameLayers({
 }) {
   const projection = frameProjection(frame, widthPx, id)
   const heightPx = widthPx / VIEW_ASPECTS[frame.aspect].ratio
-  const placer = new LabelPlacer()
-  const labelled = new Set<number>()
   const show = (layer: MapLayer) => frame.layers.includes(layer)
+  // The highlights and the pins take their room before any name is placed.
+  const labels = planLabels(projection, {
+    drawings: frame.drawings,
+    towns: show('towns') ? data.towns : [],
+    roads: show('roads') ? data.roads : [],
+    places: show('places') ? data.places : [],
+    events: show('events') ? data.events : [],
+    now,
+  })
   return (
     <svg
       aria-hidden="true"
@@ -86,26 +95,20 @@ export function FrameLayers({
       viewBox={`0 0 ${widthPx} ${heightPx.toFixed(1)}`}
     >
       {show('towns') ? (
-        <TownsLayer
-          labelled={labelled}
-          placer={placer}
-          projection={projection}
-          selected={frame.town ?? null}
-          towns={data.towns}
-        />
+        <TownsLayer projection={projection} selected={frame.town ?? null} towns={data.towns} />
       ) : null}
       {show('roads') ? (
-        <RoadsLayer placer={placer} projection={projection} roads={data.roads} />
-      ) : null}
-      {show('events') ? (
-        <EventsLayer events={data.events} now={now} placer={placer} projection={projection} />
+        <RoadsLayer labels={labels.roads} projection={projection} roads={data.roads} />
       ) : null}
       {show('places') ? (
-        <PlacesLayer placer={placer} places={data.places} projection={projection} />
+        <PlacesLayer labels={labels.places} places={data.places} projection={projection} />
+      ) : null}
+      {show('events') ? (
+        <EventsLayer events={data.events} labels={labels.events} now={now} projection={projection} />
       ) : null}
       {show('towns') ? (
         <TownLabels
-          labelled={labelled}
+          labels={labels.towns}
           projection={projection}
           selected={frame.town ?? null}
           towns={data.towns}

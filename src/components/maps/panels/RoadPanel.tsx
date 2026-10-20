@@ -1,5 +1,5 @@
-import { lineLength, type MapData, type MapRoad } from '@/maps/data'
-import { ROAD_KINDS } from '@/maps/registry'
+import { roadLength, type MapData, type MapRoad } from '@/maps/data'
+import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
 
 import { Look, RoadActions, Survey } from './islands'
 import { Facts, PanelHead, PanelSection, TownLink } from './shared'
@@ -7,7 +7,7 @@ import { Facts, PanelHead, PanelSection, TownLink } from './shared'
 /** A road's page: its class, length and whose it is. */
 export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
   const town = data.towns.find((candidate) => candidate.id === road.town) ?? null
-  const length = Math.round(lineLength(road.line))
+  const length = Math.round(roadLength(road))
   const [start, end] = [road.line[0], road.line[road.line.length - 1]]
   return (
     <article className="pb-6">
@@ -16,14 +16,21 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
         title={road.name ?? 'Unnamed road'}
       >
         <p className="mt-2 text-sm text-ink-700">
-          {length.toLocaleString('en-GB')} blocks, in {road.line.length} point
-          {road.line.length === 1 ? '' : 's'}.
+          {length.toLocaleString('en-GB')} blocks, {road.shape === 'curved' ? 'curving' : 'straight'}{' '}
+          through {road.line.length} point{road.line.length === 1 ? '' : 's'}
+          {road.shape === 'curved' && road.corners.length
+            ? `, ${road.corners.length} of them sharp corner${road.corners.length === 1 ? '' : 's'}`
+            : ''}
+          .
         </p>
       </PanelHead>
       <div className="mt-4 px-4">
         <Facts
           items={[
-            { label: 'Class', value: ROAD_KINDS[road.kind].label },
+            {
+              label: 'Class',
+              value: `${ROAD_KINDS[road.kind].label} · ${ROAD_SHAPES[road.shape].label.toLowerCase()}`,
+            },
             {
               label: 'Belongs to',
               value: town ? <TownLink town={town} /> : 'The nation: it runs between towns',

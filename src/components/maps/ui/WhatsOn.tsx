@@ -131,7 +131,7 @@ export function WhatsOnStrip({
     <section
       aria-label="What’s on"
       className={cn(
-        'border border-sand-300/80 bg-sand-50/95 shadow-[0_8px_24px_rgba(22,25,31,0.12)] backdrop-blur-sm',
+        'border border-sand-300/80 bg-sand-50/95 shadow-[0_8px_24px_rgba(22,25,31,0.12)]',
         className,
       )}
     >

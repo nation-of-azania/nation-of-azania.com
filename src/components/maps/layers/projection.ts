@@ -16,6 +16,8 @@ export type Projection = {
   zoom: number
   /** The visible extent in blocks, with a margin, for leaving out what's off the page. */
   bounds: Bounds
+  /** The extent actually on the page, without the margin; `bounds` when not given. */
+  view?: Bounds
   /** Prefixes element ids (text paths, masks), so two maps on one page don't collide. */
   id: string
 }
@@ -26,9 +28,11 @@ const overlaps = (a: Rect, b: Rect) =>
   a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 
 /**
- * Keeps labels off each other: a label claims its box, and a later label
- * that would overlap one is left out. Callers place what matters most
- * first (towns before places, bigger towns before smaller ones).
+ * Keeps labels off each other and off the pins: a label claims its box, and
+ * a later label that would overlap one is left out, or takes its next
+ * candidate place. The hosts reserve what outranks everything first — an
+ * article's highlights, then every pin and mark (./labels.ts) — and the
+ * layers then place their names in order: towns, roads, places, events.
  */
 export class LabelPlacer {
   private taken: Rect[] = []
@@ -37,6 +41,7 @@ export class LabelPlacer {
     return !this.taken.some((other) => overlaps(other, rect))
   }
 
+  /** Takes the box whatever sits there: for pins and marks, which text keeps off. */
   claim(rect: Rect): void {
     this.taken.push(rect)
   }
@@ -46,6 +51,12 @@ export class LabelPlacer {
     if (!this.fits(rect)) return false
     this.claim(rect)
     return true
+  }
+
+  /** The first of the candidate boxes that's free, claimed; null when none is. */
+  tryPlace<T extends Rect>(candidates: T[]): T | null {
+    for (const rect of candidates) if (this.tryClaim(rect)) return rect
+    return null
   }
 }
 
@@ -70,7 +81,11 @@ export function pathOf(projection: Projection, points: Point[], close = false): 
   return parts.join('') + (close ? 'Z' : '')
 }
 
-/** The halo every piece of text on the map wears, so it reads over any ground. */
+/**
+ * The halo every piece of text on the map wears, so it reads over any
+ * ground: a stroke painted under the fill, which costs nothing next to a
+ * filter.
+ */
 export const halo = (colour: string, width = 3) => ({
   paintOrder: 'stroke' as const,
   stroke: colour,
@@ -78,3 +93,25 @@ export const halo = (colour: string, width = 3) => ({
   strokeLinejoin: 'round' as const,
   strokeLinecap: 'round' as const,
 })
+
+/** A label's box beside a point, on the side asked for; `gap` is the room left for a pin. */
+export function labelBeside(
+  x: number,
+  y: number,
+  width: number,
+  fontSize: number,
+  side: 'right' | 'left' | 'below' | 'above',
+  gap: number,
+): Rect & { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number } {
+  const height = fontSize + 6
+  switch (side) {
+    case 'right':
+      return { x: x + gap, y: y - height / 2, width: width + 6, height, anchor: 'start', tx: x + gap + 2, ty: y }
+    case 'left':
+      return { x: x - gap - width - 6, y: y - height / 2, width: width + 6, height, anchor: 'end', tx: x - gap - 2, ty: y }
+    case 'below':
+      return { x: x - width / 2 - 3, y: y + gap, width: width + 6, height, anchor: 'middle', tx: x, ty: y + gap + height / 2 }
+    case 'above':
+      return { x: x - width / 2 - 3, y: y - gap - height, width: width + 6, height, anchor: 'middle', tx: x, ty: y - gap - height / 2 }
+  }
+}

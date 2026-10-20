@@ -1,6 +1,17 @@
 import type { Event, MapView, Place, Road, Town } from '@/payload-types'
 
-import { boundsOf, isPoint, outlineToRing, type Bounds, type Outline, type Point, type RoadShape } from './geo'
+import {
+  boundsOf,
+  isPoint,
+  outlineToRing,
+  outlinesChunks,
+  pathLength,
+  roadCourse,
+  type Bounds,
+  type Outline,
+  type Point,
+  type RoadShape,
+} from './geo'
 import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
@@ -30,7 +41,7 @@ export type MapTown = {
   residents: number
   chunks: number
   founded: string | null
-  /** Whether anyone may `/t spawn` there (Towny's "Public Teleport"); null when the map doesn't say. */
+  /** Towny's "Public Teleport": whether any player may `/t spawn` here; null when the map doesn't say. */
   publicSpawn: boolean | null
   home: Point | null
   claims: Outline[]
@@ -56,11 +67,11 @@ export type MapRoad = {
   id: number
   name: string | null
   kind: RoadKind
-  /** The points as drawn; `roadCourse` in ./geo.ts gives the course they describe (straight, unless said). */
+  /** The points as drawn; the course between them is `shape`'s (see roadPoints). */
   line: Point[]
-  shape?: RoadShape
-  /** In a curved road, the points kept as sharp corners, by position. */
-  corners?: number[]
+  shape: RoadShape
+  /** In a curved road, the points kept as sharp turns, by index. */
+  corners: number[]
   town: number | null
   updatedAt?: string
 }
@@ -113,6 +124,31 @@ export const NO_RIGHTS: MapRights = { user: null, anywhere: false, towns: [], vi
 
 const idOf = (value: number | { id: number } | null | undefined): number | null =>
   value == null ? null : typeof value === 'number' ? value : value.id
+
+/**
+ * The visitor's rights on the map, worked out in the browser from their
+ * own account (/api/users/me), by the server's rule (src/access/maps.ts):
+ * staff and cartographers draw anywhere, mayors inside their towns, and
+ * map views are for staff, cartographers and anyone granted a context to
+ * write in. The pages themselves are cached for everyone alike, so this is
+ * the only thing about a visitor the map needs.
+ */
+export function mapRightsOf(user: unknown): MapRights {
+  const account = user as {
+    id?: number
+    name?: string
+    role?: string | null
+    cartographer?: boolean | null
+    mayorOf?: (number | { id: number })[] | null
+    contextAccess?: { context?: number | { id: number } | null; level?: string | null }[] | null
+  } | null
+  if (!account || typeof account.id !== 'number') return NO_RIGHTS
+  const anywhere = account.role === 'editor' || account.role === 'admin' || Boolean(account.cartographer)
+  const towns = (account.mayorOf ?? []).map(idOf).filter((id): id is number => id !== null)
+  const views =
+    anywhere || (account.contextAccess ?? []).some((grant) => idOf(grant.context) !== null && Boolean(grant.level))
+  return { user: { id: account.id, name: account.name ?? '' }, anywhere, towns, views }
+}
 
 const pathOf = (value: unknown): Point[] | null =>
   Array.isArray(value) && value.length > 0 && value.every(isPoint) ? (value as Point[]) : null
@@ -183,6 +219,18 @@ export function mapRoad(road: Road): MapRoad | null {
   }
 }
 
+/**
+ * The course a road takes, as the map draws it and the server judges it
+ * (src/maps/geo.ts → roadCourse): its own points when straight, a polyline
+ * along the curve when curved.
+ */
+export const roadPoints = (road: Pick<MapRoad, 'line' | 'shape' | 'corners'>): Point[] =>
+  roadCourse(road.line, road.shape, road.corners)
+
+/** A road's length in blocks, along its course. */
+export const roadLength = (road: Pick<MapRoad, 'line' | 'shape' | 'corners'>): number =>
+  pathLength(roadPoints(road))
+
 export function mapEvent(event: Event): MapEvent | null {
   if (!isPoint([event.point?.x, event.point?.z])) return null
   return {
@@ -221,14 +269,6 @@ export function mapView(view: MapView): MapViewData | null {
 /** "Cape_Agulhas" as Towny spells it, "Cape Agulhas" as a reader says it. */
 export const spoken = (name: string): string => name.replace(/_/g, ' ')
 
-/** Length of a line in blocks. */
-export function lineLength(line: Point[]): number {
-  let total = 0
-  for (let i = 1; i < line.length; i++)
-    total += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1])
-  return total
-}
-
 /** A town's centre: its home block, else the middle of its claims. */
 export const townCentre = (town: MapTown): Point | null =>
   town.home ??
@@ -236,19 +276,48 @@ export const townCentre = (town: MapTown): Point | null =>
     ? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2]
     : null)
 
+/** The claim of a town that holds its home block, if one does. */
+export function homeClaim(town: MapTown): Outline | null {
+  if (!town.home) return null
+  const [hx, hz] = town.home
+  return (
+    town.claims.find((claim) => {
+      const b = boundsOf(outlineToRing(claim))
+      return b && hx >= b.minX && hx <= b.maxX && hz >= b.minZ && hz <= b.maxZ
+    }) ?? null
+  )
+}
+
 /**
  * The claim of a town that holds its home: the main settlement, as against
  * far-flung outposts. The whole town, when the home lies in none.
  */
 export function homeClaimBounds(town: MapTown): Bounds | null {
-  if (!town.home) return town.bounds
-  const [hx, hz] = town.home
-  const holding = town.claims.find((claim) => {
-    const ring = outlineToRing(claim)
-    const b = boundsOf(ring)
-    return b && hx >= b.minX && hx <= b.maxX && hz >= b.minZ && hz <= b.maxZ
-  })
+  const holding = homeClaim(town)
   return holding ? boundsOf(outlineToRing(holding)) : town.bounds
+}
+
+export type Outpost = { bounds: Bounds; chunks: number; centre: Point }
+
+/**
+ * A town's outposts: Towny claims away from the one holding the home block
+ * (Patown's main claim is near (-15368, 2008), its outposts elsewhere),
+ * largest first. Empty for a town in one piece.
+ */
+export function outpostsOf(town: MapTown): Outpost[] {
+  const main = homeClaim(town)
+  if (!main) return []
+  return town.claims
+    .filter((claim) => claim !== main)
+    .map((claim) => {
+      const bounds = boundsOf(outlineToRing(claim))!
+      return {
+        bounds,
+        chunks: outlinesChunks([claim]),
+        centre: [(bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2] as Point,
+      }
+    })
+    .sort((a, b) => b.chunks - a.chunks)
 }
 
 /**
