@@ -6,6 +6,7 @@ import { type FormEvent, useState } from 'react'
 import { cn } from '@/blocks/components/shared'
 
 import { fieldClass as FIELD, labelClass as LABEL } from './FormControls'
+import { safeNextPath } from './safeNext'
 
 /**
  * The resident sign-in form. Username-only auth (the nation issues no email),
@@ -15,12 +16,10 @@ import { fieldClass as FIELD, labelClass as LABEL } from './FormControls'
  * server components so they see the new session.
  */
 
-/** Only follow a `?next=` that is a same-site absolute path (no open redirects). */
+/** Only follow a `?next=` that is a path on this site (no open redirects). */
 function safeNext(): string {
   if (typeof window === 'undefined') return '/account'
-  const raw = new URLSearchParams(window.location.search).get('next')
-  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw
-  return '/account'
+  return safeNextPath(new URLSearchParams(window.location.search).get('next'))
 }
 
 export function LoginForm() {

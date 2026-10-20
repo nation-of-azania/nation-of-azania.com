@@ -6,6 +6,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 
 import { LoginForm } from '@/components/members/LoginForm'
+import { safeNextPath } from '@/components/members/safeNext'
 import { Crest } from '@/components/site/Crest'
 import { FlagTick } from '@/components/site/FlagTick'
 import { DoubleRule } from '@/components/site/SectionHeading'
@@ -14,11 +15,9 @@ export const metadata: Metadata = { title: 'Residents’ Entrance' }
 // Reads the session cookie, so it must never be statically cached.
 export const dynamic = 'force-dynamic'
 
-/** Only a same-site absolute path is followed after sign-in (no open redirects); the form applies the same rule. */
-const safeNext = (value: string | string[] | undefined): string => {
-  const raw = Array.isArray(value) ? value[0] : value
-  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/account'
-}
+/** Only a path on this site is followed after sign-in (no open redirects); the form applies the same rule. */
+const safeNext = (value: string | string[] | undefined): string =>
+  safeNextPath(Array.isArray(value) ? value[0] : value)
 
 export default async function LoginPage({
   searchParams,

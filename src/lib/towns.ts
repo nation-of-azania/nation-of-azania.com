@@ -56,7 +56,27 @@ function townData(town: Town, azanian: boolean, at: string) {
   }
 }
 
-export async function syncTowns(payload: Payload, { force = false } = {}): Promise<SyncResult> {
+/** The reading under way in this server process, which later callers join rather than start another. */
+let running: Promise<SyncResult> | null = null
+
+export function syncTowns(payload: Payload, options: { force?: boolean } = {}): Promise<SyncResult> {
+  running ??= readMap(payload, options).finally(() => {
+    running = null
+  })
+  return running
+}
+
+/**
+ * Whether an error is a unique value already taken: two servers reading the
+ * map at once both create the same new town or census entry, and the second
+ * to arrive loses. The first one's row stands, so the loser just moves on.
+ */
+const alreadyTaken = (error: unknown) =>
+  (error as { data?: { errors?: { message?: string }[] } })?.data?.errors?.some((e) =>
+    /unique/i.test(e.message ?? ''),
+  ) ?? false
+
+async function readMap(payload: Payload, { force = false }: { force?: boolean }): Promise<SyncResult> {
   const now = new Date()
   const settings = await payload.findGlobal({ slug: 'azania-maps', depth: 0 })
   const last = settings.syncedAt ? Date.parse(settings.syncedAt) : 0
@@ -99,8 +119,13 @@ export async function syncTowns(payload: Payload, { force = false } = {}): Promi
     if (row) {
       id = (await payload.update({ collection: 'towns', id: row.id, data: { ...data, slug }, depth: 0 })).id
     } else {
-      id = (await payload.create({ collection: 'towns', data: { ...data, slug }, depth: 0 })).id
-      created++
+      try {
+        id = (await payload.create({ collection: 'towns', data: { ...data, slug }, depth: 0 })).id
+        created++
+      } catch (error) {
+        if (!alreadyTaken(error)) throw error
+        continue
+      }
     }
     if (!azanian) continue
     azanianCount++
@@ -115,7 +140,11 @@ export async function syncTowns(payload: Payload, { force = false } = {}): Promi
       depth: 0,
     })
     if (existing[0]) await payload.update({ collection: 'town-census', id: existing[0].id, data: entry, depth: 0 })
-    else await payload.create({ collection: 'town-census', data: entry, depth: 0 })
+    else {
+      await payload.create({ collection: 'town-census', data: entry, depth: 0 }).catch((error) => {
+        if (!alreadyTaken(error)) throw error
+      })
+    }
   }
 
   // Towns no longer on the map at all.
