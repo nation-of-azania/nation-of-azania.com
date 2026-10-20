@@ -166,15 +166,28 @@ export function PointChip({
   const picked = pickedOf(editor, onEditor)
   const point = useLatest(picked?.point ?? null)
 
-  // Where the chip sits: beside the point, to its left when the right edge is near.
+  // Where the chip sits: to the point's right, else its left, else (a phone) below it.
   const place = () => {
     const element = ref.current
     const at = point.current
     if (!element || !at) return
     const p = map.latLngToContainerPoint(toLatLng(at))
-    const flip = p.x + 18 + element.offsetWidth > map.getSize().x - 8
-    element.dataset.side = flip ? 'left' : 'right'
-    element.style.transform = `translate(${flip ? p.x - 18 - element.offsetWidth : p.x + 18}px, ${p.y}px) translateY(-50%)`
+    const size = map.getSize()
+    const width = element.offsetWidth
+    const margin = 8
+    const gap = 18
+    if (p.x + gap + width <= size.x - margin) {
+      element.dataset.side = 'right'
+      element.style.transform = `translate(${p.x + gap}px, ${p.y}px) translateY(-50%)`
+    } else if (p.x - gap - width >= margin) {
+      element.dataset.side = 'left'
+      element.style.transform = `translate(${p.x - gap - width}px, ${p.y}px) translateY(-50%)`
+    } else {
+      element.dataset.side = 'below'
+      const x = Math.min(Math.max(p.x - width / 2, margin), size.x - width - margin)
+      element.style.setProperty('--az-nib', `${p.x - x}px`)
+      element.style.transform = `translate(${x}px, ${p.y + gap}px)`
+    }
   }
   const placeRef = useLatest(place)
 

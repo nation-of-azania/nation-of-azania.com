@@ -159,7 +159,10 @@ export function ViewRows({
       ) : !list ? (
         <p className="text-sm text-ink-500">Fetching…</p>
       ) : list.length === 0 ? (
-        <Notice>No views yet. Choose “New map view” to draw one.</Notice>
+        <Notice>
+          {everyone ? 'No views drawn yet.' : 'None of yours yet.'} Choose “New map view” to draw
+          one.
+        </Notice>
       ) : (
         <ul className="divide-y divide-sand-300 border-y border-sand-300">
           {shown!.map((view) => (

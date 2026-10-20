@@ -487,9 +487,13 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const openEditor = useCallback(
     (next: Editor) => {
       setEditor(next)
-      if (window.innerWidth < 1024) setSheet('half')
+      if (window.innerWidth >= 1024) return
+      // On a phone the sheet comes up over the foot of the map: what's being edited lands above it.
+      setSheet('half')
+      const target = editorTarget(next)
+      if (target) look(target)
     },
-    [setEditor],
+    [setEditor, look],
   )
 
   const choose = (choice: DrawChoice) => {
@@ -990,6 +994,22 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </div>
     </MapsContext.Provider>
   )
+}
+
+/** Where to look when an editor opens on something already drawn: a road's course, a pin. */
+function editorTarget(editor: Editor): LookTarget | null {
+  switch (editor.kind) {
+    case 'road': {
+      const bounds = editor.draft.line.length >= 2 ? pad(boundsOf(roadPoints(editor.draft))) : null
+      return bounds ? { bounds } : null
+    }
+    case 'place':
+      return editor.draft.point ? { centre: editor.draft.point, zoom: 1, minZoom: true } : null
+    case 'event':
+      return editor.draft.point ? { centre: editor.draft.point, zoom: 1, minZoom: true } : null
+    default:
+      return null
+  }
 }
 
 /** The bounds a selection fills on arrival. */
