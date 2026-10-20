@@ -18,14 +18,72 @@ import {
 } from '@/maps/registry'
 import { fromLocalInput } from '@/maps/time'
 
-import { api } from '../api'
+import { GROUND } from '@/maps/palette'
+
+import { api, saveMessageOf } from '../api'
 import { useMaps } from '../context'
 import type { Editor } from '../state'
 import { BUTTON, FIELD, Field, Notice, TextButton } from '../ui/chrome'
 import { Icon } from '../ui/icons'
-import { EditorFrame, messageOf, type EditorPanelProps } from './EditorPanel'
+import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
 import { withinRights } from './rights'
-import { withCornerToggled, withoutPointAt } from './road'
+
+/** The handle as the map draws it, for the how-to: a point, a "+" between two, a picked one. */
+function HandleGlyph({ kind }: { kind: 'point' | 'plus' | 'picked' }) {
+  const colour = GROUND.saffron
+  const picked = kind === 'picked'
+  return (
+    <svg aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 16 16">
+      {picked ? <circle cx={8} cy={8} fill="none" r={7} stroke={colour} strokeOpacity={0.4} /> : null}
+      <circle
+        cx={8}
+        cy={8}
+        fill={picked ? colour : GROUND.whitewash}
+        r={kind === 'plus' ? 4 : 5}
+        stroke={picked ? GROUND.whitewash : colour}
+        strokeWidth={1.8}
+      />
+      {kind === 'plus' ? (
+        <path d="M6 8h4M8 6v4" fill="none" stroke={colour} strokeLinecap="round" strokeWidth={1.4} />
+      ) : null}
+    </svg>
+  )
+}
+
+/**
+ * The line grammar, said beside the map wherever a line is edited, with
+ * the marks as they're drawn: so whoever opens a road sees at once how to
+ * move a point, add one on the line, and get at the rest.
+ */
+export function LineHowTo({ curved, what }: { curved?: boolean; what: 'road' | 'outline' }) {
+  return (
+    <ul className="mt-2 space-y-1.5 text-xs leading-snug text-ink-700">
+      <li className="flex gap-2">
+        <HandleGlyph kind="point" />
+        <span>
+          <strong className="font-semibold">Drag</strong> a point to move it.
+        </span>
+      </li>
+      <li className="flex gap-2">
+        <HandleGlyph kind="plus" />
+        <span>
+          <strong className="font-semibold">Press the {what}</strong> itself
+          {curved ? ', on the bend,' : ''} or a <strong className="font-semibold">+</strong> to add
+          a point right there; drag it into place.
+        </span>
+      </li>
+      <li className="flex gap-2">
+        <HandleGlyph kind="picked" />
+        <span>
+          <strong className="font-semibold">Click</strong> a point for more: remove it
+          {curved ? ', make it a sharp corner' : ''}
+          {what === 'road' ? ', carry on from an end' : ''}. Twice, or <kbd>Delete</kbd>, removes
+          it. <kbd>⌘Z</kbd> / <kbd>Ctrl+Z</kbd> undoes.
+        </span>
+      </li>
+    </ul>
+  )
+}
 
 /** A category, chosen by its icon: the groups as rows, each pin as a button. */
 export function CategoryPicker({
@@ -84,16 +142,19 @@ const Actions = ({
   onClose,
   onDelete,
   canSave,
+  failed,
 }: {
   busy: boolean
   onSave: () => void
   onClose: () => void
   onDelete?: () => void
   canSave: boolean
+  /** The last save failed: the draft is still here, and the button says so. */
+  failed?: boolean
 }) => (
   <div className="mt-5 flex flex-wrap items-center gap-2">
     <TextButton disabled={busy || !canSave} onClick={onSave} tone="primary">
-      {busy ? 'Saving…' : 'Save'}
+      {busy ? 'Saving…' : failed ? 'Try again' : 'Save'}
     </TextButton>
     <TextButton onClick={onClose}>Cancel</TextButton>
     {onDelete ? (
@@ -145,30 +206,36 @@ export function PlaceForm({
       })
       onSaved('place', place)
     } catch (caught) {
-      setError(messageOf(caught))
+      setError(saveMessageOf(caught))
       setBusy(false)
     }
   }
 
+  const traced = !editor.tracing && !editor.placing && draft.outline.length >= 3
   const hint = editor.placing
     ? 'Click the map where the pin should stand.'
     : editor.tracing
       ? 'Click around the building to trace it. Click the first point again, or press Enter, to close the outline.'
       : draft.point
-        ? 'Drag the pin to move it. An outline is optional: trace one for a building.'
+        ? traced
+          ? 'Drag the pin to move it; the outline is edited on the map:'
+          : 'Drag the pin to move it. An outline is optional: trace one for a building.'
         : ''
+  const picked = editor.vertex != null ? draft.outline[editor.vertex] : null
 
   return (
     <EditorFrame
       eyebrow={editor.id ? 'Edit the place' : 'Add a place'}
       onClose={onClose}
       title={draft.name.trim() || 'A new place'}
+      tools={<UndoRedo />}
     >
       {hint ? <Notice>{hint}</Notice> : null}
+      {traced ? <LineHowTo what="outline" /> : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <TextButton
           className="px-2.5 py-1.5"
-          onClick={() => onChange({ ...editor, placing: true, tracing: false })}
+          onClick={() => onChange({ ...editor, placing: true, tracing: false, vertex: null })}
           aria-pressed={editor.placing}
         >
           <Icon className="h-3.5 w-3.5" name="crosshair" />{' '}
@@ -177,7 +244,9 @@ export function PlaceForm({
         {draft.point ? (
           <TextButton
             className="px-2.5 py-1.5"
-            onClick={() => onChange({ ...editor, tracing: !editor.tracing, placing: false })}
+            onClick={() =>
+              onChange({ ...editor, tracing: !editor.tracing, placing: false, vertex: null })
+            }
             aria-pressed={editor.tracing}
           >
             <Icon className="h-3.5 w-3.5" name="area" />{' '}
@@ -192,7 +261,12 @@ export function PlaceForm({
           <TextButton
             className="px-2.5 py-1.5"
             onClick={() =>
-              onChange({ ...editor, tracing: false, draft: { ...draft, outline: [] } })
+              onChange({
+                ...editor,
+                tracing: false,
+                vertex: null,
+                draft: { ...draft, outline: [] },
+              })
             }
           >
             Clear outline
@@ -203,6 +277,9 @@ export function PlaceForm({
         <p className="mt-2 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
           X {draft.point[0]} · Z {draft.point[1]}
           {draft.outline.length ? ` · outline of ${draft.outline.length} points` : ''}
+          {picked && editor.vertex != null
+            ? ` · point ${editor.vertex + 1} at X ${picked[0]} Z ${picked[1]}`
+            : ''}
         </p>
       ) : null}
       <RightsNote ok={ok} />
@@ -253,10 +330,15 @@ export function PlaceForm({
       <Actions
         busy={busy}
         canSave={canSave}
+        failed={error != null}
         onClose={onClose}
         onDelete={
           editor.id
-            ? () => window.confirm('Delete this place from the map?') && remove('place', editor.id!)
+            ? () =>
+                window.confirm('Delete this place from the map?') &&
+                remove('place', editor.id!).catch((caught: unknown) =>
+                  setError(saveMessageOf(caught)),
+                )
             : undefined
         }
         onSave={save}
@@ -280,9 +362,7 @@ export function RoadForm({
   const canSave = draft.line.length >= 2 && ok
   const length = Math.round(roadLength(draft))
   const curved = draft.shape === 'curved'
-  // A corner is an inner point: the ends have nothing to turn between.
-  const pickedInner = editor.vertex != null && editor.vertex >= 1 && editor.vertex <= draft.line.length - 2
-  const pickedCorner = editor.vertex != null && draft.corners.includes(editor.vertex)
+  const picked = editor.vertex != null ? draft.line[editor.vertex] : null
   const setShape = (shape: RoadShape) =>
     onChange({ ...editor, draft: { ...draft, shape, corners: shape === 'curved' ? draft.corners : [] } })
 
@@ -299,7 +379,7 @@ export function RoadForm({
       })
       onSaved('road', road)
     } catch (caught) {
-      setError(messageOf(caught))
+      setError(saveMessageOf(caught))
       setBusy(false)
     }
   }
@@ -309,12 +389,19 @@ export function RoadForm({
       eyebrow={editor.id ? 'Edit the road' : 'Draw a road'}
       onClose={onClose}
       title={draft.name.trim() || 'A new road'}
+      tools={<UndoRedo />}
     >
-      <Notice>
-        {editor.drawing
-          ? `Click along the road, point by point${curved ? '; the bends follow' : ''}. Double-click, or press Enter, to finish. Backspace takes the last point back.`
-          : `Drag a point to move it. Drag a small handle to add a point between two. Click a point and press Delete to remove it.${curved ? ' Alt-click a point to make it a sharp corner.' : ''}`}
-      </Notice>
+      {editor.drawing ? (
+        <Notice>
+          Click along the road, point by point{curved ? '; the bends follow' : ''}. Double-click,
+          or press Enter, to finish. Backspace takes the last point back.
+        </Notice>
+      ) : (
+        <>
+          <Notice>The course is edited on the map:</Notice>
+          <LineHowTo curved={curved} what="road" />
+        </>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <TextButton
           className="px-2.5 py-1.5"
@@ -324,26 +411,6 @@ export function RoadForm({
           <Icon className="h-3.5 w-3.5" name={editor.drawing ? 'check' : 'pen'} />{' '}
           {editor.drawing ? 'Finish drawing' : 'Continue drawing'}
         </TextButton>
-        {editor.vertex != null ? (
-          <TextButton
-            className="px-2.5 py-1.5"
-            onClick={() =>
-              onChange({ ...editor, vertex: null, draft: withoutPointAt(draft, editor.vertex!) })
-            }
-          >
-            Remove point
-          </TextButton>
-        ) : null}
-        {curved && pickedInner ? (
-          <TextButton
-            aria-pressed={pickedCorner}
-            className="px-2.5 py-1.5"
-            onClick={() => onChange({ ...editor, draft: withCornerToggled(draft, editor.vertex!) })}
-            title="A corner is a sharp turn in a curved road, as at a junction; the bends either side flow on."
-          >
-            <Icon className="h-3.5 w-3.5" name="corner" /> Sharp corner
-          </TextButton>
-        ) : null}
         {draft.line.length ? (
           <TextButton
             className="px-2.5 py-1.5"
@@ -366,6 +433,9 @@ export function RoadForm({
           ? ` · ${draft.corners.length} sharp corner${draft.corners.length === 1 ? '' : 's'}`
           : ''}{' '}
         · {length.toLocaleString('en-GB')} blocks
+        {picked && editor.vertex != null
+          ? ` · point ${editor.vertex + 1} at X ${picked[0]} Z ${picked[1]}`
+          : ''}
       </p>
       <RightsNote ok={ok} />
       <div className="mt-4 space-y-4">
@@ -393,8 +463,8 @@ export function RoadForm({
           </div>
           {curved ? (
             <p className="mt-1.5 text-xs leading-relaxed text-ink-500">
-              Where the road should turn sharply, as at a junction, pick the point and mark it a{' '}
-              <strong className="font-semibold text-ink-700">sharp corner</strong> (or alt-click
+              Where the road should turn sharply, as at a junction, click the point and choose{' '}
+              <strong className="font-semibold text-ink-700">Sharp corner</strong> (or alt-click
               it); it’s drawn square.
             </p>
           ) : null}
@@ -433,10 +503,15 @@ export function RoadForm({
       <Actions
         busy={busy}
         canSave={canSave}
+        failed={error != null}
         onClose={onClose}
         onDelete={
           editor.id
-            ? () => window.confirm('Delete this road from the map?') && remove('road', editor.id!)
+            ? () =>
+                window.confirm('Delete this road from the map?') &&
+                remove('road', editor.id!).catch((caught: unknown) =>
+                  setError(saveMessageOf(caught)),
+                )
             : undefined
         }
         onSave={save}
@@ -564,7 +639,7 @@ export function EventForm({
       })
       onSaved('event', event)
     } catch (caught) {
-      setError(messageOf(caught))
+      setError(saveMessageOf(caught))
       setBusy(false)
     }
   }
@@ -691,10 +766,15 @@ export function EventForm({
       <Actions
         busy={busy}
         canSave={canSave}
+        failed={error != null}
         onClose={onClose}
         onDelete={
           editor.id
-            ? () => window.confirm('Delete this event?') && remove('event', editor.id!)
+            ? () =>
+                window.confirm('Delete this event?') &&
+                remove('event', editor.id!).catch((caught: unknown) =>
+                  setError(saveMessageOf(caught)),
+                )
             : undefined
         }
         onSave={save}

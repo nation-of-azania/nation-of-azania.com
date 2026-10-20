@@ -543,32 +543,56 @@ carries what's already drawn into place until the fresh render lands.
 
 **Drawing on the map.** Sign in (the panel's *Sign in* comes back to the map)
 and, with rights, the pencil in the map's corner offers what you may do;
-everyone else only looks.
+everyone else only looks. Beside your name the panel says what you may do
+("IPaaat · draws anywhere", "Mayor of GirlieTown", "map views only"), so
+nobody has to guess. Who you are is asked of the Registry once the page
+is in the browser (`/api/users/me`), and asked again, with a pause between
+tries, when the connection drops: only the Registry's own word makes a
+visitor of you. When it can't be reached at all, the panel's head says so,
+with *Retry*, rather than showing *Sign in* to someone who is signed in;
+it asks again of its own accord when the browser comes back online.
 
 - **Places:** drop the pin, trace a building's outline if there is one (click
   around it; the first point or *Enter* closes it), then name it, pick its
   category from the icons, add a line or two and, for somewhere underground
-  or in the sky, a height.
+  or in the sky, a height. A traced outline is edited point by point like a
+  road (below).
 - **Roads:** click along the course point by point (*Enter* or a double-click
-  finishes, *Backspace* takes a point back), then drag any point to move it,
-  drag the small handle between two to add one, pick a point and press
-  *Delete* to remove it; give it a name and a class. The length is shown as
-  you draw. A road is **straight** from point to point unless you choose
-  **curved**, when it bends smoothly through them, one bend flowing into
-  the next (a centripetal Catmull–Rom curve, `roadCourse` in
-  `src/maps/geo.ts`, which never loops or overshoots); where it should turn
-  sharply, as at a junction, pick the point and mark it a *sharp corner*,
-  or alt-click it — it's drawn square. The curve is what the map draws,
-  what the length measures, and what the server checks a mayor's road
-  against, so a bend can't swing outside the claims.
+  finishes, *Backspace* takes a point back), give it a name and a class. The
+  length is shown as you draw. A road is **straight** from point to point
+  unless you choose **curved**, when it bends smoothly through them, one
+  bend flowing into the next (a centripetal Catmull–Rom curve, `roadCourse`
+  in `src/maps/geo.ts`, which never loops or overshoots). The curve is what
+  the map draws, what the length measures, and what the server checks a
+  mayor's road against, so a bend can't swing outside the claims.
+- **Editing a line**, whether a road, an outline or a map view's line or
+  area, is one grammar on the map (`src/components/maps/editor/Tools.tsx`),
+  and the panel shows it with the handles as they're drawn:
+  - **drag** a point to move it;
+  - **press the line itself** — on the bend, for a curved road — or the
+    small **+** halfway between two points, to add a point right there,
+    picked, and drag it into place (with a mouse, a ghost **+** rides along
+    the line under the pointer first);
+  - **click** a point to pick it, and a chip beside it offers *Remove*,
+    *Sharp corner* (a curved road's inner point: a sharp turn, as at a
+    junction, drawn square; alt-click does the same) and *Continue from
+    here* (an end: drawing carries on from it, the road run the other way
+    first if it was the start). Clicking a point twice, right-clicking it,
+    or *Delete* removes it; a line keeps at least two points, an outline or
+    an area three;
+  - **undo and redo** step through the session's drawing (⌘Z/Ctrl+Z,
+    ⇧⌘Z/Ctrl+Y, or the two buttons in the editor's head), one step per drag;
+    the words typed in the fields are the fields' own to undo.
 - **Events:** at one of your town's places or at a point you pick on the map,
   with a start, an optional end, a host and, optionally, the article
   announcing it.
-- **Edit, move and delete** anything from its panel. Mayors see their own
-  towns' claims in gold while drawing and are told before saving when
+- **Edit, move and delete** anything from its panel: *Edit the course*, *Edit
+  or move*, stand right under its name for those who may. Mayors see their
+  own towns' claims in gold while drawing and are told before saving when
   something reaches outside them; the server checks again and its refusal
-  is shown as it comes. Mayors also write their town's description from the
-  town's panel.
+  is shown as it comes. A save that never reached the Registry says so and
+  keeps the draft where it is, with *Try again*. Mayors also write their
+  town's description from the town's panel.
 - **Map views** (for anyone who writes articles): choose *New map view* and
   a frame appears on the map in the aspect you pick (wide, square, banner);
   move and zoom the map to set what it shows, choose the layers in the
@@ -576,14 +600,21 @@ everyone else only looks.
   freehand strokes, lines point by point, shaded areas, pins and short
   notes, in the fixed inks (red, gold, sea, green, rose, ink, white), with
   three weights and an optional arrowhead. Pick a highlight to change its
-  ink or label, nudge its points, or remove it; *Ctrl+Z* undoes the last.
-  Save, and the panel says how to use it: in the Registry, add a Map block
-  to an article and choose the view by its title. *My map views* lists your
-  views (everyone's, for staff) to show again, redraw, rename or delete.
+  ink or label, edit its points as a road's, or remove it. Save, and the
+  panel says how to use it: in the Registry, add a Map block to an article
+  and choose the view by its title. A view is a framed piece of the map for
+  that block: readers see it in the article, or through its link
+  (`/maps?view=<id>`), never on the public map. **Your map views** has a
+  home on the map's own front for anyone who may draw them (everyone's, for
+  staff), and under the pencil: each to *Show* on the map, *Edit*, or
+  *Copy link*.
 
 Writes go through Payload's REST API as the signed-in person
 (`src/components/maps/api.ts`), so every rule in the collections applies
-however the request arrives.
+however the request arrives. A request that never gets through — the
+browser's "Failed to fetch" — is said in one plain line ("Couldn't reach
+the Registry; your connection may have dropped"), with *Retry* wherever
+something was being fetched.
 
 - **Which towns are Azanian:** set under Settings → Azania Maps. Every town of the named Towny nations counts, plus any town listed by name, such as towns that haven't joined yet.
   - The nation still has its old Towny name, "Canada"; rename it there when it changes in game.

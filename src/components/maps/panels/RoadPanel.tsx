@@ -23,6 +23,8 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
             : ''}
           .
         </p>
+        {/* For those who may: the way in to the course, right under the name. */}
+        <RoadActions className="mt-3" road={road} />
       </PanelHead>
       <div className="mt-4 px-4">
         <Facts
@@ -59,9 +61,6 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
           >
             Go to the end
           </Look>
-        </div>
-        <div className="mt-4">
-          <RoadActions road={road} />
         </div>
       </div>
       <PanelSection title="Start">

@@ -45,12 +45,23 @@ import {
   type MapSelection,
 } from '@/maps/url'
 
-import { api } from './api'
-import { MapsContext, type MapsActions } from './context'
+import { api, ApiError, messageOf } from './api'
+import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
 import { EditorPanel } from './editor/EditorPanel'
 import { createStore, useHydrated, useMediaQuery, useSearch, useStore } from './hooks'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
-import { emptyEvent, emptyPlace, emptyRoad, emptyView, type Editor } from './state'
+import {
+  emptyEvent,
+  emptyPlace,
+  emptyRoad,
+  sameSnapshot,
+  snapshotOf,
+  viewEditor,
+  withSnapshot,
+  type Editor,
+  type Snapshot,
+} from './state'
+import { Notice, TextButton } from './ui/chrome'
 import { DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { Icon } from './ui/icons'
 import { Coordinates, StatusNote, type MapStatus } from './ui/Readouts'
@@ -115,6 +126,30 @@ function describe(
 
 type Store<T> = ReturnType<typeof createStore<T>>
 
+/** How long to wait before asking the Registry again who the visitor is, attempt by attempt. */
+const RIGHTS_RETRIES = [0, 1500, 4000]
+
+/** Steps of undo kept for one editing session. */
+const HISTORY_LIMIT = 100
+
+/**
+ * What a signed-in person may do on the map, in a few words beside their
+ * name, so nobody has to guess their rights: "draws anywhere" for staff and
+ * cartographers, "Mayor of GirlieTown", "map views only" for a writer.
+ */
+function standingOf(rights: MapRights, towns: MapTown[]): string {
+  if (rights.anywhere) return 'draws anywhere'
+  if (rights.towns.length) {
+    const names = rights.towns
+      .map((id) => towns.find((town) => town.id === id))
+      .filter((town): town is MapTown => Boolean(town))
+      .map((town) => spoken(town.name))
+    return names.length ? `Mayor of ${names.join(' and ')}` : 'Mayor'
+  }
+  if (rights.views) return 'map views only'
+  return 'reader'
+}
+
 /**
  * The block under the pointer, else the middle of the view: both change
  * with every move, so they live in small stores rather than React state,
@@ -172,23 +207,51 @@ export function MapsShell({ data: served, children }: ShellProps) {
     setData(served)
   }
 
-  // Who the visitor is on the map: asked of the server once the page is here, since the page is the same for everyone.
+  // Who the visitor is on the map: asked of the server once the page is here,
+  // since the page is the same for everyone. A flaky connection is no answer:
+  // the question is asked again, with a pause between tries, and only the
+  // Registry's own word turns a signed-in person into a visitor.
   const [rights, setRights] = useState<MapRights>(NO_RIGHTS)
-  const [rightsKnown, setRightsKnown] = useState(false)
+  const [rightsStatus, setRightsStatus] = useState<RightsStatus>('asking')
+  const [rightsAttempt, setRightsAttempt] = useState(0)
   useEffect(() => {
     let cancelled = false
-    fetch('/api/users/me', { credentials: 'include', cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body: { user?: unknown } | null) => {
-        if (cancelled) return
-        setRights(mapRightsOf(body?.user ?? null))
-        setRightsKnown(true)
-      })
-      .catch(() => !cancelled && setRightsKnown(true))
+    let handle: number | undefined
+    const ask = (attempt: number) =>
+      api
+        .me()
+        .then((user) => {
+          if (cancelled) return
+          setRights(mapRightsOf(user))
+          setRightsStatus('known')
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return
+          // The Registry answered, and said no: a visitor.
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            setRights(NO_RIGHTS)
+            setRightsStatus('known')
+          } else if (attempt + 1 < RIGHTS_RETRIES.length) {
+            handle = window.setTimeout(() => ask(attempt + 1), RIGHTS_RETRIES[attempt + 1])
+          } else setRightsStatus('unreachable')
+        })
+    ask(0)
     return () => {
       cancelled = true
+      window.clearTimeout(handle)
     }
+  }, [rightsAttempt])
+  const retryRights = useCallback(() => {
+    setRightsStatus('asking')
+    setRightsAttempt((attempt) => attempt + 1)
   }, [])
+  // Back online: ask again of our own accord.
+  useEffect(() => {
+    if (rightsStatus !== 'unreachable') return
+    window.addEventListener('online', retryRights)
+    return () => window.removeEventListener('online', retryRights)
+  }, [rightsStatus, retryRights])
+  const rightsKnown = rightsStatus === 'known'
 
   const selection = useMemo(() => selectionOf(pathname), [pathname])
   const query = useMemo(() => new URLSearchParams(search), [search])
@@ -198,8 +261,78 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const layers = chosenLayers ?? decodeLayers(query.get('layers')) ?? ALL_LAYERS
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
-  const [editor, setEditor] = useState<Editor | null>(null)
+  const [viewProblem, setViewProblem] = useState<string | null>(null)
+  const [viewAttempt, setViewAttempt] = useState(0)
+  const [editor, setEditorState] = useState<Editor | null>(null)
   const [status, setStatus] = useState<MapStatus | null>(null)
+
+  // Every change to the editor goes through here, so the step it takes can
+  // be undone. A drag sends many changes under one gesture number; they
+  // make one step. The record is taken from what React commits (below),
+  // never from a possibly stale copy, so quick successive changes can't
+  // lose each other.
+  const gestureRef = useRef<number | null>(null)
+  const restoringRef = useRef(false)
+  const history = useRef<{
+    past: Snapshot[]
+    future: Snapshot[]
+    /** The snapshot of the editor as last committed. */
+    last: Snapshot | null
+    /** The gesture the latest step belongs to, while it goes on. */
+    gesture: number | null
+  }>({ past: [], future: [], last: null, gesture: null })
+  const historyStore = useMemo(() => createStore({ canUndo: false, canRedo: false }), [])
+  const setEditor = useCallback((update: EditorUpdate, gesture?: number) => {
+    gestureRef.current = gesture ?? null
+    setEditorState((current) => (typeof update === 'function' ? update(current) : update))
+  }, [])
+  useEffect(() => {
+    const record = history.current
+    const next = snapshotOf(editor)
+    const previous = record.last
+    const gesture = gestureRef.current
+    record.last = next
+    gestureRef.current = null
+    const publish = () =>
+      historyStore.set({ canUndo: record.past.length > 0, canRedo: record.future.length > 0 })
+    if (restoringRef.current) {
+      // An undo or redo landing: not a step of its own.
+      restoringRef.current = false
+      record.gesture = null
+      return publish()
+    }
+    if (!next || !previous || next.kind !== previous.kind) {
+      // A new editing session, or none.
+      record.past = []
+      record.future = []
+      record.gesture = null
+      return publish()
+    }
+    if (sameSnapshot(previous, next)) return
+    if (gesture != null && gesture === record.gesture) return publish()
+    record.gesture = gesture
+    record.past = [...record.past.slice(-(HISTORY_LIMIT - 1)), previous]
+    record.future = []
+    publish()
+  }, [editor, historyStore])
+  const undo = useCallback(() => {
+    const record = history.current
+    const target = record.past[record.past.length - 1]
+    if (!target || !record.last) return
+    record.past = record.past.slice(0, -1)
+    record.future = [...record.future, record.last]
+    restoringRef.current = true
+    setEditorState((current) => (current ? withSnapshot(current, target) : current))
+  }, [])
+  const redo = useCallback(() => {
+    const record = history.current
+    const target = record.future[record.future.length - 1]
+    if (!target || !record.last) return
+    record.future = record.future.slice(0, -1)
+    record.past = [...record.past, record.last]
+    restoringRef.current = true
+    setEditorState((current) => (current ? withSnapshot(current, target) : current))
+  }, [])
   const [now, setNow] = useState(() => Date.now())
   const [sheet, setSheet] = useState<SheetState>(selection ? 'half' : 'peek')
   // Where the map is and what's under the pointer: changing with every move, kept out of React state.
@@ -261,16 +394,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
     api
       .view(id)
       .then((view) => {
-        if (cancelled || !view) return
+        if (cancelled) return
+        if (!view) return setViewProblem('That map view is no longer on the map.')
+        setViewProblem(null)
         setViewing(view)
         setLayers(view.layers)
         if (!placed) look({ centre: view.centre, span: view.span, aspect: view.aspect })
       })
-      .catch(() => {})
+      .catch((error: unknown) => !cancelled && setViewProblem(messageOf(error)))
     return () => {
       cancelled = true
     }
-  }, [viewParam, look])
+  }, [viewParam, viewAttempt, look])
 
   // The clock, and whether the Rulercraft map is answering.
   useEffect(() => {
@@ -334,7 +469,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       const query = mapsQuery({ at: centreStore.get(), layers, view: viewing?.id ?? null })
       startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
     },
-    [router, centreStore, layers, viewing],
+    [router, centreStore, layers, viewing, setEditor],
   )
 
   const mayEdit = useCallback(
@@ -349,10 +484,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
       .finally(() => startTransition(() => router.refresh()))
   }, [router])
 
-  const openEditor = useCallback((next: Editor) => {
-    setEditor(next)
-    if (window.innerWidth < 1024) setSheet('half')
-  }, [])
+  const openEditor = useCallback(
+    (next: Editor) => {
+      setEditor(next)
+      if (window.innerWidth >= 1024) return
+      // On a phone the sheet comes up over the foot of the map: what's being edited lands above it.
+      setSheet('half')
+      const target = editorTarget(next)
+      if (target) look(target)
+    },
+    [setEditor, look],
+  )
 
   const choose = (choice: DrawChoice) => {
     switch (choice) {
@@ -363,6 +505,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
           draft: emptyPlace(),
           placing: true,
           tracing: false,
+          vertex: null,
         })
       case 'road':
         return openEditor({
@@ -375,20 +518,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
       case 'event':
         return openEditor({ kind: 'event', id: null, draft: emptyEvent(), picking: false })
       case 'view':
-        return openEditor({
-          kind: 'view',
-          id: null,
-          draft: emptyView(layers),
-          tool: 'pen',
-          ink: 'red',
-          weight: 2,
-          arrow: false,
-          selected: null,
-          pending: [],
-          createdBy: rights.user?.id ?? null,
-        })
+        return openEditor({ ...viewEditor(null, layers), createdBy: rights.user?.id ?? null })
       case 'views':
-        return openEditor({ kind: 'views', list: null, everyone: false })
+        return openEditor({ kind: 'views', everyone: false })
     }
   }
 
@@ -403,18 +535,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       drawOpened.current = true
       // Once, on arrival, in answer to the address and the view's arrival: not a render loop.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      openEditor({
-        kind: 'view',
-        id: viewing.id,
-        draft: { title: viewing.title, aspect: viewing.aspect, layers: viewing.layers, drawings: viewing.drawings },
-        tool: 'select',
-        ink: 'red',
-        weight: 2,
-        arrow: false,
-        selected: null,
-        pending: [],
-        createdBy: viewing.createdBy,
-      })
+      openEditor(viewEditor(viewing, layers))
       return
     }
     drawOpened.current = true
@@ -433,10 +554,11 @@ export function MapsShell({ data: served, children }: ShellProps) {
         roads: kind === 'road' ? current.roads.filter((item) => item.id !== id) : current.roads,
         events: kind === 'event' ? current.events.filter((item) => item.id !== id) : current.events,
       }))
+      setEditor(null)
       startTransition(() => router.push('/maps', { scroll: false }))
       refresh()
     },
-    [router, refresh],
+    [router, refresh, setEditor],
   )
 
   const editPlace = useCallback(
@@ -454,6 +576,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         },
         placing: false,
         tracing: false,
+        vertex: null,
       }),
     [openEditor],
   )
@@ -497,19 +620,32 @@ export function MapsShell({ data: served, children }: ShellProps) {
     (town: MapTown, text: string) => openEditor({ kind: 'about', town: town.id, text }),
     [openEditor],
   )
-  const closeEditor = useCallback(() => setEditor(null), [])
+  const closeEditor = useCallback(() => setEditor(null), [setEditor])
+  const showView = useCallback(
+    (view: MapViewData) => {
+      setEditor(null)
+      setViewing(view)
+      setLayers(view.layers)
+      look({ centre: view.centre, span: view.span, aspect: view.aspect })
+    },
+    [setEditor, look],
+  )
 
   const actions = useMemo<MapsActions>(
     () => ({
       data,
       rights,
+      rightsStatus,
+      retryRights,
       selection,
       editor,
+      layers,
       now,
       select,
       look,
       edit: openEditor,
       closeEditor,
+      showView,
       mayEdit,
       editPlace,
       editRoad,
@@ -517,17 +653,24 @@ export function MapsShell({ data: served, children }: ShellProps) {
       editAbout,
       remove,
       refresh,
+      undo,
+      redo,
+      historyStore,
     }),
     [
       data,
       rights,
+      rightsStatus,
+      retryRights,
       selection,
       editor,
+      layers,
       now,
       select,
       look,
       openEditor,
       closeEditor,
+      showView,
       mayEdit,
       editPlace,
       editRoad,
@@ -535,6 +678,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
       editAbout,
       remove,
       refresh,
+      undo,
+      redo,
+      historyStore,
     ],
   )
 
@@ -559,19 +705,29 @@ export function MapsShell({ data: served, children }: ShellProps) {
     refresh()
   }
 
-  // Escape steps out of the editor, then out of the selection.
+  // Escape steps out of the editor, then out of the selection. ⌘Z and ⌃Z
+  // undo a step of drawing, with Shift (or ⌃Y) redo; a field keeps its own.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (event.defaultPrevented) return
       const target = event.target as HTMLElement | null
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      const key = event.key.toLowerCase()
+      if ((event.metaKey || event.ctrlKey) && (key === 'z' || key === 'y')) {
+        if (!snapshotOf(editor)) return
+        event.preventDefault()
+        if (key === 'y' || event.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (event.key !== 'Escape') return
       if (editor) return // the editor handles its own steps
       if (viewing) setViewing(null)
       else if (selection) select(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editor, selection, viewing, select])
+  }, [editor, selection, viewing, select, undo, redo])
 
   const described = describe(data, selection)
   const canDraw = rights.anywhere || rights.towns.length > 0
@@ -616,6 +772,19 @@ export function MapsShell({ data: served, children }: ShellProps) {
             Clear
           </button>
         </div>
+      ) : viewProblem ? (
+        <Notice className="m-3 flex items-center gap-3" tone="warning">
+          <span className="min-w-0 flex-1">{viewProblem}</span>
+          <TextButton
+            className="shrink-0 px-2 py-1"
+            onClick={() => {
+              setViewProblem(null)
+              setViewAttempt((attempt) => attempt + 1)
+            }}
+          >
+            Retry
+          </TextButton>
+        </Notice>
       ) : null}
       {/* Beside the map, a way back above the page; on a phone the sheet's own line has it. */}
       {wide && selection ? (
@@ -659,20 +828,44 @@ export function MapsShell({ data: served, children }: ShellProps) {
     </>
   )
 
-  // Nothing until the visitor is known, so a signed-in reader never sees "Sign in" flash.
-  const account = !rightsKnown ? null : rights.user ? (
-    <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-500">
-      <Icon className="h-3.5 w-3.5" name="user" />
-      {rights.user.name}
-    </span>
-  ) : (
-    <Link
-      className="text-[11px] uppercase tracking-[0.16em] text-sea-700 hover:text-sea-900"
-      href="/login?next=/maps"
-    >
-      Sign in
-    </Link>
-  )
+  // Nothing until the visitor is known, so a signed-in reader never sees
+  // "Sign in" flash; when the Registry can't be reached, that is said
+  // instead, with a way to ask again, since the person may well be signed in.
+  const account =
+    rightsStatus === 'unreachable' ? (
+      <button
+        className="inline-flex max-w-[60%] items-center gap-1.5 text-left text-[11px] leading-tight text-saffron-600 hover:text-saffron-500 focus-visible:outline-saffron-500"
+        onClick={retryRights}
+        title="The Registry couldn’t be reached, so who you are isn’t known yet. Click to try again."
+        type="button"
+      >
+        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-saffron-500" />
+        <span>
+          Couldn’t reach the Registry · <span className="font-semibold underline">Retry</span>
+        </span>
+      </button>
+    ) : !rightsKnown ? null : rights.user ? (
+      <span
+        className="inline-flex min-w-0 items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-500"
+        title={`Signed in as ${rights.user.name}: ${standingOf(rights, data.towns)}`}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" name="user" />
+        <span className="truncate">
+          {rights.user.name}
+          <span className="normal-case tracking-normal text-ink-400">
+            {' '}
+            · {standingOf(rights, data.towns)}
+          </span>
+        </span>
+      </span>
+    ) : (
+      <Link
+        className="text-[11px] uppercase tracking-[0.16em] text-sea-700 hover:text-sea-900"
+        href="/login?next=/maps"
+      >
+        Sign in
+      </Link>
+    )
 
   /** The sheet's own line: at a peek, what it holds; drawn up, just the pill, since the page's head is right below. */
   const handle =
@@ -801,6 +994,22 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </div>
     </MapsContext.Provider>
   )
+}
+
+/** Where to look when an editor opens on something already drawn: a road's course, a pin. */
+function editorTarget(editor: Editor): LookTarget | null {
+  switch (editor.kind) {
+    case 'road': {
+      const bounds = editor.draft.line.length >= 2 ? pad(boundsOf(roadPoints(editor.draft))) : null
+      return bounds ? { bounds } : null
+    }
+    case 'place':
+      return editor.draft.point ? { centre: editor.draft.point, zoom: 1, minZoom: true } : null
+    case 'event':
+      return editor.draft.point ? { centre: editor.draft.point, zoom: 1, minZoom: true } : null
+    default:
+      return null
+  }
 }
 
 /** The bounds a selection fills on arrival. */

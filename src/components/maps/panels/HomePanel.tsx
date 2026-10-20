@@ -8,6 +8,7 @@ import { Icon } from '../ui/icons'
 import { StatTile } from './GrowthChart'
 import { EventsList } from './islands'
 import { EYEBROW, PanelSection } from './shared'
+import { YourViews } from './views'
 
 /**
  * The map's own front: the nation at a glance (its totals, with the
@@ -44,6 +45,9 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           ? `Recorded daily from the Rulercraft map since ${since}.`
           : 'Recorded daily from the Rulercraft map.'}
       </p>
+
+      {/* For anyone who may draw views: theirs, so a view made for an article has a home here. */}
+      <YourViews />
 
       <PanelSection flush title="What’s on">
         <EventsList
