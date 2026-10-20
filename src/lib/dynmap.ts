@@ -103,7 +103,10 @@ export type Outline = { x: number[]; z: number[] }
 export type ClipOptions = {
   x: number
   z: number
-  zoom: ZoomName
+  /** One of the Map block's zooms; or give `span` for an exact frame. */
+  zoom?: ZoomName
+  /** Blocks across the clipping (a map view's frame): the tiles are picked and scaled to fit. */
+  span?: number
   map: MapName
   aspect: AspectName
   /** Claims to draw, in block coordinates (Towny areas). */
@@ -115,15 +118,32 @@ export type ClipOptions = {
 }
 
 /**
+ * The tile level a clipping is drawn from, and how much each tile pixel is
+ * scaled to fill the output: a named zoom's level and integer upscale, or
+ * for a span in blocks the finest level that still has at least a tile
+ * pixel per output pixel (so the map is never blurred up), scaled to fit.
+ * A map with fewer levels upscales a coarser one instead.
+ */
+function clipScale(options: ClipOptions): { level: number; scale: number } {
+  const maxLevel = MAPS[options.map].maxLevel
+  if (options.span) {
+    const ppb = ASPECTS[options.aspect].width / options.span
+    const level = Math.min(maxLevel, Math.max(0, Math.floor(Math.log2(2 / ppb))))
+    return { level, scale: ppb / (2 / 2 ** level) }
+  }
+  const zoom = ZOOMS[options.zoom ?? 'town']
+  const level = Math.min(zoom.level, maxLevel)
+  return { level, scale: zoom.upscale * 2 ** (zoom.level - level) }
+}
+
+/**
  * Stitches the tiles around a block into one JPEG, with claims outlined and
  * a pin. Returns whether every tile arrived, so callers can cache a partial
  * clipping only briefly.
  */
 export async function renderClip(options: ClipOptions): Promise<{ image: Buffer; complete: boolean }> {
   const { x, z, map, outlines = [], pin = false } = options
-  const zoom = ZOOMS[options.zoom]
-  const level = Math.min(zoom.level, MAPS[map].maxLevel)
-  const upscale = zoom.upscale * 2 ** (zoom.level - level) // a map with fewer levels upscales instead
+  const { level, scale: upscale } = clipScale(options)
   const { width, height } = ASPECTS[options.aspect]
   const colour = /^#[0-9a-f]{6}$/i.test(options.colour ?? '') ? options.colour! : '#ff5fa2'
 
@@ -165,7 +185,13 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
     width: w,
     height: h,
   })
-  if (upscale > 1) clip = clip.resize(w * upscale, h * upscale, { kernel: sharp.kernel.nearest })
+  // Blocks stay crisp when scaled up; a coarser level is smoothed when scaled down.
+  if (upscale !== 1) {
+    clip = clip.resize(width, height, {
+      fit: 'fill',
+      kernel: upscale > 1 ? sharp.kernel.nearest : sharp.kernel.lanczos3,
+    })
+  }
   const base = await sharp(await clip.png().toBuffer())
     .extract({ left: 0, top: 0, width, height })
     .png()

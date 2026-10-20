@@ -247,3 +247,29 @@ export function heartland(towns: MapTown[]): Bounds | null {
   const near = homes.filter(([x, z]) => Math.hypot(x - mx, z - mz) <= 4000)
   return boundsOf(near.length ? near : homes)
 }
+
+/**
+ * The nation around a frame, for a map shown inside an article: towns whose
+ * claims come near it and everything that stands within reach, so a reader
+ * who pans a little finds the neighbourhood and the whole page carries no
+ * more than it needs.
+ */
+export function around(data: MapData, bounds: Bounds, reach = 6): MapData {
+  const dx = (bounds.maxX - bounds.minX) * reach
+  const dz = (bounds.maxZ - bounds.minZ) * reach
+  const area: Bounds = {
+    minX: bounds.minX - dx,
+    maxX: bounds.maxX + dx,
+    minZ: bounds.minZ - dz,
+    maxZ: bounds.maxZ + dz,
+  }
+  const inside = ([x, z]: Point) => x >= area.minX && x <= area.maxX && z >= area.minZ && z <= area.maxZ
+  const touches = (b: Bounds | null) =>
+    b !== null && b.minX <= area.maxX && b.maxX >= area.minX && b.minZ <= area.maxZ && b.maxZ >= area.minZ
+  return {
+    towns: data.towns.filter((town) => touches(town.bounds)),
+    places: data.places.filter((place) => inside(place.point)),
+    roads: data.roads.filter((road) => touches(boundsOf(road.line))),
+    events: data.events.filter((event) => inside(event.point)),
+  }
+}

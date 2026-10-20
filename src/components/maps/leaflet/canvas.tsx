@@ -114,6 +114,8 @@ type CanvasProps = {
   cursor?: string
   /** Dragging and zooming by hand; off for a still frame that opens on a tap. */
   interactive?: boolean
+  /** Whether the wheel zooms; off in an article, where it would catch the page's scroll. */
+  wheel?: boolean
   onReady?: (map: L.Map) => void
   onMove?: (position: MapPosition) => void
   onPointer?: (point: Point | null) => void
@@ -138,6 +140,7 @@ export function MapCanvas({
   className,
   cursor,
   interactive = true,
+  wheel = true,
   onReady,
   onMove,
   onPointer,
@@ -178,7 +181,7 @@ export function MapCanvas({
       boxZoom: false,
       doubleClickZoom: false,
       dragging: interactive,
-      scrollWheelZoom: interactive,
+      scrollWheelZoom: interactive && wheel,
       touchZoom: interactive,
       keyboard: interactive,
     })
@@ -259,10 +262,10 @@ export function MapCanvas({
     const toggle = (handler: L.Handler | undefined, on: boolean) =>
       on ? handler?.enable() : handler?.disable()
     toggle(map.dragging, interactive)
-    toggle(map.scrollWheelZoom, interactive)
+    toggle(map.scrollWheelZoom, interactive && wheel)
     toggle(map.touchZoom, interactive)
     toggle(map.keyboard, interactive)
-  }, [interactive])
+  }, [interactive, wheel])
 
   return (
     <div

@@ -7,6 +7,7 @@ export function TimesFooter({ nav }: { nav: SiteNav }) {
   const links = [
     { href: contextHref(nav.top), label: 'Front Page', prefetch: undefined },
     { href: archiveHref(nav.top), label: 'Archive', prefetch: undefined },
+    { href: '/maps', label: 'Azania Maps', prefetch: undefined },
     ...nav.elsewhere.map((link) => ({ ...link, prefetch: undefined })),
     { href: '/admin', label: 'Registry (Admin)', prefetch: false },
   ]

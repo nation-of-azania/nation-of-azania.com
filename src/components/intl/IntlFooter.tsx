@@ -56,6 +56,11 @@ export function IntlFooter({ nav }: { nav: SiteNav }) {
               </li>
             ))}
             <li>
+              <Link href="/maps" className={LINK}>
+                Azania Maps
+              </Link>
+            </li>
+            <li>
               <Link href="/admin" prefetch={false} className={LINK}>
                 Registry (Admin)
               </Link>

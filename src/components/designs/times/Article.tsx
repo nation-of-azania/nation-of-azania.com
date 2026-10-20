@@ -3,6 +3,7 @@ import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
 import { PreviewTools } from '@/components/PreviewTools'
+import { ArticleLocations } from '@/components/site/ArticleLocations'
 import { RichText } from '@/components/RichText'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import {
@@ -145,6 +146,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
         ) : null}
 
         <RichText data={article.content} tone="times" style={style} className="mt-10" />
+        <ArticleLocations article={article} className="mt-10" tone="times" />
       </div>
 
       <footer className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-news-200 pt-6 text-sm font-semibold">

@@ -108,3 +108,6 @@ export function fromLocalInput(value: string): string | null {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
+
+/** The moment a server-rendered map judges its events by: the render's own. */
+export const clock = (): number => Date.now()
