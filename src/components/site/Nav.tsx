@@ -42,6 +42,12 @@ export function Nav({ nav }: { nav: SiteNav }) {
           </span>
         </Link>
         <nav aria-label="Elsewhere" className="flex items-center gap-x-4 text-[11px] uppercase tracking-[0.18em]">
+          <Link
+            href="/maps"
+            className="text-sand-200/70 transition-colors hover:text-saffron-200 focus-visible:outline-saffron-300"
+          >
+            Maps
+          </Link>
           {nav.elsewhere.map((link) => (
             <Link
               key={link.href}

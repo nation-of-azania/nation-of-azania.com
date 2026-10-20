@@ -1,0 +1,132 @@
+import type { Ink, PlaceGroup, RoadKind } from './registry'
+
+/**
+ * What Azania Maps draws with: the site's own tokens (src/app/(frontend)/globals.css),
+ * restated as literal values because most of this is painted into SVG and
+ * JPEG, where no stylesheet reaches. Everything that sits on the map's
+ * terrain gets a halo, since Dynmap's ground runs from deep water to
+ * savanna and no single colour reads on all of it.
+ */
+
+export const GROUND = {
+  /** The map's backdrop where there is no tile: the sea off the chart's edge. */
+  sea: '#0f2638',
+  /** Whitewash: halos behind labels, the fill of a street. */
+  whitewash: '#fbf8f1',
+  sand: '#f5efe2',
+  ink: '#16191f',
+  inkSoft: '#353a44',
+  /** The deep water of the brand, for claims and the primary marks. */
+  sea800: '#14334b',
+  sea700: '#1a4461',
+  sea500: '#2c6b93',
+  saffron: '#d8962c',
+  saffronLight: '#e8b65c',
+  saffronDeep: '#96600f',
+  coral: '#bb4631',
+  coralDeep: '#a63727',
+  rose: '#b24070',
+  roseLight: '#e58fb3',
+  lagoon: '#198a98',
+  lagoonLight: '#8acbd2',
+} as const
+
+/**
+ * The inks a highlight is drawn in (INKS in ./registry.ts): each a fill and
+ * the halo that keeps it legible over the terrain. The names are the
+ * palette's, the values the site's: the seal's coral, the market's
+ * saffron, the deep water, the cherry grove's rose.
+ */
+export const INK_COLOURS: Record<Ink, { fill: string; halo: string; label: string }> = {
+  red: { fill: '#c9432b', halo: '#fbf8f1', label: 'Red' },
+  gold: { fill: '#e0a12f', halo: '#16191f', label: 'Gold' },
+  sea: { fill: '#2b6fa3', halo: '#fbf8f1', label: 'Sea' },
+  green: { fill: '#3e8f52', halo: '#fbf8f1', label: 'Green' },
+  rose: { fill: '#c8457f', halo: '#fbf8f1', label: 'Rose' },
+  ink: { fill: '#16191f', halo: '#fbf8f1', label: 'Ink' },
+  white: { fill: '#fbf8f1', halo: '#16191f', label: 'White' },
+}
+
+/**
+ * A colour per group of places, for the pins: warm for food and shops,
+ * civic in the deep sea, culture in a plum, transport in the lagoon,
+ * outdoors in leaf green, industry in a quarry brown.
+ */
+export const GROUP_COLOURS: Record<PlaceGroup, string> = {
+  food: '#c9612b',
+  shopping: '#b2761a',
+  stay: '#8a5a9c',
+  civic: '#14334b',
+  culture: '#8c2f5e',
+  learning: '#2b6fa3',
+  transport: '#198a98',
+  outdoors: '#3e8f52',
+  industry: '#6b5540',
+  other: '#555c6a',
+}
+
+/**
+ * How each class of road is drawn, Google-Maps-like: a casing under a fill,
+ * widths in blocks at close zoom with a floor in pixels so a street never
+ * vanishes, and a dash for the kinds that aren't paved.
+ */
+export type RoadStyle = {
+  /** Width at 1 px per block; grows with zoom. */
+  blocks: number
+  /** Narrowest it is ever drawn, in px. */
+  minPx: number
+  maxPx: number
+  fill: string
+  casing: string | null
+  /** A dash pattern on the fill, in multiples of the width. */
+  dash?: [number, number]
+  /** A second stroke laid over the fill, for a railway's sleepers. */
+  over?: { colour: string; dash: [number, number] }
+}
+
+export const ROAD_STYLES: Record<RoadKind, RoadStyle> = {
+  highway: {
+    blocks: 7,
+    minPx: 3.5,
+    maxPx: 16,
+    fill: GROUND.saffronLight,
+    casing: GROUND.saffronDeep,
+  },
+  main: { blocks: 5, minPx: 2.5, maxPx: 13, fill: GROUND.whitewash, casing: '#6f7684' },
+  street: { blocks: 4, minPx: 2, maxPx: 11, fill: GROUND.whitewash, casing: '#9aa0ab' },
+  path: { blocks: 2, minPx: 1.5, maxPx: 6, fill: '#a98a5a', casing: null, dash: [2.5, 1.5] },
+  rail: {
+    blocks: 2.5,
+    minPx: 2,
+    maxPx: 8,
+    fill: GROUND.inkSoft,
+    casing: null,
+    over: { colour: GROUND.whitewash, dash: [1.5, 1.5] },
+  },
+  iceroad: {
+    blocks: 3,
+    minPx: 2.5,
+    maxPx: 10,
+    fill: GROUND.lagoonLight,
+    casing: GROUND.lagoon,
+    dash: [3, 1],
+  },
+  canal: { blocks: 4, minPx: 2.5, maxPx: 12, fill: GROUND.sea500, casing: '#c3d3df' },
+}
+
+/** Roads draw in this order, so a national road lies over a path at a crossing. */
+export const ROAD_ORDER: RoadKind[] = [
+  'path',
+  'canal',
+  'iceroad',
+  'rail',
+  'street',
+  'main',
+  'highway',
+]
+
+/** Pixels per block at a map zoom: level 0 is 2 px per block. */
+export const pixelsPerBlock = (zoom: number): number => 2 * 2 ** zoom
+
+/** The zoom at which a block is this many pixels wide. */
+export const zoomForPixelsPerBlock = (ppb: number): number => Math.log2(ppb / 2)

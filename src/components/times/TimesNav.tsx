@@ -28,6 +28,10 @@ export function TimesNav({ nav }: { nav: SiteNav }) {
             Independent Press<span className="hidden sm:inline"> of the Azanian Coast</span>
           </span>
           <nav aria-label="Elsewhere" className="flex shrink-0 items-center gap-3 whitespace-nowrap">
+            <Link href="/maps" className="transition-colors hover:text-lagoon-300">
+              Maps
+            </Link>
+            <span aria-hidden="true" className="h-3 w-px bg-news-50/30" />
             <AccountLink className="transition-colors hover:text-lagoon-300" />
             {nav.elsewhere.map((link) => (
               <span key={link.href} className="hidden items-center gap-3 sm:flex">

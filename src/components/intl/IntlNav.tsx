@@ -29,6 +29,9 @@ export function IntlNav({ nav }: { nav: SiteNav }) {
             Neutral ground<span className="hidden sm:inline"> · hosted by the Nation of Azania</span>
           </span>
           <nav aria-label="Elsewhere" className="flex shrink-0 items-center gap-x-4">
+            <Link href="/maps" className="hidden transition-colors hover:text-graphite-900 sm:inline">
+              Azania Maps
+            </Link>
             {nav.elsewhere.map((link) => (
               <Link
                 key={link.href}

@@ -13,6 +13,7 @@ export function Footer({ nav }: { nav: SiteNav }) {
     ...nav.pages,
   ]
   const elsewhere = [
+    { href: '/maps', label: 'Azania Maps', prefetch: undefined },
     ...nav.elsewhere.map((link) => ({ ...link, prefetch: undefined })),
     { href: '/admin', label: 'Registry (Admin)', prefetch: false },
   ]

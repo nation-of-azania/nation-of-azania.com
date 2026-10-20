@@ -13,10 +13,13 @@ import {
  *
  *   /mapclip?town=GirlieTown&zoom=town&aspect=wide
  *   /mapclip?x=4296&z=4952&zoom=street&pin=1
+ *   /mapclip?x=4296&z=4945&span=160&aspect=wide
  *
  * `town` centres on a Towny town and outlines its claims (claims=0 leaves
- * them off); x/z centre anywhere. Stitched from Dynmap's tiles on demand and
- * cached at the CDN, so the map server sees one request per clipping a day.
+ * them off); x/z centre anywhere. `span`, blocks across, frames a map view
+ * exactly in place of a named zoom. Stitched from Dynmap's tiles on demand
+ * and cached at the CDN, so the map server sees one request per clipping a
+ * day.
  */
 
 export const runtime = 'nodejs'
@@ -33,6 +36,9 @@ export async function GET(request: Request) {
   const map = query.get('map') ?? 'flat'
   const aspect = query.get('aspect') ?? 'wide'
   if (!isZoomName(zoom) || !isMapName(map) || !isAspectName(aspect)) return bad('Unknown zoom, map or aspect.')
+  const spanParam = query.get('span')
+  const span = spanParam == null ? undefined : Number(spanParam)
+  if (span !== undefined && !(Number.isFinite(span) && span >= 32 && span <= 40000)) return bad('A span is 32 to 40,000 blocks.')
 
   const townName = query.get('town')
   if (townName && !/^[\w-]{1,40}$/.test(townName)) return bad('Not a town name.')
@@ -64,6 +70,7 @@ export async function GET(request: Request) {
       x: centre.x,
       z: centre.z,
       zoom,
+      span,
       map,
       aspect,
       outlines,

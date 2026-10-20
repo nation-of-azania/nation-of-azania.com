@@ -351,7 +351,7 @@ Article and page content is a Lexical rich-text field with ten custom blocks
 | `gallery`   | Grid of captioned images in 2 or 3 columns.                              |
 | `embed`     | YouTube/Vimeo player from a URL; other URLs render as a link card.       |
 | `discord`   | An exchange quoted from Discord, rendered the way Discord renders it. See below. |
-| `map`       | A clipping of the Rulercraft map around a Towny town or a pair of coordinates, as a figure: claims outlined, the town's facts, the coordinates and a link to the live map. See below. |
+| `map`       | A piece of the map as a figure: a clipping around a Towny town or a pair of coordinates (claims outlined, the town's facts), or a **map view** drawn on Azania Maps with its highlights; still, or one readers can move. See below. |
 | `skin`      | A player's Minecraft skin as a portrait: turnable in 3D, with a still render before it loads and wherever WebGL is missing. See below. |
 | `model3d`   | Interactive three.js viewer for a `.glb` from the media library, with optional auto-rotate (editors and admins only). |
 | `litematic` | Interactive viewer for a Litematica `.litematic` build (editors and admins only). |
@@ -399,6 +399,28 @@ never waits on it: the block checks only that it was given a town name or a
 pair of coordinates. A town the map doesn't know, or a map that isn't
 answering, is said in the figure's frame; a broken image never appears.
 
+The block has two more settings, which tie it to [Azania Maps](#azania-maps):
+
+- **Map view.** Choose a view by its title and the block shows that view
+  instead of a clipping: the frame its author set, the layers they chose
+  (towns, places, roads, events) and the highlights they drew. The clipping
+  fields step aside.
+- **Let readers move the map.** Off, the figure is a still picture, quickest
+  to load and drawn without any map library: the clipping from `/mapclip`
+  (which takes a `span` in blocks for a view's exact frame) under an SVG
+  overlay of the layers and highlights, drawn by the same components as the
+  live map. On, the live map fades in over the still once the reader scrolls
+  near, starting from the same frame, with buttons to zoom and to come back
+  to the frame; the mouse wheel doesn't catch the page. A town or
+  coordinate block can be interactive too, showing the nation's layers
+  around it.
+
+Either way the figure carries a small **Azania Maps** mark in its corner
+that opens `/maps` at the same spot — with the view's highlights, when it
+shows one — and the survey line links Azania Maps beside the Rulercraft map.
+A view since deleted is said in the frame, and while the Rulercraft map is
+down the layers still show over a plain ground.
+
 The `skin` block is a portrait of a player: their skin in an interactive
 viewer ([skinview3d](https://github.com/bs-community/skinview3d), the one
 NameMC uses), turnable by hand, breathing, walking or waving, beside their
@@ -413,16 +435,91 @@ still turn. Both blocks are open to every writer.
 ### Azania Maps
 
 Azania Maps (`/maps`) is the nation's own map, on top of the Rulercraft map's
-pictures:
-- Azania's **towns**, read from Towny.
+pictures: a full-screen map in the Gazette's hand, with a panel beside it (a
+sheet drawn up over it on a phone) that holds whatever is open.
+
+- Azania's **towns**, read from Towny: their claims, names and facts.
 - **Places** with a category and icon (cafés, town halls, ports, …), optionally with a building outline.
-- Named **roads**, railways and waterways.
+- Named **roads**, railways and waterways, drawn like a road map: casings under fills, widths by zoom, the name along the line once it fits.
 - **Events** with a time and a place.
 - **Map views**: framed pieces of the map with highlights drawn on them, which an article's Map block can show.
 
 Everything is stored in block coordinates (`src/maps/geo.ts`), never pixels.
 The categories, road kinds and highlight inks are defined in code
-(`src/maps/registry.ts`), like the designs and styles.
+(`src/maps/registry.ts`), like the designs and styles; their icons, colours
+and road styles in `src/maps/icons.tsx` and `src/maps/palette.ts`.
+
+**Reading the map.** Leaflet draws it (`src/components/maps/leaflet`),
+taught Dynmap's projection: zoom 0 is the tiles' own scale, two pixels a
+block, and zooming closer scales the blocks up pixel for pixel. Tiles come
+through the site's cache; the map's JavaScript loads only on `/maps` and in
+an interactive Map block, never with any other page. The layers themselves
+are plain SVG (`src/components/maps/layers`), drawn through one projection
+interface, so the same components draw the live map in the browser and a
+block's still picture on the server.
+
+- **Addresses.** `/maps/town/<slug>`, `/maps/place/<id>`, `/maps/road/<id>`
+  and `/maps/event/<id>` open the thing with its panel: a town's Towny facts
+  with the ruler's head, its mayor's lines, growth charts from the census,
+  its places and events and the articles about it; a place's category,
+  description and events; a road's class and length; an event's time in the
+  reader's own time zone, its place, host and article. These pages are
+  rendered on the server, so links unfurl and search engines read them. The
+  map's own spot travels in the query — `?at=<x>,<z>,<zoom>`, `&map=biomes`,
+  `&layers=towns,roads`, `&view=<id>` for an article's view with its
+  highlights — written as the map moves, so any address can be shared.
+- **Tools.** Search across towns, places, roads and events; layer toggles
+  and a legend; the flat or the biome map; the block under the pointer (the
+  centre, on a phone) with a copy as `/tp x y z`; the nation at a glance,
+  with the census's trend, on the map's own front.
+- **Events.** A pennant on the map where it's held, breathing while the
+  event is on (two hours from the start, when no end is given; still for
+  readers who ask for less motion), hollow once it's past. A *What's on*
+  strip along the foot of the map lists what's coming, soonest first and
+  anything happening now ahead of it; past events show only when asked (the
+  layers menu). Times are shown in the reader's own time zone; the panel
+  says so.
+- **When the Rulercraft map is down:** `/maps/status` says so, the page
+  notes it is showing the map as last saved, and tiles the cache doesn't have
+  leave a plain ground; towns, places and everything else are the site's own
+  data, so they never go dark.
+
+**Drawing on the map.** Sign in (the panel's *Sign in* comes back to the map)
+and, with rights, the pencil in the map's corner offers what you may do;
+everyone else only looks.
+
+- **Places:** drop the pin, trace a building's outline if there is one (click
+  around it; the first point or *Enter* closes it), then name it, pick its
+  category from the icons, add a line or two and, for somewhere underground
+  or in the sky, a height.
+- **Roads:** click along the course point by point (*Enter* or a double-click
+  finishes, *Backspace* takes a point back), then drag any point to move it,
+  drag the small handle between two to add one, pick a point and press
+  *Delete* to remove it; give it a name and a class. The length is shown as
+  you draw.
+- **Events:** at one of your town's places or at a point you pick on the map,
+  with a start, an optional end, a host and, optionally, the article
+  announcing it.
+- **Edit, move and delete** anything from its panel. Mayors see their own
+  towns' claims in gold while drawing and are told before saving when
+  something reaches outside them; the server checks again and its refusal
+  is shown as it comes. Mayors also write their town's description from the
+  town's panel.
+- **Map views** (for anyone who writes articles): choose *New map view* and
+  a frame appears on the map in the aspect you pick (wide, square, banner);
+  move and zoom the map to set what it shows, choose the base map and the
+  layers in the picture, then mark it up with the **highlighter**: a pen for
+  freehand strokes, lines point by point, shaded areas, pins and short
+  notes, in the fixed inks (red, gold, sea, green, rose, ink, white), with
+  three weights and an optional arrowhead. Pick a highlight to change its
+  ink or label, nudge its points, or remove it; *Ctrl+Z* undoes the last.
+  Save, and the panel says how to use it: in the Registry, add a Map block
+  to an article and choose the view by its title. *My map views* lists your
+  views (everyone's, for staff) to show again, redraw, rename or delete.
+
+Writes go through Payload's REST API as the signed-in person
+(`src/components/maps/api.ts`), so every rule in the collections applies
+however the request arrives.
 
 - **Which towns are Azanian:** set under Settings → Azania Maps. Every town of the named Towny nations counts, plus any town listed by name, such as towns that haven't joined yet.
   - The nation still has its old Towny name, "Canada"; rename it there when it changes in game.
@@ -438,11 +535,10 @@ The categories, road kinds and highlight inks are defined in code
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
-- **When the Rulercraft map is down:** tiles come through `/maps/tiles/<map>/<level>/<column>/<row>.jpg`, which the CDN caches for a day. While the map errors, the CDN keeps serving the last good tile for a month.
+- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`, which the CDN caches for a day. While the map errors, the CDN keeps serving the last good tile for a month.
   - Ground the map hasn't drawn comes back as an empty, cached tile.
-  - `/maps/status` says whether the map is answering, so the page can say it's showing saved pictures.
-  - Towns, places and everything else are the site's own data, so they never go dark.
-- **Articles:** an article can name the towns, places and events it's about ("On Azania Maps" in the sidebar), and the map lists the coverage.
+  - `/maps/status` says whether the map is answering.
+- **Articles:** an article can name the towns, places and events it's about (*On Azania Maps* in the sidebar). The article shows them as chips, in its paper's own hand, that open them on the map, and the town, place or event lists the article in return.
 
 ## Database adapters and migrations
 
@@ -741,7 +837,8 @@ src/
 │  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
 │  │  ├─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
 │  │  ├─ feeds/         # /feeds/<path>: the RSS feeds, reached as /<path>/feed.xml and /feed.xml
-│  │  └─ mapclip/       # /mapclip?town=…: a clipping of the Rulercraft map, for the map block
+│  │  ├─ mapclip/       # /mapclip?town=…: a clipping of the Rulercraft map, for the map block
+│  │  └─ maps/          # Azania Maps: the map (layout), its pages (town/, place/, road/, event/), tiles/, status/, sync/
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
 ├─ access/              # role helpers and context grants (scope.ts)
 ├─ blocks/
@@ -751,13 +848,15 @@ src/
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
 │  ├─ designs/          # each design's views: gazette/, times/, international/
+│  ├─ maps/             # Azania Maps: the shell and scene, layers/ (plain SVG), leaflet/, panels/, editor/, still/ and embed/ (for the Map block)
 │  ├─ og/               # link-preview cards, one per design, drawn with Satori
 │  ├─ site/             # Gazette chrome (header, footer, crest, cards, …)
 │  ├─ times/            # Times chrome (masthead, footer, story cards)
 │  └─ members/          # resident area (login form, header)
 ├─ contexts/            # designs and article types, the context tree
 ├─ fields/              # shared fields: auto-generated slug, Minecraft name
-├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser, the Dynmap client (dynmap.ts)
+├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser, the Dynmap client (dynmap.ts), the towns sync (towns.ts), Azania Maps' reads (maps.ts)
+├─ maps/                # Azania Maps in code: geometry (geo.ts), the registries, icons, palette, addresses, time
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)
 └─ payload.config.ts    # the Payload config: collections, adapters, storage

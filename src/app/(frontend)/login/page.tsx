@@ -14,12 +14,23 @@ export const metadata: Metadata = { title: 'Residents’ Entrance' }
 // Reads the session cookie, so it must never be statically cached.
 export const dynamic = 'force-dynamic'
 
-export default async function LoginPage() {
+/** Only a same-site absolute path is followed after sign-in (no open redirects); the form applies the same rule. */
+const safeNext = (value: string | string[] | undefined): string => {
+  const raw = Array.isArray(value) ? value[0] : value
+  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/account'
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const payload = await getPayload({ config })
   const { user } = await payload
     .auth({ headers: await nextHeaders() })
     .catch(() => ({ user: null }))
-  if (user) redirect('/account')
+  // Already signed in: straight on to where they were going, e.g. back to /maps.
+  if (user) redirect(safeNext((await searchParams).next))
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-sand-50 px-6 py-16 text-ink-900">

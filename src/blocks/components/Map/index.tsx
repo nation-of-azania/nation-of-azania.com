@@ -1,7 +1,15 @@
+import { MapEmbed } from '@/components/maps/embed/Embed'
+import { MapsMark } from '@/components/maps/Mark'
+import { MapStill, type Frame } from '@/components/maps/still/Still'
 import { COLOR, STYLE_THEME } from '@/components/og/tokens'
 import { BylineAvatar, type AvatarTone } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import { dress } from '@/components/styles'
+import { getMapData, getMapView } from '@/lib/maps'
+import { around, mapView, type MapData, type MapViewData } from '@/maps/data'
+import { ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
+import { clock } from '@/maps/time'
+import { frameBounds, zoomForSpan } from '@/maps/view'
 import {
   ASPECTS,
   getTown,
@@ -10,6 +18,7 @@ import {
   isZoomName,
   liveMapUrl,
   townCentre,
+  ZOOMS,
   type Town,
 } from '@/lib/dynmap'
 import type { MapBlockType } from '@/payload-types'
@@ -19,9 +28,23 @@ import { CopyCoordinates, MapClip } from './Client'
 
 type MapProps = Pick<
   MapBlockType,
-  'aspect' | 'caption' | 'claims' | 'facts' | 'map' | 'pin' | 'town' | 'x' | 'z' | 'zoom'
+  | 'aspect'
+  | 'caption'
+  | 'claims'
+  | 'facts'
+  | 'interactive'
+  | 'map'
+  | 'pin'
+  | 'town'
+  | 'view'
+  | 'x'
+  | 'z'
+  | 'zoom'
 > &
   Voice
+
+/** The width the still's overlay is drawn for, and the zoom the mark's link opens at. */
+const COLUMN_PX = 720
 
 /**
  * How each paper mounts a map. The Gazette frames it like a print, with the
@@ -180,6 +203,8 @@ export async function MapBlock({
   pin,
   facts,
   caption,
+  view: viewRef,
+  interactive,
   tone,
   style,
 }: MapProps) {
@@ -189,15 +214,30 @@ export async function MapBlock({
   const aspectName = isAspectName(aspect) ? aspect : 'wide'
   const { width, height } = ASPECTS[aspectName]
 
+  // In the Times, a style's box rounds the pictures inside it; follow the hero.
+  const rounded = tone === 'times' && dress('times', style).boxed
+  const frame = cn(voice.frame, rounded && 'rounded-xl')
+
+  // A map view drawn on Azania Maps: its frame, layers and highlights, in place of a clipping.
+  if (viewRef != null) {
+    const view = typeof viewRef === 'object' ? mapView(viewRef) : await getMapView(viewRef)
+    return (
+      <ViewFigure
+        caption={caption}
+        frame={frame}
+        interactive={Boolean(interactive)}
+        rounded={rounded}
+        view={view}
+        voice={voice}
+      />
+    )
+  }
+
   const townName = townField?.trim() || null
   const lookup = townName ? await getTown(townName) : null
   const town = lookup && lookup !== 'offline' ? lookup : null
   const hasCoordinates = typeof x === 'number' && Number.isFinite(x) && typeof z === 'number' && Number.isFinite(z)
   const centre = hasCoordinates ? { x, z } : town ? townCentre(town) : null
-
-  // In the Times, a style's box rounds the pictures inside it; follow the hero.
-  const rounded = tone === 'times' && dress('times', style).boxed
-  const frame = cn(voice.frame, rounded && 'rounded-xl')
 
   const note = (message: string) => (
     <div
@@ -257,18 +297,59 @@ export async function MapBlock({
   const showFacts = Boolean(town) && facts !== false
   const ruler = town?.ruler ?? null
 
+  // The same piece on Azania Maps: the mark opens it there, and a reader may move it here.
+  const preset = ZOOMS[zoomName]
+  const span = width / ((preset.upscale * 2) / 2 ** preset.level)
+  const nation = await getMapData()
+  const azanian = town
+    ? nation.towns.find((candidate) => candidate.name.toLowerCase() === town.name.toLowerCase())
+    : null
+  const mapsFrame: Frame = {
+    centre: [cx, cz],
+    span,
+    aspect: aspectName,
+    map: mapName,
+    layers: ALL_LAYERS,
+    drawings: [],
+    town: azanian?.id ?? null,
+  }
+  const at = { centre: [cx, cz] as [number, number], zoom: zoomForSpan(span, COLUMN_PX) }
+  const mapsLink = azanian
+    ? mapsHref({ at, map: mapName }, townHref(azanian.slug))
+    : mapsHref({ at, map: mapName })
+  const now = clock()
+  const still = (
+    <MapClip
+      alt={alt}
+      className="block h-auto w-full"
+      fallback={note('The Rulercraft map isn’t answering just now; the clipping will appear when it is.')}
+      height={height}
+      src={src}
+      width={width}
+    />
+  )
+
   return (
     <figure className="my-8">
       <div className={frame}>
-        <div className={cn('overflow-hidden', voice.well, rounded && 'rounded-lg')}>
-          <MapClip
-            alt={alt}
-            className="block h-auto w-full"
-            fallback={note('The Rulercraft map isn’t answering just now; the clipping will appear when it is.')}
-            height={height}
-            src={src}
-            width={width}
-          />
+        <div className={cn('relative overflow-hidden', voice.well, rounded && 'rounded-lg')}>
+          {interactive ? (
+            <div className="relative w-full" style={{ aspectRatio: `${width} / ${height}` }}>
+              <MapEmbed
+                data={around(nation, frameBounds(mapsFrame.centre, span, aspectName))}
+                frame={mapsFrame}
+                href={mapsLink}
+                now={now}
+              >
+                {still}
+              </MapEmbed>
+            </div>
+          ) : (
+            <>
+              {still}
+              <MapsMark href={mapsLink} />
+            </>
+          )}
         </div>
 
         {showFacts && town ? (
@@ -335,8 +416,142 @@ export async function MapBlock({
             <span aria-hidden="true" className="opacity-50">
               ·
             </span>
+            <a className={voice.link} href={mapsLink}>
+              Azania Maps
+            </a>
+            <span aria-hidden="true" className="opacity-50">
+              ·
+            </span>
             <a className={voice.link} href={live} rel="noopener noreferrer" target="_blank">
-              Open the live map <span aria-hidden="true">&#8599;</span>
+              Rulercraft <span aria-hidden="true">&#8599;</span>
+            </a>
+          </span>
+        </p>
+      </figcaption>
+    </figure>
+  )
+}
+
+type VoiceOf = (typeof VOICES)[Tone]
+
+/**
+ * A map view in the figure's frame: the article's piece of Azania Maps,
+ * with the layers its author chose and the highlights they drew. Still by
+ * default (the clipping under an SVG overlay, no map library); set to
+ * interactive, the live map takes its place once the reader scrolls near,
+ * starting from the same frame. A view since deleted is said in the frame.
+ */
+async function ViewFigure({
+  view,
+  voice,
+  frame,
+  rounded,
+  caption,
+  interactive,
+}: {
+  view: MapViewData | null
+  voice: VoiceOf
+  frame: string
+  rounded: boolean
+  caption: string | null | undefined
+  interactive: boolean
+}) {
+  const captionLine = caption ? (
+    <p className={voice.caption}>
+      {voice.captionPrefix ? <span className="font-mono">{voice.captionPrefix}</span> : null}
+      {caption}
+    </p>
+  ) : null
+  if (!view) {
+    return (
+      <figure className="my-8">
+        <div className={frame}>
+          <div
+            className={cn(
+              'flex min-h-44 w-full items-center justify-center px-6 py-8 text-center text-sm leading-normal',
+              voice.note,
+            )}
+          >
+            <p className="max-w-md">This map view is no longer on Azania Maps.</p>
+          </div>
+        </div>
+        {captionLine ? <figcaption>{captionLine}</figcaption> : null}
+      </figure>
+    )
+  }
+
+  const nation: MapData = await getMapData()
+  const mapsFrame: Frame = {
+    centre: view.centre,
+    span: view.span,
+    aspect: view.aspect,
+    map: view.map,
+    layers: view.layers,
+    drawings: view.drawings,
+  }
+  const data = around(nation, frameBounds(view.centre, view.span, view.aspect))
+  const now = clock()
+  const [cx, cz] = view.centre.map(Math.round)
+  const href = mapsHref({
+    at: { centre: view.centre, zoom: zoomForSpan(view.span, COLUMN_PX) },
+    map: view.map,
+    view: view.id,
+  })
+  const alt = `Azania Maps around x ${cx}, z ${cz}, ${Math.round(view.span).toLocaleString('en-GB')} blocks across${view.drawings.length ? ', with highlights' : ''}`
+  const still = (
+    <MapStill
+      alt={alt}
+      data={data}
+      frame={mapsFrame}
+      note="The Rulercraft map isn’t answering just now; the ground will appear when it is."
+      now={now}
+    >
+      {interactive ? null : <MapsMark href={href} />}
+    </MapStill>
+  )
+  const { width, height } = ASPECTS[view.aspect]
+
+  return (
+    <figure className="my-8">
+      <div className={frame}>
+        <div className={cn('relative overflow-hidden', voice.well, rounded && 'rounded-lg')}>
+          {interactive ? (
+            <div className="relative w-full" style={{ aspectRatio: `${width} / ${height}` }}>
+              <MapEmbed data={data} frame={mapsFrame} href={href} now={now}>
+                {still}
+              </MapEmbed>
+            </div>
+          ) : (
+            still
+          )}
+        </div>
+      </div>
+      <figcaption>
+        {captionLine}
+        <p
+          className={cn(
+            'flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[11px] tracking-[0.06em] tabular-nums',
+            voice.survey,
+          )}
+        >
+          <span className="inline-flex gap-x-2">
+            <span>
+              <span className="opacity-70">X</span> {cx}
+            </span>
+            <span>
+              <span aria-hidden="true" className="mr-2 opacity-50">
+                /
+              </span>
+              <span className="opacity-70">Z</span> {cz}
+            </span>
+          </span>
+          <span className="inline-flex items-baseline gap-x-3">
+            <CopyCoordinates className={voice.button} text={`${cx} ~ ${cz}`} />
+            <span aria-hidden="true" className="opacity-50">
+              ·
+            </span>
+            <a className={voice.link} href={href}>
+              Open on Azania Maps
             </a>
           </span>
         </p>

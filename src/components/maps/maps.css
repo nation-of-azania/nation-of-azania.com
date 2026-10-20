@@ -1,0 +1,99 @@
+/*
+ * Azania Maps' own rules, over Leaflet's: the tiles stay pixel-crisp when
+ * scaled up (a world of blocks should look like one), the overlay only
+ * answers the pointer where something is drawn, and the few things that
+ * move stop moving for a reader who asks for less motion.
+ */
+
+.az-maps .leaflet-container {
+  background: #0f2638;
+  background-image:
+    linear-gradient(rgba(251, 248, 241, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(251, 248, 241, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  font-family: var(--font-body);
+  outline: none;
+}
+
+.az-maps .leaflet-container:focus-visible {
+  outline: 2px solid var(--color-saffron-500);
+  outline-offset: -2px;
+}
+
+.az-tile {
+  image-rendering: pixelated;
+}
+
+/* Only what is drawn takes the pointer; the ground beneath stays Leaflet's. */
+.az-overlay {
+  pointer-events: none;
+}
+.az-overlay .az-hit {
+  pointer-events: auto;
+}
+.az-overlay .az-handle {
+  pointer-events: auto;
+  cursor: grab;
+}
+.az-overlay .az-handle:active {
+  cursor: grabbing;
+}
+/* While a tool is in hand, the features step aside so clicks reach the map. */
+.az-maps[data-tool] .az-overlay .az-hit {
+  pointer-events: none;
+}
+.az-overlay text {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.az-overlay .az-place .az-place-label {
+  visibility: hidden;
+}
+.az-overlay .az-place[data-labelled] .az-place-label,
+.az-overlay .az-place:hover .az-place-label {
+  visibility: visible;
+}
+
+/* An event that is happening now: a ring that breathes. */
+@keyframes az-pulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.az-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: az-pulse 2.2s ease-out infinite;
+}
+@keyframes az-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(187, 70, 49, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(187, 70, 49, 0);
+  }
+}
+.az-breathe {
+  animation: az-breathe 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-pulse,
+  .az-breathe {
+    animation: none;
+  }
+  .az-pulse {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
+/* The frame of a map view being drawn: everything outside it dims. */
+.az-frame {
+  box-shadow: 0 0 0 9999px rgba(15, 38, 56, 0.45);
+}

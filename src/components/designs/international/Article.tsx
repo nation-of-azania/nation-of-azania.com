@@ -6,6 +6,7 @@ import { PreviewTools } from '@/components/PreviewTools'
 import { RichText } from '@/components/RichText'
 import { IntlByline } from '@/components/intl/IntlByline'
 import { bylineLabelOf, dateLabelOf, recordRef } from '@/components/intl/IntlRecord'
+import { ArticleLocations, locationChips } from '@/components/site/ArticleLocations'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { formatDate, resolveByline, resolveImage } from '@/components/site/format'
 import { archiveHref, contextHref } from '@/lib/site'
@@ -134,6 +135,14 @@ export function Article({ article, chain, draft }: ArticleProps) {
               <div className="sm:col-span-2 lg:col-span-1">
                 <dt className={DT}>Cite as</dt>
                 <dd className={cn(DD, 'font-mono text-xs leading-relaxed text-graphite-700')}>{citation}</dd>
+              </div>
+            ) : null}
+            {locationChips(article).length ? (
+              <div className="sm:col-span-2 lg:col-span-1">
+                <dt className={DT}>On Azania Maps</dt>
+                <dd className="mt-2">
+                  <ArticleLocations article={article} bare tone="international" />
+                </dd>
               </div>
             ) : null}
           </dl>

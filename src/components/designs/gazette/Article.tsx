@@ -3,6 +3,7 @@ import Link from 'next/link'
 
 import { cn } from '@/blocks/components/shared'
 import { PreviewTools } from '@/components/PreviewTools'
+import { ArticleLocations } from '@/components/site/ArticleLocations'
 import { RichText } from '@/components/RichText'
 import { Crest } from '@/components/site/Crest'
 import { FlagTick } from '@/components/site/FlagTick'
@@ -164,6 +165,8 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
           className="mt-12"
         />
       ) : null}
+
+      <ArticleLocations article={article} className="mt-12" tone="gazette" />
 
       <footer className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-sand-300 pt-6 text-sm font-medium">
         {section ? (
