@@ -15,9 +15,9 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  * and the view itself travels in the query, on any of them:
  *
  *   ?at=<x>,<z>,<zoom>          centre and zoom (zoom 0 is the map's native scale, 2 px per block)
- *   &map=biomes                 the biome map
  *   &layers=towns,roads         which layers show (all, when absent)
  *   &view=<id>                  an article's map view, framed with its highlights
+ *   &draw=view                  the view editor, open: a new view, or the one named by &view=
  */
 
 export type MapSelection =
@@ -94,26 +94,34 @@ export function decodeLayers(value: string | null | undefined): MapLayer[] | nul
   return layers
 }
 
-/** The map's state as a query, for sharing and for the Map block's mark. */
+/** What the editor may be asked to open on arrival. */
+export type MapDraw = 'view'
+
+/** The map's state as a query, for sharing, for the Map block's mark, and for the admin's way in. */
 export function mapsQuery({
   at,
   map,
   layers,
   view,
+  draw,
 }: {
   at?: MapPosition | null
   map?: MapName | null
   layers?: MapLayer[] | null
   view?: number | null
+  draw?: MapDraw | null
 }): string {
   const query = new URLSearchParams()
   if (at) query.set('at', encodeAt(at))
   if (map && map !== 'flat') query.set('map', map)
   if (layers && layers.length !== ALL_LAYERS.length) query.set('layers', layers.join(','))
   if (view) query.set('view', String(view))
+  if (draw) query.set('draw', draw)
   const text = query.toString()
   return text ? `?${text}` : ''
 }
+
+export const decodeDraw = (value: string | null | undefined): MapDraw | null => (value === 'view' ? value : null)
 
 /** A link into Azania Maps at a spot, as the Map block's mark gives it. */
 export const mapsHref = (options: Parameters<typeof mapsQuery>[0], path = MAPS_PATH): string =>

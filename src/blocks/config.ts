@@ -382,6 +382,8 @@ export const MapBlock: Block = {
       admin: {
         description:
           'A view drawn on Azania Maps (/maps), with its frame, layers and highlights. Leave empty to clip the map around a town or coordinates instead.',
+        // The description, with the way to Azania Maps to draw or redraw one.
+        components: { Description: '/components/admin/MapViewLink#MapViewLink' },
       },
     },
     {
