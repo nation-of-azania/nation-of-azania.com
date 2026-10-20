@@ -4,7 +4,10 @@ import { notFound } from 'next/navigation'
 import { PlacePanel } from '@/components/maps/panels/PlacePanel'
 import { spoken } from '@/maps/data'
 import { PLACE_CATEGORIES } from '@/maps/registry'
+import { placeHref } from '@/maps/url'
 import { findPlace, getArticlesAbout, getMapData } from '@/lib/maps'
+
+import { mapsMetadata } from '../../metadata'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -19,11 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     place.description ??
     `${PLACE_CATEGORIES[place.category].label}${town ? ` in ${spoken(town.name)}` : ''}, at ${place.point[0]}, ${place.point[1]}.`
-  return {
-    title: place.name,
-    description,
-    openGraph: { title: place.name, description, url: `/maps/place/${place.id}` },
-  }
+  return mapsMetadata({ title: place.name, description, path: placeHref(place.id), updatedAt: place.updatedAt })
 }
 
 export default async function PlacePage({ params }: Props) {

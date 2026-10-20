@@ -124,3 +124,6 @@ export const PICTURE: Record<Design, { width: number; height: number }> = {
   times: { width: 420, height: 372 },
   international: { width: 348, height: 418 },
 }
+
+/** The map on an Azania Maps card (./maps.tsx): drawn at exactly this size by renderClip, so nothing is scaled. */
+export const MAP_PICTURE = { width: 760, height: 555 } as const

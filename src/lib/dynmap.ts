@@ -1,5 +1,7 @@
 import sharp from 'sharp'
 
+import type { Point } from '../maps/geo'
+import type { RoadStyle } from '../maps/palette'
 import { DYNMAP_URL, DYNMAP_WORLD, dynmapTileUrl, MAPS, type MapName } from '../maps/source'
 
 /**
@@ -67,19 +69,23 @@ const toPixels = (x: number, z: number, level: number) => ({
   py: (2 * z + TILE) / 2 ** level,
 })
 
-async function fetchTile(url: string): Promise<Buffer | null> {
+/** A tile's bytes; `unrendered` where the map has drawn nothing, `failed` when it didn't answer. */
+type Tile = Buffer | 'unrendered' | 'failed'
+
+async function fetchTile(url: string): Promise<Tile> {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       // Tiles change as the world is re-rendered; a day old is fine for an article.
       next: { revalidate: 86400 },
     })
-    if (!response.ok) return null
+    if (response.status === 404) return 'unrendered'
+    if (!response.ok) return 'failed'
     const bytes = Buffer.from(await response.arrayBuffer())
     // Dynmap answers missing tiles with a tiny placeholder; treat those as unrendered.
-    return bytes.length > 400 ? bytes : null
+    return bytes.length > 400 ? bytes : 'unrendered'
   } catch {
-    return null
+    return 'failed'
   }
 }
 
@@ -100,6 +106,23 @@ async function pool<T, R>(items: T[], limit: number, work: (item: T) => Promise<
 
 export type Outline = { x: number[]; z: number[] }
 
+/** A road to draw over the ground, in the style the map gives its class (src/maps/palette.ts). */
+export type ClipCourse = RoadStyle & {
+  points: Point[]
+  /** A colour to ring the road in, wider than its casing: the map's way of picking one out. */
+  halo?: string | null
+}
+
+/** A pin: a disc in a colour, with the map's glyph for a category in whitewash (src/maps/icons.tsx). */
+export type ClipMark = {
+  x: number
+  z: number
+  colour: string
+  /** The disc's radius in px; the map's pins are 12. */
+  radius?: number
+  glyph?: { d: string; fill?: boolean } | null
+}
+
 export type ClipOptions = {
   x: number
   z: number
@@ -109,13 +132,33 @@ export type ClipOptions = {
   span?: number
   map: MapName
   aspect: AspectName
+  /** The picture's size in px; the aspect's own (1,200 wide) unless a card wants another. */
+  size?: { width: number; height: number }
   /** Claims to draw, in block coordinates (Towny areas). */
   outlines?: Outline[]
+  /** Roads to draw over the claims, as the map draws them. */
+  courses?: ClipCourse[]
+  /** Pins to set over everything else. */
+  marks?: ClipMark[]
   /** A pin on the centre. */
   pin?: boolean
   /** Hex colour for outlines and pin. */
   colour?: string
 }
+
+export type Clip = {
+  image: Buffer
+  /** Whether every tile arrived, so a caller can cache a partial clipping only briefly. */
+  complete: boolean
+  /** Whether the map answered nothing at all: the picture is bare ground, and the caller may say so. */
+  offline: boolean
+  /** The block at the picture's north-west corner, and the pixels a block takes: the projection used. */
+  origin: Point
+  ppb: number
+}
+
+/** The picture's size in px. */
+const sizeOf = (options: ClipOptions) => options.size ?? ASPECTS[options.aspect]
 
 /**
  * The tile level a clipping is drawn from, and how much each tile pixel is
@@ -127,7 +170,7 @@ export type ClipOptions = {
 function clipScale(options: ClipOptions): { level: number; scale: number } {
   const maxLevel = MAPS[options.map].maxLevel
   if (options.span) {
-    const ppb = ASPECTS[options.aspect].width / options.span
+    const ppb = sizeOf(options).width / options.span
     const level = Math.min(maxLevel, Math.max(0, Math.floor(Math.log2(2 / ppb))))
     return { level, scale: ppb / (2 / 2 ** level) }
   }
@@ -137,14 +180,15 @@ function clipScale(options: ClipOptions): { level: number; scale: number } {
 }
 
 /**
- * Stitches the tiles around a block into one JPEG, with claims outlined and
- * a pin. Returns whether every tile arrived, so callers can cache a partial
- * clipping only briefly.
+ * Stitches the tiles around a block into one JPEG, with claims outlined,
+ * roads drawn, and pins. Says whether every tile arrived, so callers can
+ * cache a partial clipping only briefly, and whether the map answered at
+ * all, so they can say so rather than show bare ground as if it were sea.
  */
-export async function renderClip(options: ClipOptions): Promise<{ image: Buffer; complete: boolean }> {
-  const { x, z, map, outlines = [], pin = false } = options
+export async function renderClip(options: ClipOptions): Promise<Clip> {
+  const { x, z, map, outlines = [], courses = [], marks = [], pin = false } = options
   const { level, scale: upscale } = clipScale(options)
-  const { width, height } = ASPECTS[options.aspect]
+  const { width, height } = sizeOf(options)
   const colour = /^#[0-9a-f]{6}$/i.test(options.colour ?? '') ? options.colour! : '#ff5fa2'
 
   // The window in level-n pixels.
@@ -161,7 +205,8 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
     for (let column = columns.from; column <= columns.to; column++) tiles.push({ column, row })
   }
   const images = await pool(tiles, 16, ({ column, row }) => fetchTile(dynmapTileUrl(map, level, column, row)))
-  const complete = images.every(Boolean)
+  const complete = images.every((tile) => tile !== 'failed')
+  const offline = images.some((tile) => tile === 'failed') && images.every((tile) => !Buffer.isBuffer(tile))
 
   const canvasWidth = (columns.to - columns.from + 1) * TILE
   const canvasHeight = (rows.to - rows.from + 1) * TILE
@@ -171,7 +216,7 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
     .composite(
       tiles.flatMap(({ column, row }, index) => {
         const input = images[index]
-        return input
+        return Buffer.isBuffer(input)
           ? [{ input, left: (column - columns.from) * TILE, top: (row - rows.from) * TILE }]
           : []
       }),
@@ -197,7 +242,8 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
     .png()
     .toBuffer()
 
-  // Overlay, drawn at output resolution: claims, then the pin.
+  // Overlay, drawn at output resolution: claims, roads, marks, then the pin.
+  const ppb = (upscale * 2) / 2 ** level
   const toOutput = (bx: number, bz: number) => {
     const point = toPixels(bx, bz, level)
     return [((point.px - left) * upscale).toFixed(1), ((point.py - top) * upscale).toFixed(1)].join(',')
@@ -211,19 +257,55 @@ export async function renderClip(options: ClipOptions): Promise<{ image: Buffer;
         `<polygon points="${outline.x.map((bx, i) => toOutput(bx, outline.z[i])).join(' ')}" fill="none" stroke="${colour}" stroke-width="${stroke}" stroke-linejoin="round"/>`,
     )
     .join('')
+  // Roads as the map draws them (src/components/maps/layers/RoadsLayer.tsx): every casing, then every fill.
+  const roadWidth = (course: ClipCourse) => Math.min(course.maxPx, Math.max(course.minPx, course.blocks * ppb))
+  const pathOf = (points: Point[]) => points.map(([bx, bz]) => toOutput(bx, bz)).join(' ')
+  const casings = courses.flatMap((course) => {
+    const w = roadWidth(course)
+    const ring = (colour: string, extra: number) =>
+      `<polyline points="${pathOf(course.points)}" fill="none" stroke="${colour}" stroke-width="${(w + extra).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`
+    return [...(course.halo ? [ring(course.halo, 6)] : []), ...(course.casing ? [ring(course.casing, 2)] : [])]
+  })
+  const fills = courses.map((course) => {
+    const w = roadWidth(course)
+    const dash = course.dash ? ` stroke-dasharray="${course.dash.map((n) => (n * w).toFixed(1)).join(' ')}"` : ''
+    const over = course.over
+      ? `<polyline points="${pathOf(course.points)}" fill="none" stroke="${course.over.colour}" stroke-width="${(w * 0.45).toFixed(1)}" stroke-dasharray="${course.over.dash.map((n) => (n * w).toFixed(1)).join(' ')}"/>`
+      : ''
+    return (
+      `<polyline points="${pathOf(course.points)}" fill="none" stroke="${course.fill}" stroke-width="${w.toFixed(1)}" stroke-linecap="${course.dash ? 'butt' : 'round'}" stroke-linejoin="round"${dash}/>` +
+      over
+    )
+  })
+  // Pins as the map draws them (PlacePin): a disc ringed in whitewash, the glyph inside on its 24 grid.
+  const pins = marks.map((mark) => {
+    const [mx, my] = toOutput(mark.x, mark.z).split(',').map(Number)
+    const r = mark.radius ?? 12
+    const s = r / 12
+    const glyph = mark.glyph
+      ? `<g transform="translate(${(mx - 7 * s).toFixed(1)} ${(my - 7 * s).toFixed(1)}) scale(${((14 / 24) * s).toFixed(3)})"><path d="${mark.glyph.d}" fill="${mark.glyph.fill ? '#fbf8f1' : 'none'}" stroke="#fbf8f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>`
+      : ''
+    return `<circle cx="${mx}" cy="${my}" r="${r}" fill="${mark.colour}" stroke="#fbf8f1" stroke-width="${(1.5 * s).toFixed(1)}"/>${glyph}`
+  })
   const [cx, cy] = toOutput(x, z).split(',').map(Number)
   const pinSvg = pin
     ? `<circle cx="${cx}" cy="${cy}" r="11" fill="#ffffff"/><circle cx="${cx}" cy="${cy}" r="7" fill="${colour}"/>`
     : ''
   const overlay = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${polygons}${pinSvg}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${polygons}${casings.join('')}${fills.join('')}${pins.join('')}${pinSvg}</svg>`,
   )
 
   const image = await sharp(base)
     .composite([{ input: overlay, left: 0, top: 0 }])
     .jpeg({ quality: 84, mozjpeg: true })
     .toBuffer()
-  return { image, complete }
+  return {
+    image,
+    complete,
+    offline,
+    origin: [(left * 2 ** level) / 2, (top * 2 ** level - TILE) / 2],
+    ppb,
+  }
 }
 
 // ── Towny ───────────────────────────────────────────────────────────────────

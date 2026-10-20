@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation'
 
 import { TownPanel } from '@/components/maps/panels/TownPanel'
 import { spoken } from '@/maps/data'
+import { townHref } from '@/maps/url'
 import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } from '@/lib/maps'
+
+import { mapsMetadata } from '../../metadata'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -13,11 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!town) return { title: 'Not on the map' }
   const name = spoken(town.name)
   const description = `${name} on Azania Maps: ${town.residents} resident${town.residents === 1 ? '' : 's'}, ${town.chunks} claimed chunks${town.ruler ? `, ruled by ${town.ruler}` : ''}.`
-  return {
-    title: name,
-    description,
-    openGraph: { title: name, description, url: `/maps/town/${slug}` },
-  }
+  return mapsMetadata({ title: name, description, path: townHref(town.slug), updatedAt: town.updatedAt })
 }
 
 export default async function TownPage({ params }: Props) {

@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   const colour = query.get('colour') ?? undefined
 
   try {
-    const { image, complete } = await renderClip({
+    const { image, complete, offline } = await renderClip({
       x: centre.x,
       z: centre.z,
       zoom,
@@ -77,6 +77,13 @@ export async function GET(request: Request) {
       pin: query.get('pin') === '1',
       colour: colour ? `#${colour.replace(/^#/, '')}` : undefined,
     })
+    // Nothing came back at all: say so, rather than hand out bare ground that looks like sea.
+    if (offline) {
+      return new Response('The map is not answering just now.', {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    }
     return new Response(new Uint8Array(image), {
       headers: {
         'Content-Type': 'image/jpeg',

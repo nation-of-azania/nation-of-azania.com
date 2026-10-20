@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { GazetteCard } from './gazette'
 import { GenericCard } from './generic'
 import { InternationalCard } from './international'
+import { MapsCard } from './maps'
 import type { Card } from './model'
 import { TimesCard } from './times'
 import { CARD } from './tokens'
@@ -11,11 +12,13 @@ import { CARD } from './tokens'
  * Link-preview cards: the 1200×630 picture a chat client unfurls beside a
  * pasted link, drawn by src/app/(frontend)/og/[...path]/route.tsx from a
  * Card (./model.ts) in the voice of the page's design — a clipping of that
- * paper, not a screenshot of the site. Written for Satori, which lays out a
- * flexbox subset off the DOM: see ./shared.tsx for the rules.
+ * paper, not a screenshot of the site — or, for a page of Azania Maps, a
+ * clipping of the map itself (./maps.tsx). Written for Satori, which lays
+ * out a flexbox subset off the DOM: see ./shared.tsx for the rules.
  */
 export function renderCard(card: Card): ReactElement {
   if (card.kind === 'generic') return <GenericCard />
+  if (card.kind === 'map') return <MapsCard card={card} />
   switch (card.design) {
     case 'times':
       return <TimesCard card={card} />

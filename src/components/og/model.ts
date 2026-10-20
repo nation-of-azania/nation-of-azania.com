@@ -74,4 +74,74 @@ export type PlaceCard = {
 
 export type GenericCard = { kind: 'generic' }
 
-export type Card = ArticleCard | PlaceCard | GenericCard
+/**
+ * A page of Azania Maps (src/app/(frontend)/maps): a clipping of the map
+ * with the thing drawn on it, beside a panel of its particulars, as the
+ * map itself shows them. The picture is drawn by renderClip (src/lib/dynmap.ts)
+ * at the size the card sets it, with claims, roads and pins already on it;
+ * only names go over it here. Built by loadMapCard in src/lib/ogMaps.ts.
+ */
+export type MapPicture = {
+  /** The clipping as a data URI; null when the Rulercraft map isn't answering. */
+  src: string | null
+  /** The towns' names to set over the picture, at the pixel their home block sits at; the card's own town picked out. */
+  labels: { x: number; y: number; text: string; selected?: boolean }[]
+}
+
+export type MapFact = { label: string; value: string }
+
+/** The particulars of what the card shows, laid out one way for every kind. */
+export type MapSubject =
+  | {
+      what: 'nation'
+      /** "11 towns · 53 residents". */
+      figures: string
+    }
+  | {
+      what: 'town'
+      name: string
+      nation: string | null
+      ruler: CardByline | null
+      /** "/t spawn GirlieTown", with whether anyone may use it. */
+      spawn: { command: string; open: boolean | null } | null
+    }
+  | {
+      what: 'place'
+      name: string
+      /** The category's label, and its glyph on the 24 grid in its group's colour. */
+      category: { label: string; d: string; fill: boolean; colour: string }
+      town: string | null
+      description: string | null
+    }
+  | {
+      what: 'road'
+      name: string
+      kind: string
+      town: string | null
+      /** "A path or trail in GirlieTown, 77 blocks along its curve, running north-east." */
+      description: string
+    }
+  | {
+      what: 'event'
+      title: string
+      /** The day as a calendar leaf. */
+      leaf: { day: string; month: string; weekday: string }
+      /** "18:00–20:00 UTC". */
+      time: string
+      /** Where it's held: the place, or the town, or the coordinates. */
+      where: string
+      town: string | null
+      description: string | null
+    }
+
+export type MapCard = {
+  kind: 'map'
+  subject: MapSubject
+  picture: MapPicture
+  /** A couple of facts for the foot of the panel: residents, chunks, length. */
+  facts: MapFact[]
+  /** "X 4296 · Z 4952": the survey reference, in mono. */
+  survey: string | null
+}
+
+export type Card = ArticleCard | PlaceCard | GenericCard | MapCard

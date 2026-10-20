@@ -1,6 +1,6 @@
 import type { Event, MapView, Place, Road, Town } from '@/payload-types'
 
-import { boundsOf, isPoint, outlineToRing, type Bounds, type Outline, type Point } from './geo'
+import { boundsOf, isPoint, outlineToRing, type Bounds, type Outline, type Point, type RoadShape } from './geo'
 import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
@@ -30,10 +30,14 @@ export type MapTown = {
   residents: number
   chunks: number
   founded: string | null
+  /** Whether anyone may `/t spawn` there (Towny's "Public Teleport"); null when the map doesn't say. */
+  publicSpawn: boolean | null
   home: Point | null
   claims: Outline[]
   /** Of the claims, for culling and fitting. */
   bounds: Bounds | null
+  /** When the record last changed; versions its link-preview card. Absent on a draft. */
+  updatedAt?: string
 }
 
 export type MapPlace = {
@@ -45,14 +49,20 @@ export type MapPlace = {
   y: number | null
   outline: Point[] | null
   town: number | null
+  updatedAt?: string
 }
 
 export type MapRoad = {
   id: number
   name: string | null
   kind: RoadKind
+  /** The points as drawn; `roadCourse` in ./geo.ts gives the course they describe (straight, unless said). */
   line: Point[]
+  shape?: RoadShape
+  /** In a curved road, the points kept as sharp corners, by position. */
+  corners?: number[]
   town: number | null
+  updatedAt?: string
 }
 
 export type MapEvent = {
@@ -66,6 +76,7 @@ export type MapEvent = {
   host: string | null
   article: number | null
   town: number | null
+  updatedAt?: string
 }
 
 export type MapViewData = {
@@ -132,9 +143,11 @@ export function mapTown(town: Town): MapTown {
     residents: town.residentCount ?? 0,
     chunks: town.chunks ?? 0,
     founded: town.founded ?? null,
+    publicSpawn: typeof town.publicSpawn === 'boolean' ? town.publicSpawn : null,
     home,
     claims,
     bounds: boundsOf(claims.flatMap(outlineToRing)),
+    updatedAt: town.updatedAt,
   }
 }
 
@@ -149,6 +162,7 @@ export function mapPlace(place: Place): MapPlace | null {
     y: typeof place.point.y === 'number' ? place.point.y : null,
     outline: pathOf(place.outline),
     town: idOf(place.town),
+    updatedAt: place.updatedAt,
   }
 }
 
@@ -160,7 +174,12 @@ export function mapRoad(road: Road): MapRoad | null {
     name: road.name ?? null,
     kind: road.kind in ROAD_KINDS ? road.kind : 'street',
     line,
+    shape: road.shape === 'curved' ? 'curved' : 'straight',
+    corners: Array.isArray(road.corners)
+      ? road.corners.filter((index): index is number => Number.isInteger(index))
+      : [],
     town: idOf(road.town),
+    updatedAt: road.updatedAt,
   }
 }
 
@@ -177,6 +196,7 @@ export function mapEvent(event: Event): MapEvent | null {
     host: event.host ?? null,
     article: idOf(event.article),
     town: idOf(event.town),
+    updatedAt: event.updatedAt,
   }
 }
 

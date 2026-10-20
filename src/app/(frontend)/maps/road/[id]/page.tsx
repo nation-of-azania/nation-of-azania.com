@@ -2,9 +2,12 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { RoadPanel } from '@/components/maps/panels/RoadPanel'
-import { lineLength } from '@/maps/data'
+import { pathLength, roadCourse } from '@/maps/geo'
 import { ROAD_KINDS } from '@/maps/registry'
+import { roadHref } from '@/maps/url'
 import { findRoad, getMapData } from '@/lib/maps'
+
+import { mapsMetadata } from '../../metadata'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -15,8 +18,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const road = idOf(id) != null ? findRoad(await getMapData(), idOf(id)!) : null
   if (!road) return { title: 'Not on the map' }
   const title = road.name ?? 'Unnamed road'
-  const description = `${ROAD_KINDS[road.kind].label} on Azania Maps, ${Math.round(lineLength(road.line)).toLocaleString('en-GB')} blocks long.`
-  return { title, description, openGraph: { title, description, url: `/maps/road/${road.id}` } }
+  // Measured along the course as drawn, bends included.
+  const length = Math.round(pathLength(roadCourse(road.line, road.shape, road.corners)))
+  const description = `${ROAD_KINDS[road.kind].label} on Azania Maps, ${length.toLocaleString('en-GB')} blocks long.`
+  return mapsMetadata({ title, description, path: roadHref(road.id), updatedAt: road.updatedAt })
 }
 
 export default async function RoadPage({ params }: Props) {

@@ -18,6 +18,7 @@ import {
 import type { Design } from '@/contexts/designs'
 import type { Context, Media } from '@/payload-types'
 
+import { loadMapCard } from './ogMaps'
 import { getArticleBySlug, getPageBySlug } from './queries'
 import {
   articleStyle,
@@ -38,7 +39,8 @@ import {
  * folder) — and cropped to the size it is drawn at, as data URIs. Each
  * fetch has a short timeout and a quiet fallback, so a slow image never
  * costs a card; `complete` says whether any fell back, so the route can
- * cache such a card for less long.
+ * cache such a card for less long. A page of Azania Maps is built the same
+ * way from the map's own data, in ./ogMaps.ts.
  */
 export type Loaded = { card: Card; complete: boolean }
 
@@ -52,11 +54,12 @@ const MEDIA_DIR = path.resolve(process.cwd(), 'media')
 export async function loadCard(segments: string[], origin: string): Promise<Loaded> {
   const [top, ...rest] = segments
   if (!top) return GENERIC
+  const pictures = new Pictures(origin)
+  if (top === 'maps') return (await loadMapCard(rest, pictures)) ?? GENERIC
   const route = await resolveRoute(top, rest)
   if (!route) return GENERIC
   const tree = await getSiteTree()
   const design = designOf(route.top)
-  const pictures = new Pictures(origin)
 
   if (route.kind === 'article') {
     const article = await getArticleBySlug(idsBelow(tree, route.top), route.slug)
@@ -150,9 +153,10 @@ const listedBelow = (tree: SiteTree, context: Context): string[] =>
 
 /**
  * Fetches and fits the pictures on a card. Every method resolves to a data
- * URI or null, never throws, and notes a failure in `complete`.
+ * URI or null, never throws, and notes a failure in `complete` (which a
+ * caller drawing its own picture may also clear).
  */
-class Pictures {
+export class Pictures {
   complete = true
 
   constructor(private readonly origin: string) {}

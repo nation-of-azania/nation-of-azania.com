@@ -4,8 +4,11 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 import { EventPanel } from '@/components/maps/panels/EventPanel'
+import { eventHref } from '@/maps/url'
 import { findEvent, getArticlesAbout, getMapData } from '@/lib/maps'
 import type { Article } from '@/payload-types'
+
+import { mapsMetadata } from '../../metadata'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -38,11 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     timeZone: 'UTC',
   }).format(new Date(event.startsAt))
   const description = `${when} UTC${event.host ? ` · ${event.host}` : ''}${event.description ? ` — ${event.description}` : ''}`
-  return {
-    title: event.title,
-    description,
-    openGraph: { title: event.title, description, url: `/maps/event/${event.id}` },
-  }
+  return mapsMetadata({ title: event.title, description, path: eventHref(event.id), updatedAt: event.updatedAt })
 }
 
 export default async function EventPage({ params }: Props) {
