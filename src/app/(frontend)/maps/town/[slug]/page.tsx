@@ -5,8 +5,13 @@ import { TownPanel } from '@/components/maps/panels/TownPanel'
 import { spoken } from '@/maps/data'
 import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } from '@/lib/maps'
 
-/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+/**
+ * Cached for everyone alike, a minute at a time (see ../layout.tsx): none
+ * is built ahead, each is rendered when first asked for and kept.
+ */
 export const revalidate = 60
+export const dynamicParams = true
+export const generateStaticParams = async () => []
 
 type Props = { params: Promise<{ slug: string }> }
 

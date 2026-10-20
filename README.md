@@ -440,7 +440,7 @@ sheet drawn up over it on a phone) that holds whatever is open.
 
 - Azania's **towns**, read from Towny: their claims, names and facts.
 - **Places** with a category and icon (cafés, town halls, ports, …), optionally with a building outline.
-- Named **roads**, railways and waterways, drawn like a road map: casings under fills, widths by zoom, the name along the line once it fits.
+- Named **roads**, railways and waterways, straight from point to point or curved smoothly through them, drawn like a road map: casings under translucent fills (a wash the build shows through, thinner the closer you come), widths by zoom, the name along the line once it fits.
 - **Events** with a time and a place.
 - **Map views**: framed pieces of the map with highlights drawn on them, which an article's Map block can show.
 
@@ -452,26 +452,58 @@ and road styles in `src/maps/icons.tsx` and `src/maps/palette.ts`.
 **Reading the map.** Leaflet draws it (`src/components/maps/leaflet`),
 taught Dynmap's projection: zoom 0 is the tiles' own scale, two pixels a
 block, and zooming closer scales the blocks up pixel for pixel. Tiles come
-through the site's cache; the map's JavaScript loads only on `/maps` and in
-an interactive Map block, never with any other page. The layers themselves
-are plain SVG (`src/components/maps/layers`), drawn through one projection
-interface, so the same components draw the live map in the browser and a
-block's still picture on the server.
+through the site's cache, and are only ever asked for at Dynmap's own
+levels; a zoom in between scales the nearest. The map's JavaScript loads
+only on `/maps` and in an interactive Map block, never with any other page.
+The layers themselves are plain SVG (`src/components/maps/layers`), drawn
+through one projection interface, so the same components draw the live map
+in the browser and a block's still picture on the server. They are
+re-rendered only when the map settles after a move; during a drag, a pinch
+or a zoom the overlay is moved and scaled by Leaflet alone, and a transform
+carries what's already drawn into place until the fresh render lands.
+
+- **Zooming.** The wheel is handled by the map itself rather than Leaflet:
+  a trackpad's two-finger scroll zooms in proportion to how far you scroll,
+  easing around the pointer as you go; a click-wheel mouse zooms half a
+  level a notch; a trackpad pinch (which browsers send as a wheel with Ctrl
+  held) zooms at its own ratio. The ratios are at the top of
+  `leaflet/canvas.tsx`. In an article's embedded map the wheel is left to
+  the page, so scrolling past it never catches.
+- **Names.** Where every name goes is planned in one pass before anything
+  is drawn (`layers/labels.ts`): an article's highlights outrank the map's
+  own names, no name ever covers a pin or a mark, and towns, roads, places
+  and events then take free spots in that order, each with alternatives (a
+  road's name slides along it, a place's goes right, left, below or above).
+  Inside a town its name moves to the top edge of its claim and fades;
+  closer still it's left off, since the panel names it.
 
 - **Addresses.** `/maps/town/<slug>`, `/maps/place/<id>`, `/maps/road/<id>`
   and `/maps/event/<id>` open the thing with its panel: a town's Towny facts
   with the ruler's head, its mayor's lines, growth charts from the census,
   its places and events and the articles about it; a place's category,
   description and events; a road's class and length; an event's time in the
-  reader's own time zone, its place, host and article. These pages are
-  rendered on the server, so links unfurl and search engines read them. The
-  map's own spot travels in the query — `?at=<x>,<z>,<zoom>`, `&map=biomes`,
-  `&layers=towns,roads`, `&view=<id>` for an article's view with its
-  highlights — written as the map moves, so any address can be shared.
+  reader's own time zone, its place, host and article. A town with claims
+  away from the one holding its home block lists them as **outposts**, each
+  with *Show on map*; *Fit to town* fits the main claim. These pages are
+  rendered on the server and cached for everyone alike, a minute at a time
+  (and regenerated at once after someone draws), so links unfurl and search
+  engines read them; the visitor's own drawing rights are fetched in the
+  browser (`/api/users/me`). The map's own spot travels in the query —
+  `?at=<x>,<z>,<zoom>`, `&layers=towns,roads`, `&view=<id>` for an article's
+  view with its highlights — written as the map moves, so any address can
+  be shared. (Old links with `&map=biomes` still open; the biome map is no
+  longer drawn.)
+- **Getting there.** Players have no `/tp`, so what's offered to copy is
+  what they can type: `/t spawn <Town>` for a town, and for anything else
+  the nearest town's spawn with the walk from its home block ("then 40
+  blocks north-east"). Public spawns are preferred within reason; a town
+  whose spawn is private (Towny's *Public Teleport* off) is said so —
+  only its residents can use it. Coordinates stay on the page, as F3
+  shows them.
 - **Tools.** Search across towns, places, roads and events; layer toggles
-  and a legend; the flat or the biome map; the block under the pointer (the
-  centre, on a phone) with a copy as `/tp x y z`; the nation at a glance,
-  with the census's trend, on the map's own front.
+  and a legend; the block under the pointer (the centre, on a phone) with
+  its nearest spawn to copy; the nation at a glance, with the census's
+  trend, on the map's own front.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*
@@ -496,7 +528,14 @@ everyone else only looks.
   finishes, *Backspace* takes a point back), then drag any point to move it,
   drag the small handle between two to add one, pick a point and press
   *Delete* to remove it; give it a name and a class. The length is shown as
-  you draw.
+  you draw. A road is **straight** from point to point unless you choose
+  **curved**, when it bends smoothly through them, one bend flowing into
+  the next (a centripetal Catmull–Rom curve, `roadCourse` in
+  `src/maps/geo.ts`, which never loops or overshoots); where it should turn
+  sharply, as at a junction, pick the point and mark it a *sharp corner*,
+  or alt-click it — it's drawn square. The curve is what the map draws,
+  what the length measures, and what the server checks a mayor's road
+  against, so a bend can't swing outside the claims.
 - **Events:** at one of your town's places or at a point you pick on the map,
   with a start, an optional end, a host and, optionally, the article
   announcing it.
@@ -507,8 +546,8 @@ everyone else only looks.
   town's panel.
 - **Map views** (for anyone who writes articles): choose *New map view* and
   a frame appears on the map in the aspect you pick (wide, square, banner);
-  move and zoom the map to set what it shows, choose the base map and the
-  layers in the picture, then mark it up with the **highlighter**: a pen for
+  move and zoom the map to set what it shows, choose the layers in the
+  picture, then mark it up with the **highlighter**: a pen for
   freehand strokes, lines point by point, shaded areas, pins and short
   notes, in the fixed inks (red, gold, sea, green, rose, ink, white), with
   three weights and an optional arrowhead. Pick a highlight to change its

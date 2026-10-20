@@ -26,6 +26,7 @@ import {
   MAX_ZOOM,
   toLatLng,
   toPoint,
+  useLeaflet,
   useProjection,
 } from './leaflet/canvas'
 import { editorWantsClicks, type Editor } from './state'
@@ -316,10 +317,17 @@ const Layers = memo(function Layers({
   selection,
   viewing,
   editor,
-  onSelect,
+  onSelect: open,
   onEditor,
 }: SceneProps) {
   const projection = useProjection('maps')
+  const { map } = useLeaflet()
+  // A drag that began on a pin ends on it too, since the pin moves with the
+  // map, and the browser then calls that a click; Leaflet knows better.
+  const onSelect = (selection: MapSelection) => {
+    const dragging = map.dragging as L.Handler & { moved?: () => boolean }
+    if (!dragging.moved?.()) open(selection)
+  }
   const phases: EventPhase[] = showPast ? ['upcoming', 'now', 'past'] : ['upcoming', 'now']
   const selectedTown =
     selection?.kind === 'town'

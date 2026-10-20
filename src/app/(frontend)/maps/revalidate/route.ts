@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     user &&
     (canDrawOnMap(getMapRights(user)) || (await canDrawViews(await createLocalReq({ user }, payload))))
   if (!may) return Response.json({ revalidated: false }, { status: 403 })
-  revalidatePath('/maps', 'layout')
+  // The layout's own path, route group and all: that is the tag every page beneath it carries.
+  revalidatePath('/(frontend)/maps', 'layout')
   return Response.json({ revalidated: true }, { headers: { 'Cache-Control': 'no-store' } })
 }

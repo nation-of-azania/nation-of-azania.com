@@ -7,8 +7,13 @@ import { EventPanel } from '@/components/maps/panels/EventPanel'
 import { findEvent, getArticlesAbout, getMapData } from '@/lib/maps'
 import type { Article } from '@/payload-types'
 
-/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
+/**
+ * Cached for everyone alike, a minute at a time (see ../layout.tsx): none
+ * is built ahead, each is rendered when first asked for and kept.
+ */
 export const revalidate = 60
+export const dynamicParams = true
+export const generateStaticParams = async () => []
 
 type Props = { params: Promise<{ id: string }> }
 

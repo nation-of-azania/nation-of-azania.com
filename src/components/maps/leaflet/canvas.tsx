@@ -95,6 +95,13 @@ function alignment(from: View, to: View): string {
   return `matrix(${s} 0 0 ${s} ${dx} ${dy})`
 }
 
+/** Sets or clears the overlay's transform, touching the DOM only when it changes. */
+function setTransform(group: SVGGElement, transform: string): void {
+  if ((group.getAttribute('transform') ?? '') === transform) return
+  if (transform) group.setAttribute('transform', transform)
+  else group.removeAttribute('transform')
+}
+
 type MapContextValue = { map: L.Map; version: number; view: View }
 
 const MapContext = createContext<MapContextValue | null>(null)
@@ -141,7 +148,7 @@ type MapInternals = L.Map & {
 }
 
 /** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
-const WHEEL = { scrollPxPerLevel: 220, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
+const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
 
 /**
  * Zooming with the wheel, by hand, the way a map app does it. Leaflet's own
@@ -347,7 +354,8 @@ export function MapCanvas({
       settled.current = view
       // Leaflet has just repositioned the overlay for the new view (its own
       // moveend ran first); move what's drawn into place before React runs.
-      if (drawn.current) group.setAttribute('transform', alignment(drawn.current, view))
+      // A pan leaves the layer points as they were, and the overlay untouched.
+      if (drawn.current) setTransform(group, alignment(drawn.current, view))
       setContext({ map, version: ++version, view })
     }
     map.on('moveend', settle)
@@ -391,9 +399,7 @@ export function MapCanvas({
   useLayoutEffect(() => {
     if (!context || !overlay) return
     drawn.current = context.view
-    const transform = settled.current ? alignment(context.view, settled.current) : ''
-    if (transform) overlay.setAttribute('transform', transform)
-    else overlay.removeAttribute('transform')
+    setTransform(overlay, settled.current ? alignment(context.view, settled.current) : '')
   }, [context, overlay])
 
   useEffect(() => {

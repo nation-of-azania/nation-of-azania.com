@@ -83,11 +83,12 @@ function nameCandidates(projection: Projection, town: MapTown): TownLabel[] {
   const claim = homeClaimBounds(town)
   if (!claim) return []
   const view = projection.view ?? projection.bounds
-  // Along the top edge of the claim, centred on what of it is on the page.
+  // Along the top edge of the claim, centred on what of it is on the page;
+  // when that edge is above the page, along the page's top instead.
   const left = Math.max(claim.minX, view.minX)
   const right = Math.min(claim.maxX, view.maxX)
-  if (right - left <= 0) return []
-  const [x, top] = projection.project([(left + right) / 2, claim.minZ])
+  if (right - left <= 0 || claim.maxZ < view.minZ || claim.minZ > view.maxZ) return []
+  const [x, top] = projection.project([(left + right) / 2, Math.max(claim.minZ, view.minZ)])
   const opacity = 0.9 - ((zoom - INSIDE) / (TOO_CLOSE - INSIDE)) * 0.4
   return [box(x, top + fontSize + 10, 'edge', opacity)]
 }
