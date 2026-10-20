@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { roadLength, spoken, type MapPlace } from '@/maps/data'
+import { roadLength, roadPoints, spoken, type MapPlace } from '@/maps/data'
+import { samplePath, type RoadShape } from '@/maps/geo'
 import { PlaceIcon } from '@/maps/icons'
 import { GROUP_COLOURS } from '@/maps/palette'
 import {
   PLACE_CATEGORIES,
   PLACE_GROUPS,
   ROAD_KINDS,
+  ROAD_SHAPES,
   type PlaceCategory,
   type PlaceGroup,
   type RoadKind,
@@ -19,10 +21,11 @@ import { fromLocalInput } from '@/maps/time'
 import { api } from '../api'
 import { useMaps } from '../context'
 import type { Editor } from '../state'
-import { FIELD, Field, Notice, TextButton } from '../ui/chrome'
+import { BUTTON, FIELD, Field, Notice, TextButton } from '../ui/chrome'
 import { Icon } from '../ui/icons'
 import { EditorFrame, messageOf, type EditorPanelProps } from './EditorPanel'
 import { withinRights } from './rights'
+import { withCornerToggled, withoutPointAt } from './road'
 
 /** A category, chosen by its icon: the groups as rows, each pin as a button. */
 export function CategoryPicker({
@@ -272,9 +275,16 @@ export function RoadForm({
   const { draft } = editor
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const ok = withinRights(draft.line, data, rights)
+  // Judged along the course, as the server does: a bend can't swing outside the claims.
+  const ok = withinRights(samplePath(roadPoints(draft)), data, rights)
   const canSave = draft.line.length >= 2 && ok
   const length = Math.round(roadLength(draft))
+  const curved = draft.shape === 'curved'
+  // A corner is an inner point: the ends have nothing to turn between.
+  const pickedInner = editor.vertex != null && editor.vertex >= 1 && editor.vertex <= draft.line.length - 2
+  const pickedCorner = editor.vertex != null && draft.corners.includes(editor.vertex)
+  const setShape = (shape: RoadShape) =>
+    onChange({ ...editor, draft: { ...draft, shape, corners: shape === 'curved' ? draft.corners : [] } })
 
   const save = async () => {
     setBusy(true)
@@ -302,8 +312,8 @@ export function RoadForm({
     >
       <Notice>
         {editor.drawing
-          ? 'Click along the road, point by point. Double-click, or press Enter, to finish. Backspace takes the last point back.'
-          : 'Drag a point to move it. Drag a small handle to add a point between two. Click a point and press Delete to remove it.'}
+          ? `Click along the road, point by point${curved ? '; the bends follow' : ''}. Double-click, or press Enter, to finish. Backspace takes the last point back.`
+          : `Drag a point to move it. Drag a small handle to add a point between two. Click a point and press Delete to remove it.${curved ? ' Alt-click a point to make it a sharp corner.' : ''}`}
       </Notice>
       <div className="mt-3 flex flex-wrap gap-2">
         <TextButton
@@ -318,21 +328,32 @@ export function RoadForm({
           <TextButton
             className="px-2.5 py-1.5"
             onClick={() =>
-              onChange({
-                ...editor,
-                vertex: null,
-                draft: { ...draft, line: draft.line.filter((_, i) => i !== editor.vertex) },
-              })
+              onChange({ ...editor, vertex: null, draft: withoutPointAt(draft, editor.vertex!) })
             }
           >
             Remove point
+          </TextButton>
+        ) : null}
+        {curved && pickedInner ? (
+          <TextButton
+            aria-pressed={pickedCorner}
+            className="px-2.5 py-1.5"
+            onClick={() => onChange({ ...editor, draft: withCornerToggled(draft, editor.vertex!) })}
+            title="A corner is a sharp turn in a curved road, as at a junction; the bends either side flow on."
+          >
+            <Icon className="h-3.5 w-3.5" name="corner" /> Sharp corner
           </TextButton>
         ) : null}
         {draft.line.length ? (
           <TextButton
             className="px-2.5 py-1.5"
             onClick={() =>
-              onChange({ ...editor, drawing: true, vertex: null, draft: { ...draft, line: [] } })
+              onChange({
+                ...editor,
+                drawing: true,
+                vertex: null,
+                draft: { ...draft, line: [], corners: [] },
+              })
             }
           >
             Start over
@@ -340,11 +361,44 @@ export function RoadForm({
         ) : null}
       </div>
       <p className="mt-2 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
-        {draft.line.length} point{draft.line.length === 1 ? '' : 's'} ·{' '}
-        {length.toLocaleString('en-GB')} blocks
+        {draft.line.length} point{draft.line.length === 1 ? '' : 's'}
+        {curved && draft.corners.length
+          ? ` · ${draft.corners.length} sharp corner${draft.corners.length === 1 ? '' : 's'}`
+          : ''}{' '}
+        · {length.toLocaleString('en-GB')} blocks
       </p>
       <RightsNote ok={ok} />
       <div className="mt-4 space-y-4">
+        <Field
+          label="Shape"
+          note={curved ? 'bends flow smoothly from point to point' : 'the everyday choice'}
+        >
+          <div className="flex" role="group" aria-label="Shape">
+            {(Object.keys(ROAD_SHAPES) as RoadShape[]).map((shape, index) => (
+              <button
+                aria-pressed={draft.shape === shape}
+                className={cn(
+                  BUTTON,
+                  'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                  index > 0 && '-ml-px',
+                )}
+                key={shape}
+                onClick={() => setShape(shape)}
+                title={ROAD_SHAPES[shape].label}
+                type="button"
+              >
+                {shape}
+              </button>
+            ))}
+          </div>
+          {curved ? (
+            <p className="mt-1.5 text-xs leading-relaxed text-ink-500">
+              Where the road should turn sharply, as at a junction, pick the point and mark it a{' '}
+              <strong className="font-semibold text-ink-700">sharp corner</strong> (or alt-click
+              it); it’s drawn square.
+            </p>
+          ) : null}
+        </Field>
         <Field label="Name" note="optional; plenty of paths have none">
           <input
             className={FIELD}

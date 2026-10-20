@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import type { MapData, MapRights } from '@/maps/data'
-import { roundPoint, type Point } from '@/maps/geo'
+import { roadPoints, type MapData, type MapRights } from '@/maps/data'
+import { roundPoint, samplePath, type Point } from '@/maps/geo'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
 
 import { useLatest } from '../hooks'
@@ -15,6 +15,7 @@ import { RoadsLayer } from '../layers/RoadsLayer'
 import { L, toPoint, useLeaflet } from '../leaflet/canvas'
 import type { Editor } from '../state'
 import { withinRights } from './rights'
+import { betweenPoints, withCornerToggled, withoutPointAt, withPointAt } from './road'
 
 type Props = {
   data: MapData
@@ -27,7 +28,8 @@ type Props = {
 /**
  * A handle on a point: dragged with the pointer (the map stays still
  * meanwhile), clicked to pick it. Native listeners, since the handle must
- * stop Leaflet's own drag before it starts and the map's click after.
+ * stop Leaflet's own drag before it starts and the map's click after. A
+ * square handle marks a sharp corner on a curved road.
  */
 function Handle({
   point,
@@ -36,18 +38,21 @@ function Handle({
   onPick,
   picked,
   small,
+  square,
   colour = GROUND.saffron,
 }: {
   point: Point
   projection: Projection
   onDrag: (point: Point) => void
-  onPick?: () => void
+  /** A click without a drag; the event says which keys were held. */
+  onPick?: (event: PointerEvent) => void
   picked?: boolean
   small?: boolean
+  square?: boolean
   colour?: string
 }) {
   const { map } = useLeaflet()
-  const ref = useRef<SVGCircleElement>(null)
+  const ref = useRef<SVGGElement>(null)
   const handlers = useLatest({ onDrag, onPick })
 
   useEffect(() => {
@@ -66,12 +71,12 @@ function Handle({
         const latlng = map.mouseEventToLatLng(move as unknown as MouseEvent)
         handlers.current.onDrag(roundPoint(toPoint(latlng)))
       }
-      const onUp = () => {
+      const onUp = (up: PointerEvent) => {
         element.removeEventListener('pointermove', onMove)
         element.removeEventListener('pointerup', onUp)
         element.removeEventListener('pointercancel', onUp)
         map.dragging.enable()
-        if (!moved) handlers.current.onPick?.()
+        if (!moved) handlers.current.onPick?.(up)
       }
       element.addEventListener('pointermove', onMove)
       element.addEventListener('pointerup', onUp)
@@ -82,19 +87,23 @@ function Handle({
   }, [map, handlers])
 
   const [x, y] = projection.project(point)
+  const r = small ? 4 : 6
+  const paint = {
+    fill: picked ? colour : GROUND.whitewash,
+    stroke: picked ? GROUND.whitewash : colour,
+    strokeWidth: 2,
+  }
   return (
-    <circle
-      className="az-handle"
-      cx={x}
-      cy={y}
-      fill={picked ? colour : GROUND.whitewash}
-      r={small ? 4 : 6}
-      ref={ref}
-      stroke={picked ? GROUND.whitewash : colour}
-      strokeWidth={2}
-    />
+    <g className="az-handle" ref={ref}>
+      {square ? (
+        <rect height={r * 2} width={r * 2} x={x - r} y={y - r} {...paint} />
+      ) : (
+        <circle cx={x} cy={y} r={r} {...paint} />
+      )}
+    </g>
   )
 }
+
 
 /** Douglas–Peucker: fewer points along a freehand stroke, within a tolerance in blocks. */
 function simplify(points: Point[], tolerance: number): Point[] {
@@ -206,17 +215,10 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           else if ((event.key === 'Backspace' || undo) && current.drawing)
             onEditor({
               ...current,
-              draft: { ...current.draft, line: current.draft.line.slice(0, -1) },
+              draft: withoutPointAt(current.draft, current.draft.line.length - 1),
             })
           else if ((event.key === 'Delete' || event.key === 'Backspace') && current.vertex != null)
-            onEditor({
-              ...current,
-              vertex: null,
-              draft: {
-                ...current.draft,
-                line: current.draft.line.filter((_, i) => i !== current.vertex),
-              },
-            })
+            onEditor({ ...current, vertex: null, draft: withoutPointAt(current.draft, current.vertex) })
           else if (event.key === 'Escape')
             onEditor(
               current.drawing
@@ -377,11 +379,10 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
     }
     case 'road': {
       const { draft } = editor
-      const ok = withinRights(draft.line, data, rights)
+      // Judged along the course, as the server does: a bend can't swing outside the claims.
+      const ok = withinRights(samplePath(roadPoints(draft)), data, rights)
       const colour = ok ? GROUND.saffron : GROUND.coral
-      const midpoints = draft.line
-        .slice(1)
-        .map(([x, z], i) => [(x + draft.line[i][0]) / 2, (z + draft.line[i][1]) / 2] as Point)
+      const curved = draft.shape === 'curved'
       return (
         <g className="az-tools">
           {draft.line.length >= 2 ? (
@@ -390,31 +391,28 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
               roads={[{ id: -1, ...draft, name: draft.name || null, town: null }]}
             />
           ) : null}
+          {/* The points joined up: the road itself when straight, the thread the curve follows when curved. */}
           {draft.line.length >= 1 ? (
             <path
               d={pathOf(projection, draft.line)}
               fill="none"
               stroke={colour}
               strokeDasharray="4 4"
-              strokeOpacity={0.9}
+              strokeOpacity={curved ? 0.5 : 0.9}
               strokeWidth={1.5}
             />
           ) : null}
           {!editor.drawing
-            ? midpoints.map((point, index) => (
+            ? betweenPoints(draft).map((point, index) => (
                 <Handle
                   colour={colour}
                   key={`mid-${index}`}
-                  onDrag={(next) => {
-                    const line = [...draft.line]
-                    line.splice(index + 1, 0, next)
-                    onEditor({ ...editor, vertex: index + 1, draft: { ...draft, line } })
-                  }}
-                  onPick={() => {
-                    const line = [...draft.line]
-                    line.splice(index + 1, 0, point)
-                    onEditor({ ...editor, vertex: index + 1, draft: { ...draft, line } })
-                  }}
+                  onDrag={(next) =>
+                    onEditor({ ...editor, vertex: index + 1, draft: withPointAt(draft, index + 1, next) })
+                  }
+                  onPick={() =>
+                    onEditor({ ...editor, vertex: index + 1, draft: withPointAt(draft, index + 1, point) })
+                  }
                   point={point}
                   projection={projection}
                   small
@@ -431,10 +429,16 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
                   draft: { ...draft, line: draft.line.map((p, i) => (i === index ? next : p)) },
                 })
               }
-              onPick={() => onEditor({ ...editor, vertex: editor.vertex === index ? null : index })}
+              onPick={(event) =>
+                // Alt-click makes a point a sharp corner of a curved road, and back.
+                curved && event.altKey
+                  ? onEditor({ ...editor, vertex: index, draft: withCornerToggled(draft, index) })
+                  : onEditor({ ...editor, vertex: editor.vertex === index ? null : index })
+              }
               picked={editor.vertex === index}
               point={point}
               projection={projection}
+              square={curved && draft.corners.includes(index)}
             />
           ))}
         </g>
