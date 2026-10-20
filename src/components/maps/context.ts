@@ -2,11 +2,22 @@
 
 import { createContext, useContext } from 'react'
 
-import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown } from '@/maps/data'
+import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData } from '@/maps/data'
+import type { MapLayer } from '@/maps/registry'
 import type { MapSelection } from '@/maps/url'
 
+import type { Store } from './hooks'
 import type { LookTarget } from './MapScene'
 import type { Editor } from './state'
+
+/**
+ * A change to the editor: the next state, or a function of the current
+ * one for changes that come thick and fast (a drag), so none is lost.
+ */
+export type EditorUpdate = Editor | null | ((current: Editor | null) => Editor | null)
+
+/** Whether the visitor's rights are being asked for, known, or out of reach. */
+export type RightsStatus = 'asking' | 'known' | 'unreachable'
 
 /**
  * What the panels and controls on /maps can ask of the shell: open
@@ -16,23 +27,37 @@ import type { Editor } from './state'
 export type MapsActions = {
   data: MapData
   rights: MapRights
+  /** Only 'known' means the Registry has said who the visitor is; 'unreachable' is no answer. */
+  rightsStatus: RightsStatus
+  /** Ask the Registry again who the visitor is. */
+  retryRights: () => void
   selection: MapSelection | null
   editor: Editor | null
+  /** Which of the map's layers show. */
+  layers: MapLayer[]
   /** The clock the events are judged by, ticking once a minute. */
   now: number
   select: (selection: MapSelection | null) => void
   look: (target: LookTarget) => void
   edit: (editor: Editor) => void
   closeEditor: () => void
+  /** Show an article's view on the map: framed on it, with its highlights. */
+  showView: (view: MapViewData) => void
   editPlace: (place: MapPlace) => void
   editRoad: (road: MapRoad) => void
   editEvent: (event: MapEvent) => void
   editAbout: (town: MapTown, text: string) => void
+  /** Rejects with the Registry's reason, or the plain line for an unreachable one. */
   remove: (kind: 'place' | 'road' | 'event', id: number) => Promise<void>
   /** Whether the visitor may change a feature in this town (null: between towns). */
   mayEdit: (town: number | null) => boolean
   /** After a save: have the cached pages regenerated, then fetch the fresh one. */
   refresh: () => void
+  /** A step back, or forward again, through what's been drawn this session. */
+  undo: () => void
+  redo: () => void
+  /** Whether there is anything to undo or redo; read with useStore. */
+  historyStore: Store<{ canUndo: boolean; canRedo: boolean }>
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)

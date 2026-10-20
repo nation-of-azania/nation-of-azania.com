@@ -14,12 +14,12 @@ import {
   type ViewAspect,
 } from '@/maps/registry'
 
-import { api } from '../api'
+import { api, saveMessageOf } from '../api'
 import { useMaps } from '../context'
 import type { Editor, HighlightTool } from '../state'
 import { BUTTON, EYEBROW, FIELD, Field, Notice, TextButton } from '../ui/chrome'
 import { Icon, type IconName } from '../ui/icons'
-import { EditorFrame, messageOf, type EditorPanelProps } from './EditorPanel'
+import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
 
 const TOOLS: { tool: HighlightTool; icon: IconName; label: string; hint: string }[] = [
   {
@@ -102,7 +102,13 @@ export function ViewForm({
   }, [editor.selected, selected])
 
   const setTool = (tool: HighlightTool) =>
-    onChange({ ...editor, tool, pending: [], selected: tool === 'select' ? editor.selected : null })
+    onChange({
+      ...editor,
+      tool,
+      pending: [],
+      vertex: null,
+      selected: tool === 'select' ? editor.selected : null,
+    })
   const update = (next: Drawing) =>
     onChange({
       ...editor,
@@ -115,6 +121,7 @@ export function ViewForm({
     onChange({
       ...editor,
       selected: null,
+      vertex: null,
       draft: { ...draft, drawings: draft.drawings.filter((_, i) => i !== editor.selected) },
     })
 
@@ -142,12 +149,13 @@ export function ViewForm({
         id: view.id,
         draft: { ...draft, drawings: view.drawings },
         selected: null,
+        vertex: null,
       })
       onViewSaved(view)
       setSavedAs(view.title)
       refresh()
     } catch (caught) {
-      setError(messageOf(caught))
+      setError(saveMessageOf(caught))
     } finally {
       setBusy(false)
     }
@@ -165,7 +173,7 @@ export function ViewForm({
       onClose()
       refresh()
     } catch (caught) {
-      setError(messageOf(caught))
+      setError(saveMessageOf(caught))
       setBusy(false)
     }
   }
@@ -178,6 +186,7 @@ export function ViewForm({
       eyebrow={editor.id ? 'Edit the map view' : 'New map view'}
       onClose={onClose}
       title={draft.title.trim() || 'An untitled view'}
+      tools={<UndoRedo />}
     >
       {!own ? (
         <Notice tone="warning">This view belongs to someone else; staff may edit it.</Notice>
@@ -347,6 +356,12 @@ export function ViewForm({
                 ? 'area'
                 : selected.kind}
           </p>
+          {selected.kind === 'line' || selected.kind === 'area' ? (
+            <p className="mt-1 text-xs leading-snug text-ink-500">
+              Its points are edited on the map: drag one to move it, press the line or a + to add
+              one there, click one to remove it.
+            </p>
+          ) : null}
           {selected.kind === 'text' ? (
             <Field label="The note">
               <input
@@ -376,7 +391,7 @@ export function ViewForm({
             </TextButton>
             <TextButton
               className="px-2.5 py-1.5"
-              onClick={() => onChange({ ...editor, selected: null })}
+              onClick={() => onChange({ ...editor, selected: null, vertex: null })}
             >
               Done
             </TextButton>
@@ -389,29 +404,20 @@ export function ViewForm({
           {draft.drawings.length} highlight{draft.drawings.length === 1 ? '' : 's'}
         </span>
         {draft.drawings.length ? (
-          <>
-            <TextButton
-              className="px-2 py-1"
-              onClick={() =>
-                onChange({
-                  ...editor,
-                  selected: null,
-                  draft: { ...draft, drawings: draft.drawings.slice(0, -1) },
-                })
-              }
-            >
-              <Icon className="h-3.5 w-3.5" name="undo" /> Undo last
-            </TextButton>
-            <TextButton
-              className="px-2 py-1"
-              onClick={() =>
-                window.confirm('Clear every highlight?') &&
-                onChange({ ...editor, selected: null, draft: { ...draft, drawings: [] } })
-              }
-            >
-              Clear all
-            </TextButton>
-          </>
+          <TextButton
+            className="px-2 py-1"
+            onClick={() =>
+              window.confirm('Clear every highlight?') &&
+              onChange({
+                ...editor,
+                selected: null,
+                vertex: null,
+                draft: { ...draft, drawings: [] },
+              })
+            }
+          >
+            Clear all
+          </TextButton>
         ) : null}
       </div>
 
@@ -436,7 +442,7 @@ export function ViewForm({
       ) : null}
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <TextButton disabled={busy || !draft.title.trim() || !frame} onClick={save} tone="primary">
-          {busy ? 'Saving…' : editor.id ? 'Save changes' : 'Save the view'}
+          {busy ? 'Saving…' : error ? 'Try again' : editor.id ? 'Save changes' : 'Save the view'}
         </TextButton>
         <TextButton onClick={onClose}>{savedAs ? 'Done' : 'Cancel'}</TextButton>
         {editor.id && own ? (

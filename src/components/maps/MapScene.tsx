@@ -10,6 +10,9 @@ import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
 
+import type { EditorUpdate } from './context'
+
+import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
 import { useLatest } from './hooks'
 import { DrawingsLayer } from './layers/DrawingsLayer'
@@ -62,7 +65,8 @@ export type SceneProps = {
   onMove: (position: MapPosition) => void
   onPointer: (point: Point | null) => void
   onSelect: (selection: MapSelection) => void
-  onEditor: (editor: Editor | null) => void
+  /** A change to the editor; `press` numbers the drag it belongs to, so undo takes the drag as one step. */
+  onEditor: (update: EditorUpdate, press?: number) => void
 }
 
 /**
@@ -159,13 +163,18 @@ export function MapScene(props: SceneProps) {
             else
               onEditor({
                 ...current,
+                vertex: null,
                 draft: { ...current.draft, outline: [...current.draft.outline, at] },
               })
           }
           return
         case 'road':
           if (current.drawing)
-            onEditor({ ...current, draft: { ...current.draft, line: [...current.draft.line, at] } })
+            onEditor({
+              ...current,
+              vertex: null,
+              draft: { ...current.draft, line: [...current.draft.line, at] },
+            })
           return
         case 'event':
           if (current.picking)
@@ -185,6 +194,7 @@ export function MapScene(props: SceneProps) {
               onEditor({
                 ...current,
                 selected: current.draft.drawings.length,
+                vertex: null,
                 draft: {
                   ...current.draft,
                   drawings: [...current.draft.drawings, { kind: 'pin', at, ink: current.ink }],
@@ -195,6 +205,7 @@ export function MapScene(props: SceneProps) {
               onEditor({
                 ...current,
                 selected: current.draft.drawings.length,
+                vertex: null,
                 draft: {
                   ...current.draft,
                   drawings: [
@@ -258,6 +269,7 @@ export function MapScene(props: SceneProps) {
         ...current,
         pending: [],
         selected: current.draft.drawings.length,
+        vertex: null,
         draft: { ...current.draft, drawings: [...current.draft.drawings, drawing] },
       })
     }
@@ -275,17 +287,20 @@ export function MapScene(props: SceneProps) {
   return (
     <MapCanvas
       chrome={
-        frame ? (
-          <div
-            aria-hidden="true"
-            className="az-frame pointer-events-none absolute z-[450] border-2 border-saffron-300/90"
-            style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
-          >
-            <span className="absolute -top-6 left-0 font-label text-[10px] uppercase tracking-[0.2em] text-sand-50 drop-shadow">
-              The article’s frame
-            </span>
-          </div>
-        ) : null
+        <>
+          {frame ? (
+            <div
+              aria-hidden="true"
+              className="az-frame pointer-events-none absolute z-[450] border-2 border-saffron-300/90"
+              style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
+            >
+              <span className="absolute -top-6 left-0 font-label text-[10px] uppercase tracking-[0.2em] text-sand-50 drop-shadow">
+                The article’s frame
+              </span>
+            </div>
+          ) : null}
+          {editor ? <PointChip editor={editor} onEditor={onEditor} /> : null}
+        </>
       }
       className="absolute inset-0 z-0"
       cursor={wantsClicks ? 'crosshair' : undefined}

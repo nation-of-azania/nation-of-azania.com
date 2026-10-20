@@ -49,6 +49,8 @@ export function PlacePanel({
           <p className="mt-3 text-sm leading-relaxed text-ink-700">{place.description}</p>
         ) : null}
         <Survey className="mt-3" point={place.point} y={place.y} />
+        {/* For those who may: the way in, right under the name. */}
+        <PlaceActions className="mt-3" place={place} />
       </PanelHead>
 
       <div className="mt-4 px-4">
@@ -62,9 +64,6 @@ export function PlacePanel({
             ...(town?.ruler ? [{ label: 'Mayor', value: spoken(town.ruler) }] : []),
           ]}
         />
-        <div className="mt-4">
-          <PlaceActions place={place} />
-        </div>
       </div>
 
       <PanelSection flush title="Events here">

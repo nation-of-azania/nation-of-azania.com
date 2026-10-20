@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { cn } from '@/blocks/components/shared'
 import {
   spoken,
@@ -12,10 +14,11 @@ import { routeFrom, spawnRoute } from '@/maps/spawn'
 import type { Bounds, Point } from '@/maps/geo'
 import { formatWhen, relativeDay, sortEvents } from '@/maps/time'
 
+import { messageOf } from '../api'
 import { useMaps } from '../context'
 import { useHydrated } from '../hooks'
 import { emptyEvent, emptyPlace, emptyRoad } from '../state'
-import { TextButton } from '../ui/chrome'
+import { Notice, TextButton } from '../ui/chrome'
 import { Icon } from '../ui/icons'
 import { privateSpawnNote, useCopy } from '../ui/Readouts'
 import { EventRow } from '../ui/WhatsOn'
@@ -210,67 +213,95 @@ export function Survey({
   )
 }
 
-/** What the signed-in person may do with a place: edit it, move it, delete it. */
-export function PlaceActions({ place }: { place: MapPlace }) {
-  const { mayEdit, editPlace, remove } = useMaps()
-  if (!mayEdit(place.town)) return null
+/**
+ * What the signed-in person may do with something on the map, set right
+ * under its name for those who may: edit it (the plain way in), and delete
+ * it, asked first. A deletion that fails — refused, or never reaching the
+ * Registry — is said here, not swallowed.
+ */
+function FeatureActions({
+  edit,
+  editLabel,
+  onDelete,
+  question,
+  className,
+}: {
+  edit: () => void
+  editLabel: string
+  onDelete: () => Promise<void>
+  question: string
+  className?: string
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const remove = () => {
+    if (!window.confirm(question)) return
+    setBusy(true)
+    setError(null)
+    onDelete()
+      .catch((caught: unknown) => setError(messageOf(caught)))
+      .finally(() => setBusy(false))
+  }
   return (
-    <div className="flex flex-wrap gap-2">
-      <TextButton className="px-2.5 py-1.5" onClick={() => editPlace(place)}>
-        <Icon className="h-3.5 w-3.5" name="pencil" /> Edit or move
-      </TextButton>
-      <TextButton
-        className="px-2.5 py-1.5"
-        onClick={() =>
-          window.confirm(`Delete ${place.name} from the map?`) && remove('place', place.id)
-        }
-        tone="danger"
-      >
-        <Icon className="h-3.5 w-3.5" name="trash" /> Delete
-      </TextButton>
+    <div className={className}>
+      <div className="flex flex-wrap gap-2">
+        <TextButton className="px-3 py-1.5" onClick={edit} tone="primary">
+          <Icon className="h-3.5 w-3.5" name="pencil" /> {editLabel}
+        </TextButton>
+        <TextButton className="px-2.5 py-1.5" disabled={busy} onClick={remove} tone="danger">
+          <Icon className="h-3.5 w-3.5" name="trash" /> {busy ? 'Deleting…' : 'Delete'}
+        </TextButton>
+      </div>
+      {error ? (
+        <Notice className="mt-2" tone="warning">
+          {error}
+        </Notice>
+      ) : null}
     </div>
   )
 }
 
-export function RoadActions({ road }: { road: MapRoad }) {
+/** A place: edit it, move it, delete it. */
+export function PlaceActions({ place, className }: { place: MapPlace; className?: string }) {
+  const { mayEdit, editPlace, remove } = useMaps()
+  if (!mayEdit(place.town)) return null
+  return (
+    <FeatureActions
+      className={className}
+      edit={() => editPlace(place)}
+      editLabel="Edit or move"
+      onDelete={() => remove('place', place.id)}
+      question={`Delete ${place.name} from the map?`}
+    />
+  )
+}
+
+export function RoadActions({ road, className }: { road: MapRoad; className?: string }) {
   const { mayEdit, rights, editRoad, remove } = useMaps()
   // A road between towns is national: for those who draw anywhere.
   if (road.town == null ? !rights.anywhere : !mayEdit(road.town)) return null
   return (
-    <div className="flex flex-wrap gap-2">
-      <TextButton className="px-2.5 py-1.5" onClick={() => editRoad(road)}>
-        <Icon className="h-3.5 w-3.5" name="pencil" /> Edit the course
-      </TextButton>
-      <TextButton
-        className="px-2.5 py-1.5"
-        onClick={() =>
-          window.confirm(`Delete ${road.name ?? 'this road'} from the map?`) &&
-          remove('road', road.id)
-        }
-        tone="danger"
-      >
-        <Icon className="h-3.5 w-3.5" name="trash" /> Delete
-      </TextButton>
-    </div>
+    <FeatureActions
+      className={className}
+      edit={() => editRoad(road)}
+      editLabel="Edit the course"
+      onDelete={() => remove('road', road.id)}
+      question={`Delete ${road.name ?? 'this road'} from the map?`}
+    />
   )
 }
 
-export function EventActions({ event }: { event: MapEvent }) {
+export function EventActions({ event, className }: { event: MapEvent; className?: string }) {
   const { mayEdit, editEvent, remove } = useMaps()
   if (!mayEdit(event.town)) return null
   return (
-    <div className="flex flex-wrap gap-2">
-      <TextButton className="px-2.5 py-1.5" onClick={() => editEvent(event)}>
-        <Icon className="h-3.5 w-3.5" name="pencil" /> Edit
-      </TextButton>
-      <TextButton
-        className="px-2.5 py-1.5"
-        onClick={() => window.confirm(`Delete ${event.title}?`) && remove('event', event.id)}
-        tone="danger"
-      >
-        <Icon className="h-3.5 w-3.5" name="trash" /> Delete
-      </TextButton>
-    </div>
+    <FeatureActions
+      className={className}
+      edit={() => editEvent(event)}
+      editLabel="Edit"
+      onDelete={() => remove('event', event.id)}
+      question={`Delete ${event.title}?`}
+    />
   )
 }
 
@@ -299,7 +330,14 @@ export function AddHere({ town }: { town: MapTown }) {
         className="px-2.5 py-1.5"
         onClick={() => {
           start()
-          edit({ kind: 'place', id: null, draft: emptyPlace(), placing: true, tracing: false })
+          edit({
+            kind: 'place',
+            id: null,
+            draft: emptyPlace(),
+            placing: true,
+            tracing: false,
+            vertex: null,
+          })
         }}
       >
         <Icon className="h-3.5 w-3.5" name="pin" /> Add a place

@@ -34,9 +34,55 @@
 .az-overlay .az-handle {
   pointer-events: auto;
   cursor: grab;
+  touch-action: none;
 }
 .az-overlay .az-handle:active {
   cursor: grabbing;
+}
+/* A handle grows a little under the pointer, so it's plainly for taking hold of. */
+.az-overlay .az-handle-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 120ms ease-out,
+    opacity 120ms ease-out;
+}
+.az-overlay .az-handle:hover .az-handle-mark,
+.az-overlay .az-handle:active .az-handle-mark {
+  transform: scale(1.3);
+}
+/* The "+" halfway along a line stands back until it's wanted. */
+.az-overlay .az-handle-plus .az-handle-mark {
+  opacity: 0.8;
+}
+.az-overlay .az-handle-plus:hover .az-handle-mark {
+  opacity: 1;
+}
+/* The line itself takes a press, to add a point there; only its stroke, not the ground around it. */
+.az-overlay .az-course {
+  pointer-events: stroke;
+  cursor: copy;
+  touch-action: none;
+}
+
+/* The chip beside a picked point, with a small nib towards the point. */
+.az-chip::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border-left: 1px solid var(--color-sand-300);
+  border-bottom: 1px solid var(--color-sand-300);
+  transform: translateY(-50%) rotate(45deg);
+}
+.az-chip[data-side='right']::before {
+  left: -5px;
+}
+.az-chip[data-side='left']::before {
+  right: -5px;
+  transform: translateY(-50%) rotate(-135deg);
 }
 /* While a tool is in hand, the features step aside so clicks reach the map. */
 .az-maps[data-tool] .az-overlay .az-hit {
