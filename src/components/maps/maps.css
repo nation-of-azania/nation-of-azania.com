@@ -24,11 +24,13 @@
   image-rendering: pixelated;
 }
 
-/* Only what is drawn takes the pointer; the ground beneath stays Leaflet's. */
+/* Only what is drawn takes the pointer; the ground beneath stays Leaflet's. Leaflet's own
+   stylesheet turns every path in its panes off, so the hit strokes are named as well as their group. */
 .az-overlay {
   pointer-events: none;
 }
-.az-overlay .az-hit {
+.az-overlay .az-hit,
+.az-overlay .az-hit path {
   pointer-events: auto;
 }
 .az-overlay .az-handle {
@@ -91,10 +93,12 @@
   transform: translateX(-50%) rotate(135deg);
 }
 /* While a tool is in hand, the features step aside so clicks reach the map; the editor's own marks (a view's highlights, to pick) don't. */
-.az-maps[data-tool] .az-overlay .az-hit {
+.az-maps[data-tool] .az-overlay .az-hit,
+.az-maps[data-tool] .az-overlay .az-hit path {
   pointer-events: none;
 }
-.az-maps[data-tool] .az-overlay .az-tools .az-hit {
+.az-maps[data-tool] .az-overlay .az-tools .az-hit,
+.az-maps[data-tool] .az-overlay .az-tools .az-hit path {
   pointer-events: auto;
 }
 .az-overlay text {
