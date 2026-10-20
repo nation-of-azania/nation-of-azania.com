@@ -46,6 +46,22 @@ export const designOf = (context: Pick<Context, 'design'>): Design =>
 
 export const contextHref = (context: Pick<Context, 'path'>): string => context.path || '/'
 
+/**
+ * A context's RSS feed, covering its articles and everything below it:
+ * /gov/feed.xml, /times/girlietea/feed.xml. The site-wide feed is /feed.xml.
+ * Both are rewritten to the feed route (src/app/(frontend)/feeds) in
+ * next.config.ts, since a route can't sit beside the catch-all page.
+ */
+export const feedHref = (context: Pick<Context, 'path'>): string => `${context.path || ''}/feed.xml`
+
+export const SITE_FEED_HREF = '/feed.xml'
+
+export const SITE_FEED_TITLE = 'The Nation of Azania'
+
+/** What a feed is called in a reader: the paper's name, or "GirlieTea · The Azanian Times" for a context within one. */
+export const feedTitle = (context: Pick<Context, 'id' | 'name'>, top: Pick<Context, 'id' | 'name'>): string =>
+  context.id === top.id ? top.name : `${context.name} · ${top.name}`
+
 /** The top-level context's archive, optionally filtered by type; page 1 keeps a clean URL. */
 export const archiveHref = (
   top: Pick<Context, 'slug'>,

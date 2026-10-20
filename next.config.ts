@@ -9,6 +9,17 @@ const dirname = path.dirname(__filename)
 const nextConfig: NextConfig = {
   // No "X-Powered-By: Next.js, Payload" header: the stack stays invisible.
   poweredByHeader: false,
+  // The RSS feeds read as part of what they cover (/gov/feed.xml,
+  // /times/girlietea/feed.xml, /feed.xml for the site), but the contexts are
+  // served by a catch-all page, which a route can't share a segment with. So
+  // they are rewritten, before anything else matches, to the feed route
+  // under the reserved `feeds` prefix (src/app/(frontend)/feeds).
+  rewrites: async () => ({
+    beforeFiles: [
+      { source: '/feed.xml', destination: '/feeds' },
+      { source: '/:path*/feed.xml', destination: '/feeds/:path*' },
+    ],
+  }),
   images: {
     // 100 serves Minecraft heads losslessly (BylineAvatar); 75 is the default.
     qualities: [75, 100],
