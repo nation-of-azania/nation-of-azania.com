@@ -284,19 +284,26 @@ export function MapCanvas({
   )
 }
 
-/** Fly the map somewhere, settling without animation for readers who ask for less motion. */
-export function flyTo(map: L.Map, centre: Point, zoom?: number): void {
+/**
+ * Fly the map somewhere, settling without animation for readers who ask
+ * for less motion. `inset` is how much of the foot of the map a sheet
+ * covers on a phone: the spot lands in the middle of what's left.
+ */
+export function flyTo(map: L.Map, centre: Point, zoom?: number, inset = 0): void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const target = toLatLng(centre)
   const z = zoom ?? map.getZoom()
+  const target = inset
+    ? map.unproject(map.project(toLatLng(centre), z).add([0, inset / 2]), z)
+    : toLatLng(centre)
   if (reduced) map.setView(target, z, { animate: false })
   else map.flyTo(target, z, { duration: 0.8 })
 }
 
-export function fitBounds(map: L.Map, bounds: Bounds, padding = 48): void {
+export function fitBounds(map: L.Map, bounds: Bounds, padding = 48, inset = 0): void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   map.fitBounds(toLatLngBounds(bounds), {
-    padding: [padding, padding],
+    paddingTopLeft: [padding, padding],
+    paddingBottomRight: [padding, padding + inset],
     animate: !reduced,
     duration: 0.8,
   })

@@ -177,10 +177,15 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
   const lastSelection = useRef<MapSelection | null | undefined>(undefined)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const look = useCallback((target: LookTarget) => {
-    if (sceneApi.current) sceneApi.current.look(target)
-    else pendingLook.current = target
-  }, [])
+  // On a phone the sheet covers the foot of the map; what's looked at lands above it.
+  const look = useCallback(
+    (target: LookTarget) => {
+      const inset = wide ? 0 : window.innerHeight * 0.5
+      if (sceneApi.current) sceneApi.current.look(target, inset)
+      else pendingLook.current = target
+    },
+    [wide],
+  )
 
   /** Where the map opens: the address's spot, else the selected thing, else the nation's heartland. Fixed once the page is in the browser. */
   const [initial] = useState<SceneProps['initial'] | null>(() => null)
@@ -630,7 +635,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
 
           {/* Phone: the name and the search float over the map. */}
           {!wide ? (
-            <div className="absolute left-3 right-3 top-3 z-10 flex items-center gap-2">
+            <div className="absolute left-3 right-3 top-3 z-20 flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 border border-sand-300 bg-sand-50 py-1 pl-2.5 pr-1 shadow-[0_1px_2px_rgba(22,25,31,0.08)]">
                 <Wordmark small />
                 <Search className="min-w-0 flex-1" data={data} onPick={select} />

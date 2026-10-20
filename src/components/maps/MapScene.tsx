@@ -41,7 +41,8 @@ export type LookTarget =
   | { centre: Point; span: number; aspect: ViewAspect }
 
 export type SceneApi = {
-  look: (target: LookTarget) => void
+  /** Look somewhere; `inset` is the height of a sheet covering the map's foot, so the spot stays in view. */
+  look: (target: LookTarget, inset?: number) => void
   zoomBy: (delta: number) => void
   /** The frame a map view would save just now: its centre and how many blocks it spans. */
   frame: (aspect: ViewAspect) => { centre: Point; span: number } | null
@@ -79,10 +80,10 @@ export function MapScene(props: SceneProps) {
 
   const api = useMemo<SceneApi>(
     () => ({
-      look: (target) => {
+      look: (target, inset = 0) => {
         const map = mapRef.current
         if (!map) return
-        if ('bounds' in target) return fitBounds(map, target.bounds)
+        if ('bounds' in target) return fitBounds(map, target.bounds, 48, inset)
         if ('span' in target) {
           const size = map.getSize()
           const frame = frameInViewport({ width: size.x, height: size.y }, target.aspect)
@@ -98,7 +99,7 @@ export function MapScene(props: SceneProps) {
             : target.minZoom
               ? Math.max(target.zoom, map.getZoom())
               : target.zoom
-        flyTo(map, target.centre, zoom)
+        flyTo(map, target.centre, zoom, inset)
       },
       zoomBy: (delta) => {
         const map = mapRef.current
