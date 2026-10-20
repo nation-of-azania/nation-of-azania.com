@@ -181,8 +181,10 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
   const look = useCallback(
     (target: LookTarget) => {
       const inset = wide ? 0 : window.innerHeight * 0.5
-      if (sceneApi.current) sceneApi.current.look(target, inset)
-      else pendingLook.current = target
+      if (sceneApi.current) {
+        pendingLook.current = null
+        sceneApi.current.look(target, inset)
+      } else pendingLook.current = target
     },
     [wide],
   )
@@ -215,6 +217,9 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
   useEffect(() => {
     const id = Number(viewParam)
     if (!Number.isInteger(id) || id <= 0) return
+    // Whether the address also named a spot, judged now: by the time the view
+    // arrives, the map's first settling will have written its own.
+    const placed = Boolean(decodeAt(new URLSearchParams(window.location.search).get('at')))
     let cancelled = false
     api
       .view(id)
@@ -223,8 +228,7 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
         setViewing(view)
         setMapName(view.map)
         setLayers(view.layers)
-        if (!decodeAt(new URLSearchParams(window.location.search).get('at')))
-          look({ centre: view.centre, span: view.span, aspect: view.aspect })
+        if (!placed) look({ centre: view.centre, span: view.span, aspect: view.aspect })
       })
       .catch(() => {})
     return () => {
@@ -616,11 +620,10 @@ export function MapsShell({ data: served, rights, children }: ShellProps) {
               mapName={sceneMap}
               now={now}
               onApi={(scene) => {
+                // Kept, not cleared: a scene that mounts again (development's
+                // double mount) must look at the same place.
                 sceneApi.current = scene
-                if (pendingLook.current) {
-                  scene.look(pendingLook.current)
-                  pendingLook.current = null
-                }
+                if (pendingLook.current) scene.look(pendingLook.current)
               }}
               onEditor={setEditor}
               onMove={setPosition}
