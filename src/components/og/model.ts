@@ -43,6 +43,8 @@ export type ArticleCard = {
   /** "12 March 2026", or null. */
   date: string | null
   year: number | null
+  /** The standfirst: the article's summary, set under a short headline to fill the card. */
+  excerpt: string | null
   byline: CardByline | null
   /** The featured image, cropped for the card, as a data URI. */
   image: string | null

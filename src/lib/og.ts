@@ -88,6 +88,7 @@ export async function loadCard(segments: string[], origin: string): Promise<Load
       kicker: parts,
       date: formatDate(dateTime),
       year: Number.isNaN(year) ? null : year,
+      excerpt: article.excerpt?.replace(/\s+/g, ' ').trim() || null,
       byline,
       image,
       number: design === 'international' ? recordRef(article).number : null,

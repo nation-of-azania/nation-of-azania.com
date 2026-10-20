@@ -12,20 +12,24 @@ import {
   EmblemImage,
   IntlMarkShape,
   Picture,
+  Standfirst,
   Within,
   col,
   fitSize,
+  fitText,
   row,
+  standfirstLines,
 } from './shared'
 import { COLOR, FACE, HEAD_PX } from './tokens'
 
 /**
  * The registry's card: the host strip and the nameplate in the record
  * serif on registry paper, then the record as a registry card files it —
- * where it was filed, its number as a badge, its title in Plex Serif, and
- * the details row beneath: who entered it (with their head in a hairline
- * frame), when, and how to cite it — closed by a verdigris rule. No style
- * has an International variant, so there is one dress.
+ * where it was filed, its number as a badge, its title in Plex Serif, its
+ * summary under a short title, and the details row beneath: who entered it
+ * (with their head in a hairline frame), when, and how to cite it — closed
+ * by a verdigris rule. No style has an International variant, so there is
+ * one dress.
  */
 
 const AVATAR: AvatarTone = {
@@ -115,7 +119,14 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 function Record({ card }: { card: ArticleCard }) {
   const picture = card.image ? 360 : 0
   const column = WIDTH - GUTTER * 2 - (picture ? picture + 40 : 0)
-  const size = fitSize(card.title, { width: column, max: picture ? 52 : 56, min: 36, lines: 3, ratio: 0.5 })
+  const headline = fitText(card.title, { width: column, max: picture ? 52 : 56, min: 36, lines: 3, ratio: 0.5 })
+  const size = headline.size
+  // The room under the title once the breadcrumb, the badge line, the details row and the rule have theirs.
+  const spare =
+    630 - 36 - 83 - 64 -
+    (card.chain.length > 1 ? 14 + 16 : 0) -
+    (30 + 16 + Math.round(headline.lines * size * 1.1) + 24 + 20 + 12 + 10 + 64 + 30 + 3)
+  const standfirst = standfirstLines(card.excerpt, spare, 31)
   const filedIn = card.chain[card.chain.length - 1]
   const citation = card.number && card.year ? `${card.number}, ${filedIn ?? card.top.name}, ${card.year}` : null
   const above = card.chain.slice(1)
@@ -165,6 +176,11 @@ function Record({ card }: { card: ArticleCard }) {
         >
           {card.title}
         </div>
+        {standfirst ? (
+          <Standfirst lines={standfirst} size={23} color={COLOR.graphite700} style={{ marginTop: 16 }}>
+            {card.excerpt}
+          </Standfirst>
+        ) : null}
         <div
           style={{
             ...row,

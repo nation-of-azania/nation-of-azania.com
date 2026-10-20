@@ -359,3 +359,49 @@ export function EmblemImage({ src, size }: { src: string; size: number }) {
 /** The words above a page: the names leading down to it, or a line of its own. */
 export const breadcrumbOf = (chain: string[], alone: string): string =>
   chain.length > 1 ? chain.join('  ›  ') : alone
+
+/**
+ * How many lines of a standfirst fit in `spare` px at `lineHeight` px a
+ * line, with a margin above it: none when the headline has taken the room
+ * (a single cut line reads as a mistake), at most three otherwise, so a
+ * short headline's card fills with the article's summary rather than sand.
+ */
+export function standfirstLines(excerpt: string | null, spare: number, lineHeight: number, margin = 18): number {
+  if (!excerpt) return 0
+  const lines = Math.min(3, Math.floor((spare - margin) / lineHeight))
+  return lines >= 2 ? lines : 0
+}
+
+/** The article's summary under its headline, clamped to the lines it was given room for. */
+export function Standfirst({
+  children,
+  lines,
+  size,
+  color,
+  centred,
+  style,
+}: {
+  children: ReactNode
+  lines: number
+  size: number
+  color: string
+  centred?: boolean
+  style?: CSSProperties
+}) {
+  return (
+    <div
+      style={{
+        // Satori clamps only a block.
+        display: 'block',
+        fontSize: size,
+        lineHeight: 1.35,
+        color,
+        lineClamp: lines,
+        textAlign: centred ? 'center' : 'left',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  )
+}

@@ -15,6 +15,7 @@ import {
   FlagTick,
   Picture,
   SealMark,
+  Standfirst,
   WaxSeal,
   Within,
   breadcrumbOf,
@@ -22,19 +23,21 @@ import {
   fitSize,
   fitText,
   row,
+  standfirstLines,
 } from './shared'
 import { COLOR, FACE, HEAD_PX } from './tokens'
 
 /**
  * The Gazette's card: the deep-water masthead under the national ribbon,
- * then sand, with the kicker in saffron, the headline in Alegreya and the
- * double rule beneath, and the signatory's head in a sand frame — a clipping
- * of the official record. A document of state is set as the instrument it
- * is: letterhead, crest and type under the seal, everything centred, and the
- * signature with the Seal of the Nation pressed beside a decree's. Cherry
- * Blossom keeps all of that and takes the style's rose for the saffron, its
- * bubbly face for the headline and labels, and its blossom where the seal
- * would be, as the site does (src/components/styles/blossom/gazette.ts).
+ * then sand, with the kicker in saffron, the headline in Alegreya, the
+ * standfirst under a short one, the double rule beneath, and the
+ * signatory's head in a sand frame — a clipping of the official record. A
+ * document of state is set as the instrument it is: letterhead, crest and
+ * type under the seal, everything centred, and the signature with the Seal
+ * of the Nation pressed beside a decree's. Cherry Blossom keeps all of that
+ * and takes the style's rose for the saffron, its bubbly face for the
+ * headline and labels, and its blossom where the seal would be, as the site
+ * does (src/components/styles/blossom/gazette.ts).
  */
 
 type Dress = {
@@ -214,10 +217,15 @@ function Byline({ byline, dress }: { byline: CardByline; dress: Dress }) {
   )
 }
 
-/** A dispatch or an explanation: kicker, headline, rule, byline, and its picture beside. */
+/** A dispatch or an explanation: kicker, headline, standfirst, rule, byline, and its picture beside. */
 function Record({ card, dress }: { card: ArticleCard; dress: Dress }) {
   const picture = card.image ? 400 : 0
   const column = WIDTH - GUTTER * 2 - (picture ? picture + 44 : 0)
+  const headline = fitText(card.title, { width: column, max: picture ? 60 : 66, min: 40, lines: 3, ratio: dress.ratio })
+  // The room under the headline once the kicker, rule and byline have theirs.
+  const spare =
+    630 - 97 - 84 - (19 + 20 + Math.round(headline.lines * headline.size * 1.08) + 26 + 9 + (card.byline || card.pinned ? 26 + 74 : 0))
+  const standfirst = standfirstLines(card.excerpt, spare, 34)
   return (
     <div style={{ ...row, flex: 1, alignItems: 'stretch', padding: `40px ${GUTTER}px 44px` }}>
       <div style={{ ...col, flex: 1, justifyContent: 'center', minWidth: 0 }}>
@@ -237,8 +245,13 @@ function Record({ card, dress }: { card: ArticleCard; dress: Dress }) {
           ) : null}
         </Caps>
         <div style={{ ...col, marginTop: 20 }}>
-          <Headline text={card.title} width={column} dress={dress} max={picture ? 60 : 66} />
+          <Headline text={card.title} width={column} dress={dress} max={picture ? 60 : 66} size={headline.size} />
         </div>
+        {standfirst ? (
+          <Standfirst lines={standfirst} size={25} color={COLOR.ink700} style={{ marginTop: 18 }}>
+            {card.excerpt}
+          </Standfirst>
+        ) : null}
         <DoubleRule accent={dress.accent} style={{ marginTop: 26 }} />
         {card.byline || card.pinned ? (
           <div style={{ ...row, marginTop: 26, justifyContent: 'space-between' }}>
@@ -280,6 +293,8 @@ function Instrument({ card, dress }: { card: ArticleCard; dress: Dress }) {
   // A three-line title has the crest and the gaps give way a little.
   const tall = headline.lines >= 3
   const gap = tall ? 14 : 22
+  // A one- or two-line instrument has room for its summary, as the page sets it under the title.
+  const standfirst = tall ? 0 : standfirstLines(card.excerpt, 90 - (headline.lines - 1) * 30, 30)
   return (
     <div
       style={{
@@ -329,6 +344,11 @@ function Instrument({ card, dress }: { card: ArticleCard; dress: Dress }) {
       <div style={{ ...col, marginTop: gap, width: '100%', alignItems: 'center' }}>
         <Headline text={card.title} width={WIDTH - 192} dress={dress} max={64} size={headline.size} centred />
       </div>
+      {standfirst ? (
+        <Standfirst lines={standfirst} size={22} color={COLOR.ink500} centred style={{ marginTop: 14, width: 760 }}>
+          {card.excerpt}
+        </Standfirst>
+      ) : null}
       <DoubleRule accent={dress.accent} width={360} style={{ marginTop: gap }} />
       {card.byline ? (
         <div style={{ ...row, marginTop: gap, gap: 36 }}>

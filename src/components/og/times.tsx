@@ -10,22 +10,26 @@ import {
   Dot,
   EmblemImage,
   Picture,
+  Standfirst,
   col,
   fitSize,
+  fitText,
   row,
+  standfirstLines,
 } from './shared'
 import { COLOR, FACE, HEAD_PX } from './tokens'
 
 /**
  * The Times' card: the cinnabar utility bar and the paper's nameplate in
  * Archivo Black over newsprint, then the story as the front page sets it —
- * kicker, black headline, the reporter's head printed flat with the lagoon
- * tick under their name. An opinion piece is a person speaking: the solid
- * Opinion tag and the great quotation mark behind the headline. Cherry
- * Blossom sets the story in the pink box the site gives a GirlieTea column,
- * in Fredoka, with the blossom in the tag — the nameplate stays the paper's
- * (src/components/styles/blossom/times.ts). The front page's card is the
- * nameplate itself, full size, over the bar of desks.
+ * kicker, black headline, the standfirst under a short one, the reporter's
+ * head printed flat with the lagoon tick under their name. An opinion piece
+ * is a person speaking: the solid Opinion tag and the great quotation mark
+ * behind the headline. Cherry Blossom sets the story in the pink box the
+ * site gives a GirlieTea column, in Fredoka, with the blossom in the tag —
+ * the nameplate stays the paper's (src/components/styles/blossom/times.ts).
+ * The front page's card is the nameplate itself, full size, over the bar
+ * of desks.
  */
 
 type Dress = {
@@ -241,13 +245,19 @@ function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
   const picture = card.image ? 420 : 0
   const inset = dress.box ? 12 + 40 : 0
   const column = WIDTH - GUTTER * 2 - inset * 2 - (picture ? picture + 40 : 0)
-  const size = fitSize(card.title, {
+  const headline = fitText(card.title, {
     width: column,
     max: picture ? 60 : 64,
     min: 38,
     lines: 3,
     ratio: dress.ratio,
   })
+  const size = headline.size
+  // What the panel has left after the kicker, headline, byline and rule: the standfirst's room.
+  const spare =
+    (dress.box ? 630 - 34 - 105 - 48 - 52 : 630 - 34 - 105 - 72) -
+    (19 + 18 + Math.round(headline.lines * size * 1.04) + (card.byline ? 24 + 64 : 0) + 24 + 3)
+  const standfirst = standfirstLines(card.excerpt, spare, 32)
   return (
     <Panel dress={dress}>
       <div style={{ ...col, flex: 1, justifyContent: 'center', minWidth: 0, position: 'relative' }}>
@@ -297,6 +307,11 @@ function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
         >
           {card.title}
         </div>
+        {standfirst ? (
+          <Standfirst lines={standfirst} size={24} color={COLOR.news700} style={{ marginTop: 16 }}>
+            {card.excerpt}
+          </Standfirst>
+        ) : null}
         {card.byline ? (
           <div style={{ ...col, marginTop: 24 }}>
             <Byline byline={card.byline} dress={dress} />
