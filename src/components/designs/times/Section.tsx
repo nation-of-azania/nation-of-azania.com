@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { RichText } from '@/components/RichText'
 import { Breadcrumb } from '@/components/site/Breadcrumb'
 import { Emblem } from '@/components/site/Emblem'
+import { FeedLink } from '@/components/site/FeedLink'
 import { dress } from '@/components/styles'
 import { TimesCard } from '@/components/times/TimesCard'
-import { contextHref, emblemOf } from '@/lib/site'
+import { contextHref, emblemOf, feedHref } from '@/lib/site'
 
 import type { SectionProps } from '../types'
 
@@ -65,6 +66,16 @@ export function Section({ context, chain, style, subContexts, pages, pinned, lat
           </div>
         </div>
         {context.tagline ? <p className="mt-4 text-lg text-news-700">{context.tagline}</p> : null}
+        {/* Follow the desk: in its own ink and face, so GirlieTea's reads in rose Fredoka. */}
+        <p className="mt-4 font-label text-[11px] font-semibold uppercase tracking-[0.16em]">
+          <FeedLink
+            href={feedHref(context)}
+            className="text-(--accent-ink) transition-colors hover:text-lagoon-600"
+            title={`${context.name} as an RSS feed`}
+          >
+            Subscribe to {context.name}
+          </FeedLink>
+        </p>
       </header>
 
       {context.intro ? (

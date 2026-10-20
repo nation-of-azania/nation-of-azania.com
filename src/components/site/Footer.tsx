@@ -1,8 +1,9 @@
 import Link from 'next/link'
 
-import { archiveHref, type SiteNav } from '@/lib/site'
+import { archiveHref, feedHref, type SiteNav } from '@/lib/site'
 
 import { Crest } from './Crest'
+import { FeedLink } from './FeedLink'
 
 /** Deep-sea colophon with the crest, the national motto and site links. */
 export function Footer({ nav }: { nav: SiteNav }) {
@@ -67,8 +68,16 @@ export function Footer({ nav }: { nav: SiteNav }) {
             </nav>
           </div>
         </div>
-        <div className="mt-12 border-t border-sand-200/15 pt-6 text-xs text-sand-200/60">
+        <div className="mt-12 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-t border-sand-200/15 pt-6 text-xs text-sand-200/60">
           <p>© {new Date().getFullYear()} The Nation of Azania.</p>
+          {/* The whole Gazette, as a feed: beside the colophon, where a reader looks for how to follow a paper. */}
+          <FeedLink
+            href={feedHref(nav.top)}
+            className="uppercase tracking-[0.2em] text-saffron-300 transition-colors hover:text-saffron-200 focus-visible:outline-saffron-300"
+            title={`${nav.top.name} as an RSS feed`}
+          >
+            The Gazette by RSS
+          </FeedLink>
         </div>
       </div>
     </footer>

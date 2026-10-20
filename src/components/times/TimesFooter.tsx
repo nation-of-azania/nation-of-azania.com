@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
-import { archiveHref, contextHref, type SiteNav } from '@/lib/site'
+import { FeedLink } from '@/components/site/FeedLink'
+import { archiveHref, contextHref, feedHref, type SiteNav } from '@/lib/site'
 
 /** The Azanian Times colophon: deep cinnabar, lagoon accents, an independent tone. */
 export function TimesFooter({ nav }: { nav: SiteNav }) {
@@ -40,6 +41,16 @@ export function TimesFooter({ nav }: { nav: SiteNav }) {
                   </Link>
                 </li>
               ))}
+              <li>
+                <FeedLink
+                  href={feedHref(nav.top)}
+                  className="text-news-100/85 transition-colors hover:text-lagoon-300"
+                  glyphClassName="text-lagoon-300"
+                  title={`${nav.top.name} as an RSS feed`}
+                >
+                  RSS feed
+                </FeedLink>
+              </li>
             </ul>
           </nav>
         </div>

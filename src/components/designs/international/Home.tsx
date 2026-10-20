@@ -5,8 +5,9 @@ import { InitiativeList } from '@/components/intl/InitiativeList'
 import { IntlCredit } from '@/components/intl/IntlByline'
 import { INTL_ACTION, IntlHeading } from '@/components/intl/IntlHeading'
 import { RecordList, RecordRef } from '@/components/intl/IntlRecord'
+import { FeedLink } from '@/components/site/FeedLink'
 import { articleHref, formatDate, resolveByline } from '@/components/site/format'
-import { archiveHref } from '@/lib/site'
+import { archiveHref, feedHref } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
@@ -102,9 +103,14 @@ export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
           id="recent-records"
           label="Recent entries"
           action={
-            <Link href={archive} className={INTL_ACTION}>
-              The full register →
-            </Link>
+            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+              <Link href={archive} className={INTL_ACTION}>
+                The full register →
+              </Link>
+              <FeedLink href={feedHref(top)} className={INTL_ACTION} title={`${top.name} as an RSS feed`}>
+                Feed
+              </FeedLink>
+            </span>
           }
         />
         <RecordList articles={latest} empty="Nothing has been entered in the register yet." />

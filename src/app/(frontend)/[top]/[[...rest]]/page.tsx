@@ -22,12 +22,17 @@ import {
   contextHref,
   contextStyle,
   designOf,
+  feedHref,
+  feedTitle,
   getPageLinks,
   getSiteTree,
   idsBelow,
   resolveRoute,
+  SITE_FEED_HREF,
+  SITE_FEED_TITLE,
   type Route,
 } from '@/lib/site'
+import type { Context } from '@/payload-types'
 
 /**
  * Every public page below a top-level context, at any depth: its front page,
@@ -95,7 +100,8 @@ const pathOf = (rest?: string[]) => (rest ?? []).map(decodeURIComponent).join('/
  * the publication as the site name, the title and summary, and the page's
  * own card from /og/<path> (versioned by `updatedAt`, so the long-cached
  * picture turns over with the page). An article is an `article` to Open
- * Graph, with its date and byline; everything else a `website`.
+ * Graph, with its date and byline; everything else a `website`. Every page
+ * also names the feeds a reader can follow it through (`feedsOf`).
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { top, rest } = await params
@@ -111,10 +117,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const byline = resolveByline(article)
     const { section } = kickerOf(article)
     const image = { ...cardImageFor(path, article.updatedAt), alt: `${article.title} · ${siteName}` }
+    const context = article.context
+    const chain = (await getSiteTree()).ancestors(typeof context === 'number' ? context : context.id)
     return {
       title: article.title,
       description,
       authors: byline ? [{ name: byline.name }] : undefined,
+      alternates: feedsOf(chain.length ? chain : [route.top]),
       openGraph: {
         type: 'article',
         siteName,
@@ -133,15 +142,38 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   if ('page' in loaded && loaded.page && route.kind === 'page') {
-    return website({
-      title: loaded.page.title,
-      description: undefined,
-      path: `${contextHref(route.context)}/${route.slug}`,
-      updatedAt: loaded.page.updatedAt,
-      siteName,
-    })
+    return {
+      ...website({
+        title: loaded.page.title,
+        description: undefined,
+        path: `${contextHref(route.context)}/${route.slug}`,
+        updatedAt: loaded.page.updatedAt,
+        siteName,
+      }),
+      alternates: feedsOf(route.chain),
+    }
   }
-  return titleOf(route)
+  return {
+    ...titleOf(route),
+    alternates: feedsOf(route.kind === 'section' ? route.chain : [route.top]),
+  }
+}
+
+/**
+ * The feeds a page is covered by, most specific first (a reader or a
+ * browser extension offers them in this order): the context the page is
+ * in, the paper above it when that is a different one, and the nation's
+ * own (src/lib/feed.ts).
+ */
+function feedsOf(chain: Context[]): Metadata['alternates'] {
+  const top = chain[0]
+  const context = chain[chain.length - 1]
+  const feeds = [
+    ...(context && top ? [{ url: feedHref(context), title: feedTitle(context, top) }] : []),
+    ...(context && top && context.id !== top.id ? [{ url: feedHref(top), title: top.name }] : []),
+    { url: SITE_FEED_HREF, title: SITE_FEED_TITLE },
+  ]
+  return { types: { 'application/rss+xml': feeds } }
 }
 
 /**

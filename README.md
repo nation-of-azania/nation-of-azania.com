@@ -290,6 +290,42 @@ in place of anything slow. Cards are cached for a year at the CDN; the
 page's metadata versions the URL (`?v=<updatedAt>`) so they turn over
 with the page.
 
+### RSS feeds
+
+Every context has an RSS feed of its published articles and those of
+everything below it, newest first, thirty at a time: `/gov/feed.xml` is
+the whole Gazette, `/gov/girlietown/feed.xml` the town's record in it,
+`/times/girlietea/feed.xml` the column, and `/feed.xml` everything the
+nation publishes. Each item carries the article's title and permalink,
+its first publication date, the byline's name (never an address; accounts
+have none), its type and context as categories, the excerpt, the full
+text as HTML (pictures and galleries as themselves, a map as its
+clipping, a player as the still render of their skin, the 3D and
+Litematica exhibits as a note and a link to the page) and its
+link-preview card as `media:content`, so a Discord RSS bot unfurls it the
+way a pasted link does. The channel is named after the paper ("GirlieTea
+· The Azanian Times"), described by the context's tagline and pictured by
+its emblem.
+
+Every page names its feeds in its `<head>` (its context's, the paper's
+and the nation's, most specific first), so a reader or browser extension
+finds them from any URL, and each design shows a *Subscribe* link where a
+reader would look for one: beside "All articles" in the Gazette and in
+its colophon, under a desk's name in the Times and in its colophon,
+beside "The full register" in International and in its colophon, each in
+the paper's own ink and, under Cherry Blossom, in GirlieTown's rose.
+Opened in a browser, a feed renders through `public/feed.xsl` as a page
+in the paper's colours that says what a feed is and how to subscribe;
+feed readers ignore the stylesheet.
+
+The feeds are built by `src/lib/feed.ts` (the HTML by `src/lib/feedHtml.ts`)
+and served by `src/app/(frontend)/feeds/[[...path]]/route.ts`;
+`next.config.ts` rewrites `/feed.xml` and `/<context path>/feed.xml`
+there, since a route can't share a segment with the catch-all page, which
+is why `feeds` is a reserved top-level slug. A feed is cached for five
+minutes at the CDN and served stale for an hour while a fresh one is
+built, so a new article reaches subscribers within minutes of publishing.
+
 ### Live preview
 
 The article and page editors have a **Live Preview** button (the eye icon
@@ -670,6 +706,7 @@ src/
 ├─ app/
 │  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
 │  │  ├─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
+│  │  ├─ feeds/         # /feeds/<path>: the RSS feeds, reached as /<path>/feed.xml and /feed.xml
 │  │  └─ mapclip/       # /mapclip?town=…: a clipping of the Rulercraft map, for the map block
 │  └─ (payload)/        # Payload admin UI + REST/GraphQL API routes
 ├─ access/              # role helpers and context grants (scope.ts)

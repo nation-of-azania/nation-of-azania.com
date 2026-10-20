@@ -3,10 +3,11 @@ import Link from 'next/link'
 import { ArticleCard } from '@/components/site/ArticleCard'
 import { Crest } from '@/components/site/Crest'
 import { DocumentCard } from '@/components/site/DocumentCard'
+import { FeedLink } from '@/components/site/FeedLink'
 import { FlagTick } from '@/components/site/FlagTick'
 import { LinkButton } from '@/components/site/LinkButton'
 import { SectionHeading } from '@/components/site/SectionHeading'
-import { archiveHref, contextHref } from '@/lib/site'
+import { archiveHref, contextHref, feedHref } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
@@ -102,12 +103,18 @@ export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
           eyebrow="Dispatches"
           title="Latest from the Gazette"
           action={
-            <Link
-              href={archive}
-              className="text-sm font-medium text-sea-700 transition-colors hover:text-sea-600"
-            >
-              All articles →
-            </Link>
+            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm font-medium">
+              <Link href={archive} className="text-sea-700 transition-colors hover:text-sea-600">
+                All articles →
+              </Link>
+              <FeedLink
+                href={feedHref(top)}
+                className="text-saffron-600 transition-colors hover:text-sea-700"
+                title="The Gazette as an RSS feed"
+              >
+                Subscribe
+              </FeedLink>
+            </span>
           }
         />
         {latest.length > 0 ? (
