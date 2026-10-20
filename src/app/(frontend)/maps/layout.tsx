@@ -36,9 +36,11 @@ export const viewport: Viewport = { themeColor: DESIGN_THEME.gazette }
 
 export default async function MapsLayout({ children }: { children: ReactNode }) {
   const data = await getMapData()
-  after(async () => {
-    const payload = await getPayload({ config })
-    await syncIfStale(payload)
-  })
+  // Never fails the page, nor a build that prerenders it without a database.
+  after(() =>
+    getPayload({ config })
+      .then(syncIfStale)
+      .catch(() => {}),
+  )
   return <MapsShell data={data}>{children}</MapsShell>
 }

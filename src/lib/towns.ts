@@ -158,12 +158,16 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   return note({ status: 'synced', note: `${azanianCount} Azanian towns${newTowns}.` })
 }
 
-/** Reads the map if the last reading is stale; for after() on Azania Maps' pages. */
+/**
+ * Reads the map if the last reading is stale; for after() on Azania Maps'
+ * pages, which also runs when a page is regenerated or built, so it never
+ * throws.
+ */
 export async function syncIfStale(payload: Payload): Promise<void> {
-  const settings = await payload.findGlobal({ slug: 'azania-maps', depth: 0 })
-  const last = settings.syncedAt ? Date.parse(settings.syncedAt) : 0
-  if (Date.now() - last < STALE_AFTER_MS) return
   try {
+    const settings = await payload.findGlobal({ slug: 'azania-maps', depth: 0 })
+    const last = settings.syncedAt ? Date.parse(settings.syncedAt) : 0
+    if (Date.now() - last < STALE_AFTER_MS) return
     await syncTowns(payload)
   } catch (error) {
     payload.logger.error({ err: error, msg: 'Azania Maps: reading the Rulercraft map failed' })
