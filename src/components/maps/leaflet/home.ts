@@ -45,7 +45,6 @@ type HomeInternals = L.Map & {
   _pixelOrigin: L.Point
   _lastCenter: L.LatLng | null
   _animatingZoom?: boolean
-  _flyToFrame?: number
   _panAnim?: { _inProgress?: boolean }
   dragging: L.Handler & { moving?: () => boolean }
 }
@@ -67,7 +66,7 @@ export function createHome(map: L.Map, tiles: AzaniaTileLayer): Home {
   let world = 0
   return {
     check: () => {
-      if (internals._animatingZoom || internals._flyToFrame || !map.dragging.enabled()) return null
+      if (internals._animatingZoom || !map.dragging.enabled()) return null
       const zoom = map.getZoom()
       const x = map.getCenter().lng
       const slack = SLACK_PX / pixelsPerBlock(zoom)
