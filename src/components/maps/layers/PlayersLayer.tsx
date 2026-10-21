@@ -248,14 +248,15 @@ export function PlayersLayer({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close()
     }
-    map.on('move zoom', follow)
+    // A viewreset is the map re-based a world over (leaflet/home.ts): the head stands again, so the card follows it.
+    map.on('move zoom viewreset', follow)
     map.on('zoomstart', hide)
     map.on('zoomend', show)
     map.on('click', close)
     window.addEventListener('keydown', onKey)
     placeCardRef.current()
     return () => {
-      map.off('move zoom', follow)
+      map.off('move zoom viewreset', follow)
       map.off('zoomstart', hide)
       map.off('zoomend', show)
       map.off('click', close)

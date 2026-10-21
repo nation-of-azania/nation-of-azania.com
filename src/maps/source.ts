@@ -14,8 +14,10 @@ import { TILE_SIZE, type Point } from './geo'
  * void drawn past the poles. The world doesn't wrap in the game — nobody
  * walks west out of one edge into the other — but the live map repeats it
  * to either side so it can be scrolled without end
- * (src/components/maps/leaflet/canvas.tsx), and says the repeats aren't
- * real without a word (src/components/maps/layers/WorldEdge.tsx).
+ * (src/components/maps/leaflet/canvas.tsx), says the repeats aren't real
+ * without a word (src/components/maps/layers/WorldEdge.tsx), and keeps
+ * the reader in the real copy, re-basing itself a world over whenever the
+ * view's centre crosses an edge (src/components/maps/leaflet/home.ts).
  * WORLD_LIMIT (src/maps/geo.ts) stays the generous bound the server checks
  * coordinates against; this is the picture's own extent.
  */
