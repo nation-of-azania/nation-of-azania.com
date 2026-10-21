@@ -23,6 +23,10 @@
 .az-tile {
   image-rendering: pixelated;
 }
+/* Past the coarsest tiles, those tiles are drawn smaller: smoothed, since dropping their pixels only speckles them. */
+.az-far .az-tile {
+  image-rendering: auto;
+}
 
 /* Only what is drawn takes the pointer; the ground beneath stays Leaflet's. Leaflet's own
    stylesheet turns every path in its panes off, so the hit strokes are named as well as their group. */

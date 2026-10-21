@@ -7,6 +7,7 @@ import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
 import type { Drawing } from '@/maps/registry'
+import { clampToWorld } from '@/maps/source'
 
 import type { EditorUpdate } from '../context'
 import { useLatest } from '../hooks'
@@ -59,7 +60,8 @@ function usePress<T extends SVGElement>(ref: RefObject<T | null>, handlers: Pres
     const element = ref.current
     if (!element) return
     L.DomEvent.disableClickPropagation(element as unknown as HTMLElement)
-    const at = (event: PointerEvent) => roundPoint(toPoint(map.mouseEventToLatLng(event)))
+    // A drag past the world's edge stops at the edge: nothing is ever drawn in an echo of the world.
+    const at = (event: PointerEvent) => roundPoint(clampToWorld(toPoint(map.mouseEventToLatLng(event))))
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return
       event.stopPropagation()
@@ -426,7 +428,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
     const container = map.getContainer()
     let points: Point[] | null = null
     const at = (event: PointerEvent) =>
-      roundPoint(toPoint(map.mouseEventToLatLng(event as unknown as MouseEvent)))
+      roundPoint(clampToWorld(toPoint(map.mouseEventToLatLng(event as unknown as MouseEvent))))
     const onDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.pointerType === 'mouse') return
       event.preventDefault()

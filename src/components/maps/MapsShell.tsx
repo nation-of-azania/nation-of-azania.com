@@ -33,6 +33,7 @@ import {
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
 import { settlements, siteFacts, siteTitle } from '@/maps/sites'
+import { inWorld, wrapPoint } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
@@ -162,9 +163,19 @@ function standingOf(rights: MapRights, towns: MapTown[]): string {
 }
 
 /**
+ * The map's spot as an address names it: the world repeats east and west
+ * on the live map, and a centre in an echo of it is given as the same spot
+ * in the real world, so a shared link opens there.
+ */
+const realPosition = (position: MapPosition | null): MapPosition | null =>
+  position && { centre: wrapPoint(position.centre), zoom: position.zoom }
+
+/**
  * The block under the pointer, else the middle of the view: both change
  * with every move, so they live in small stores rather than React state,
- * and only this readout re-renders for them.
+ * and only this readout re-renders for them. In an echo of the world the
+ * pointer is over nothing, and a centre there names no spot a player can
+ * reach, so neither is read out.
  */
 function PointerReadout({
   pointer,
@@ -184,7 +195,7 @@ function PointerReadout({
       bare={bare}
       className="pointer-events-auto"
       hint={under ? 'Under the pointer' : 'Centre'}
-      point={under ?? position?.centre ?? null}
+      point={under ?? (position && inWorld(position.centre) ? position.centre : null)}
       towns={towns}
     />
   )
@@ -442,7 +453,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       if (!position) return
       window.clearTimeout(handle)
       handle = window.setTimeout(() => {
-        const next = `${window.location.pathname}${mapsQuery({ at: position, layers, view: viewing?.id ?? null })}`
+        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, view: viewing?.id ?? null })}`
         if (next !== `${window.location.pathname}${window.location.search}`)
           window.history.replaceState(window.history.state, '', next)
       }, 300)
@@ -477,7 +488,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const select = useCallback(
     (next: MapSelection | null) => {
       setEditor(null)
-      const query = mapsQuery({ at: centreStore.get(), layers, view: viewing?.id ?? null })
+      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, view: viewing?.id ?? null })
       startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
     },
     [router, centreStore, layers, viewing, setEditor],

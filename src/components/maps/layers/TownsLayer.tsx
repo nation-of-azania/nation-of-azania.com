@@ -44,8 +44,11 @@ const labelType = (zoom: number) => {
   return { fontSize, tracking: fontSize * 0.14, lift: zoom >= -0.5 ? 22 : 14 }
 }
 
-/** A site's mark shrinks a little at the scale of the nation, as the pins do. */
-const markScale = (zoom: number) => (far(zoom) ? 0.75 : 1)
+/** A site's mark shrinks a little at the scale of the nation, as the pins do, and more at the scale of the world. */
+const markScale = (zoom: number) => (zoom <= -6 ? 0.6 : far(zoom) ? 0.75 : 1)
+
+/** A town's lozenge, half its width: smaller at the scale of the world, where towns crowd. */
+const lozenge = (zoom: number) => (zoom <= -5 ? 3.5 : 5)
 
 /** Towns by weight: the biggest keep their names when space is short; the held sites come after every town, the richest first. */
 const byWeight = (towns: MapTown[]) =>
@@ -242,6 +245,7 @@ export function TownLabels({
 }) {
   const interactive = Boolean(onSelect)
   const scale = markScale(projection.zoom)
+  const r = lozenge(projection.zoom)
   return (
     <g className="az-town-names">
       {byWeight(towns).map((town) => {
@@ -264,7 +268,7 @@ export function TownLabels({
               </SiteMark>
             ) : (
               <path
-                d={`M${hx} ${hy - 5}L${hx + 5} ${hy}L${hx} ${hy + 5}L${hx - 5} ${hy}Z`}
+                d={`M${hx} ${hy - r}L${hx + r} ${hy}L${hx} ${hy + r}L${hx - r} ${hy}Z`}
                 fill={isSelected ? GROUND.saffron : GROUND.sea800}
                 stroke={GROUND.whitewash}
                 strokeWidth={1.5}
