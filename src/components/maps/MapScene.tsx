@@ -6,6 +6,7 @@ import type { MapData, MapRights, MapTown, MapViewData } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
 import { pixelsPerBlock } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
+import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
@@ -17,10 +18,12 @@ import { Tools } from './editor/Tools'
 import { useLatest } from './hooks'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
-import { planLabels } from './layers/labels'
+import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
+import { LabelPlacer, type Projection } from './layers/projection'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
+import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
 import {
   fitBounds,
   flyTo,
@@ -118,8 +121,9 @@ export function MapScene(props: SceneProps) {
         const centre = map.containerPointToLatLng(
           L.point(frame.left + frame.width / 2, frame.top + frame.height / 2),
         )
+        // A frame drawn over an echo of the world is the same frame over the real one.
         return {
-          centre: roundPoint(toPoint(centre)),
+          centre: roundPoint(wrapPoint(toPoint(centre))),
           span: Math.round(frame.width / pixelsPerBlock(map.getZoom())),
         }
       },
@@ -311,6 +315,7 @@ export function MapScene(props: SceneProps) {
       onMove={onMove}
       onPointer={onPointer}
       onReady={onReady}
+      wrap
     >
       <Layers {...props} />
     </MapCanvas>
@@ -319,7 +324,9 @@ export function MapScene(props: SceneProps) {
 
 /**
  * The nation, in order: claims under roads under places under events under
- * highlights under the editor. Memoised, so the shell's own re-renders (a
+ * highlights under the editor. The world repeats east and west, so the
+ * same layers are drawn again, washed, for each echo on the page, and the
+ * seams go over everything. Memoised, so the shell's own re-renders (a
  * sheet dragged, the clock's tick) don't redraw the overlay; it redraws
  * when the view settles (useProjection) or when what it shows changes.
  */
@@ -374,67 +381,83 @@ const Layers = memo(function Layers({
   // An article's highlights, shown or being drawn, outrank the map's own names.
   const drawings =
     editor?.kind === 'view' ? editor.draft.drawings : viewing ? viewing.drawings : []
-  const labels = planLabels(projection, {
-    drawings,
+  const shown = {
     towns: show('towns') ? data.towns : [],
     roads: show('roads') ? roads : [],
     places: show('places') ? places : [],
     events: show('events') ? events : [],
-    now,
-    phases,
-    selectedPlace,
-    selectedEvent,
+  }
+  // One placer for the real world and its echoes, so no name lands on another across a seam.
+  const placer = new LabelPlacer()
+  const labels = planLabels(projection, { drawings, ...shown, now, phases, selectedPlace, selectedEvent }, placer)
+  const echoes = echoesIn(projection).map((copy) => {
+    const echo = echoProjection(projection, copy)
+    return { copy, echo, labels: planLabels(echo, { ...shown, now, phases, selectedPlace, selectedEvent }, placer) }
   })
 
-  return (
+  /** The nation's layers over one projection: the real world's, or an echo's. */
+  const nation = (at: Projection, plan: LabelPlan) => (
     <>
       {show('towns') ? (
         <TownsLayer
           emphasised={emphasised}
           onSelect={selectTown}
-          projection={projection}
+          projection={at}
           selected={selectedTown}
           towns={data.towns}
         />
       ) : null}
       {show('roads') ? (
         <RoadsLayer
-          labels={labels.roads}
+          labels={plan.roads}
           onSelect={(road) => onSelect({ kind: 'road', id: road.id })}
-          projection={projection}
+          projection={at}
           roads={roads}
           selected={selection?.kind === 'road' ? selection.id : null}
         />
       ) : null}
       {show('places') ? (
         <PlacesLayer
-          labels={labels.places}
+          labels={plan.places}
           onSelect={(place) => onSelect({ kind: 'place', id: place.id })}
           places={places}
-          projection={projection}
+          projection={at}
           selected={selectedPlace}
         />
       ) : null}
       {show('events') ? (
         <EventsLayer
           events={events}
-          labels={labels.events}
+          labels={plan.events}
           now={now}
           onSelect={(event) => onSelect({ kind: 'event', id: event.id })}
           phases={phases}
-          projection={projection}
+          projection={at}
           selected={selectedEvent}
         />
       ) : null}
       {show('towns') ? (
         <TownLabels
-          labels={labels.towns}
+          labels={plan.towns}
           onSelect={selectTown}
-          projection={projection}
+          projection={at}
           selected={selectedTown}
           towns={data.towns}
         />
       ) : null}
+    </>
+  )
+
+  return (
+    <>
+      <EchoWash projection={projection} />
+      {nation(projection, labels)}
+      {/* The echoes: the same nation, faded; a click on anything in one opens the real thing, and the map comes back to it. */}
+      {echoes.map(({ copy, echo, labels: plan }) => (
+        <g className="az-echo" key={copy} opacity={0.55}>
+          {nation(echo, plan)}
+        </g>
+      ))}
       {viewing && editor?.kind !== 'view' ? (
         <DrawingsLayer drawings={viewing.drawings} projection={projection} />
       ) : null}
@@ -447,6 +470,7 @@ const Layers = memo(function Layers({
           rights={rights}
         />
       ) : null}
+      <Seams projection={projection} />
     </>
   )
 })

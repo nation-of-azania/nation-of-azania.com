@@ -25,7 +25,9 @@ export type LabelPlan = {
  * aside. One pure pass rather than claims made while drawing, so a layer
  * rendered twice (as React does to check) decides the same. Hosts (the
  * live map, an article's still, an embedded map) plan here, so all three
- * agree; a layer left out of the plan draws no names.
+ * agree; a layer left out of the plan draws no names. The live map plans
+ * the world's echoes after the real world, on the same placer, so a name
+ * across a seam steps aside like any other.
  */
 export function planLabels(
   projection: Projection,
@@ -50,8 +52,8 @@ export function planLabels(
     selectedPlace?: number | null
     selectedEvent?: number | null
   },
+  placer = new LabelPlacer(),
 ): LabelPlan {
-  const placer = new LabelPlacer()
   reserveDrawings(placer, projection, drawings)
   const pins = placePins(projection, places, selectedPlace)
   if (pins) for (const pin of pins.items) placer.claim(pinRect(pin))

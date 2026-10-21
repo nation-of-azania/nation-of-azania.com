@@ -482,8 +482,28 @@ and road styles in `src/maps/icons.tsx` and `src/maps/palette.ts`.
 taught Dynmap's projection: zoom 0 is the tiles' own scale, two pixels a
 block, and zooming closer scales the blocks up pixel for pixel. Tiles come
 through the site's cache, and are only ever asked for at Dynmap's own
-levels; a zoom in between scales the nearest. The map's JavaScript loads
-only on `/maps` and in an interactive Map block, never with any other page.
+levels; a zoom in between scales the nearest, and the map zooms out two and
+a half levels past the coarsest (to −7.5), where the whole world fits
+beside the panel: down to −6 the level-5 tiles are drawn smaller, and past
+that the world is one picture, the level-5 tiles drawn once into a canvas
+and laid over the map in their place (`leaflet/sheet.ts`), since seven
+hundred tiles on screen made a pan stutter. The map's JavaScript loads only
+on `/maps` and in an interactive Map block, never with any other page.
+
+The live map repeats the world east and west, so a pan never runs out of
+map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
+36,864, the level-5 tiles' columns −18 to 17). The world doesn't wrap in
+the game — nobody walks west out of one edge into the other — and the map
+says so without a word, since that is a thing to see rather than read:
+each repeat is an **echo**, the sheet washed pale under it and the nation's
+layers drawn faded over it, and at every edge the sheet is **torn**, a dark
+gap with ragged paper either side (`layers/WorldEdge.tsx`). An echo is
+inert: the pointer over it is over nothing (the readout goes quiet), a
+click on its ground lands nowhere, a tool's drag stops at the world's edge,
+and a frame drawn over it is saved over the real world; but a click on a
+town or a place in an echo opens the real one, and the map comes back to
+it. The address in the query always names the real spot. An article's
+embedded map stays bounded.
 The layers themselves are plain SVG (`src/components/maps/layers`), drawn
 through one projection interface, so the same components draw the live map
 in the browser and a block's still picture on the server. They are
@@ -496,8 +516,9 @@ carries what's already drawn into place until the fresh render lands.
   easing around the pointer as you go; a click-wheel mouse zooms half a
   level a notch; a trackpad pinch (which browsers send as a wheel with Ctrl
   held) zooms at its own ratio. The ratios are at the top of
-  `leaflet/canvas.tsx`. In an article's embedded map the wheel is left to
-  the page, so scrolling past it never catches.
+  `leaflet/canvas.tsx`, with the zoom's floor and ceiling, which the wheel
+  and the buttons both keep to. In an article's embedded map the wheel is
+  left to the page, so scrolling past it never catches.
 - **Names.** Where every name goes is planned in one pass before anything
   is drawn (`layers/labels.ts`): an article's highlights outrank the map's
   own names, no name ever covers a pin or a mark, and towns, roads, places

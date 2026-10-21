@@ -16,9 +16,19 @@ import { createPortal } from 'react-dom'
 
 import { pixelsPerBlock } from '@/maps/palette'
 import { TILE_SIZE, WORLD_LIMIT, type Bounds, type Point } from '@/maps/geo'
-import { cachedTileUrl, MAPS } from '@/maps/source'
+import {
+  cachedTileUrl,
+  inWorld,
+  MAPS,
+  WORLD_EAST,
+  WORLD_NORTH,
+  WORLD_SOUTH,
+  WORLD_WEST,
+} from '@/maps/source'
 
 import type { Projection } from '../layers/projection'
+
+import { attachSheets, SHEET_ZOOM } from './sheet'
 
 /**
  * Leaflet, taught the Rulercraft map's projection. Block (x, z) is pixel
@@ -33,28 +43,54 @@ export const AzaniaCRS: L.CRS = L.Util.extend({}, L.CRS.Simple, {
   infinite: true,
 })
 
+/**
+ * The same, with the world repeated east and west: Leaflet wraps the tiles'
+ * columns at the world's edges (src/maps/source.ts), so a pan never runs
+ * out of map. The world doesn't wrap in the game; the live map says so
+ * without words, washing the echoes and tearing the sheet at every edge
+ * (src/components/maps/layers/WorldEdge.tsx).
+ */
+export const AzaniaWrappingCRS: L.CRS = L.Util.extend({}, AzaniaCRS, {
+  wrapLng: [WORLD_WEST, WORLD_EAST],
+})
+
 export const toLatLng = ([x, z]: Point): L.LatLng => L.latLng(z, x)
 export const toPoint = (latlng: L.LatLng): Point => [latlng.lng, latlng.lat]
 export const toLatLngBounds = (bounds: Bounds): L.LatLngBounds =>
   L.latLngBounds([bounds.minZ, bounds.minX], [bounds.maxZ, bounds.maxX])
 
 export const MAX_ZOOM = 3
-/** The flat map's coarsest level; Dynmap draws nothing coarser. */
-export const MIN_ZOOM = -MAPS.flat.maxLevel
+/** The flat map's coarsest level; Dynmap draws nothing coarser, and no tile is ever asked for past it. */
+export const MIN_NATIVE_ZOOM = -MAPS.flat.maxLevel
+/**
+ * Two and a half levels further out than the tiles go: the level-5 tiles
+ * drawn smaller down to SHEET_ZOOM, and past that the world as one picture
+ * (./sheet.ts). At −7 the whole world is 1,152 px across; at −7.5 it fits
+ * beside the panel on a laptop, with its echoes and torn edges beyond.
+ */
+export const MIN_ZOOM = MIN_NATIVE_ZOOM - 2.5
 
 /** A 1×1 transparent PNG: what a tile shows while the map can't be reached, so the backdrop shows through. */
 const EMPTY_TILE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
-/** The Rulercraft map's tiles through the site's cache (src/maps/source.ts); only the native levels are ever asked for. */
+/**
+ * The Rulercraft map's tiles through the site's cache (src/maps/source.ts);
+ * only the native levels are ever asked for, and only over the sheet the
+ * map draws: beyond it to the north and south lies nothing, and to the
+ * east and west, when the world wraps, an echo's tiles are the sheet's own.
+ * Past SHEET_ZOOM the tiles give way to the sheet.
+ */
 class AzaniaTileLayer extends L.TileLayer {
-  constructor() {
+  constructor(wrap: boolean) {
     super('', {
       tileSize: TILE_SIZE,
-      minZoom: MIN_ZOOM,
+      minZoom: SHEET_ZOOM,
       maxZoom: MAX_ZOOM,
-      minNativeZoom: MIN_ZOOM,
+      minNativeZoom: MIN_NATIVE_ZOOM,
       maxNativeZoom: 0,
+      bounds: toLatLngBounds({ minX: WORLD_WEST, maxX: WORLD_EAST, minZ: WORLD_NORTH, maxZ: WORLD_SOUTH }),
+      noWrap: !wrap,
       keepBuffer: 3,
       updateWhenZooming: false,
       errorTileUrl: EMPTY_TILE,
@@ -245,6 +281,9 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
   }
 }
 
+/** How far east or west the map may be panned when the world wraps, in blocks: a hundred-odd worlds, which is forever. */
+const WRAP_REACH = WORLD_LIMIT * 100
+
 type CanvasProps = {
   /** Where to open: a centre and zoom, or bounds to fit. */
   initial: MapPosition | { bounds: Bounds; padding?: number }
@@ -255,6 +294,12 @@ type CanvasProps = {
   interactive?: boolean
   /** Whether the wheel zooms; off in an article, where it would catch the page's scroll. */
   wheel?: boolean
+  /**
+   * Whether the world repeats east and west (the live map); an article's
+   * embed stays bounded. Fixed when the map is made. In an echo the pointer
+   * is over nothing and a click lands nowhere, so neither is passed on.
+   */
+  wrap?: boolean
   onReady?: (map: L.Map) => void
   onMove?: (position: MapPosition) => void
   onPointer?: (point: Point | null) => void
@@ -282,6 +327,7 @@ export function MapCanvas({
   cursor,
   interactive = true,
   wheel = true,
+  wrap = false,
   onReady,
   onMove,
   onPointer,
@@ -306,16 +352,17 @@ export function MapCanvas({
     const container = containerRef.current
     if (!container || mapRef.current) return
     const map = L.map(container, {
-      crs: AzaniaCRS,
+      crs: wrap ? AzaniaWrappingCRS : AzaniaCRS,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       zoomSnap: 0,
       zoomDelta: 0.5,
       zoomControl: false,
       attributionControl: false,
+      // North and south stay bounded either way; east and west only when the world doesn't wrap.
       maxBounds: toLatLngBounds({
-        minX: -WORLD_LIMIT,
-        maxX: WORLD_LIMIT,
+        minX: wrap ? -WRAP_REACH : -WORLD_LIMIT,
+        maxX: wrap ? WRAP_REACH : WORLD_LIMIT,
         minZ: -WORLD_LIMIT,
         maxZ: WORLD_LIMIT,
       }),
@@ -338,7 +385,8 @@ export function MapCanvas({
       map.setView(toLatLng(initial.centre), initial.zoom, { animate: false })
     }
 
-    new AzaniaTileLayer().addTo(map)
+    new AzaniaTileLayer(wrap).addTo(map)
+    const detachSheets = attachSheets(map, wrap)
 
     // The overlay: Leaflet's SVG renderer, with a group of our own for React.
     const renderer = L.svg({ padding: 0.6 }).addTo(map)
@@ -348,30 +396,40 @@ export function MapCanvas({
     svg.appendChild(group)
     setOverlay(group)
 
+    // Past the coarsest tiles, the level-5 tiles are drawn smaller: smoothed, since dropping pixels only speckles them.
+    const far = () => container.classList.toggle('az-far', map.getZoom() < MIN_NATIVE_ZOOM)
+    map.on('zoom', far)
+
     let version = 0
     const settle = () => {
       const view = takeView(map)
       settled.current = view
+      far()
       // Leaflet has just repositioned the overlay for the new view (its own
       // moveend ran first); move what's drawn into place before React runs.
       // A pan leaves the layer points as they were, and the overlay untouched.
       if (drawn.current) setTransform(group, alignment(drawn.current, view))
       setContext({ map, version: ++version, view })
     }
+    // In an echo the pointer is over nothing real, and a click lands nowhere.
+    const real = (point: Point) => !wrap || inWorld(point)
     map.on('moveend', settle)
     map.on('moveend', () =>
       handlers.current.onMove?.({ centre: toPoint(map.getCenter()), zoom: map.getZoom() }),
     )
-    map.on('mousemove', (event: L.LeafletMouseEvent) =>
-      handlers.current.onPointer?.(toPoint(event.latlng)),
-    )
+    map.on('mousemove', (event: L.LeafletMouseEvent) => {
+      const point = toPoint(event.latlng)
+      handlers.current.onPointer?.(real(point) ? point : null)
+    })
     map.on('mouseout', () => handlers.current.onPointer?.(null))
-    map.on('click', (event: L.LeafletMouseEvent) =>
-      handlers.current.onClick?.(toPoint(event.latlng), event),
-    )
-    map.on('dblclick', (event: L.LeafletMouseEvent) =>
-      handlers.current.onDoubleClick?.(toPoint(event.latlng), event),
-    )
+    map.on('click', (event: L.LeafletMouseEvent) => {
+      const point = toPoint(event.latlng)
+      if (real(point)) handlers.current.onClick?.(point, event)
+    })
+    map.on('dblclick', (event: L.LeafletMouseEvent) => {
+      const point = toPoint(event.latlng)
+      if (real(point)) handlers.current.onDoubleClick?.(point, event)
+    })
 
     // The map's box changes when a panel opens beside it.
     const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }))
@@ -383,6 +441,7 @@ export function MapCanvas({
 
     return () => {
       observer.disconnect()
+      detachSheets()
       map.remove()
       mapRef.current = null
       drawn.current = null
