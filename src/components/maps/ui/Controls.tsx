@@ -14,8 +14,10 @@ import {
   type PlaceGroup,
 } from '@/maps/registry'
 
+import { useStore, type Store } from '../hooks'
 import { EventMark } from '../layers/EventsLayer'
 import { SiteMark } from '../layers/SiteMark'
+import type { LiveState } from '../live'
 import { EYEBROW, IconButton, Popover } from './chrome'
 import { Icon } from './icons'
 
@@ -26,24 +28,44 @@ const LAYER_WORDS: Record<MapLayer, string> = {
   events: 'Events',
 }
 
-/** Which of the map's own layers show, and whether past events do. */
+/** The live layer's row: what the feed says, in a few words beside its name. */
+function LiveWords({ store }: { store: Store<LiveState> }) {
+  const live = useStore(store)
+  const words =
+    live.status === 'live'
+      ? `${live.online ?? live.players.length} online`
+      : live.status === 'down'
+        ? 'offline'
+        : live.status === 'asking'
+          ? 'asking…'
+          : null
+  return words ? <span className="ml-auto text-xs text-ink-500">{words}</span> : null
+}
+
+/** Which of the map's own layers show, whether past events do, and whether the players online are. */
 export function LayerMenu({
   layers,
   onChange,
   showPast,
   onShowPast,
+  live,
+  onLive,
+  liveStore,
 }: {
   layers: MapLayer[]
   onChange: (layers: MapLayer[]) => void
   showPast: boolean
   onShowPast: (value: boolean) => void
+  live: boolean
+  onLive: (value: boolean) => void
+  liveStore: Store<LiveState>
 }) {
   const toggle = (layer: MapLayer) =>
     onChange(
       layers.includes(layer) ? layers.filter((other) => other !== layer) : [...layers, layer],
     )
   return (
-    <Popover icon="layers" label="Layers" pressed={layers.length < 4} width="w-56">
+    <Popover icon="layers" label="Layers" pressed={layers.length < 4 || !live} width="w-60">
       <p className={cn(EYEBROW, 'px-2 pt-1')}>Layers</p>
       <ul className="mt-1.5">
         {(Object.keys(MAP_LAYERS) as MapLayer[]).map((layer) => (
@@ -70,6 +92,21 @@ export function LayerMenu({
             ) : null}
           </li>
         ))}
+        <li className="mt-1.5 border-t border-sand-300/70 pt-1.5">
+          <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 hover:bg-sand-100">
+            <input
+              checked={live}
+              className="h-4 w-4 accent-sea-800"
+              onChange={(e) => onLive(e.target.checked)}
+              type="checkbox"
+            />
+            <span>Players (live)</span>
+            {live ? <LiveWords store={liveStore} /> : null}
+          </label>
+          <p className="px-2 pb-1 pl-9 text-[11px] leading-snug text-ink-400">
+            Who’s on the server, where they are, every few seconds. Nothing is kept.
+          </p>
+        </li>
       </ul>
     </Popover>
   )
@@ -184,6 +221,13 @@ export function Legend() {
               <SiteMark facts={{ kind: 'quarry', resource: 'Diamond' }} scale={0.7} x={24} y={10} />
             </svg>
             <span>A site Azania holds: a quarry, a wasteland, a treasure ship</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.saffron} strokeWidth={2} width={12} x={8} y={4} />
+              <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.whitewash} strokeWidth={2} width={12} x={28} y={4} />
+            </svg>
+            <span>A player online now: Azania’s own ringed in saffron</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">

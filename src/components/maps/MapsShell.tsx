@@ -40,6 +40,7 @@ import {
   decodeAt,
   decodeDraw,
   decodeLayers,
+  decodeLive,
   mapsQuery,
   sameSelection,
   selectionHref,
@@ -52,6 +53,7 @@ import { api, ApiError, messageOf } from './api'
 import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
 import { EditorPanel } from './editor/EditorPanel'
 import { createStore, useHydrated, useMediaQuery, useSearch, useStore } from './hooks'
+import { useLivePlayers } from './live'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
 import {
   emptyEvent,
@@ -67,7 +69,7 @@ import {
 import { Notice, TextButton } from './ui/chrome'
 import { DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { Icon } from './ui/icons'
-import { Coordinates, StatusNote, type MapStatus } from './ui/Readouts'
+import { Coordinates, LiveCount, StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
 import { Sheet, type SheetState } from './ui/Sheet'
 import { WhatsOnStrip } from './ui/WhatsOn'
@@ -281,6 +283,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The address names the layers until the visitor chooses.
   const [chosenLayers, setLayers] = useState<MapLayer[] | null>(null)
   const layers = chosenLayers ?? decodeLayers(query.get('layers')) ?? ALL_LAYERS
+  // The players online: on unless the address or the visitor says otherwise; polled only while on and the tab is seen.
+  const [chosenLive, setLive] = useState<boolean | null>(null)
+  const live = chosenLive ?? decodeLive(query.get('layers')) ?? true
+  const liveStore = useLivePlayers(live)
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [viewProblem, setViewProblem] = useState<string | null>(null)
@@ -453,7 +459,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       if (!position) return
       window.clearTimeout(handle)
       handle = window.setTimeout(() => {
-        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, view: viewing?.id ?? null })}`
+        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, live, view: viewing?.id ?? null })}`
         if (next !== `${window.location.pathname}${window.location.search}`)
           window.history.replaceState(window.history.state, '', next)
       }, 300)
@@ -464,7 +470,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       unsubscribe()
       window.clearTimeout(handle)
     }
-  }, [centreStore, layers, viewing])
+  }, [centreStore, layers, live, viewing])
 
   // Opening something looks at it, and on a phone draws the sheet up.
   const [sheetFor, setSheetFor] = useState(selection)
@@ -488,10 +494,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const select = useCallback(
     (next: MapSelection | null) => {
       setEditor(null)
-      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, view: viewing?.id ?? null })
+      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, live, view: viewing?.id ?? null })
       startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
     },
-    [router, centreStore, layers, viewing, setEditor],
+    [router, centreStore, layers, live, viewing, setEditor],
   )
 
   const mayEdit = useCallback(
@@ -834,7 +840,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
     <>
       <LayerMenu
         layers={layers}
+        live={live}
+        liveStore={liveStore}
         onChange={setLayers}
+        onLive={setLive}
         onShowPast={setShowPast}
         showPast={showPast}
       />
@@ -949,6 +958,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
               editor={editor}
               initial={opening}
               layers={sceneLayers}
+              live={live}
+              liveStore={liveStore}
               now={now}
               onApi={onApi}
               onEditor={setEditor}
@@ -986,7 +997,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
               <div className="flex w-full items-end justify-between gap-3">
-                <PointerReadout centre={centreStore} pointer={pointerStore} towns={data.towns} />
+                <div className="flex items-center gap-2">
+                  <PointerReadout centre={centreStore} pointer={pointerStore} towns={data.towns} />
+                  <LiveCount className="pointer-events-auto" store={liveStore} />
+                </div>
                 <WhatsOnStrip
                   className="pointer-events-auto w-full max-w-2xl"
                   data={data}
@@ -1008,6 +1022,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
               <div className="min-w-0 flex-1">
                 <PointerReadout bare centre={centreStore} pointer={pointerStore} towns={data.towns} />
               </div>
+              <LiveCount className="shrink-0 border-0 bg-transparent px-0" store={liveStore} />
               {account}
             </div>
             <div className="flex min-h-full flex-col">{content}</div>

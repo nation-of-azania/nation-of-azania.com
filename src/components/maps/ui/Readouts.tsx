@@ -8,6 +8,8 @@ import { spawnRoute } from '@/maps/spawn'
 import type { Point } from '@/maps/geo'
 import { formatDate } from '@/components/site/format'
 
+import { useStore, type Store } from '../hooks'
+import type { LiveState } from '../live'
 import { Icon } from './icons'
 
 /** Copies text and says so for a moment; quiet when the clipboard is out of reach. */
@@ -104,6 +106,37 @@ export function Coordinates({
         </>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * How many are on the server just now, in a few quiet characters beside the
+ * readout, with a dot that is lit while the feed answers: shown only while
+ * the players layer is on and the feed has answered at least once.
+ */
+export function LiveCount({ store, className }: { store: Store<LiveState>; className?: string }) {
+  const live = useStore(store)
+  if (live.status === 'off' || live.status === 'asking') return null
+  const down = live.status === 'down'
+  const shown = live.players.length
+  const online = live.online ?? shown
+  const title = down
+    ? 'The Rulercraft map isn’t answering, so who is online isn’t known just now.'
+    : `${online} online${online !== shown ? `, ${shown} on the map` : ''}`
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 whitespace-nowrap border border-sand-300/80 bg-sand-50/95 px-2 py-1.5 font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
+        className,
+      )}
+      title={title}
+    >
+      <span
+        aria-hidden="true"
+        className={cn('h-1.5 w-1.5 shrink-0 rounded-full', down ? 'bg-ink-400' : 'bg-lagoon-500')}
+      />
+      <span>{down ? 'offline' : `${online} online`}</span>
+    </span>
   )
 }
 

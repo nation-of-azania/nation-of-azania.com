@@ -15,7 +15,8 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  * and the view itself travels in the query, on any of them:
  *
  *   ?at=<x>,<z>,<zoom>          centre and zoom (zoom 0 is the map's native scale, 2 px per block)
- *   &layers=towns,roads         which layers show (all, when absent)
+ *   &layers=towns,roads         which layers show (all, when absent), with `players` among
+ *                               them for the live players layer, which is on when absent
  *   &view=<id>                  an article's map view, framed with its highlights
  *   &draw=view                  the view editor, open: a new view, or the one named by &view=
  *
@@ -91,11 +92,22 @@ export const isMapLayer = (value: unknown): value is MapLayer =>
 
 export const ALL_LAYERS = Object.keys(MAP_LAYERS) as MapLayer[]
 
+/**
+ * The live players layer's token in `layers`. It isn't one of MAP_LAYERS,
+ * which are the map's own data and what a map view may show; players are
+ * the server's, live, and never part of a view.
+ */
+export const LIVE_LAYER = 'players'
+
 export function decodeLayers(value: string | null | undefined): MapLayer[] | null {
   if (value == null) return null
   const layers = value.split(',').filter(isMapLayer)
   return layers
 }
+
+/** Whether `layers` names the live players layer; null when the address names no layers at all. */
+export const decodeLive = (value: string | null | undefined): boolean | null =>
+  value == null ? null : value.split(',').includes(LIVE_LAYER)
 
 /** What the editor may be asked to open on arrival. */
 export type MapDraw = 'view'
@@ -104,6 +116,7 @@ export type MapDraw = 'view'
 export function mapsQuery({
   at,
   layers,
+  live = true,
   view,
   draw,
 }: {
@@ -111,12 +124,16 @@ export function mapsQuery({
   /** Accepted for the callers that still name a base map; there is only the one, so it isn't written. */
   map?: MapName | null
   layers?: MapLayer[] | null
+  /** Whether the live players layer shows; on unless said otherwise, so it's written only when off or the layers are. */
+  live?: boolean
   view?: number | null
   draw?: MapDraw | null
 }): string {
   const query = new URLSearchParams()
   if (at) query.set('at', encodeAt(at))
-  if (layers && layers.length !== ALL_LAYERS.length) query.set('layers', layers.join(','))
+  if (layers && (layers.length !== ALL_LAYERS.length || !live)) {
+    query.set('layers', [...layers, ...(live ? [LIVE_LAYER] : [])].join(','))
+  }
   if (view) query.set('view', String(view))
   if (draw) query.set('draw', draw)
   const text = query.toString()

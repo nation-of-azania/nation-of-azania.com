@@ -31,6 +31,22 @@ export type LivePlayers = {
 /** How often the map in the browser asks, and the CDN refreshes the answer. */
 export const PLAYERS_EVERY_MS = 3000
 
+/** A move further than this between two readings is a teleport (`/t spawn`), and a head jumps rather than glides. */
+export const TELEPORT_BLOCKS = 300
+
+/** Bedrock players' names start with a dot; the skin service has no head for them. */
+export const isBedrockName = (name: string): boolean => name.startsWith('.')
+
+/**
+ * The town a player is a resident of, among the nation's, by name as Towny
+ * lists residents; null for anyone who isn't Azanian. Case doesn't matter,
+ * since the feed and the marker file don't always agree on it.
+ */
+export function townOfPlayer<T extends { names: string[] }>(name: string, towns: T[]): T | null {
+  const wanted = name.toLowerCase()
+  return towns.find((town) => town.names.some((resident) => resident.toLowerCase() === wanted)) ?? null
+}
+
 type FeedPlayer = {
   type?: unknown
   world?: unknown

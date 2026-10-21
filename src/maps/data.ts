@@ -41,6 +41,8 @@ export type MapTown = {
   nation: string | null
   ruler: string | null
   residents: number
+  /** The residents' names as Towny lists them, for telling Azanians apart among the players online; none for a site. */
+  names: string[]
   chunks: number
   founded: string | null
   /** Towny's "Public Teleport": whether any player may `/t spawn` here; null when the map doesn't say. */
@@ -187,6 +189,10 @@ export function mapTown(town: Town): MapTown {
     nation: town.nation ?? null,
     ruler: town.ruler ?? null,
     residents: town.residentCount ?? 0,
+    names:
+      kind === 'town' && Array.isArray(town.residents)
+        ? town.residents.filter((name): name is string => typeof name === 'string')
+        : [],
     chunks: town.chunks ?? 0,
     founded: town.founded ?? null,
     publicSpawn: typeof town.publicSpawn === 'boolean' ? town.publicSpawn : null,

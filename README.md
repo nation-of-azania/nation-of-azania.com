@@ -562,6 +562,28 @@ carries what's already drawn into place until the fresh render lands.
   players' towns, residents and chunks with the census's trend, and a small
   ledger of **Holdings**: the sites the nation holds, what each pays, and
   the day's total.
+- **Players (live).** Who is on the server and where, as the Rulercraft
+  map's own feed has it, passed on through `/maps/players`
+  (`src/maps/players.ts`) and kept nowhere: the CDN shares each answer
+  among everyone watching for three seconds, the browser asks again every
+  three seconds while the layer is on and the tab is in view (not at all
+  otherwise, and less and less often while the map is down), and the
+  positions live in that browser alone — never in the address, never in
+  storage. Each player is a small Minecraft head (`layers/PlayersLayer.tsx`,
+  plain Leaflet markers in a pane of their own, moved by one animation
+  frame loop, so nothing else on the map is redrawn for a poll) that
+  **glides** from one reading to the next rather than jumping, and jumps
+  only for a teleport; Azania's residents, matched against the towns'
+  resident lists, are ringed in saffron; a Bedrock player (a name starting
+  with ".") or a head that won't load gets a monogram. Names show on hover,
+  on the chosen player, and close in. A click opens a small card beside the
+  head: who they are and, if Azanian, of which town; their coordinates to
+  copy; and the way there as a player has it, the nearest town's `/t spawn`
+  and the walk, since nobody has `/tp`. A head is never drawn in an echo of
+  the world. The layer is on by default (it is the point of a live map, and
+  costs one shared request every few seconds), switched in the layers menu,
+  and remembered in the address's `layers` like the others (`players`
+  among them); a quiet "N online" sits beside the readout.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*

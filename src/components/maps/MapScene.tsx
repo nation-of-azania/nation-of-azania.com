@@ -15,12 +15,14 @@ import type { EditorUpdate } from './context'
 
 import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
-import { useLatest } from './hooks'
+import { useLatest, type Store } from './hooks'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
 import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
+import { PlayersLayer } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
+import type { LiveState } from './live'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
@@ -58,6 +60,9 @@ export type SceneProps = {
   data: MapData
   rights: MapRights
   layers: MapLayer[]
+  /** Whether the players online are shown, and the feed they're read from. */
+  live: boolean
+  liveStore: Store<LiveState>
   showPast: boolean
   now: number
   selection: MapSelection | null
@@ -79,7 +84,7 @@ export type SceneProps = {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { initial, editor, onApi, onMove, onPointer, onEditor } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -304,6 +309,8 @@ export function MapScene(props: SceneProps) {
             </div>
           ) : null}
           {editor ? <PointChip editor={editor} onEditor={onEditor} /> : null}
+          {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
+          <PlayersLayer data={data} enabled={live} store={liveStore} />
         </>
       }
       className="absolute inset-0 z-0"
