@@ -38,7 +38,11 @@ export const privateSpawnNote = (town: Pick<MapTown, 'name'>): string =>
  * the survey hand of the Map block, with a Copy that puts the nearest town's
  * `/t spawn` in the clipboard — the command players actually have — and the
  * walk from there. A live region that stays quiet: coordinates change too
- * often to be read aloud, so only the Copy speaks.
+ * often to be read aloud, so only the Copy speaks. On the map's foot it is
+ * measured against the map's width (the foot is a container): "residents
+ * only" shows from 72rem of map, the hint and the walk from 80rem, and
+ * when the room runs out all the same the walk shrinks first, then the
+ * command, never the coordinates.
  */
 export function Coordinates({
   point,
@@ -66,7 +70,7 @@ export function Coordinates({
         className,
       )}
     >
-      {!bare ? <span className="hidden text-ink-400 sm:inline">{hint}</span> : null}
+      {!bare ? <span className="hidden shrink-0 text-ink-400 @7xl:inline">{hint}</span> : null}
       <span className="shrink-0">
         <span className="opacity-60">X</span> {x} <span className="ml-1 opacity-60">Z</span> {z}
       </span>
@@ -74,11 +78,8 @@ export function Coordinates({
         <>
           <button
             aria-label={`Copy ${route.command}`}
-            className={cn(
-              'inline-flex items-center gap-1 text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500',
-              // In a line of other things it gives way; in its own box the walk gives way first.
-              bare ? 'min-w-0 truncate' : 'shrink-0',
-            )}
+            // The walk and the note give way before it; it gives way before the coordinates.
+            className="inline-flex min-w-0 items-center gap-1 truncate text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
             onClick={() => copy(route.command)}
             title={[
               'Copy the command',
@@ -93,11 +94,11 @@ export function Coordinates({
             </span>
           </button>
           {route.then ? (
-            <span className="hidden min-w-0 truncate text-ink-400 xl:inline">{route.then}</span>
+            <span className="hidden min-w-0 shrink-[8] truncate text-ink-400 @7xl:inline">{route.then}</span>
           ) : null}
           {route.town.publicSpawn === false ? (
             <span
-              className="hidden min-w-0 truncate text-saffron-600 lg:inline"
+              className="hidden min-w-0 shrink-0 text-saffron-600 @6xl:inline"
               title={privateSpawnNote(route.town)}
             >
               residents only

@@ -993,16 +993,24 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <ZoomButtons onZoom={(delta) => sceneApi.current?.zoomBy(delta)} />
           </div>
 
-          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex flex-col items-start gap-2">
+          {/*
+            The foot of the map, measured against the map's own width (a container, since the
+            panel takes its share of the window): on a wide map the readout and the count sit
+            left and the What's-on strip right, taking under half the width; the readout gives
+            way first, showing its hint and walk only on a wide map and shrinking the walk before
+            the command, and the strip's rows scroll within it. On a narrower map the two stack,
+            the strip beneath the readout, full width.
+          */}
+          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex flex-col items-start gap-2 @container">
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
-              <div className="flex w-full items-end justify-between gap-3">
-                <div className="flex items-center gap-2">
+              <div className="flex w-full flex-col items-start gap-2 @4xl:flex-row @4xl:items-end @4xl:justify-between @4xl:gap-3">
+                <div className="flex min-w-0 max-w-full items-center gap-2 @4xl:flex-1">
                   <PointerReadout centre={centreStore} pointer={pointerStore} towns={data.towns} />
-                  <LiveCount className="pointer-events-auto" store={liveStore} />
+                  <LiveCount className="pointer-events-auto shrink-0" store={liveStore} />
                 </div>
                 <WhatsOnStrip
-                  className="pointer-events-auto w-full max-w-2xl"
+                  className="pointer-events-auto w-full max-w-2xl @4xl:w-[45%] @4xl:shrink-0"
                   data={data}
                   now={now}
                   onOpen={(event) => select({ kind: 'event', id: event.id })}
