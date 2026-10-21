@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
 import type { Point } from '../maps/geo'
+import type { TownKind } from '../maps/registry'
 import type { RoadStyle } from '../maps/palette'
 import { DYNMAP_URL, DYNMAP_WORLD, dynmapTileUrl, MAPS, type MapName } from '../maps/source'
 
@@ -313,6 +314,14 @@ export async function renderClip(options: ClipOptions): Promise<Clip> {
 export type Town = {
   /** Towny's own id for the town, which survives renames; null if the map doesn't say. */
   id: string | null
+  /** A players' town, or a site the server runs (src/maps/registry.ts → TOWN_KINDS). */
+  kind: TownKind
+  /** A server site's own words on the map, e.g. "Diamond Production Site, 333$ income per day. …". */
+  siteNote: string | null
+  /** What a server site pays its holder, in $ a day. */
+  income: number | null
+  /** What a quarry produces: "Diamond", "Iron", … */
+  resource: string | null
   name: string
   home: { x: number; y: number; z: number } | null
   outlines: Outline[]
@@ -339,7 +348,35 @@ type MarkerFile = {
 }
 
 /** "Ruler: | Name" style facts out of Towny's info-window HTML. */
-function townFacts(desc: string) {
+/**
+ * Whether a town is one the server runs, and what it pays. Their rulers are
+ * the server's own bots (Ruler1, Ruler2, …), and the line where a players'
+ * town shows its religion carries the site's terms instead:
+ *
+ *   "Diamond Production Site, 333$ income per day. Conquer for passive income. …"
+ *   "Free natural resources for nation members, plus 160$ income per day. …"
+ *   "500$ passive income per day. Conquerable by nations in the Americas, …"
+ */
+function siteOf(name: string, cells: string[], ruler: string | null) {
+  if (!ruler || !/^Ruler\d+$/.test(ruler)) return { kind: 'town' as const, siteNote: null, income: null, resource: null }
+  const siteNote = cells.find((cell) => cell.startsWith('🛐'))?.slice(2).trim() || null
+  const kind: TownKind = /quarry/i.test(name)
+    ? 'quarry'
+    : /wasteland/i.test(name)
+      ? 'wasteland'
+      : /treasure.?ship/i.test(name)
+        ? 'ship'
+        : 'site'
+  const income = /([\d,]+)\s*\$\s*(?:passive\s+)?income per day/i.exec(siteNote ?? '')?.[1]
+  return {
+    kind,
+    siteNote,
+    income: income ? Number(income.replace(/,/g, '')) : null,
+    resource: /^(\w+) Production Site/i.exec(siteNote ?? '')?.[1] ?? null,
+  }
+}
+
+function townFacts(name: string, desc: string) {
   const text = desc
     .replace(/<[^>]+>/g, '|')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
@@ -366,9 +403,11 @@ function townFacts(desc: string) {
   const culture = cells.find((cell) => /Culture -/.test(cell))?.split('Culture -')[1]?.trim() || null
   const id = cells.map((cell) => /^ID\s+([0-9a-f-]{36})$/i.exec(cell)?.[1]).find(Boolean) ?? null
   const teleport = after(/Public Teleport:/)
+  const ruler = after(/Ruler:/)
   return {
     id,
-    ruler: after(/Ruler:/),
+    ...siteOf(name, cells, ruler),
+    ruler,
     residents,
     nation: nation && !/^No Nation$/i.test(nation) ? nation : null,
     culture,
@@ -403,7 +442,7 @@ export async function getTowns({ fresh = false }: { fresh?: boolean } = {}): Pro
         name,
         home: null,
         outlines: [],
-        ...townFacts(area.desc ?? ''),
+        ...townFacts(name, area.desc ?? ''),
       }
       town.outlines.push({ x: area.x, z: area.z })
       towns.set(key, town)

@@ -16,11 +16,13 @@ import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
   drawingsProblem,
+  isTownKind,
   ROAD_KINDS,
   type Drawing,
   type MapLayer,
   type PlaceCategory,
   type RoadKind,
+  type TownKind,
 } from './registry'
 
 /**
@@ -43,6 +45,10 @@ export type MapTown = {
   founded: string | null
   /** Towny's "Public Teleport": whether any player may `/t spawn` here; null when the map doesn't say. */
   publicSpawn: boolean | null
+  /** A players' town, or a site the server runs and Azania holds (a quarry, a treasure ship): see isSite. */
+  kind: TownKind
+  /** A server site's terms as the map gives them; what it pays a day, in $; what a quarry produces. */
+  site: { note: string | null; income: number | null; resource: string | null } | null
   home: Point | null
   claims: Outline[]
   /** Of the claims, for culling and fitting. */
@@ -165,8 +171,12 @@ const outlinesOf = (value: unknown): Outline[] =>
       )
     : []
 
+/** Whether a town is a site the server runs (a quarry, a treasure ship), not a players' town. */
+export const isSite = (town: Pick<MapTown, 'kind'>): boolean => town.kind !== 'town'
+
 export function mapTown(town: Town): MapTown {
   const claims = outlinesOf(town.claims)
+  const kind = isTownKind(town.kind) ? town.kind : 'town'
   const home = isPoint([town.home?.x, town.home?.z])
     ? ([town.home!.x!, town.home!.z!] as Point)
     : null
@@ -180,6 +190,11 @@ export function mapTown(town: Town): MapTown {
     chunks: town.chunks ?? 0,
     founded: town.founded ?? null,
     publicSpawn: typeof town.publicSpawn === 'boolean' ? town.publicSpawn : null,
+    kind,
+    site:
+      kind === 'town'
+        ? null
+        : { note: town.siteNote ?? null, income: town.income ?? null, resource: town.resource ?? null },
     home,
     claims,
     bounds: boundsOf(claims.flatMap(outlineToRing)),

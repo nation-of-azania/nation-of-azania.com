@@ -19,6 +19,7 @@ import {
   type MapViewData,
 } from '@/maps/data'
 import type { Outline } from '@/maps/geo'
+import { isTownKind } from '@/maps/registry'
 import type { Article, Town as TownDoc } from '@/payload-types'
 
 /**
@@ -117,7 +118,8 @@ export async function getNationCensus(days = 365): Promise<CensusPoint[]> {
     const payload = await getClient()
     const { docs } = await payload.find({
       collection: 'town-census',
-      where: { date: { greater_than_equal: sinceDate(days) } },
+      // Players' towns only: a held quarry's bot and fixed claims aren't growth.
+      where: { and: [{ date: { greater_than_equal: sinceDate(days) } }, { 'town.kind': { equals: 'town' } }] },
       sort: 'date',
       select: { date: true, residents: true, chunks: true },
       ...ALL,
@@ -180,6 +182,10 @@ const townOf = (doc: TownDoc): Town => ({
   culture: doc.culture ?? null,
   founded: doc.founded ?? null,
   publicSpawn: doc.publicSpawn ?? null,
+  kind: isTownKind(doc.kind) ? doc.kind : 'town',
+  siteNote: doc.siteNote ?? null,
+  income: doc.income ?? null,
+  resource: doc.resource ?? null,
 })
 
 /** Any town on the live map, by lower-cased name, kept an hour; throws while the map is down, so that isn't kept. */

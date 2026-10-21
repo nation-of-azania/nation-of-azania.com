@@ -78,6 +78,23 @@ export const ROAD_SHAPES = {
   curved: { label: 'Curved smoothly through the points' },
 } as const satisfies Record<RoadShape, { label: string }>
 
+/**
+ * What a Towny town is. Most are players' towns; a few are run by the
+ * server itself (their rulers are bots called Ruler1, Ruler2, …): resource
+ * sites, wastelands and treasure ships, which pay whichever nation holds
+ * them and change hands by siege, and the odd other one (the server's
+ * spawn). The map tells them apart by the ruler (src/lib/dynmap.ts).
+ */
+export const TOWN_KINDS = {
+  town: { label: 'Town' },
+  quarry: { label: 'Quarry: a resource site' },
+  wasteland: { label: 'Wasteland: free resources for the holder' },
+  ship: { label: 'Treasure ship' },
+  site: { label: 'Another server site' },
+} as const
+export type TownKind = keyof typeof TOWN_KINDS
+export const isTownKind = (value: unknown): value is TownKind => typeof value === 'string' && value in TOWN_KINDS
+
 /** What a map can show on top of the Rulercraft tiles. */
 export const MAP_LAYERS = {
   towns: { label: 'Azanian towns (claims and names)' },

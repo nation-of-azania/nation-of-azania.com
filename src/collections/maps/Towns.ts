@@ -2,6 +2,7 @@ import type { CollectionBeforeDeleteHook, CollectionConfig, FieldAccess } from '
 
 import { hasRole, isAdmin } from '../../access'
 import { getMapRights } from '../../access/maps'
+import { options, TOWN_KINDS } from '../../maps/registry'
 
 /** Copied from the Rulercraft map by the sync (src/lib/towns.ts); nobody edits it by hand. */
 const synced: FieldAccess = () => false
@@ -24,7 +25,7 @@ export const Towns: CollectionConfig = {
   admin: {
     useAsTitle: 'name',
     group: 'Azania Maps',
-    defaultColumns: ['name', 'azanian', 'nation', 'ruler', 'residentCount', 'chunks'],
+    defaultColumns: ['name', 'kind', 'azanian', 'nation', 'ruler', 'residentCount', 'chunks'],
     description:
       'Read from the Rulercraft map. Which towns count as Azanian is set under Settings → Azania Maps.',
   },
@@ -88,6 +89,49 @@ export const Towns: CollectionConfig = {
           admin: { readOnly: true, width: '33%', date: { pickerAppearance: 'dayAndTime' } },
         },
       ],
+    },
+    {
+      // Sites the server runs (resource sites, treasure ships) are Towny
+      // towns too, held by whichever nation took them last.
+      type: 'row',
+      fields: [
+        {
+          name: 'kind',
+          type: 'select',
+          defaultValue: 'town',
+          options: options(TOWN_KINDS),
+          access: { update: synced },
+          admin: {
+            readOnly: true,
+            width: '33%',
+            description: 'A players’ town, or a site the server runs (its ruler is a bot, Ruler1, Ruler2, …).',
+          },
+        },
+        {
+          name: 'income',
+          type: 'number',
+          label: 'Income a day ($)',
+          access: { update: synced },
+          admin: { readOnly: true, width: '33%', condition: (data) => Boolean(data?.kind) && data.kind !== 'town' },
+        },
+        {
+          name: 'resource',
+          type: 'text',
+          access: { update: synced },
+          admin: { readOnly: true, width: '33%', condition: (data) => data?.kind === 'quarry' },
+        },
+      ],
+    },
+    {
+      name: 'siteNote',
+      type: 'textarea',
+      label: 'The site’s terms',
+      access: { update: synced },
+      admin: {
+        readOnly: true,
+        description: 'What the map says about the site: what it pays and how it is taken.',
+        condition: (data) => Boolean(data?.kind) && data.kind !== 'town',
+      },
     },
     {
       type: 'collapsible',

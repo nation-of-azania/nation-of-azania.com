@@ -450,6 +450,16 @@ export interface Town {
   present?: boolean | null;
   syncedAt?: string | null;
   /**
+   * A players’ town, or a site the server runs (its ruler is a bot, Ruler1, Ruler2, …).
+   */
+  kind?: ('town' | 'quarry' | 'wasteland' | 'ship' | 'site') | null;
+  income?: number | null;
+  resource?: string | null;
+  /**
+   * What the map says about the site: what it pays and how it is taken.
+   */
+  siteNote?: string | null;
+  /**
    * Towny’s id for the town; survives renames.
    */
   townyId: string;
@@ -1099,6 +1109,10 @@ export interface TownsSelect<T extends boolean = true> {
   azanian?: T;
   present?: T;
   syncedAt?: T;
+  kind?: T;
+  income?: T;
+  resource?: T;
+  siteNote?: T;
   townyId?: T;
   nation?: T;
   ruler?: T;

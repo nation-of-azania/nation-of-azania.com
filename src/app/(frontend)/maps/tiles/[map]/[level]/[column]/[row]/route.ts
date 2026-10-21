@@ -7,10 +7,14 @@ import { dynmapTileUrl, isMapName, MAPS, TILE_SIZE } from '@/maps/source'
  *   /maps/tiles/flat/2/41/58.jpg   (map, Dynmap level, column, row)
  *
  * The Rulercraft map serves its tiles uncached and is down now and then, so
- * the CDN keeps each tile a day, refreshes it in the background for a month,
- * and keeps answering with the last good copy for a month while the map
- * errors (stale-if-error). Ground the map hasn't drawn comes back as an
- * empty transparent tile, cached, so the slippy map shows its own backdrop.
+ * the CDN keeps each tile: fresh for a quarter of an hour, then refreshed in
+ * the background whenever someone looks (so nobody waits on the map), and
+ * the last good copy goes on answering for a month while the map errors
+ * (stale-if-error). Browsers keep a tile five minutes, then check back
+ * cheaply by its ETag, so someone who comes back sees new building soon
+ * after the Rulercraft map draws it. Ground the map hasn't drawn comes back
+ * as an empty transparent tile, cached alike, so the slippy map shows its
+ * own backdrop.
  */
 
 export const runtime = 'nodejs'
@@ -18,7 +22,10 @@ export const dynamic = 'force-dynamic'
 
 const FETCH_TIMEOUT_MS = 6000
 
-const CACHED = 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=2592000, stale-if-error=2592000'
+/** For browsers; the CDN follows its own header (Vercel-CDN-Cache-Control). */
+const BROWSER = 'public, max-age=300'
+const CDN = 'max-age=900, stale-while-revalidate=2592000, stale-if-error=2592000'
+const CACHED = { 'Cache-Control': BROWSER, 'Vercel-CDN-Cache-Control': CDN }
 
 /** A 1×1 transparent PNG. */
 const EMPTY = Uint8Array.from(
@@ -27,7 +34,7 @@ const EMPTY = Uint8Array.from(
 
 const empty = () =>
   new Response(EMPTY, {
-    headers: { 'Content-Type': 'image/png', 'Cache-Control': CACHED, 'X-Tile': 'unrendered' },
+    headers: { 'Content-Type': 'image/png', ...CACHED, 'X-Tile': 'unrendered' },
   })
 
 const unavailable = (message: string) =>
@@ -35,6 +42,15 @@ const unavailable = (message: string) =>
     status: 503,
     headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '300' },
   })
+
+const validators = (response: Response): Record<string, string> => {
+  const headers: Record<string, string> = {}
+  const etag = response.headers.get('ETag')
+  const modified = response.headers.get('Last-Modified')
+  if (etag) headers.ETag = etag
+  if (modified) headers['Last-Modified'] = modified
+  return headers
+}
 
 const integer = (value: string) => (/^-?\d{1,7}$/.test(value) ? Number(value) : null)
 
@@ -68,7 +84,9 @@ export async function GET(
     return new Response(bytes, {
       headers: {
         'Content-Type': response.headers.get('Content-Type') ?? 'image/jpeg',
-        'Cache-Control': CACHED,
+        ...CACHED,
+        // The map's own validators, so a browser's check comes back "not modified".
+        ...validators(response),
         'X-Robots-Tag': 'noindex',
       },
     })

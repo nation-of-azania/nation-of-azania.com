@@ -621,16 +621,20 @@ something was being fetched.
   - `src/lib/towns.ts` reads the map's marker file into the **Towns** collection.
   - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
 - **When the map is read:**
-  - after a page of Azania Maps finds the last reading an hour old;
+  - after a page of Azania Maps finds the last reading a quarter of an hour old, so while people use the map it is at most about fifteen minutes behind Towny's own markers;
   - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.
 
   `/maps/sync` reads at most every ten minutes, whoever calls it.
+- **Server sites:** some Towny towns are run by the server itself, and their rulers are bots (`Ruler1`, `Ruler2`, …). Quarries, wastelands and treasure ships pay whichever nation holds them and change hands by siege; there are a few others, such as the server's spawn.
+  - The reading tells them apart by the ruler, and keeps each one's kind, what it pays a day, what a quarry produces, and its terms as the map gives them (Towns → *kind*, *income*, *resource*, *site's terms*).
+  - A held site is part of Azania on the map, but it isn't a town: it has no census, isn't counted in the nation's growth, and is nobody's `/t spawn`.
 - **Who draws:**
   - Admins make a member **mayor** of towns (Users → Azania Maps). A mayor draws and edits places, roads and events inside those towns' claims, and writes the town's description. The claims are checked on every save.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
-- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`, which the CDN caches for a day. While the map errors, the CDN keeps serving the last good tile for a month.
+- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. While the map errors, the CDN keeps serving the last good tile for a month.
+  - New building shows on Azania Maps about 15 minutes after the Rulercraft map draws it; the Rulercraft map itself often lags behind the game.
   - Ground the map hasn't drawn comes back as an empty, cached tile.
   - `/maps/status` says whether the map is answering.
 - **Articles:** an article can name the towns, places and events it's about (*On Azania Maps* in the sidebar). The article shows them as chips, in its paper's own hand, that open them on the map, and the town, place or event lists the article in return.

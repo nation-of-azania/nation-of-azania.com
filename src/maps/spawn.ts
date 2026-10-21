@@ -1,4 +1,5 @@
 import type { Point } from './geo'
+import type { TownKind } from './registry'
 
 /**
  * How a player gets somewhere on Azania Maps. Players have no `/tp`;
@@ -15,6 +16,8 @@ export type SpawnTown = {
   name: string
   home: Point | null
   publicSpawn: boolean | null
+  /** A server site (a quarry, a treasure ship) is nobody's spawn. */
+  kind?: TownKind
 }
 
 export type Compass = 'north' | 'north-east' | 'east' | 'south-east' | 'south' | 'south-west' | 'west' | 'north-west'
@@ -69,12 +72,13 @@ export function thenWalk(distance: number, direction: Compass | null): string | 
  * public spawn, which anyone can use, is preferred over a nearer private
  * one within reason (twice the distance, or 500 blocks more); when the
  * nearest usable spawn is private all the same, the caller says so. A town
- * whose spawn the map doesn't describe counts as public.
+ * whose spawn the map doesn't describe counts as public. Server sites
+ * (quarries, treasure ships) have no residents, so no spawn worth giving.
  */
 export function spawnRoute<T extends SpawnTown>(point: Point, towns: T[]): SpawnRoute<T> | null {
   const reach = (town: T & { home: Point }) => Math.hypot(point[0] - town.home[0], point[1] - town.home[1])
   const placed = towns
-    .filter((town): town is T & { home: Point } => town.home !== null)
+    .filter((town): town is T & { home: Point } => town.home !== null && (town.kind ?? 'town') === 'town')
     .sort((a, b) => reach(a) - reach(b))
   if (placed.length === 0) return null
   const nearest = placed[0]

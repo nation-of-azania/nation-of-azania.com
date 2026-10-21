@@ -16,7 +16,7 @@ import { syncIfStale } from '@/lib/towns'
  * a minute after they're last asked for (and at once after someone draws,
  * see ./revalidate); the visitor's own drawing rights are fetched in the
  * browser. Each regeneration has the towns re-read from the Rulercraft
- * map, after answering, if the last reading is an hour old.
+ * map, after answering, if the last reading is a quarter of an hour old.
  */
 
 export const revalidate = 60

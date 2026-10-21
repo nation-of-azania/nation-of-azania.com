@@ -18,8 +18,13 @@ import { getTowns, type Town } from './dynmap'
 
 /** However often it's asked, the map is read at most this often. */
 const MIN_INTERVAL_MS = 10 * 60 * 1000
-/** A reading older than this is refreshed after the next page of Azania Maps. */
-export const STALE_AFTER_MS = 60 * 60 * 1000
+/**
+ * A reading older than this is refreshed after the next page of Azania Maps.
+ * Towny redraws its claims on the Rulercraft map every few minutes, so a
+ * quarter of an hour keeps the map close behind without reading a 5 MB
+ * file on every visit.
+ */
+export const STALE_AFTER_MS = 15 * 60 * 1000
 
 export type SyncResult = {
   status: 'synced' | 'skipped' | 'offline'
@@ -47,6 +52,10 @@ function townData(town: Town, azanian: boolean, at: string) {
     ruler: town.ruler,
     founded: town.founded,
     publicSpawn: town.publicSpawn,
+    kind: town.kind,
+    siteNote: town.siteNote,
+    income: town.income,
+    resource: town.resource,
     culture: town.culture,
     residentCount: town.residents.length,
     residents: town.residents,
@@ -102,6 +111,7 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   const date = at.slice(0, 10)
   const seen = new Set<string>()
   let azanianCount = 0
+  let siteCount = 0
   let created = 0
 
   for (const town of towns.values()) {
@@ -129,6 +139,11 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
       }
     }
     if (!azanian) continue
+    // A server site's bot and its fixed claims aren't the nation growing.
+    if (town.kind !== 'town') {
+      siteCount++
+      continue
+    }
     azanianCount++
 
     // Today's census entry: the day's last reading wins.
@@ -155,7 +170,8 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   }
 
   const newTowns = created ? `, ${created} new` : ''
-  return note({ status: 'synced', note: `${azanianCount} Azanian towns${newTowns}.` })
+  const sites = siteCount ? ` and ${siteCount} held site${siteCount === 1 ? '' : 's'}` : ''
+  return note({ status: 'synced', note: `${azanianCount} Azanian towns${sites}${newTowns}.` })
 }
 
 /**
