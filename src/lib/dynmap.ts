@@ -114,7 +114,11 @@ export type ClipCourse = RoadStyle & {
   halo?: string | null
 }
 
-/** A pin: a disc in a colour, with the map's glyph for a category in whitewash (src/maps/icons.tsx). */
+/**
+ * A pin: a disc in a colour, with the map's glyph for a category in
+ * whitewash (src/maps/icons.tsx). A held site's mark is the same disc in
+ * whitewash, rimmed in gold, its glyph in the site's ink (src/maps/sites.ts).
+ */
 export type ClipMark = {
   x: number
   z: number
@@ -122,6 +126,10 @@ export type ClipMark = {
   /** The disc's radius in px; the map's pins are 12. */
   radius?: number
   glyph?: { d: string; fill?: boolean } | null
+  /** The disc's rim; whitewash unless given. */
+  ring?: string
+  /** The glyph's colour: its fill when filled (the facets stay whitewash), its stroke otherwise; whitewash unless given. */
+  ink?: string
 }
 
 export type ClipOptions = {
@@ -283,10 +291,11 @@ export async function renderClip(options: ClipOptions): Promise<Clip> {
     const [mx, my] = toOutput(mark.x, mark.z).split(',').map(Number)
     const r = mark.radius ?? 12
     const s = r / 12
+    const ink = mark.ink ?? '#fbf8f1'
     const glyph = mark.glyph
-      ? `<g transform="translate(${(mx - 7 * s).toFixed(1)} ${(my - 7 * s).toFixed(1)}) scale(${((14 / 24) * s).toFixed(3)})"><path d="${mark.glyph.d}" fill="${mark.glyph.fill ? '#fbf8f1' : 'none'}" stroke="#fbf8f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>`
+      ? `<g transform="translate(${(mx - 7 * s).toFixed(1)} ${(my - 7 * s).toFixed(1)}) scale(${((14 / 24) * s).toFixed(3)})"><path d="${mark.glyph.d}" fill="${mark.glyph.fill ? ink : 'none'}" stroke="${mark.glyph.fill ? '#fbf8f1' : ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>`
       : ''
-    return `<circle cx="${mx}" cy="${my}" r="${r}" fill="${mark.colour}" stroke="#fbf8f1" stroke-width="${(1.5 * s).toFixed(1)}"/>${glyph}`
+    return `<circle cx="${mx}" cy="${my}" r="${r}" fill="${mark.colour}" stroke="${mark.ring ?? '#fbf8f1'}" stroke-width="${((mark.ring ? 2 : 1.5) * s).toFixed(1)}"/>${glyph}`
   })
   const [cx, cy] = toOutput(x, z).split(',').map(Number)
   const pinSvg = pin

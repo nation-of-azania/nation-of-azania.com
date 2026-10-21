@@ -1,0 +1,182 @@
+import { homeClaimBounds, outpostsOf, spoken, type MapData, type MapTown } from '@/maps/data'
+import { incomeWords, resourceWords, siteTerms, siteTitle, type SiteFacts } from '@/maps/sites'
+import type { Article } from '@/payload-types'
+
+import { SiteBadge } from '../layers/SiteMark'
+import { AboutActions, AddHere, EventsList, Look, Survey } from './islands'
+import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
+
+/**
+ * A held site's page: what it is and what it pays the nation, the way
+ * there, its terms said kindly, its outposts, places and events, and what
+ * the papers have written about it. No ruler's head, residents or growth
+ * chart: the ruler is the server's bot, nobody lives there, and the claims
+ * never grow. A site is nobody's `/t spawn` either, so the way there is
+ * the nearest town's spawn and the walk, as for any spot on the map.
+ */
+export function SitePanel({
+  town,
+  facts,
+  data,
+  record,
+  articles,
+}: {
+  town: MapTown
+  facts: SiteFacts
+  data: MapData
+  record: { about: string | null } | null
+  articles: Article[]
+}) {
+  const places = data.places
+    .filter((place) => place.town === town.id)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const events = data.events.filter((event) => event.town === town.id)
+  const outposts = outpostsOf(town)
+  const main = homeClaimBounds(town)
+  const title = siteTitle(facts)
+  const pays = incomeWords(facts.income)
+  const produces = facts.kind === 'quarry' ? resourceWords(facts.resource) : null
+  const terms = siteTerms(facts)
+
+  return (
+    <article className="pb-6">
+      <PanelHead
+        eyebrow={
+          <span className="inline-flex items-center gap-2">
+            <SiteBadge className="h-5 w-5" facts={facts} />
+            {title}
+            <span aria-hidden="true">·</span>
+            <span>held by Azania</span>
+          </span>
+        }
+        title={spoken(town.name)}
+      >
+        {/* What it pays, as the figure that matters: the treasury's line. */}
+        <p className="mt-3 flex flex-wrap items-baseline gap-x-2">
+          {pays ? (
+            <>
+              <span className="font-body text-2xl font-semibold leading-none text-saffron-600 tabular-nums">
+                ${facts.income!.toLocaleString('en-GB')}
+              </span>
+              <span className="text-sm text-ink-500">a day to the nation that holds it</span>
+            </>
+          ) : (
+            <span className="text-sm text-ink-500">What it pays isn’t recorded.</span>
+          )}
+        </p>
+        {town.home ? (
+          <>
+            <Survey className="mt-3" fit={main} fitLabel="Fit to the site" point={town.home} y={64} />
+            <p className="mt-1 text-[11px] italic leading-snug text-ink-500">
+              A site has no spawn of its own: that is the nearest town’s, and the walk from it.
+            </p>
+          </>
+        ) : null}
+      </PanelHead>
+
+      <div className="mt-4 px-4">
+        <Facts
+          items={[
+            { label: 'What it is', value: title },
+            ...(produces ? [{ label: 'Produces', value: produces.adjective }] : []),
+            {
+              label: 'Held by',
+              value: town.nation ? `Azania, as ${spoken(town.nation)} in Towny` : 'Azania',
+            },
+            {
+              label: 'Extent',
+              value: `${town.chunks.toLocaleString('en-GB')} chunks${outposts.length ? ` · ${outposts.length} outpost${outposts.length === 1 ? '' : 's'}` : ''}`,
+            },
+          ]}
+        />
+      </div>
+
+      <PanelSection title="Terms">
+        <div className="space-y-1.5 text-sm leading-relaxed text-ink-700">
+          {terms.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+        {facts.note ? (
+          <p className="mt-3 text-xs italic leading-relaxed text-ink-500">
+            As the map puts it: “{facts.note}”
+          </p>
+        ) : null}
+      </PanelSection>
+
+      {outposts.length ? (
+        <PanelSection title={`Outposts · ${outposts.length}`}>
+          <p className="text-[13px] leading-relaxed text-ink-500">
+            Claims away from the site itself; the map fits the site to the claim that holds its
+            home block.
+          </p>
+          <ul className="mt-2 divide-y divide-sand-300/70">
+            {outposts.map((outpost, index) => (
+              <li
+                className="flex items-baseline justify-between gap-3 py-2 text-sm"
+                key={`${outpost.centre[0]},${outpost.centre[1]}`}
+              >
+                <span className="min-w-0">
+                  <span className="font-semibold text-ink-900">Outpost {index + 1}</span>
+                  <span className="block font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
+                    {outpost.chunks.toLocaleString('en-GB')} chunk{outpost.chunks === 1 ? '' : 's'}{' '}
+                    · X {Math.round(outpost.centre[0])} Z {Math.round(outpost.centre[1])}
+                  </span>
+                </span>
+                <Look
+                  className="shrink-0 text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+                  target={{ bounds: outpost.bounds }}
+                >
+                  Show on map
+                </Look>
+              </li>
+            ))}
+          </ul>
+        </PanelSection>
+      ) : null}
+
+      {/* Staff and cartographers may write a few lines: how it was taken, what's built there. */}
+      <PanelSection
+        action={<AboutActions about={record?.about ?? null} town={town} />}
+        title="About"
+      >
+        {record?.about ? (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700">{record.about}</p>
+        ) : (
+          <p className="text-sm italic text-ink-500">
+            Nothing written yet. The nation’s cartographers can add a few lines here.
+          </p>
+        )}
+      </PanelSection>
+
+      <PanelSection
+        action={<AddHere town={town} />}
+        flush
+        title={`Places${places.length ? ` · ${places.length}` : ''}`}
+      >
+        {places.length ? (
+          <ul className="divide-y divide-sand-300/70">
+            {places.map((place) => (
+              <li key={place.id}>
+                <PlaceRow place={place} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 text-sm italic text-ink-500">No places drawn yet.</p>
+        )}
+      </PanelSection>
+
+      <PanelSection flush title="Events">
+        <EventsList
+          emptyNote="Nothing on at the site just now."
+          ids={events.map((event) => event.id)}
+        />
+      </PanelSection>
+
+      <PanelSection title="In the papers">
+        <ArticleLinks articles={articles} emptyNote="Nothing written about the site yet." />
+      </PanelSection>
+    </article>
+  )
+}

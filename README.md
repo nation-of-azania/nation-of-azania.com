@@ -290,6 +290,8 @@ A page of [Azania Maps](#azania-maps) unfurls as a clipping of the map
 itself (`src/lib/ogMaps.ts`, drawn by `src/components/og/maps.tsx`): the
 panel beside the picture, as the map shows it. A town's card frames its
 claims, with the ruler's head, `/t spawn <Town>` and Towny's figures; a
+held site's frames its claims in gold around its mark, with what it pays,
+its terms and the nearest town's spawn, since a site is nobody's; a
 place's has its pin, large, and its lines; a road's its whole course, picked
 out in gold; an event's its pennant beside a calendar leaf, the time in UTC;
 `/maps` itself the heartland with every town named. The picture is the same
@@ -400,8 +402,11 @@ article the way a figure goes in a report. Name a **Towny town** and it
 centres on the town's home block, outlines its claims in the paper's colour
 (or the style's: GirlieTown's maps come out in rose) and can add a plate of
 the town's facts as the map records them — ruler, with their head; residents;
-nation; founded. Or give **x and z** to centre anywhere, with a town or
-without one. Zoom runs from *close* (about 150 blocks across) to *country*;
+nation; founded. Named a site the server runs (`town: Africa_Quarry`), the
+plate shows the site's mark where the head would go, what it is, what it
+pays, who holds it and its terms, in the paper's voice, and the survey line
+gives the nearest town's spawn and the walk, since a site is nobody's
+spawn. Or give **x and z** to centre anywhere, with a town or without one. Zoom runs from *close* (about 150 blocks across) to *country*;
 the clipping can be wide, square or a banner. Beneath it the figure sets the
 coordinates as a survey reference and the way there as a player has it:
 players have no `/tp`, only `/t spawn <town>`, so a town's figure offers
@@ -462,7 +467,7 @@ Azania Maps (`/maps`) is the nation's own map, on top of the Rulercraft map's
 pictures: a full-screen map in the Gazette's hand, with a panel beside it (a
 sheet drawn up over it on a phone) that holds whatever is open.
 
-- Azania's **towns**, read from Towny: their claims, names and facts.
+- Azania's **towns**, read from Towny: their claims, names and facts; and the **sites** the server runs and the nation holds (see *Server sites* below).
 - **Places** with a category and icon (cafés, town halls, ports, …), optionally with a building outline.
 - Named **roads**, railways and waterways, straight from point to point or curved smoothly through them, drawn like a road map: casings under translucent fills (a wash the build shows through, thinner the closer you come), widths by zoom, the name along the line once it fits.
 - **Events** with a time and a place.
@@ -504,7 +509,11 @@ carries what's already drawn into place until the fresh render lands.
 - **Addresses.** `/maps/town/<slug>`, `/maps/place/<id>`, `/maps/road/<id>`
   and `/maps/event/<id>` open the thing with its panel: a town's Towny facts
   with the ruler's head, its mayor's lines, growth charts from the census,
-  its places and events and the articles about it; a place's category,
+  its places and events and the articles about it; a held site's what it is
+  and pays, its terms said kindly (and the map's own words), the nearest
+  town's spawn with the walk, its places, events and articles — no ruler's
+  head, residents or growth, since its ruler is a bot and nobody lives
+  there; a place's category,
   description and events; a road's class and length; an event's time in the
   reader's own time zone, its place, host and article. A town with claims
   away from the one holding its home block lists them as **outposts**, each
@@ -525,10 +534,13 @@ carries what's already drawn into place until the fresh render lands.
   whose spawn is private (Towny's *Public Teleport* off) is said so —
   only its residents can use it. Coordinates stay on the page, as F3
   shows them.
-- **Tools.** Search across towns, places, roads and events; layer toggles
-  and a legend; the block under the pointer (the centre, on a phone) with
-  its nearest spawn to copy; the nation at a glance, with the census's
-  trend, on the map's own front.
+- **Tools.** Search across towns, held sites (by name or by kind: "diamond"
+  finds the quarry), places, roads and events; layer toggles and a legend;
+  the block under the pointer (the centre, on a phone) with its nearest
+  spawn to copy; the nation at a glance on the map's own front — the
+  players' towns, residents and chunks with the census's trend, and a small
+  ledger of **Holdings**: the sites the nation holds, what each pays, and
+  the day's total.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*
@@ -627,7 +639,9 @@ something was being fetched.
   `/maps/sync` reads at most every ten minutes, whoever calls it.
 - **Server sites:** some Towny towns are run by the server itself, and their rulers are bots (`Ruler1`, `Ruler2`, …). Quarries, wastelands and treasure ships pay whichever nation holds them and change hands by siege; there are a few others, such as the server's spawn.
   - The reading tells them apart by the ruler, and keeps each one's kind, what it pays a day, what a quarry produces, and its terms as the map gives them (Towns → *kind*, *income*, *resource*, *site's terms*).
-  - A held site is part of Azania on the map, but it isn't a town: it has no census, isn't counted in the nation's growth, and is nobody's `/t spawn`.
+  - A held site is part of Azania on the map, but it isn't a town: it has no census, isn't counted in the nation's growth, and is nobody's `/t spawn`. The front's figures count players' towns alone.
+  - On the map a site reads as ground the nation holds rather than a town it built: its claims are hatched in the treasury's gold with a dashed edge, and at its home block, where a town has its lozenge, it wears a mark — a whitewash disc rimmed in gold with the kind's glyph inside: a gem tinted by what the quarry produces (diamond, emerald, iron, gold, coal), a ship, a bare tree for a wasteland, a banner for any other site. Its name is set in gold ink with a line beneath saying what it gives and pays ("diamonds · $333 a day"), placed by the label plan after the towns' names. The words, tints, glyphs and the terms said kindly are in `src/maps/sites.ts`; the mark in `src/components/maps/layers/SiteMark.tsx`.
+  - Nobody is mayor of a site. Someone given one to draw in is said to "draw at" it beside their name, and a place there names the site, not a mayor.
 - **Who draws:**
   - Admins make a member **mayor** of towns (Users → Azania Maps). A mayor draws and edits places, roads and events inside those towns' claims, and writes the town's description. The claims are checked on every save.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.

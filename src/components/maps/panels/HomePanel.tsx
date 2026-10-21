@@ -2,8 +2,10 @@ import Link from 'next/link'
 
 import type { CensusPoint } from '@/lib/maps'
 import { spoken, type MapData } from '@/maps/data'
+import { holdingsOf, incomeWords, settlements, siteFacts, siteTitle } from '@/maps/sites'
 import { townHref } from '@/maps/url'
 
+import { SiteBadge } from '../layers/SiteMark'
 import { Icon } from '../ui/icons'
 import { StatTile } from './GrowthChart'
 import { EventsList } from './islands'
@@ -12,15 +14,18 @@ import { YourViews } from './views'
 
 /**
  * The map's own front: the nation at a glance (its totals, with the
- * census's trend beneath), what's on, and the towns. Server-rendered, so
- * a search engine and a reader without JavaScript get the nation in words.
+ * census's trend beneath), what it holds, what's on, and the towns.
+ * Server-rendered, so a search engine and a reader without JavaScript get
+ * the nation in words. The figures count players' towns alone: a held
+ * quarry's bot isn't a resident, and its fixed claims aren't growth.
  */
 export function HomePanel({ data, census }: { data: MapData; census: CensusPoint[] }) {
-  const residents = data.towns.reduce((sum, town) => sum + town.residents, 0)
-  const chunks = data.towns.reduce((sum, town) => sum + town.chunks, 0)
-  const towns = [...data.towns].sort(
+  const towns = settlements(data.towns).sort(
     (a, b) => b.residents - a.residents || a.name.localeCompare(b.name),
   )
+  const residents = towns.reduce((sum, town) => sum + town.residents, 0)
+  const chunks = towns.reduce((sum, town) => sum + town.chunks, 0)
+  const { sites, total } = holdingsOf(data.towns)
   const since = census[0]?.date
 
   return (
@@ -36,7 +41,7 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
         </p>
       </header>
       <div className="mt-4 grid grid-cols-3 gap-2 px-4">
-        <StatTile label="Towns" measure={null} points={census} value={data.towns.length} />
+        <StatTile label="Towns" measure={null} points={census} value={towns.length} />
         <StatTile label="Residents" measure="residents" points={census} value={residents} />
         <StatTile label="Chunks" measure="chunks" points={census} value={chunks} />
       </div>
@@ -45,6 +50,49 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           ? `Recorded daily from the Rulercraft map since ${since}.`
           : 'Recorded daily from the Rulercraft map.'}
       </p>
+
+      {/* A ledger, not a dashboard: what the nation holds and what each pays, with the day's total under a rule. */}
+      {sites.length ? (
+        <PanelSection flush title="Holdings">
+          <p className="px-4 text-[13px] leading-relaxed text-ink-500">
+            Sites the server runs and Azania holds, paying the nation for as long as it does.
+          </p>
+          <ul className="mt-2 divide-y divide-sand-300/70">
+            {sites.map((site) => {
+              const facts = siteFacts(site)!
+              return (
+                <li key={site.id}>
+                  <Link
+                    className="group flex items-center gap-3 px-4 py-2 transition-colors hover:bg-sand-100"
+                    href={townHref(site.slug)}
+                  >
+                    <SiteBadge className="h-5 w-5 shrink-0" facts={facts} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                        {spoken(site.name)}
+                      </span>
+                      <span className="block truncate text-xs text-ink-500">{siteTitle(facts)}</span>
+                    </span>
+                    <span className="shrink-0 font-mono text-[12px] tracking-[0.04em] text-saffron-600 tabular-nums">
+                      {incomeWords(facts.income) ?? 'pays nothing'}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+          {total > 0 ? (
+            <p className="mx-4 mt-1 flex items-baseline justify-between gap-3 border-t border-sand-300 pt-2 text-sm">
+              <span className="text-ink-500">
+                Together, a day
+              </span>
+              <span className="font-mono text-[13px] font-semibold tracking-[0.04em] text-ink-900 tabular-nums">
+                ${total.toLocaleString('en-GB')}
+              </span>
+            </p>
+          ) : null}
+        </PanelSection>
+      ) : null}
 
       {/* For anyone who may draw views: theirs, so a view made for an article has a home here. */}
       <YourViews />

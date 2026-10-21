@@ -4,6 +4,7 @@ import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import {
   heartland,
   homeClaimBounds,
+  isSite,
   spoken,
   townCentre,
   type MapData,
@@ -16,7 +17,19 @@ import { boundsOf, roadCourse, pathLength, type Bounds, type Outline, type Point
 import { ICONS } from '@/maps/icons'
 import { GROUND, GROUP_COLOURS, ROAD_STYLES } from '@/maps/palette'
 import { PLACE_CATEGORIES, ROAD_KINDS } from '@/maps/registry'
-import { compassFrom, spawnCommand } from '@/maps/spawn'
+import {
+  holdingsOf,
+  incomeWords,
+  resourceWords,
+  settlements,
+  SITE_GLYPHS,
+  siteFacts,
+  siteInk,
+  siteTerms,
+  siteTitle,
+  type SiteFacts,
+} from '@/maps/sites'
+import { compassFrom, spawnCommand, spawnRoute } from '@/maps/spawn'
 import { eventPhase } from '@/maps/time'
 import { clampSpan } from '@/maps/view'
 
@@ -26,13 +39,14 @@ import type { Loaded, Pictures } from './og'
 
 /**
  * The link-preview card of a page of Azania Maps (src/components/og/maps.tsx):
- * the nation's heartland for /maps, and for a town, a place, a road or an
- * event, a clipping of the map framed on it, drawn by renderClip with the
- * thing on it the way the map draws it — claims outlined, roads in their
- * class's style, pins with their glyphs — and its particulars beside. The
- * clipping is fetched here like any other card picture: when the
- * Rulercraft map isn't answering the card is drawn without it, and marked
- * incomplete so the route caches it only briefly.
+ * the nation's heartland for /maps, and for a town, a held site, a place, a
+ * road or an event, a clipping of the map framed on it, drawn by renderClip
+ * with the thing on it the way the map draws it — claims outlined (a site's
+ * in gold), roads in their class's style, pins and site marks with their
+ * glyphs — and its particulars beside. The clipping is fetched here like any
+ * other card picture: when the Rulercraft map isn't answering the card is
+ * drawn without it, and marked incomplete so the route caches it only
+ * briefly.
  */
 
 /** How much ground to leave around the thing, as a share of its extent. */
@@ -50,7 +64,9 @@ export async function loadMapCard(segments: string[], pictures: Pictures): Promi
   if (!kind) return nation(data, pictures)
   if (kind === 'town' && raw) {
     const town = findTown(data, raw)
-    return town ? townCard(data, town, pictures) : null
+    if (!town) return null
+    const site = siteFacts(town)
+    return site ? siteCard(data, town, site, pictures) : townCard(data, town, pictures)
   }
   const id = raw && /^\d{1,9}$/.test(raw) ? Number(raw) : null
   if (id == null) return null
@@ -133,9 +149,28 @@ function placesIn(data: MapData, bounds: Bounds, pick: MapPlace | null): ClipMar
     }))
 }
 
+/** The held sites the frame shows, as the map marks them: a gold-rimmed disc with the kind's glyph in its ink; `pick` is drawn larger. */
+function sitesIn(data: MapData, bounds: Bounds, pick: MapTown | null): ClipMark[] {
+  return data.towns
+    .filter((town) => isSite(town) && town.home && within(bounds, town.home))
+    .map((town) => {
+      const facts = siteFacts(town)!
+      return {
+        x: town.home![0],
+        z: town.home![1],
+        colour: GROUND.whitewash,
+        ring: GROUND.saffronDeep,
+        ink: siteInk(facts),
+        radius: town.id === pick?.id ? 16 : 12,
+        glyph: SITE_GLYPHS[facts.kind as keyof typeof SITE_GLYPHS] ?? SITE_GLYPHS.site,
+      }
+    })
+}
+
 /**
  * The clipping, with the towns' names set over it at their home blocks
- * (the biggest first, each only where no other stands), and nothing when
+ * (the biggest first, each only where no other stands; a held site's
+ * without the lozenge, its mark being in the picture), and nothing when
  * the map isn't answering.
  */
 async function picture(data: MapData, frame: Frame, pictures: Pictures, selected: number | null = null): Promise<MapPicture> {
@@ -167,17 +202,20 @@ async function picture(data: MapData, frame: Frame, pictures: Pictures, selected
       taken.push({ x: px - 48, y: py - 48, w: 96, h: 96 })
     }
     const inset = 16
-    for (const town of [...data.towns].sort((a, b) => b.residents - a.residents)) {
+    // Towns first, the biggest of them first; the held sites after.
+    const ordered = [...data.towns].sort((a, b) => Number(isSite(a)) - Number(isSite(b)) || b.residents - a.residents)
+    for (const town of ordered) {
       if (!town.home) continue
+      const site = isSite(town)
       const [px, py] = project(town.home)
       const text = spoken(town.name).toUpperCase()
       const w = text.length * 15 * 0.68 + 24
       const h = 30
-      const box = { x: px - w / 2, y: py - 15 - h, w, h }
+      const box = { x: px - w / 2, y: py - (site ? 20 : 15) - h, w, h }
       if (box.x < inset || box.y < inset || box.x + w > MAP_PICTURE.width - inset) continue
       if (taken.some((o) => box.x < o.x + o.w && box.x + w > o.x && box.y < o.y + o.h && box.y + h > o.y)) continue
       taken.push(box)
-      labels.push({ x: px, y: py, text, selected: town.id === selected })
+      labels.push({ x: px, y: py, text, selected: town.id === selected, site })
     }
   } catch {
     // The map could not be drawn: the card goes out without it, and briefly.
@@ -214,38 +252,99 @@ const card = (subject: MapSubject, picture: MapPicture, facts: MapFact[], survey
   survey,
 })
 
-/** /maps: the heartland of the nation's towns, every claim outlined and named. */
+/** /maps: the heartland of the nation's towns, every claim outlined and named, the held sites marked. */
 async function nation(data: MapData, pictures: Pictures): Promise<Loaded> {
   const heart = heartland(data.towns) ?? { minX: 3000, maxX: 5600, minZ: 4400, maxZ: 7200 }
   const centre = centreOf(heart)
   const span = fitSpan(heart, MARGIN.nation, MIN_SPAN.nation)
+  const bounds = extent(centre, span)
+  // The figures count players' towns alone: a held site's bot isn't a resident.
+  const towns = settlements(data.towns)
+  const shown = await picture(
+    data,
+    {
+      centre,
+      span,
+      outlines: towns.flatMap((town) => town.claims),
+      colour: GROUND.sea700,
+      courses: roadsIn(data, bounds, null).filter((course) => course.blocks >= 5),
+      marks: sitesIn(data, bounds, null),
+    },
+    pictures,
+  )
+  const residents = towns.reduce((total, town) => total + town.residents, 0)
+  const chunks = towns.reduce((total, town) => total + town.chunks, 0)
+  const coming = data.events.filter((event) => eventPhase(event) !== 'past').length
+  const { sites, total } = holdingsOf(data.towns)
+  const figures = [count(towns.length, 'town'), count(residents, 'resident'), count(data.places.length, 'place')]
+  return {
+    card: card(
+      { what: 'nation', figures: figures.join(' · ') },
+      shown,
+      [
+        { label: 'Towns', value: String(towns.length) },
+        { label: 'Residents', value: residents.toLocaleString('en-GB') },
+        { label: 'Claimed chunks', value: chunks.toLocaleString('en-GB') },
+        { label: 'Events coming', value: String(coming) },
+        ...(sites.length
+          ? [{ label: count(sites.length, 'site') + ' held', value: incomeWords(total) ?? 'paying nothing' }]
+          : []),
+      ],
+      null,
+    ),
+    complete: pictures.complete,
+  }
+}
+
+/**
+ * A held site: its claims in the treasury's gold around its mark, what it
+ * is and pays, its terms, and the nearest town's spawn with the walk, since
+ * a site is nobody's `/t spawn`.
+ */
+async function siteCard(data: MapData, town: MapTown, facts: SiteFacts, pictures: Pictures): Promise<Loaded> {
+  const centre = townCentre(town) ?? ([0, 0] as Point)
+  const around = homeClaimBounds(town) ?? extent(centre, MIN_SPAN.town)
+  const span = fitSpan(around, MARGIN.town, MIN_SPAN.town)
   const bounds = extent(centre, span)
   const shown = await picture(
     data,
     {
       centre,
       span,
-      outlines: data.towns.flatMap((town) => town.claims),
-      colour: GROUND.sea700,
-      courses: roadsIn(data, bounds, null).filter((course) => course.blocks >= 5),
+      outlines: town.claims,
+      colour: GROUND.saffronDeep,
+      courses: roadsIn(data, bounds, null),
+      marks: [...placesIn(data, bounds, null), ...sitesIn(data, bounds, town)],
     },
     pictures,
+    town.id,
   )
-  const residents = data.towns.reduce((total, town) => total + town.residents, 0)
-  const chunks = data.towns.reduce((total, town) => total + town.chunks, 0)
-  const coming = data.events.filter((event) => eventPhase(event) !== 'past').length
-  const figures = [count(data.towns.length, 'town'), count(residents, 'resident'), count(data.places.length, 'place')]
+  const route = town.home ? spawnRoute(town.home, data.towns) : null
+  const places = data.places.filter((place) => place.town === town.id).length
+  const produces = facts.kind === 'quarry' ? resourceWords(facts.resource) : null
   return {
     card: card(
-      { what: 'nation', figures: figures.join(' · ') },
+      {
+        what: 'site',
+        name: spoken(town.name),
+        kind: siteTitle(facts),
+        holder: 'Azania',
+        pays: incomeWords(facts.income),
+        terms: siteTerms(facts).join(' '),
+        spawn: route ? { command: route.command, then: route.then } : null,
+        mark: {
+          ...(SITE_GLYPHS[facts.kind as keyof typeof SITE_GLYPHS] ?? SITE_GLYPHS.site),
+          ink: siteInk(facts),
+        },
+      },
       shown,
       [
-        { label: 'Towns', value: String(data.towns.length) },
-        { label: 'Residents', value: residents.toLocaleString('en-GB') },
-        { label: 'Claimed chunks', value: chunks.toLocaleString('en-GB') },
-        { label: 'Events coming', value: String(coming) },
+        { label: 'Held by', value: town.nation ? `Azania (${spoken(town.nation)})` : 'Azania' },
+        ...(produces ? [{ label: 'Produces', value: produces.adjective }] : []),
+        { label: 'Claimed chunks', value: town.chunks.toLocaleString('en-GB') },
+        { label: 'Places', value: places ? String(places) : 'None yet' },
       ],
-      null,
+      town.home ? survey(town.home, 64) : null,
     ),
     complete: pictures.complete,
   }

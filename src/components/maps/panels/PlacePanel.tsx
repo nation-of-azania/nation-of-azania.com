@@ -2,6 +2,7 @@ import { spoken, type MapData, type MapPlace } from '@/maps/data'
 import { PlaceIcon } from '@/maps/icons'
 import { ringArea } from '@/maps/geo'
 import { PLACE_CATEGORIES, PLACE_GROUPS } from '@/maps/registry'
+import { siteFacts, siteTitle } from '@/maps/sites'
 import type { Article } from '@/payload-types'
 
 import { placeColour } from '../layers/PlacesLayer'
@@ -19,6 +20,8 @@ export function PlacePanel({
   articles: Article[]
 }) {
   const town = data.towns.find((candidate) => candidate.id === place.town) ?? null
+  // A place at a held site: the site is named, its bot is no mayor.
+  const site = town ? siteFacts(town) : null
   const category = PLACE_CATEGORIES[place.category]
   const events = data.events.filter((event) => event.place === place.id)
   const footprint = place.outline ? Math.round(ringArea(place.outline)) : null
@@ -57,11 +60,21 @@ export function PlacePanel({
         <Facts
           items={[
             { label: 'Kind', value: `${category.label} · ${PLACE_GROUPS[category.group]}` },
-            { label: 'Town', value: town ? <TownLink town={town} /> : 'Between towns' },
+            {
+              label: site ? 'At' : 'Town',
+              value: town ? (
+                <>
+                  <TownLink town={town} />
+                  {site ? ` · ${siteTitle(site).toLowerCase()}` : ''}
+                </>
+              ) : (
+                'Between towns'
+              ),
+            },
             ...(footprint
               ? [{ label: 'Footprint', value: `${footprint.toLocaleString('en-GB')} blocks²` }]
               : []),
-            ...(town?.ruler ? [{ label: 'Mayor', value: spoken(town.ruler) }] : []),
+            ...(town?.ruler && !site ? [{ label: 'Mayor', value: spoken(town.ruler) }] : []),
           ]}
         />
       </div>

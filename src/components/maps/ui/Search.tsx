@@ -6,10 +6,12 @@ import { cn } from '@/blocks/components/shared'
 import { spoken, type MapData } from '@/maps/data'
 import { PlaceIcon } from '@/maps/icons'
 import { PLACE_CATEGORIES, ROAD_KINDS } from '@/maps/registry'
+import { incomeWords, siteFacts, siteTitle } from '@/maps/sites'
 import type { MapSelection } from '@/maps/url'
 import { formatWhen } from '@/maps/time'
 
 import { placeColour } from '../layers/PlacesLayer'
+import { SiteBadge } from '../layers/SiteMark'
 import { Icon } from './icons'
 
 type Result = { selection: MapSelection; title: string; subtitle: string; icon: React.ReactNode }
@@ -18,10 +20,11 @@ const normalise = (text: string) =>
   text.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/_/g, ' ')
 
 /**
- * Finds anything on the map by name: towns, places, roads and events, a
- * dozen at a time, soonest and nearest-sounding first. Arrow keys walk the
- * list; Enter opens; Escape clears. The list is a listbox the input owns,
- * so a screen reader hears what's offered.
+ * Finds anything on the map by name: towns and the sites the nation holds
+ * (by name or by kind, so "diamond" finds the quarry), places, roads and
+ * events, a dozen at a time, soonest and nearest-sounding first. Arrow keys
+ * walk the list; Enter opens; Escape clears. The list is a listbox the
+ * input owns, so a screen reader hears what's offered.
  */
 export function Search({
   data,
@@ -59,13 +62,20 @@ export function Search({
     const rank = (text: string) => (normalise(text).startsWith(needle) ? 0 : 1)
     const found: (Result & { rank: number })[] = []
     for (const town of data.towns) {
-      if (hit(town.name)) {
+      const site = siteFacts(town)
+      if (hit(town.name) || (site && hit(siteTitle(site)))) {
         found.push({
           rank: rank(town.name),
           selection: { kind: 'town', slug: town.slug },
           title: spoken(town.name),
-          subtitle: `Town · ${town.residents} resident${town.residents === 1 ? '' : 's'}`,
-          icon: <Icon className="h-4 w-4 text-sea-800" name="town" />,
+          subtitle: site
+            ? [siteTitle(site), incomeWords(site.income)].filter(Boolean).join(' · ')
+            : `Town · ${town.residents} resident${town.residents === 1 ? '' : 's'}`,
+          icon: site ? (
+            <SiteBadge className="h-5 w-5" facts={site} />
+          ) : (
+            <Icon className="h-4 w-4 text-sea-800" name="town" />
+          ),
         })
       }
     }
@@ -158,7 +168,7 @@ export function Search({
               setOpen(false)
             }
           }}
-          placeholder="Search towns, places, roads, events"
+          placeholder="Search towns, sites, places, roads, events"
           ref={inputRef}
           role="combobox"
           type="search"

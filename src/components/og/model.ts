@@ -86,8 +86,8 @@ export type GenericCard = { kind: 'generic' }
 export type MapPicture = {
   /** The clipping as a data URI; null when the Rulercraft map isn't answering. */
   src: string | null
-  /** The towns' names to set over the picture, at the pixel their home block sits at; the card's own town picked out. */
-  labels: { x: number; y: number; text: string; selected?: boolean }[]
+  /** The towns' names to set over the picture, at the pixel their home block sits at; the card's own town picked out. A held site's name goes without the lozenge, since its mark is already in the picture. */
+  labels: { x: number; y: number; text: string; selected?: boolean; site?: boolean }[]
 }
 
 export type MapFact = { label: string; value: string }
@@ -106,6 +106,23 @@ export type MapSubject =
       ruler: CardByline | null
       /** "/t spawn GirlieTown", with whether anyone may use it. */
       spawn: { command: string; open: boolean | null } | null
+    }
+  | {
+      /** A site the server runs and the nation holds: a quarry, a wasteland, a treasure ship. */
+      what: 'site'
+      name: string
+      /** "Diamond quarry". */
+      kind: string
+      /** "Azania". */
+      holder: string
+      /** "$333 a day", or null when the map didn't say. */
+      pays: string | null
+      /** The terms, said kindly, as one run of text. */
+      terms: string
+      /** The nearest town's spawn and the walk from it, since a site is nobody's `/t spawn`. */
+      spawn: { command: string; then: string | null } | null
+      /** The kind's glyph on the 24 grid in its ink: filled for a quarry's gem. */
+      mark: { d: string; fill: boolean; ink: string }
     }
   | {
       what: 'place'

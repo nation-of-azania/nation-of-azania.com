@@ -17,6 +17,7 @@ import { cn } from '@/blocks/components/shared'
 import {
   heartland,
   homeClaimBounds,
+  isSite,
   mapRightsOf,
   NO_RIGHTS,
   roadPoints,
@@ -31,6 +32,7 @@ import {
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
+import { settlements, siteFacts, siteTitle } from '@/maps/sites'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
@@ -100,7 +102,9 @@ function describe(
   switch (selection.kind) {
     case 'town': {
       const found = data.towns.find((candidate) => candidate.slug === selection.slug)
-      return found ? { title: spoken(found.name), kind: 'Town' } : null
+      if (!found) return null
+      const site = siteFacts(found)
+      return { title: spoken(found.name), kind: site ? siteTitle(site) : 'Town' }
     }
     case 'place': {
       const found = data.places.find((candidate) => candidate.id === selection.id)
@@ -136,15 +140,22 @@ const HISTORY_LIMIT = 100
  * What a signed-in person may do on the map, in a few words beside their
  * name, so nobody has to guess their rights: "draws anywhere" for staff and
  * cartographers, "Mayor of GirlieTown", "map views only" for a writer.
+ * Nobody is mayor of a held site, so someone given one to draw in "draws
+ * at Africa Quarry".
  */
 function standingOf(rights: MapRights, towns: MapTown[]): string {
   if (rights.anywhere) return 'draws anywhere'
   if (rights.towns.length) {
-    const names = rights.towns
+    const held = rights.towns
       .map((id) => towns.find((town) => town.id === id))
       .filter((town): town is MapTown => Boolean(town))
-      .map((town) => spoken(town.name))
-    return names.length ? `Mayor of ${names.join(' and ')}` : 'Mayor'
+    const mayorOf = held.filter((town) => !isSite(town)).map((town) => spoken(town.name))
+    const drawsAt = held.filter(isSite).map((town) => spoken(town.name))
+    const words = [
+      ...(mayorOf.length ? [`Mayor of ${mayorOf.join(' and ')}`] : []),
+      ...(drawsAt.length ? [`draws at ${drawsAt.join(' and ')}`] : []),
+    ]
+    return words.length ? words.join(' · ') : 'Mayor'
   }
   if (rights.views) return 'map views only'
   return 'reader'
@@ -884,7 +895,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="font-display text-lg leading-tight text-sea-950">Azania at a glance</span>
         <span className="truncate text-xs text-ink-500">
-          {data.towns.length} towns
+          {settlements(data.towns).length} towns
           {liveEvents
             ? ` · ${liveEvents} on now`
             : upcoming
