@@ -1,5 +1,7 @@
 'use client'
 
+import { useId } from 'react'
+
 import { cn } from '@/blocks/components/shared'
 import { PlaceIcon } from '@/maps/icons'
 import { GROUP_COLOURS, GROUND, ROAD_STYLES } from '@/maps/palette'
@@ -13,11 +15,12 @@ import {
 } from '@/maps/registry'
 
 import { EventMark } from '../layers/EventsLayer'
+import { SiteMark } from '../layers/SiteMark'
 import { EYEBROW, IconButton, Popover } from './chrome'
 import { Icon } from './icons'
 
 const LAYER_WORDS: Record<MapLayer, string> = {
-  towns: 'Towns',
+  towns: 'Towns and held sites',
   places: 'Places',
   roads: 'Roads',
   events: 'Events',
@@ -72,8 +75,9 @@ export function LayerMenu({
   )
 }
 
-/** What the marks mean: the road classes, the place groups, the event mark. */
+/** What the marks mean: the road classes, the place groups, a town's claims and a held site's, the event mark. */
 export function Legend() {
+  const hatch = `${useId()}-hatch`
   const groups = Object.keys(PLACE_GROUPS) as PlaceGroup[]
   const sample = (group: PlaceGroup) =>
     (Object.entries(PLACE_CATEGORIES).find(([, c]) => c.group === group)?.[0] ??
@@ -158,6 +162,28 @@ export function Legend() {
               />
             </svg>
             <span>A town’s claims (Towny)</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <defs>
+                <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
+                  <line stroke={GROUND.saffronDeep} strokeOpacity={0.55} strokeWidth={1.2} x1={0} x2={0} y1={0} y2={6} />
+                </pattern>
+              </defs>
+              <rect fill={GROUND.saffron} fillOpacity={0.08} height={14} width={40} x={4} y={3} />
+              <rect
+                fill={`url(#${hatch})`}
+                height={14}
+                stroke={GROUND.saffronDeep}
+                strokeDasharray="4 2"
+                strokeWidth={1.5}
+                width={40}
+                x={4}
+                y={3}
+              />
+              <SiteMark facts={{ kind: 'quarry', resource: 'Diamond' }} scale={0.7} x={24} y={10} />
+            </svg>
+            <span>A site Azania holds: a quarry, a wasteland, a treasure ship</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">

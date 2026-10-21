@@ -133,6 +133,7 @@ export function Survey({
   y,
   town,
   fit,
+  fitLabel = 'Fit to town',
   className,
 }: {
   point: Point
@@ -141,6 +142,8 @@ export function Survey({
   town?: MapTown
   /** Bounds to fit the map to, offered beside "Centre here": a town's main claim. */
   fit?: Bounds | null
+  /** What fitting is called: "Fit to the site" for a quarry. */
+  fitLabel?: string
   className?: string
 }) {
   const { data } = useMaps()
@@ -183,7 +186,7 @@ export function Survey({
             className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             target={{ bounds: fit }}
           >
-            Fit to town
+            {fitLabel}
           </Look>
         ) : null}
       </p>

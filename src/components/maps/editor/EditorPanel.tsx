@@ -145,7 +145,7 @@ function AboutForm({
   }
   return (
     <EditorFrame
-      eyebrow="About the town"
+      eyebrow={town && town.kind !== 'town' ? 'About the site' : 'About the town'}
       onClose={onClose}
       title={town?.name.replace(/_/g, ' ') ?? 'Town'}
     >

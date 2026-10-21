@@ -12,9 +12,9 @@ import { COLOR, FACE, HEAD_PX, MAP_PICTURE } from './tokens'
  * in it. The picture is the clipping renderClip drew, with the thing on it
  * the way the map draws it; the towns' names are set over it here, in the
  * small capitals the map uses. The panel names the thing, shows what the
- * map's own panel would (the ruler's head, a place's glyph, an event's
- * calendar leaf), and closes with the double rule, a few facts and the
- * survey reference in mono.
+ * map's own panel would (the ruler's head, a place's glyph, a held site's
+ * gem and what it pays, an event's calendar leaf), and closes with the
+ * double rule, a few facts and the survey reference in mono.
  */
 
 const WIDTH = 1200
@@ -95,6 +95,8 @@ function KindMark({ subject }: { subject: MapSubject }) {
           <path d="M8 1.5L14.5 8L8 14.5L1.5 8Z" fill={GROUND.sea800} stroke={GROUND.whitewash} strokeWidth="1.5" />
         </svg>
       )
+    case 'site':
+      return <SiteDisc mark={subject.mark} size={28} />
     case 'place':
       return <Disc colour={subject.category.colour} d={subject.category.d} fill={subject.category.fill} size={28} />
     case 'road':
@@ -130,6 +132,27 @@ function Disc({ colour, d, fill, size }: { colour: string; d: string; fill: bool
   )
 }
 
+/** A held site's mark, as SiteMark draws it (src/components/maps/layers): a whitewash disc rimmed in gold, the glyph in the site's ink. */
+function SiteDisc({ mark, size }: { mark: { d: string; fill: boolean; ink: string }; size: number }) {
+  const r = size / 2
+  const scale = (size * 0.58) / 24
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} xmlns="http://www.w3.org/2000/svg">
+      <circle cx={r} cy={r} r={r - 1.5} fill={GROUND.whitewash} stroke={GROUND.saffronDeep} strokeWidth="2.5" />
+      <g transform={`translate(${r - 12 * scale} ${r - 12 * scale}) scale(${scale})`}>
+        <path
+          d={mark.d}
+          fill={mark.fill ? mark.ink : 'none'}
+          stroke={mark.fill ? GROUND.whitewash : mark.ink}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    </svg>
+  )
+}
+
 /** The words above the name: the kind, and where it is. */
 function eyebrowOf(subject: MapSubject): ReactNode {
   const parts: string[] =
@@ -137,11 +160,13 @@ function eyebrowOf(subject: MapSubject): ReactNode {
       ? ['The Nation of Azania']
       : subject.what === 'town'
         ? ['Town', subject.nation ?? 'Without a nation']
-        : subject.what === 'place'
-          ? [subject.category.label, ...(subject.town ? [subject.town] : [])]
-          : subject.what === 'road'
-            ? [subject.kind, subject.town ?? 'Between towns']
-            : ['Event', ...(subject.town ? [subject.town] : [])]
+        : subject.what === 'site'
+          ? [subject.kind, `Held by ${subject.holder}`]
+          : subject.what === 'place'
+            ? [subject.category.label, ...(subject.town ? [subject.town] : [])]
+            : subject.what === 'road'
+              ? [subject.kind, subject.town ?? 'Between towns']
+              : ['Event', ...(subject.town ? [subject.town] : [])]
   return parts.map((part, index) => (
     <span key={part} style={{ ...row }}>
       {index > 0 ? <Dot color={COLOR.sand300} /> : null}
@@ -289,6 +314,47 @@ function Particulars({ subject }: { subject: MapSubject }) {
           ) : null}
         </div>
       )
+    case 'site':
+      return (
+        <div style={{ ...col, marginTop: 18 }}>
+          {/* What it pays, as the figure that matters, then the terms and the way there. */}
+          {subject.pays ? (
+            <div style={{ ...row, alignItems: 'baseline', gap: 10 }}>
+              <div style={{ fontSize: 34, fontWeight: 600, lineHeight: 1, color: COLOR.saffron600 }}>
+                {subject.pays.replace(/ a day$/, '')}
+              </div>
+              <div style={{ fontSize: 18, lineHeight: 1, color: COLOR.ink500 }}>a day to the nation that holds it</div>
+            </div>
+          ) : null}
+          <Lines clamp={3} size={18} style={{ marginTop: subject.pays ? 14 : 0 }}>
+            {subject.terms}
+          </Lines>
+          {subject.spawn ? (
+            <div style={{ ...col, alignItems: 'flex-start', gap: 8, marginTop: 16 }}>
+              <div
+                style={{
+                  fontFamily: FACE.plexMono,
+                  fontWeight: 500,
+                  fontSize: 17,
+                  lineHeight: 1,
+                  padding: '8px 11px',
+                  color: COLOR.sea800,
+                  background: COLOR.sand100,
+                  border: `1px solid ${COLOR.sand300}`,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {subject.spawn.command}
+              </div>
+              {subject.spawn.then ? (
+                <Caps font={FACE.sourceSans} size={12} tracking={0.16} color={COLOR.ink500}>
+                  {subject.spawn.then}
+                </Caps>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )
     case 'place':
       return subject.description ? <Lines clamp={3}>{subject.description}</Lines> : null
     case 'road':
@@ -383,15 +449,19 @@ function Picture({ picture }: { picture: MapPicture }) {
   )
 }
 
-/** A town's name in small capitals over its home block, with the map's lozenge under it. */
-function TownName({ x, y, text, selected }: MapPicture['labels'][number]) {
+/**
+ * A town's name in small capitals over its home block, with the map's
+ * lozenge under it. A held site's name goes in gold without the lozenge:
+ * its mark is already in the picture, drawn by renderClip.
+ */
+function TownName({ x, y, text, selected, site }: MapPicture['labels'][number]) {
   const size = 14
   const tracking = size * 0.14
   const w = Math.round(text.length * size * 0.66 + text.length * tracking + 22)
   const h = 28
-  // The lozenge's centre lands on the home block; the name sits 8 px above it.
+  // The lozenge's centre lands on the home block; the name sits 8 px above it (a site's mark is wider, so its name sits higher).
   return (
-    <div style={{ ...col, position: 'absolute', left: Math.round(x - w / 2), top: Math.round(y - h - 15), width: w }}>
+    <div style={{ ...col, position: 'absolute', left: Math.round(x - w / 2), top: Math.round(y - h - (site ? 20 : 15)), width: w }}>
       <div
         style={{
           ...row,
@@ -399,28 +469,30 @@ function TownName({ x, y, text, selected }: MapPicture['labels'][number]) {
           width: w,
           height: h,
           background: 'rgba(251,248,241,0.94)',
-          border: `1px solid ${COLOR.sand300}`,
+          border: `1px solid ${site ? COLOR.saffron300 : COLOR.sand300}`,
           fontFamily: FACE.sourceSans,
           fontWeight: 600,
           fontSize: size,
           letterSpacing: tracking,
           lineHeight: 1,
-          color: selected ? COLOR.saffron600 : COLOR.sea800,
+          color: selected || site ? COLOR.saffron600 : COLOR.sea800,
           whiteSpace: 'nowrap',
         }}
       >
         {text}
       </div>
-      <div style={{ ...row, justifyContent: 'center', width: w, marginTop: 8 }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M7 1L13 7L7 13L1 7Z"
-            fill={selected ? GROUND.saffron : GROUND.sea800}
-            stroke={GROUND.whitewash}
-            strokeWidth="1.5"
-          />
-        </svg>
-      </div>
+      {site ? null : (
+        <div style={{ ...row, justifyContent: 'center', width: w, marginTop: 8 }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M7 1L13 7L7 13L1 7Z"
+              fill={selected ? GROUND.saffron : GROUND.sea800}
+              stroke={GROUND.whitewash}
+              strokeWidth="1.5"
+            />
+          </svg>
+        </div>
+      )}
     </div>
   )
 }

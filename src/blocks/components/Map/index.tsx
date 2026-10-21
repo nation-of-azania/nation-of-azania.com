@@ -1,4 +1,5 @@
 import { MapEmbed } from '@/components/maps/embed/Embed'
+import { SiteBadge } from '@/components/maps/layers/SiteMark'
 import { MapsMark } from '@/components/maps/Mark'
 import { MapStill, type Frame } from '@/components/maps/still/Still'
 import { COLOR, STYLE_THEME } from '@/components/og/tokens'
@@ -7,6 +8,7 @@ import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import { dress } from '@/components/styles'
 import { getMapData, getMapView, getTownByName } from '@/lib/maps'
 import { around, mapView, type MapData, type MapViewData } from '@/maps/data'
+import { incomeWords, siteTerms, siteTitle, type SiteFacts } from '@/maps/sites'
 import { routeFrom, spawnRoute, type SpawnRoute } from '@/maps/spawn'
 import { ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
 import { clock } from '@/maps/time'
@@ -213,9 +215,11 @@ function Fact({
  * caption, the coordinates as a survey reference, and a quiet link to the
  * live map. Centred on a Towny town, it outlines the town's claims and may
  * add a plate of the town's facts from the map's own records, with the
- * ruler's head. The clipping is drawn by /mapclip (src/app/(frontend)/mapclip)
- * and cached at the CDN; the claims are outlined in the paper's colour, or
- * the style's.
+ * ruler's head. A site the server runs (a quarry, a treasure ship) gets a
+ * plate of its own instead: its mark, what it is and pays, and its terms,
+ * since its ruler is a bot and nobody lives there. The clipping is drawn
+ * by /mapclip (src/app/(frontend)/mapclip) and cached at the CDN; the
+ * claims are outlined in the paper's colour, or the style's.
  *
  * A server component, so the town is looked up at render time (cached an
  * hour in src/lib/dynmap.ts) and the page stays static. Whatever the map
@@ -266,6 +270,11 @@ export async function MapBlock({
   const townName = townField?.trim() || null
   const lookup = townName ? await getTownByName(townName) : null
   const town = lookup && lookup !== 'offline' ? lookup : null
+  // A site the server runs: the plate says what it is, not who rules it.
+  const site: SiteFacts | null =
+    town && town.kind !== 'town'
+      ? { kind: town.kind, income: town.income, resource: town.resource, note: town.siteNote }
+      : null
   const hasCoordinates = typeof x === 'number' && Number.isFinite(x) && typeof z === 'number' && Number.isFinite(z)
   const centre = hasCoordinates ? { x, z } : town ? townCentre(town) : null
 
@@ -347,9 +356,11 @@ export async function MapBlock({
   const now = clock()
 
   // The way there as a player has it: the town's own spawn, or, from
-  // coordinates, the nearest public one and the walk from its home block.
-  const route = town
-    ? routeFrom(
+  // coordinates or for a site (which is nobody's spawn), the nearest public
+  // one and the walk from its home block.
+  const route =
+    town && !site
+      ? routeFrom(
         { name: town.name, home: town.home ? [town.home.x, town.home.z] : null, publicSpawn: town.publicSpawn },
         [cx, cz],
       )
@@ -388,7 +399,27 @@ export async function MapBlock({
           )}
         </div>
 
-        {showFacts && town ? (
+        {showFacts && town && site ? (
+          <div className={voice.plate}>
+            <div className="flex items-start gap-3">
+              {/* The site's mark where a ruler's head would go, rimmed in the paper's ink (or the style's). */}
+              <SiteBadge className="h-10 w-10 shrink-0 text-(--accent-ink)" facts={site} ring="currentColor" />
+              <div className="min-w-0 flex-1">
+                <p className={voice.name}>{spoken(town.name)}</p>
+                <dl className="mt-1.5 grid grid-cols-2 gap-x-5 gap-y-2 sm:grid-cols-5">
+                  <Fact label="Site" value={siteTitle(site)} voice={voice} />
+                  <Fact label="Pays" value={incomeWords(site.income) ?? 'Not recorded'} voice={voice} />
+                  <Fact
+                    label="Held by"
+                    value={azanian ? 'Azania' : town.nation ? spoken(town.nation) : 'No one'}
+                    voice={voice}
+                  />
+                  <Fact className="col-span-2 sm:col-span-5" label="Terms" value={siteTerms(site).join(' ')} voice={voice} />
+                </dl>
+              </div>
+            </div>
+          </div>
+        ) : showFacts && town ? (
           <div className={voice.plate}>
             <div className="flex items-start gap-3">
               <BylineAvatar
