@@ -52,22 +52,31 @@ function sheetSpan(projection: Projection): { top: number; bottom: number } | nu
   return { top, bottom }
 }
 
-/** The wash over each echo on the page, drawn under the layers: the copy's sheet, faded. */
-export function EchoWash({ projection }: { projection: Projection }) {
+/**
+ * The wash over each echo on the page, drawn under the layers: the copy's
+ * sheet, faded. The real world gets a wash too, fully clear, keyed like
+ * the echoes' by which copy it is to the reader (`world`, from
+ * leaflet/home.ts): when the map re-bases a world over, the wash under the
+ * reader fades away and the one over the copy they came from fades in,
+ * which reads as one hand-over rather than a cut (the transition is in
+ * maps.css, and off for readers who ask for less motion).
+ */
+export function EchoWash({ projection, world = 0 }: { projection: Projection; world?: number }) {
   const echoes = echoesIn(projection)
   const span = sheetSpan(projection)
   if (echoes.length === 0 || !span) return null
   return (
     <g className="az-echoes" pointerEvents="none">
-      {echoes.map((copy) => {
+      {[0, ...echoes].map((copy) => {
         const [left] = projection.project([copy * WORLD_WIDTH + WORLD_WEST, 0])
         const [right] = projection.project([copy * WORLD_WIDTH + WORLD_EAST, 0])
         return (
           <rect
+            className="az-wash"
             fill={GROUND.whitewash}
-            fillOpacity={0.5}
             height={span.bottom - span.top}
-            key={copy}
+            key={world + copy}
+            style={{ fillOpacity: copy ? 0.5 : 0 }}
             width={right - left}
             x={left}
             y={span.top}

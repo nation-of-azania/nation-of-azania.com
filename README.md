@@ -504,6 +504,27 @@ and a frame drawn over it is saved over the real world; but a click on a
 town or a place in an echo opens the real one, and the map comes back to
 it. The address in the query always names the real spot. An article's
 embedded map stays bounded.
+
+The reader is always **home**, though: the moment the view's centre
+crosses a seam — when most of the page is on an echo — the copy under
+them becomes the real one and the one they came from its echo, so a pan
+east can go on for ever with the echoes only ever at the edges of the
+page (`leaflet/home.ts`). Nothing on the page moves for it. Rather than
+panning back a world, the map's own pixel origin is shifted by exactly a
+world's width, so the same spot on the page now means the same spot a
+world over; every tile is re-keyed to the column it now stands for
+(`leaflet/tiles.ts`), the picture there being the same, so no tile is
+asked for, not even of the browser's cache; the heads, the sheets and the
+overlay are told to stand again where they are; and the overlay is drawn
+again with the real world in full colour under the reader and the wash
+gone over to the other side, the two crossing over in a moment (still, for
+readers who ask for less motion). The address names the same spot, the
+heads keep gliding, and a drag or a fling under way carries on, since it
+only moves the map's pane; the re-basing happens mid-pan, where the seam
+is crossed, and otherwise when the map settles after a zoom, a key or a
+jump. A little slack past each seam keeps a centre that sits right on one
+from flipping to and fro, and the map is never re-based while a tool's
+drag or a pen stroke is in progress.
 The layers themselves are plain SVG (`src/components/maps/layers`), drawn
 through one projection interface, so the same components draw the live map
 in the browser and a block's still picture on the server. They are

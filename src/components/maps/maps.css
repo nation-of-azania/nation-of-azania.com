@@ -109,6 +109,27 @@
   user-select: none;
   -webkit-user-select: none;
 }
+
+/*
+ * The world repeats east and west: each echo of it is drawn faded under a pale wash. When the
+ * map re-bases a world over (leaflet/home.ts), the copy under the reader turns real and the one
+ * they came from turns echo, and the two cross over in a moment rather than cutting.
+ */
+.az-overlay .az-world {
+  transition: opacity 200ms ease-out;
+}
+.az-overlay .az-world[data-echo] {
+  opacity: 0.55;
+}
+.az-overlay .az-wash {
+  transition: fill-opacity 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-overlay .az-world,
+  .az-overlay .az-wash {
+    transition: none;
+  }
+}
 .az-overlay .az-place .az-place-label {
   visibility: hidden;
 }

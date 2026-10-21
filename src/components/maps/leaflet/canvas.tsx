@@ -15,53 +15,26 @@ import {
 import { createPortal } from 'react-dom'
 
 import { pixelsPerBlock } from '@/maps/palette'
-import { TILE_SIZE, WORLD_LIMIT, type Bounds, type Point } from '@/maps/geo'
-import {
-  cachedTileUrl,
-  inWorld,
-  MAPS,
-  WORLD_EAST,
-  WORLD_NORTH,
-  WORLD_SOUTH,
-  WORLD_WEST,
-} from '@/maps/source'
+import { WORLD_LIMIT, type Bounds, type Point } from '@/maps/geo'
+import { inWorld } from '@/maps/source'
 
 import type { Projection } from '../layers/projection'
 
-import { attachSheets, SHEET_ZOOM } from './sheet'
+import { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
+import { createHome } from './home'
+import { attachSheets } from './sheet'
+import { AzaniaTileLayer, MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
 
-/**
- * Leaflet, taught the Rulercraft map's projection. Block (x, z) is pixel
- * (2x, 2z + 128) at Dynmap's level 0, each level up halving it
- * (src/maps/geo.ts); so a Leaflet "latitude" is z, a "longitude" x, zoom 0
- * is level 0 (2 px per block), and level n is zoom −n. Zooming past 0
- * scales the level-0 tiles up, pixel for pixel, which suits a world made
- * of blocks. Only ever loaded in the browser, through next/dynamic.
+/*
+ * The map's pieces, each in a module of its own: the projection (./crs.ts),
+ * the tiles (./tiles.ts), the world as one picture at the far zooms
+ * (./sheet.ts), and the re-basing that keeps the reader in the real world
+ * as the map repeats east and west (./home.ts). What the rest of the map
+ * needs of them is exported again from here.
  */
-export const AzaniaCRS: L.CRS = L.Util.extend({}, L.CRS.Simple, {
-  transformation: new L.Transformation(2, 0, 2, TILE_SIZE),
-  infinite: true,
-})
+export { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
+export { MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
 
-/**
- * The same, with the world repeated east and west: Leaflet wraps the tiles'
- * columns at the world's edges (src/maps/source.ts), so a pan never runs
- * out of map. The world doesn't wrap in the game; the live map says so
- * without words, washing the echoes and tearing the sheet at every edge
- * (src/components/maps/layers/WorldEdge.tsx).
- */
-export const AzaniaWrappingCRS: L.CRS = L.Util.extend({}, AzaniaCRS, {
-  wrapLng: [WORLD_WEST, WORLD_EAST],
-})
-
-export const toLatLng = ([x, z]: Point): L.LatLng => L.latLng(z, x)
-export const toPoint = (latlng: L.LatLng): Point => [latlng.lng, latlng.lat]
-export const toLatLngBounds = (bounds: Bounds): L.LatLngBounds =>
-  L.latLngBounds([bounds.minZ, bounds.minX], [bounds.maxZ, bounds.maxX])
-
-export const MAX_ZOOM = 3
-/** The flat map's coarsest level; Dynmap draws nothing coarser, and no tile is ever asked for past it. */
-export const MIN_NATIVE_ZOOM = -MAPS.flat.maxLevel
 /**
  * Two and a half levels further out than the tiles go: the level-5 tiles
  * drawn smaller down to SHEET_ZOOM, and past that the world as one picture
@@ -69,39 +42,6 @@ export const MIN_NATIVE_ZOOM = -MAPS.flat.maxLevel
  * beside the panel on a laptop, with its echoes and torn edges beyond.
  */
 export const MIN_ZOOM = MIN_NATIVE_ZOOM - 2.5
-
-/** A 1×1 transparent PNG: what a tile shows while the map can't be reached, so the backdrop shows through. */
-const EMPTY_TILE =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
-
-/**
- * The Rulercraft map's tiles through the site's cache (src/maps/source.ts);
- * only the native levels are ever asked for, and only over the sheet the
- * map draws: beyond it to the north and south lies nothing, and to the
- * east and west, when the world wraps, an echo's tiles are the sheet's own.
- * Past SHEET_ZOOM the tiles give way to the sheet.
- */
-class AzaniaTileLayer extends L.TileLayer {
-  constructor(wrap: boolean) {
-    super('', {
-      tileSize: TILE_SIZE,
-      minZoom: SHEET_ZOOM,
-      maxZoom: MAX_ZOOM,
-      minNativeZoom: MIN_NATIVE_ZOOM,
-      maxNativeZoom: 0,
-      bounds: toLatLngBounds({ minX: WORLD_WEST, maxX: WORLD_EAST, minZ: WORLD_NORTH, maxZ: WORLD_SOUTH }),
-      noWrap: !wrap,
-      keepBuffer: 3,
-      updateWhenZooming: false,
-      errorTileUrl: EMPTY_TILE,
-      className: 'az-tile',
-    })
-  }
-
-  getTileUrl(coords: L.Coords): string {
-    return cachedTileUrl('flat', -coords.z, coords.x, coords.y)
-  }
-}
 
 export type MapPosition = { centre: Point; zoom: number }
 
@@ -138,11 +78,23 @@ function setTransform(group: SVGGElement, transform: string): void {
   else group.removeAttribute('transform')
 }
 
-type MapContextValue = { map: L.Map; version: number; view: View }
+type MapContextValue = {
+  map: L.Map
+  version: number
+  view: View
+  /**
+   * Which copy of the world the reader is in, counted from where the map
+   * opened: +1 after a pan a world east. The map is re-based so that copy
+   * is always drawn as the real one (./home.ts); the number tells the
+   * layers which copy on the page was which before, so the hand-over can
+   * be drawn as one.
+   */
+  world: number
+}
 
 const MapContext = createContext<MapContextValue | null>(null)
 
-/** The Leaflet map, the view it last settled at, and a counter that advances each time. */
+/** The Leaflet map, the view it last settled at, a counter that advances each time, and the world the reader is in. */
 export function useLeaflet(): MapContextValue {
   const value = useContext(MapContext)
   if (!value) throw new Error('useLeaflet needs a MapCanvas above it.')
@@ -385,23 +337,36 @@ export function MapCanvas({
       map.setView(toLatLng(initial.centre), initial.zoom, { animate: false })
     }
 
-    new AzaniaTileLayer(wrap).addTo(map)
+    const tiles = new AzaniaTileLayer(wrap).addTo(map)
     const detachSheets = attachSheets(map, wrap)
 
     // The overlay: Leaflet's SVG renderer, with a group of our own for React.
     const renderer = L.svg({ padding: 0.6 }).addTo(map)
-    const svg = (renderer as unknown as { _container: SVGSVGElement })._container
+    const svg = renderer as unknown as { _container: SVGSVGElement; _update: () => void }
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     group.setAttribute('class', 'az-overlay')
-    svg.appendChild(group)
+    svg._container.appendChild(group)
     setOverlay(group)
 
     // Past the coarsest tiles, the level-5 tiles are drawn smaller: smoothed, since dropping pixels only speckles them.
     const far = () => container.classList.toggle('az-far', map.getZoom() < MIN_NATIVE_ZOOM)
     map.on('zoom', far)
 
+    // When the world repeats, the reader is kept in the real copy of it.
+    const home = wrap ? createHome(map, tiles) : null
     let version = 0
-    const settle = () => {
+    /** The map has settled, or been re-based (`rebase`, if not checked for here). */
+    const settle = (rebase = home?.check()) => {
+      if (rebase && drawn.current) {
+        // The map's origin moved a world's width, and nothing on the page
+        // did: what's drawn stands where it should, in the old colours,
+        // until the fresh render lands; told it was drawn for the new
+        // origin, it stays put. (In the drawn view's own pixels.)
+        const scale = 2 ** (map.getZoom() - drawn.current.zoom)
+        drawn.current = { ...drawn.current, origin: drawn.current.origin.add(rebase.shift.divideBy(scale)) }
+        // The viewreset left the overlay's box a fraction of a pixel off, as Leaflet's does; its own update sets it exactly.
+        svg._update()
+      }
       const view = takeView(map)
       settled.current = view
       far()
@@ -409,11 +374,18 @@ export function MapCanvas({
       // moveend ran first); move what's drawn into place before React runs.
       // A pan leaves the layer points as they were, and the overlay untouched.
       if (drawn.current) setTransform(group, alignment(drawn.current, view))
-      setContext({ map, version: ++version, view })
+      setContext({ map, version: ++version, view, world: home?.world() ?? 0 })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
     const real = (point: Point) => !wrap || inWorld(point)
-    map.on('moveend', settle)
+    map.on('moveend', () => settle())
+    // Mid-pan, by hand or by inertia, the seam is crossed where it's crossed: the map re-bases there and then.
+    if (home)
+      map.on('move', () => {
+        if (!home.panning()) return
+        const rebase = home.check()
+        if (rebase) settle(rebase)
+      })
     map.on('moveend', () =>
       handlers.current.onMove?.({ centre: toPoint(map.getCenter()), zoom: map.getZoom() }),
     )

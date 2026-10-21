@@ -350,7 +350,7 @@ const Layers = memo(function Layers({
   onEditor,
 }: SceneProps) {
   const projection = useProjection('maps')
-  const { map } = useLeaflet()
+  const { map, world } = useLeaflet()
   // A drag that began on a pin ends on it too, since the pin moves with the
   // map, and the browser then calls that a click; Leaflet knows better.
   const onSelect = (selection: MapSelection) => {
@@ -397,10 +397,13 @@ const Layers = memo(function Layers({
   // One placer for the real world and its echoes, so no name lands on another across a seam.
   const placer = new LabelPlacer()
   const labels = planLabels(projection, { drawings, ...shown, now, phases, selectedPlace, selectedEvent }, placer)
-  const echoes = echoesIn(projection).map((copy) => {
-    const echo = echoProjection(projection, copy)
-    return { copy, echo, labels: planLabels(echo, { ...shown, now, phases, selectedPlace, selectedEvent }, placer) }
-  })
+  const copies = [
+    { copy: 0, at: projection, labels },
+    ...echoesIn(projection).map((copy) => {
+      const at = echoProjection(projection, copy)
+      return { copy, at, labels: planLabels(at, { ...shown, now, phases, selectedPlace, selectedEvent }, placer) }
+    }),
+  ]
 
   /** The nation's layers over one projection: the real world's, or an echo's. */
   const nation = (at: Projection, plan: LabelPlan) => (
@@ -457,12 +460,18 @@ const Layers = memo(function Layers({
 
   return (
     <>
-      <EchoWash projection={projection} />
-      {nation(projection, labels)}
-      {/* The echoes: the same nation, faded; a click on anything in one opens the real thing, and the map comes back to it. */}
-      {echoes.map(({ copy, echo, labels: plan }) => (
-        <g className="az-echo" key={copy} opacity={0.55}>
-          {nation(echo, plan)}
+      <EchoWash projection={projection} world={world} />
+      {/*
+        The real world and its echoes on the page: the same nation, faded in an
+        echo; a click on anything in one opens the real thing, and the map
+        comes back to it. Each copy is keyed by which copy of the world it is
+        to the reader, not to the map, so when the map re-bases a world over
+        (leaflet/home.ts) the copy under the reader keeps its group and fades
+        up to full colour, and the one they came from fades down.
+      */}
+      {copies.map(({ copy, at, labels: plan }) => (
+        <g className="az-world" data-echo={copy ? '' : undefined} key={world + copy}>
+          {nation(at, plan)}
         </g>
       ))}
       {viewing && editor?.kind !== 'view' ? (
