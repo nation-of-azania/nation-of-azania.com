@@ -439,7 +439,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // A page abroad says where its town or nation is (panels/abroad.tsx → Arrival), since
   // the world it's in arrives after the page; the map waits a moment for it before opening.
   const [arrival, setArrival] = useState<LookTarget | null>(null)
-  const arrive = useCallback((target: LookTarget) => setArrival((current) => current ?? target), [])
+  // Said at once as well, for the first look's sake, which runs before the state does.
+  const arrived = useRef(false)
+  const arrive = useCallback((target: LookTarget) => {
+    arrived.current = true
+    setArrival((current) => current ?? target)
+  }, [])
   const [waited, setWaited] = useState(false)
   useEffect(() => {
     if (!hydrated || !foreign) return
@@ -546,8 +551,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
     lastSelection.current = selection
     owedLook.current = null
     if (first) {
-      // The map opened before anything said where a page abroad is: it looks once the world arrives.
-      if (selection && !arrival && !lookFor(data, world, selection)) owedLook.current = selection
+      // The map opened before anything said where a page abroad is: it looks once the world arrives,
+      // unless the address named a spot, which is where the reader asked to be.
+      const placed = Boolean(decodeAt(new URLSearchParams(window.location.search).get('at')))
+      if (selection && !placed && !arrived.current && !lookFor(data, world, selection)) owedLook.current = selection
       return
     }
     if (selection) {
@@ -556,7 +563,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       else owedLook.current = selection
     }
     panelRef.current?.scrollTo({ top: 0 })
-  }, [selection, data, world, arrival, look])
+  }, [selection, data, world, look])
   useEffect(() => {
     const owed = owedLook.current
     if (!world || !owed || !sameSelection(owed, selection)) return
@@ -1084,6 +1091,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
               siegeOpen={siegeOpen}
               sieges={war.sieges}
               onSiege={setSiegeOpen}
+              capitals={war.capitals}
+              radius={war.radius}
+              showReach={extras.reach}
               viewing={viewing}
               world={world}
             />

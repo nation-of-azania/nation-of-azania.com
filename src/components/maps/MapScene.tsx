@@ -6,13 +6,13 @@ import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
 import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
 import { azaniaSide } from '@/maps/sieges'
-import { nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
+import { GROUND, nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
-import type { Siege } from '@/maps/world'
+import type { Siege, War } from '@/maps/world'
 
 import type { EditorUpdate } from './context'
 
@@ -22,12 +22,13 @@ import { createStore, useLatest, type Store } from './hooks'
 import { AbroadClaims, AbroadMarks, HomeGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
-import { AbroadHover } from './layers/hover'
+import { AbroadHover, HoverReach } from './layers/hover'
 import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
 import { PlayersLayer } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
 import type { LiveState } from './live'
+import { WarReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { SiegeCard } from './layers/SiegeCard'
 import { SiegesLayer, type SiegeOnMap } from './layers/SiegesLayer'
@@ -75,6 +76,10 @@ export type SceneProps = {
   sieges: Siege[]
   siegeOpen: string | null
   onSiege: (townId: string | null) => void
+  /** Every nation's capital (/maps/war), the reach of a capital's war, and whether it's drawn. */
+  capitals: War['capitals']
+  radius: number
+  showReach: boolean
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
@@ -389,6 +394,9 @@ const Layers = memo(function Layers({
   sieges,
   siegeOpen,
   onSiege,
+  capitals,
+  radius,
+  showReach,
   showPast,
   now,
   selection,
@@ -453,6 +461,13 @@ const Layers = memo(function Layers({
   }
   const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
   const war = useSiegesOnMap(sieges, data, abroad)
+  // The reach of the wars: Azania's always (with its layer on), and another nation's while it's open or hovered.
+  const reachOf = useReaches(capitals, abroad, styleOf)
+  const homeName = home?.name ?? null
+  const openNation = selection?.kind === 'nation' ? (abroad?.nationBySlug.get(selection.slug)?.name ?? null) : null
+  const homeReach = showReach && homeName ? reachOf(homeName, { home: true }) : null
+  const openReach = showReach && openNation && openNation !== homeName ? reachOf(openNation, { named: true }) : null
+  const hoverReach = (nation: string) => (nation === homeName || nation === openNation ? null : reachOf(nation))
   // One placer for the real world and its echoes, so no name lands on another across a seam.
   const placer = new LabelPlacer()
   const labels = planLabels(
@@ -479,6 +494,10 @@ const Layers = memo(function Layers({
   /** The nation's layers over one projection: the real world's, or an echo's. */
   const nation = (at: Projection, plan: LabelPlan) => (
     <>
+      {/* The rings of the wars' reach, under everything: long, calm lines across the map. */}
+      {homeReach ? <WarReach projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <WarReach projection={at} radius={radius} reach={openReach} /> : null}
+      {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
       {worldShown ? (
         <AbroadClaims
           abroad={worldShown}
@@ -642,4 +661,26 @@ function useSiegesOnMap(sieges: Siege[], data: MapData, abroad: Abroad | null): 
       return { siege, side: azaniaSide(siege, home), town: town ? { claims: town.claims, home: town.home } : null }
     })
   }, [sieges, data.towns, abroad])
+}
+
+/**
+ * A nation's war reach, ready to draw: its capital (from /maps/war, else
+ * the world's reading) and its colour — Azania's the deep sea of its own
+ * claims, another's as the nations are drawn just now. Null for a nation
+ * with no capital on the map.
+ */
+function useReaches(
+  capitals: War['capitals'],
+  abroad: Abroad | null,
+  styleOf: (nation: string | null) => NationStyle,
+): (nation: string, how?: { home?: boolean; named?: boolean }) => Reach | null {
+  return useMemo(() => {
+    const byName = new Map(capitals.map((capital) => [capital.nation, { town: capital.town, home: capital.home }]))
+    return (nation, how = {}) => {
+      const capital = byName.get(nation) ?? abroad?.nationByName.get(nation)?.capital ?? null
+      if (!capital) return null
+      const home = Boolean(how.home)
+      return { nation, capital, colour: home ? GROUND.sea800 : styleOf(nation).line, home, named: home || Boolean(how.named) }
+    }
+  }, [capitals, abroad, styleOf])
 }

@@ -3,7 +3,9 @@ import { unstable_cache } from 'next/cache'
 import {
   abroadHomeBounds,
   abroadOf,
+  homeNationOf,
   nationFit,
+  sameNation,
   worldSlug,
   type AbroadNation,
   type AbroadTown,
@@ -11,7 +13,7 @@ import {
 import type { MapData } from '@/maps/data'
 import type { Bounds, Point } from '@/maps/geo'
 import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from '@/maps/spawn'
-import { WORLD_EVERY_S, type WorldTown } from '@/maps/world'
+import { WORLD_EVERY_S, type World, type WorldTown } from '@/maps/world'
 
 import { getWorld } from './world'
 
@@ -37,15 +39,24 @@ export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'tow
   capital: { name: string; slug: string; home: Point } | null
 }
 
+/** Azania's capital, from which its war reaches: its name and home block. */
+export type HomeCapital = { town: string; home: Point } | null
+
 export type AbroadTownPage =
-  | { kind: 'town'; town: AbroadFacts; nation: NationSummary | null; route: SpawnRoute<SpawnTown> | null }
+  | {
+      kind: 'town'
+      town: AbroadFacts
+      nation: NationSummary | null
+      route: SpawnRoute<SpawnTown> | null
+      capital: HomeCapital
+    }
   /** The town is Azania's own: its page is /maps/town/<slug>. */
   | { kind: 'own'; townyId: string }
   | { kind: 'offline' }
   | null
 
 export type AbroadNationPage =
-  | { kind: 'nation'; nation: NationSummary; fit: Bounds | null; members: AbroadFacts[] }
+  | { kind: 'nation'; nation: NationSummary; fit: Bounds | null; members: AbroadFacts[]; capital: HomeCapital }
   | { kind: 'offline' }
   | null
 
@@ -70,6 +81,10 @@ const summaryOf = (nation: AbroadNation, towns: Map<string, AbroadTown>): Nation
   }
 }
 
+/** Azania's capital on the map, by its Towny nation's name. */
+const capitalOf = (world: World, home: string | null): HomeCapital =>
+  world.nations.find((nation) => sameNation(nation.name, home))?.capital ?? null
+
 /** Only the spawns anyone may use: a reader abroad isn't a resident. */
 const openSpawns = (towns: WorldTown[]): SpawnTown[] =>
   towns
@@ -89,7 +104,7 @@ function routeTo(town: AbroadTown, all: WorldTown[]): SpawnRoute<SpawnTown> | nu
 }
 
 const readTown = unstable_cache(
-  async (slug: string, own: string[]): Promise<AbroadTownPage> => {
+  async (slug: string, own: string[], home: string | null): Promise<AbroadTownPage> => {
     const world = await getWorld()
     if (!world) return { kind: 'offline' }
     const abroad = abroadOf(world, own.map((townyId) => ({ townyId })))
@@ -104,6 +119,7 @@ const readTown = unstable_cache(
       town: factsOf(town),
       nation: nation ? summaryOf(nation, abroad.townBySlug) : null,
       route: routeTo(town, world.towns),
+      capital: capitalOf(world, home),
     }
   },
   ['maps-abroad-town'],
@@ -111,7 +127,7 @@ const readTown = unstable_cache(
 )
 
 const readNation = unstable_cache(
-  async (slug: string, own: string[]): Promise<AbroadNationPage> => {
+  async (slug: string, own: string[], home: string | null): Promise<AbroadNationPage> => {
     const world = await getWorld()
     if (!world) return { kind: 'offline' }
     const abroad = abroadOf(world, own.map((townyId) => ({ townyId })))
@@ -122,6 +138,7 @@ const readNation = unstable_cache(
       nation: summaryOf(nation, abroad.townBySlug),
       fit: nationFit(nation),
       members: nation.members.map(factsOf),
+      capital: capitalOf(world, home),
     }
   },
   ['maps-abroad-nation'],
@@ -135,6 +152,8 @@ const ownIds = (data: MapData): string[] =>
     .sort()
 
 /** A town abroad by its address; 'own' for one of Azania's, null for none, 'offline' while the map can't say. */
-export const getAbroadTown = (slug: string, data: MapData): Promise<AbroadTownPage> => readTown(slug, ownIds(data))
+export const getAbroadTown = (slug: string, data: MapData): Promise<AbroadTownPage> =>
+  readTown(slug, ownIds(data), homeNationOf(data.towns))
 
-export const getAbroadNation = (slug: string, data: MapData): Promise<AbroadNationPage> => readNation(slug, ownIds(data))
+export const getAbroadNation = (slug: string, data: MapData): Promise<AbroadNationPage> =>
+  readNation(slug, ownIds(data), homeNationOf(data.towns))

@@ -49,5 +49,13 @@ export default async function AbroadPage({ params }: Props) {
     notFound()
   }
   const relation = relationWith(page.nation?.name, data.relations)
-  return <AbroadTownPanel nation={page.nation} relation={relation} route={page.route} town={page.town} />
+  return (
+    <AbroadTownPanel
+      capital={page.capital}
+      nation={page.nation}
+      relation={relation}
+      route={page.route}
+      town={page.town}
+    />
+  )
 }

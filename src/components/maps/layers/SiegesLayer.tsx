@@ -39,10 +39,14 @@ const FLAME = 'M12 3c.6 2.8 4.8 5 4.8 9.6a4.8 4.8 0 0 1-9.6 0c0-1.9 1-3.1 2-4 .1
 
 const scaleOf = (zoom: number, side: SiegeSide) => (zoom <= -5 ? 0.75 : zoom <= -2.5 ? 0.9 : 1) * (side ? 1.2 : 1)
 
-/** Where the marks go at this zoom: every siege on the page, Azania's last, so they're drawn on top. */
+/**
+ * Where the marks go at this zoom: every siege whose banner or town is on
+ * the page (a town besieged is marked even when its banner is off the
+ * edge), Azania's last, so they're drawn on top.
+ */
 export function siegeMarks(projection: Projection, sieges: SiegeOnMap[]): SiegeMark[] {
   return sieges
-    .filter(({ siege }) => inBounds(projection.bounds, siege.at))
+    .filter(({ siege, town }) => inBounds(projection.bounds, siege.at) || (town?.home && inBounds(projection.bounds, town.home)))
     .map((entry) => {
       const [x, y] = projection.project(entry.siege.at)
       return { ...entry, x, y, scale: scaleOf(projection.zoom, entry.side) }

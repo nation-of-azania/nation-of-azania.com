@@ -14,6 +14,7 @@ import {
   type PlaceGroup,
 } from '@/maps/registry'
 import { DEFAULT_EXTRAS, type ExtraLayer, type Extras } from '@/maps/url'
+import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { useStore, type Store } from '../hooks'
 import { EventMark } from '../layers/EventsLayer'
@@ -160,6 +161,14 @@ export function LayerMenu({
             label="Diplomacy"
             note="The nations tinted by where Azania stands with them: allies green, enemies red."
             onChange={(on) => onExtra('diplomacy', on)}
+          />
+        </li>
+        <li>
+          <ExtraRow
+            checked={extras.reach}
+            label="War reach"
+            note="How far from its capital a nation may besiege: Azania’s ring, and a nation’s when it’s open or under the pointer."
+            onChange={(on) => onExtra('reach', on)}
           />
         </li>
         <li>
@@ -342,6 +351,16 @@ export function Legend() {
               <SiegeMarkGlyph battle scale={0.7} side="defending" x={24} y={12} />
             </svg>
             <span>A siege Azania is in, ringed in saffron</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+              <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.whitewash} strokeOpacity={0.7} strokeWidth={4} />
+              <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
+            </svg>
+            <span>
+              War reach: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a capital, as far as a nation may
+              besiege; it ends at the world’s edge
+            </span>
           </li>
         </ul>
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>

@@ -3,14 +3,16 @@ import Link from 'next/link'
 import { cn } from '@/blocks/components/shared'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
-import type { AbroadFacts, NationSummary } from '@/lib/abroad'
+import type { AbroadFacts, HomeCapital, NationSummary } from '@/lib/abroad'
+import { blocksBetween, farWords } from '@/maps/abroad'
 import { spoken, type Relation } from '@/maps/data'
-import type { Bounds } from '@/maps/geo'
+import type { Bounds, Point } from '@/maps/geo'
 import { nationInk, NO_NATION, STANCE_COLOURS } from '@/maps/palette'
 import type { Stance } from '@/maps/registry'
 import { incomeWords, resourceWords, siteTitle, type SiteFacts } from '@/maps/sites'
 import type { SpawnRoute, SpawnTown } from '@/maps/spawn'
-import { abroadHref, nationHref } from '@/maps/url'
+import { abroadHref, nationHref, townHref } from '@/maps/url'
+import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { SiteBadge } from '../layers/SiteMark'
 import { StanceSwatch } from '../ui/Diplomacy'
@@ -95,19 +97,33 @@ export function StanceNote({
   )
 }
 
+/** One of Azania's towns, as the reach of another's war is measured against them. */
+export type OurTown = { name: string; slug: string; home: Point | null }
+
+/** "within" or "beyond" the reach of a war, by the server's rule. */
+const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' : 'beyond')
+
+/** Names in a list, as a reader says them: "Oasis, Georgetown and Cape Agulhas". */
+const listed = (names: string[]) =>
+  names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+
 /** A town abroad: its nation, ruler, residents and claims, its spawn when anyone may use it, and a site's pay. */
 export function AbroadTownPanel({
   town,
   nation,
   relation,
   route,
+  capital,
 }: {
   town: AbroadFacts
   nation: NationSummary | null
   /** Where Azania stands with its nation; null when neutral. */
   relation: Relation | null
   route: SpawnRoute<SpawnTown> | null
+  /** Azania's capital, from which its war reaches. */
+  capital: HomeCapital
 }) {
+  const fromCapital = capital && town.home ? blocksBetween(capital.home, town.home) : null
   const site = siteOf(town)
   const ring = nation ? nationInk(nation.colour).line : NO_NATION.line
   const pays = site ? incomeWords(site.income) : null
@@ -223,6 +239,16 @@ export function AbroadTownPanel({
         </PanelSection>
       ) : null}
 
+      {fromCapital != null && capital ? (
+        <PanelSection title="War reach">
+          <p className="text-sm leading-relaxed text-ink-700">
+            {farWords(fromCapital)} from {spoken(capital.town)}, Azania’s capital:{' '}
+            <strong className="font-semibold">{reachWord(fromCapital)} Azania’s war reach</strong>, which is{' '}
+            {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital.
+          </p>
+        </PanelSection>
+      ) : null}
+
       {nation ? (
         <PanelSection title="Its nation">
           <p className="text-sm leading-relaxed text-ink-700">
@@ -255,12 +281,17 @@ export function NationPanel({
   relation,
   fit,
   members,
+  capital,
+  ours,
 }: {
   nation: NationSummary
   /** Where Azania stands with it; null when neutral. */
   relation: Relation | null
   fit: Bounds | null
   members: AbroadFacts[]
+  /** Azania's capital, and its towns, against which this nation's reach is measured, and Azania's against it. */
+  capital: HomeCapital
+  ours: OurTown[]
 }) {
   const towns = members.filter((town) => town.kind === 'town')
   const sites = members
@@ -268,6 +299,13 @@ export function NationPanel({
     .sort((a, b) => (b.income ?? 0) - (a.income ?? 0) || a.name.localeCompare(b.name))
   const total = sites.reduce((sum, site) => sum + (site.income ?? 0), 0)
   const ring = nationInk(nation.colour).line
+  // The reach of each war: which of Azania's towns this nation may besiege, and which of its own Azania may.
+  const theirs = nation.capital
+    ? ours.filter((town) => town.home && blocksBetween(nation.capital!.home, town.home) <= CAPITAL_WAR_RADIUS)
+    : []
+  const reachable = capital
+    ? members.filter((town) => town.home && blocksBetween(capital.home, town.home) <= CAPITAL_WAR_RADIUS)
+    : []
 
   return (
     <article className="pb-6">
@@ -318,6 +356,45 @@ export function NationPanel({
       </div>
 
       <NationSieges nation={nation.name} />
+
+      {nation.capital && capital ? (
+        <PanelSection title="War reach">
+          <div className="space-y-2 text-sm leading-relaxed text-ink-700">
+            <p>
+              A nation may besiege towns within {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital. {spoken(nation.name)}’s,{' '}
+              {spoken(nation.capital.name)}, is {farWords(blocksBetween(nation.capital.home, capital.home))} from{' '}
+              {spoken(capital.town)}, Azania’s.
+            </p>
+            <p>
+              <strong className="font-semibold">Within its reach:</strong>{' '}
+              {theirs.length ? (
+                <>
+                  {theirs.length === ours.length ? 'all' : `${theirs.length} of ${ours.length}`} of Azania’s towns:{' '}
+                  {theirs.map((town, index) => (
+                    <span key={town.slug}>
+                      {index ? (index === theirs.length - 1 ? ' and ' : ', ') : null}
+                      <Link className={LINK} href={townHref(town.slug)}>
+                        {spoken(town.name)}
+                      </Link>
+                    </span>
+                  ))}
+                  .
+                </>
+              ) : (
+                'none of Azania’s towns.'
+              )}
+            </p>
+            <p>
+              <strong className="font-semibold">Within Azania’s:</strong>{' '}
+              {reachable.length
+                ? `${reachable.length === members.length ? 'all' : `${reachable.length} of ${members.length}`} of its towns${
+                    reachable.length <= 4 ? `: ${listed(reachable.map((town) => spoken(town.name)))}` : ''
+                  }.`
+                : 'none of its towns.'}
+            </p>
+          </div>
+        </PanelSection>
+      ) : null}
 
       {sites.length ? (
         <PanelSection flush title="Holdings">

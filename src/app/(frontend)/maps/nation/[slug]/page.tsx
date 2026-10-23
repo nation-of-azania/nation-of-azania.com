@@ -6,6 +6,7 @@ import { getAbroadNation } from '@/lib/abroad'
 import { getMapData } from '@/lib/maps'
 import { homeNationOf, relationWith, worldSlug } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
+import { settlements } from '@/maps/sites'
 import { MAPS_PATH, nationHref } from '@/maps/url'
 
 import { mapsMetadata } from '../../metadata'
@@ -41,9 +42,11 @@ export default async function NationPage({ params }: Props) {
   if (page.kind === 'offline') return <AbroadOffline what="nation" />
   return (
     <NationPanel
+      capital={page.capital}
       fit={page.fit}
       members={page.members}
       nation={page.nation}
+      ours={settlements(data.towns).map((town) => ({ name: town.name, slug: town.slug, home: town.home }))}
       relation={relationWith(page.nation.name, data.relations)}
     />
   )
