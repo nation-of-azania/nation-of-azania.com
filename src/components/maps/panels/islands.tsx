@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import {
@@ -10,7 +10,7 @@ import {
   type MapRoad,
   type MapTown,
 } from '@/maps/data'
-import { routeFrom, spawnRoute } from '@/maps/spawn'
+import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from '@/maps/spawn'
 import type { Bounds, Point } from '@/maps/geo'
 import { formatWhen, relativeDay, sortEvents } from '@/maps/time'
 
@@ -99,6 +99,21 @@ export function Open({
   )
 }
 
+/**
+ * Where a page abroad's town or nation is, said to the shell as the page
+ * arrives: the world it's in comes after the page, and the map, opening on
+ * the page, would otherwise not know where to look. Draws nothing.
+ */
+export function Arrival({ target }: { target: Parameters<ReturnType<typeof useMaps>['look']>[0] | null }) {
+  const { arrive } = useMaps()
+  useEffect(() => {
+    if (target) arrive(target)
+    // Once, as the page arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return null
+}
+
 /** Centre the map on a point, or fit bounds. */
 export function Look({
   target,
@@ -132,6 +147,7 @@ export function Survey({
   point,
   y,
   town,
+  route: given,
   fit,
   fitLabel = 'Fit to town',
   className,
@@ -139,7 +155,9 @@ export function Survey({
   point: Point
   y?: number | null
   /** The town whose own spawn this is: no walk, just its command. */
-  town?: MapTown
+  town?: SpawnTown
+  /** The way there, worked out already: abroad, from any spawn on the server anyone may use. */
+  route?: SpawnRoute | null
   /** Bounds to fit the map to, offered beside "Centre here": a town's main claim. */
   fit?: Bounds | null
   /** What fitting is called: "Fit to the site" for a quarry. */
@@ -150,7 +168,8 @@ export function Survey({
   const [copied, copy] = useCopy()
   const [x, z] = point.map(Math.round)
   // A town's own panel offers its own spawn, with no walk.
-  const route = town ? routeFrom(town, town.home ?? point) : spawnRoute(point, data.towns)
+  const route =
+    given !== undefined ? given : town ? routeFrom(town, town.home ?? point) : spawnRoute(point, data.towns)
   const command = route?.command ?? null
   const closed = route?.town.publicSpawn === false
   return (

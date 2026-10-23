@@ -2,9 +2,10 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import type { MapData, MapRights, MapTown, MapViewData } from '@/maps/data'
+import { homeNationOf, type Abroad } from '@/maps/abroad'
+import { heartland, type MapData, type MapRights, type MapTown, type MapViewData } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
-import { pixelsPerBlock } from '@/maps/palette'
+import { nationInk, NO_NATION, pixelsPerBlock } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
@@ -15,9 +16,11 @@ import type { EditorUpdate } from './context'
 
 import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
-import { useLatest, type Store } from './hooks'
+import { createStore, useLatest, type Store } from './hooks'
+import { AbroadClaims, AbroadMarks, HomeGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
+import { AbroadHover } from './layers/hover'
 import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
 import { PlayersLayer } from './layers/PlayersLayer'
@@ -60,6 +63,9 @@ export type SceneProps = {
   data: MapData
   rights: MapRights
   layers: MapLayer[]
+  /** The rest of the world, once it has arrived (/maps/world), and whether it's drawn. */
+  world: Abroad | null
+  showWorld: boolean
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
@@ -88,6 +94,8 @@ export function MapScene(props: SceneProps) {
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  // The nation under the pointer: changing as the pointer moves, so kept out of the layers' props.
+  const hover = useMemo(() => createStore<string | null>(null), [])
 
   const api = useMemo<SceneApi>(
     () => ({
@@ -324,7 +332,8 @@ export function MapScene(props: SceneProps) {
       onReady={onReady}
       wrap
     >
-      <Layers {...props} />
+      <Layers {...props} hover={hover} />
+      <AbroadHover store={hover} />
     </MapCanvas>
   )
 }
@@ -341,6 +350,8 @@ const Layers = memo(function Layers({
   data,
   rights,
   layers,
+  world: abroad,
+  showWorld,
   showPast,
   now,
   selection,
@@ -348,7 +359,8 @@ const Layers = memo(function Layers({
   editor,
   onSelect: open,
   onEditor,
-}: SceneProps) {
+  hover,
+}: SceneProps & { hover: Store<string | null> }) {
   const projection = useProjection('maps')
   const { map, world } = useLeaflet()
   // A drag that began on a pin ends on it too, since the pin moves with the
@@ -394,20 +406,48 @@ const Layers = memo(function Layers({
     places: show('places') ? places : [],
     events: show('events') ? events : [],
   }
+  // The world around the nation: never in an article's view, which is the nation's own.
+  const worldShown = abroad && showWorld && !viewLayers ? abroad : null
+  const home = useHome(data)
+  const styleOf = useNationStyles(abroad)
+  const selectedAbroad = {
+    town: selection?.kind === 'abroad' ? selection.slug : null,
+    nation: selection?.kind === 'nation' ? selection.slug : null,
+  }
+  const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
   // One placer for the real world and its echoes, so no name lands on another across a seam.
   const placer = new LabelPlacer()
-  const labels = planLabels(projection, { drawings, ...shown, now, phases, selectedPlace, selectedEvent }, placer)
+  const labels = planLabels(
+    projection,
+    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld },
+    placer,
+  )
   const copies = [
     { copy: 0, at: projection, labels },
     ...echoesIn(projection).map((copy) => {
       const at = echoProjection(projection, copy)
-      return { copy, at, labels: planLabels(at, { ...shown, now, phases, selectedPlace, selectedEvent }, placer) }
+      return {
+        copy,
+        at,
+        labels: planLabels(at, { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld }, placer),
+      }
     }),
   ]
 
   /** The nation's layers over one projection: the real world's, or an echo's. */
   const nation = (at: Projection, plan: LabelPlan) => (
     <>
+      {worldShown ? (
+        <AbroadClaims
+          abroad={worldShown}
+          hover={hover}
+          onSelect={onSelect}
+          projection={at}
+          selected={selectedAbroad}
+          styleOf={styleOf}
+        />
+      ) : null}
+      {worldShown && show('towns') ? <HomeGlow projection={at} towns={data.towns} /> : null}
       {show('towns') ? (
         <TownsLayer
           emphasised={emphasised}
@@ -455,6 +495,16 @@ const Layers = memo(function Layers({
           towns={data.towns}
         />
       ) : null}
+      {worldShown ? (
+        <AbroadMarks
+          abroad={worldShown}
+          labels={plan.abroad}
+          onSelect={onSelect}
+          projection={at}
+          selected={selectedAbroad}
+          styleOf={styleOf}
+        />
+      ) : null}
     </>
   )
 
@@ -490,3 +540,28 @@ const Layers = memo(function Layers({
     </>
   )
 })
+
+/**
+ * Azania among the nations far out: its Towny name, set across its
+ * heartland like any other nation's, in the deep sea of its own claims.
+ */
+function useHome(data: MapData): HomeNation | null {
+  return useMemo(() => {
+    const name = homeNationOf(data.towns)
+    const extent = heartland(data.towns)
+    if (!name || !extent) return null
+    return { name, extent, heart: [(extent.minX + extent.maxX) / 2, (extent.minZ + extent.maxZ) / 2] }
+  }, [data.towns])
+}
+
+/** Each nation's style, its own colour tempered (src/maps/palette.ts), worked out once per world. */
+function useNationStyles(abroad: Abroad | null): (nation: string | null) => NationStyle {
+  return useMemo(() => {
+    const styles = new Map<string, NationStyle>(
+      (abroad?.nations ?? []).map((nation) => [nation.name, { ...nationInk(nation.colour), fill: 0.08 }]),
+    )
+    const none: NationStyle = { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
+    const unknown: NationStyle = { ...nationInk(null), fill: 0.08 }
+    return (nation) => (nation ? (styles.get(nation) ?? unknown) : none)
+  }, [abroad])
+}

@@ -125,6 +125,49 @@ export const ROAD_ORDER: RoadKind[] = [
   'highway',
 ]
 
+/** A colour's hue, saturation and lightness, each 0–1; null for anything but #rgb or #rrggbb. */
+function hslOf(hex: string): [number, number, number] | null {
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim())
+  if (!match) return null
+  const full = match[1].length === 3 ? [...match[1]].map((c) => c + c).join('') : match[1]
+  const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(full.slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  if (max === min) return [0, 0, l]
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return [h / 6, s, l]
+}
+
+const hsl = (h: number, s: number, l: number): string =>
+  `hsl(${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+/** A town of no nation: the grey of a map's unclaimed ground, and a dashed edge. */
+export const NO_NATION = { line: '#7c828d', text: GROUND.inkSoft } as const
+
+/**
+ * Another nation's colour as Azania Maps draws it. The Rulercraft map paints
+ * a nation in a web colour (#FF0000, #FFFF00, #000000), which would shout
+ * over the nation's own sea and saffron; the hue is kept, so a nation is
+ * the colour its players know it by, but the saturation is reined in and
+ * the lightness kept off the extremes, and its names are set in a dark
+ * shade of it that reads over the whitewash halo. A white or a black
+ * nation stays pale or dark.
+ */
+export function nationInk(colour: string | null | undefined): { line: string; text: string } {
+  const parsed = colour ? hslOf(colour) : null
+  if (!parsed) return NO_NATION
+  const [h, s, l] = parsed
+  if (s < 0.08) {
+    return { line: hsl(0, 0, clamp(l, 0.18, 0.93)), text: l > 0.6 ? GROUND.inkSoft : hsl(0, 0, clamp(l, 0.12, 0.3)) }
+  }
+  return { line: hsl(h, Math.min(s, 0.72), clamp(l, 0.3, 0.6)), text: hsl(h, Math.min(s, 0.7), clamp(l * 0.6, 0.18, 0.3)) }
+}
+
 /** Pixels per block at a map zoom: level 0 is 2 px per block. */
 export const pixelsPerBlock = (zoom: number): number => 2 * 2 ** zoom
 

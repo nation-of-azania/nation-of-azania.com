@@ -1,0 +1,559 @@
+import type { MouseEvent, PointerEvent } from 'react'
+
+import { abroadCentre, abroadHomeBounds, type Abroad, type AbroadNation, type AbroadTown } from '@/maps/abroad'
+import { spoken } from '@/maps/data'
+import type { Bounds, Outline, Point } from '@/maps/geo'
+import { GROUND } from '@/maps/palette'
+import { siteLine, type SiteFacts } from '@/maps/sites'
+import type { MapSelection } from '@/maps/url'
+
+import type { Store } from '../hooks'
+import { boundsTouch, halo, inBounds, LabelPlacer, textWidth, type Projection, type Rect } from './projection'
+import { SITE_R, SiteMark, siteMarkRect } from './SiteMark'
+
+/**
+ * The rest of the world around Azania (src/maps/abroad.ts): every other
+ * nation's towns and the towns of no nation, drawn quietly under the
+ * nation's own layers — each in its nation's colour as the Rulercraft map
+ * paints it (tempered, src/maps/palette.ts → nationInk), a thin edge and a
+ * faint fill, the towns of no nation in grey with a dashed edge — so
+ * Azania, in its sea and saffron, stays the one in full colour.
+ *
+ * Far out the world is nations: their names are set across their
+ * heartlands in spaced capitals, a town too small to draw is a dot, and a
+ * click opens the nation. Coming in, the capitals' names appear, then
+ * every town's, smaller and quieter than Azania's and placed after them;
+ * a click opens the town. A server site another nation holds wears the
+ * site's mark rimmed in its holder's colour, with what it pays, since it
+ * changes hands by siege.
+ *
+ * Three hundred-odd towns and some thirty thousand claim corners, redrawn
+ * each time the map settles, so the drawing is lean: the projection is
+ * applied as the scale and shift it is rather than point by point, a
+ * corner closer than a pixel to the last is dropped, a claim off the page
+ * or smaller than a pixel is left out, and one click and one hover
+ * handler serve every town (the element under the pointer says which).
+ */
+
+/** How a nation is drawn: its edge and fill, the ink of its names, and a dash for the towns of no nation. */
+export type NationStyle = { line: string; text: string; fill: number; dash?: string }
+
+/** Clicks further out than this open the nation; closer in, the town. */
+export const NATIONS_BELOW = -4.5
+/** Every town's home is marked from here in; a capital's from further out. */
+const HOMES_FROM = -3.5
+const CAPITALS_FROM = -5.5
+/** Names: a capital's from here, every town's from closer; the nations' until here. */
+const CAPITAL_NAMES_FROM = -4.25
+const NAMES_FROM = -3
+const NATION_NAMES_UNTIL = -3.25
+/** A site's mark from here, its name from closer, and what it pays beneath from closer still. */
+const SITES_FROM = -5.5
+const SITE_NAMES_FROM = -3.5
+const SUB_FROM = -2.5
+const SUB_SIZE = 10
+/** A town drawn smaller than this, in px, is a dot. */
+const DOT_BELOW = 3
+
+/** The projection as the scale and shift it is: Leaflet's is affine, so thirty thousand corners needn't each go through it. */
+type Affine = { ax: number; bx: number; ay: number; by: number }
+
+function affineOf(projection: Projection): Affine {
+  const [x0, y0] = projection.project([0, 0])
+  const [x1, y1] = projection.project([4096, 4096])
+  return { ax: (x1 - x0) / 4096, bx: x0, ay: (y1 - y0) / 4096, by: y0 }
+}
+
+const at = (f: Affine, [x, z]: Point): [number, number] => [f.ax * x + f.bx, f.ay * z + f.by]
+
+/** A claim's outline as a path, a corner within `min` px of the last one dropped; empty when it comes to less than a triangle. */
+function ringPath(outline: Outline, f: Affine, min: number): string {
+  let d = ''
+  let n = 0
+  let lx = 0
+  let ly = 0
+  for (let i = 0; i < outline.x.length; i++) {
+    const x = f.ax * outline.x[i] + f.bx
+    const y = f.ay * outline.z[i] + f.by
+    if (n && Math.abs(x - lx) < min && Math.abs(y - ly) < min) continue
+    d += `${n ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`
+    lx = x
+    ly = y
+    n++
+  }
+  return n >= 3 ? `${d}Z` : ''
+}
+
+/** A town's claims on the page, each left out when it's off the page or under a pixel across. */
+function claimsPath(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): string {
+  let d = ''
+  for (let i = 0; i < town.claims.length; i++) {
+    const b = town.claimBounds[i]
+    if (!b || !boundsTouch(b, cull)) continue
+    if (Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * ppb < 1) continue
+    d += ringPath(town.claims[i], f, 0.75)
+  }
+  return d
+}
+
+const dot = ([x, y]: [number, number], r: number): string =>
+  `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`
+
+const onPage = (projection: Projection, town: AbroadTown) =>
+  town.bounds !== null && boundsTouch(town.bounds, projection.bounds)
+
+const sizePx = (b: Bounds, ppb: number) => Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * ppb
+
+/** A site's facts out of a town abroad; null for a players' town. */
+export const abroadSite = (town: Pick<AbroadTown, 'kind' | 'income' | 'resource'>): SiteFacts | null =>
+  town.kind === 'town' ? null : { kind: town.kind, income: town.income, resource: town.resource, note: null }
+
+/** Whose a site is, in a word or two: its holder, or the server's own when nobody holds it. */
+const holderWords = (town: Pick<AbroadTown, 'nation'>): string => (town.nation ? spoken(town.nation) : 'the server’s')
+
+/** Which element of the layer an event fell on: a town's claims, a dot among a nation's, or nothing of ours. */
+function hitOf(event: MouseEvent | PointerEvent): { town: string | null; nation: string | null } | null {
+  const target = event.target as Element | null
+  const group = target?.closest?.('[data-nation]')
+  if (!group) return null
+  return { town: target?.closest?.('[data-town]')?.getAttribute('data-town') ?? null, nation: group.getAttribute('data-nation') }
+}
+
+/**
+ * The claims abroad, a group per nation (its colour set once on the group)
+ * and a path per town, with the towns too small to draw as dots, a path
+ * per nation for all of them. Far out, where a click opens the nation
+ * anyway, all a nation's claims are one path. The selected nation's are
+ * drawn stronger, the selected town's stronger still, on top.
+ */
+export function AbroadClaims({
+  projection,
+  abroad,
+  styleOf,
+  selected,
+  onSelect,
+  hover,
+}: {
+  projection: Projection
+  abroad: Abroad
+  styleOf: (nation: string | null) => NationStyle
+  selected: { town: string | null; nation: string | null }
+  onSelect?: (selection: MapSelection) => void
+  /** The nation under the pointer, by name, for whatever shows it. */
+  hover?: Store<string | null>
+}) {
+  const { ppb, zoom } = projection
+  const f = affineOf(projection)
+  const cull = projection.bounds
+  const merged = zoom < NATIONS_BELOW
+  const groups = new Map<string, { paths: { town: AbroadTown; d: string }[]; all: string; dots: string }>()
+  let picked: { town: AbroadTown; d: string } | null = null
+  for (const town of abroad.towns) {
+    if (!onPage(projection, town)) continue
+    const key = town.nation ?? ''
+    const group = groups.get(key) ?? { paths: [], all: '', dots: '' }
+    groups.set(key, group)
+    if (sizePx(town.bounds!, ppb) < DOT_BELOW) {
+      const centre = abroadCentre(town)
+      if (centre) group.dots += dot(at(f, centre), zoom < -6 ? 1.3 : 1.6)
+      continue
+    }
+    const d = claimsPath(town, f, cull, ppb)
+    if (!d) continue
+    if (merged) group.all += d
+    else group.paths.push({ town, d })
+    if (town.slug === selected.town) picked = { town, d }
+  }
+  const width = zoom >= -2 ? 1.25 : 1
+  const pickedNation = selected.nation ? abroad.nationBySlug.get(selected.nation)?.name : null
+
+  const click = (event: MouseEvent) => {
+    const hit = hitOf(event)
+    if (!hit || !onSelect) return
+    const town = hit.town ? abroad.townBySlug.get(hit.town) : null
+    const nation = hit.nation ? abroad.nationByName.get(hit.nation) : null
+    // Far out, the nations; closer in, the towns; a town of no nation is always itself.
+    if (nation && (zoom < NATIONS_BELOW || !town)) onSelect({ kind: 'nation', slug: nation.slug })
+    else if (town) onSelect({ kind: 'abroad', slug: town.slug })
+  }
+  const over = (event: PointerEvent) => hover?.set(hitOf(event)?.nation || null)
+  const out = (event: PointerEvent) => {
+    const next = event.relatedTarget as Element | null
+    if (!next?.closest?.('.az-abroad [data-nation]')) hover?.set(null)
+  }
+
+  return (
+    <g
+      className="az-abroad az-hit"
+      onClick={onSelect ? click : undefined}
+      onPointerOut={hover ? out : undefined}
+      onPointerOver={hover ? over : undefined}
+      style={onSelect ? { cursor: 'pointer' } : undefined}
+    >
+      {[...groups].map(([key, group]) => {
+        const style = styleOf(key || null)
+        const strong = Boolean(key) && key === pickedNation
+        return (
+          <g
+            data-nation={key}
+            fill={style.line}
+            fillOpacity={strong ? Math.max(0.16, style.fill * 2) : style.fill}
+            key={key}
+            stroke={style.line}
+            strokeDasharray={style.dash}
+            strokeLinejoin="round"
+            strokeOpacity={strong ? 1 : 0.75}
+            strokeWidth={strong ? width + 0.75 : width}
+          >
+            {group.all ? <path d={group.all} /> : null}
+            {group.paths.map(({ town, d }) => (
+              <path d={d} data-town={town.slug} key={town.slug} />
+            ))}
+            {group.dots ? <path d={group.dots} fillOpacity={0.9} stroke="none" /> : null}
+          </g>
+        )
+      })}
+      {/* The open town, lifted off the page: its edge in its colour over a whitewash casing, whatever that colour is. */}
+      {picked ? (
+        <g data-nation={picked.town.nation ?? ''} strokeLinejoin="round">
+          <path d={picked.d} fill="none" stroke={GROUND.whitewash} strokeOpacity={0.9} strokeWidth={width + 3.5} />
+          <path
+            d={picked.d}
+            data-town={picked.town.slug}
+            fill={styleOf(picked.town.nation).line}
+            fillOpacity={0.22}
+            stroke={styleOf(picked.town.nation).line}
+            strokeWidth={width + 1}
+          />
+        </g>
+      ) : null}
+    </g>
+  )
+}
+
+/** A town's name abroad, where the plan found room. */
+export type AbroadName = Rect & { fontSize: number; tracking: number; sub: string | null }
+
+/** A nation's name across its heartland, where the plan found room. */
+export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number }
+
+export type AbroadPlan = { towns: Map<string, AbroadName>; nations: Map<string, NationName> }
+
+export const EMPTY_ABROAD_PLAN: AbroadPlan = { towns: new Map(), nations: new Map() }
+
+/** Azania itself among the nations far out: its name, and where to set it. */
+export type HomeNation = { name: string; heart: Point; extent: Bounds | null }
+
+/** The mark at a town's home: a dot, a capital's ringed; null when it isn't shown at this zoom. */
+const homeMark = (zoom: number, town: AbroadTown): { r: number; ring: number } | null => {
+  if (town.kind !== 'town' || !town.home) return null
+  if (town.capital) return zoom >= CAPITALS_FROM ? { r: zoom >= -2 ? 3 : 2.5, ring: zoom >= -2 ? 5.5 : 4.5 } : null
+  return zoom >= HOMES_FROM ? { r: zoom >= -2 ? 2.75 : 2.25, ring: 0 } : null
+}
+
+const siteScale = (zoom: number) => (zoom <= -4.5 ? 0.55 : zoom <= -3 ? 0.7 : 0.85)
+
+/** How much ground a nation must hold to be named at this zoom: far out, only the great ones are. */
+const namedFrom = (zoom: number) => (zoom <= -6.5 ? 6000 : zoom <= -5.5 ? 2500 : zoom <= -4.5 ? 600 : 0)
+
+/**
+ * A nation's name: sized by how much ground it holds, spaced out across its
+ * heartland where there's room, as an atlas sets a country's name, and
+ * kept on the page when its heartland runs off an edge.
+ */
+function nationName(
+  projection: Projection,
+  name: string,
+  heart: Point,
+  extent: Bounds | null,
+  chunks: number,
+  home: boolean,
+): NationName[] {
+  const { zoom, ppb } = projection
+  const text = spoken(name).toUpperCase()
+  const weight = Math.min(1, Math.max(0, (Math.log10(Math.max(chunks, 1)) - 2) / 2.7))
+  const far = zoom <= -6
+  const fontSize = Math.round(home ? (far ? 14 : 16) : far ? 8.5 + 4 * weight : 9 + 5 * weight)
+  const across = extent ? (extent.maxX - extent.minX) * ppb : 0
+  const bare = textWidth(text, fontSize)
+  // Never tighter than a little air, nor looser than a letter's width apart.
+  const tracking = Math.max(fontSize * (home ? 0.3 : 0.12), Math.min(fontSize * 0.7, (across * 0.75 - bare) / Math.max(1, text.length - 1)))
+  const width = bare + tracking * text.length + 6
+  const height = fontSize + 6
+  const [hx, y] = projection.project(heart)
+  const view = projection.view ?? projection.bounds
+  const [left] = projection.project([view.minX, view.minZ])
+  const [right] = projection.project([view.maxX, view.maxZ])
+  // A heart near the page's edge keeps its name on the page; one further off leaves it where it falls.
+  const near = inBounds(projection.bounds, heart) && right - left > width + 24
+  const x = near ? Math.min(right - 12 - width / 2, Math.max(left + 12 + width / 2, hx)) : hx
+  const opacity = home ? 1 : zoom <= NATIONS_BELOW ? 0.85 : 0.7
+  const box = (cy: number): NationName => ({ x: x - width / 2, y: cy - height / 2, width, height, fontSize, tracking, text, opacity })
+  return [box(y), box(y - height * 1.1), box(y + height * 1.1)]
+}
+
+/** Azania's own name among the nations far out: placed before its towns' names at the scale of the world, after them nearer. */
+export function placeHomeName(projection: Projection, home: HomeNation, placer: LabelPlacer): NationName | null {
+  if (projection.zoom > NATION_NAMES_UNTIL) return null
+  return placer.tryPlace(nationName(projection, home.name, home.heart, home.extent, 0, true))
+}
+
+/** From here out, Azania's name outranks its own towns' names, which crowd at the scale of the world. */
+export const HOME_NAME_FIRST = -5.5
+
+/**
+ * Finds the world's names a spot, after Azania's own have had theirs; part
+ * of the label plan (./labels.ts). The sites' marks take their room first,
+ * then the nations' names far out, the greatest first, then the capitals',
+ * then every town's, biggest first.
+ */
+export function placeAbroadNames(projection: Projection, abroad: Abroad, placer: LabelPlacer): AbroadPlan {
+  const { zoom } = projection
+  const towns = new Map<string, AbroadName>()
+  const nations = new Map<string, NationName>()
+  const visible = abroad.towns.filter((town) => onPage(projection, town))
+
+  if (zoom >= SITES_FROM) {
+    for (const town of visible) {
+      if (town.kind === 'town' || !town.home) continue
+      const [x, y] = projection.project(town.home)
+      placer.claim(siteMarkRect(x, y, siteScale(zoom)))
+    }
+  }
+  if (zoom <= NATION_NAMES_UNTIL) {
+    const least = namedFrom(zoom)
+    const great = [...abroad.nations].sort((a, b) => b.chunks - a.chunks)
+    for (const nation of great) {
+      if (nation.chunks < least || !nation.heart || !nation.extent || !boundsTouch(nation.extent, projection.bounds)) continue
+      const spot = placer.tryPlace(nationName(projection, nation.name, nation.heart, nation.extent, nation.chunks, false))
+      if (spot) nations.set(nation.slug, spot)
+    }
+  }
+
+  const named = (town: AbroadTown) =>
+    town.kind !== 'town' ? zoom >= SITE_NAMES_FROM : town.capital ? zoom >= CAPITAL_NAMES_FROM : zoom >= NAMES_FROM
+  const order = visible
+    .filter((town) => town.home && named(town))
+    .sort((a, b) => Number(b.capital) - Number(a.capital) || b.residents - a.residents || b.chunks - a.chunks)
+  for (const town of order) {
+    const site = abroadSite(town)
+    const fontSize = town.capital ? 11 : 10
+    const tracking = fontSize * 0.12
+    const text = spoken(town.name).toUpperCase()
+    const sub = site && zoom >= SUB_FROM ? `${holderWords(town)} · ${siteLine(site)}` : null
+    const subHeight = sub ? 12 : 0
+    const width = Math.max(textWidth(text, fontSize, tracking), sub ? textWidth(sub, SUB_SIZE) : 0) + 6
+    const height = fontSize + 6 + subHeight
+    const [x, y] = projection.project(town.home!)
+    const clear = site ? SITE_R * siteScale(zoom) + 5 : (homeMark(zoom, town)?.ring || 3) + 4
+    const box = (cx: number, top: number): AbroadName => ({ x: cx - width / 2, y: top, width, height, fontSize, tracking, sub })
+    const spot = placer.tryPlace([
+      box(x, y - clear - height),
+      box(x, y + clear),
+      box(x + clear + width / 2, y - height / 2),
+      box(x - clear - width / 2, y - height / 2),
+    ])
+    if (spot) towns.set(town.slug, spot)
+  }
+  return { towns, nations }
+}
+
+/**
+ * The world's marks and names, over the nation's own layers and under
+ * nothing but the sieges: each town's home as a dot in its nation's colour
+ * (a capital's ringed, as an atlas marks one), the sites' marks rimmed in
+ * their holders' colours, the towns' names in a dark shade of their
+ * nation's, and far out the nations' names, Azania's in the deep sea.
+ */
+export function AbroadMarks({
+  projection,
+  abroad,
+  styleOf,
+  labels,
+  selected,
+  onSelect,
+}: {
+  projection: Projection
+  abroad: Abroad
+  styleOf: (nation: string | null) => NationStyle
+  labels: AbroadPlan
+  selected: { town: string | null; nation: string | null }
+  onSelect?: (selection: MapSelection) => void
+}) {
+  const { zoom } = projection
+  const interactive = Boolean(onSelect)
+  const scale = siteScale(zoom)
+  const hit = interactive ? 'az-hit' : undefined
+  const cursor = interactive ? { cursor: 'pointer' } : undefined
+  const visible = abroad.towns.filter((town) => town.home && onPage(projection, town))
+  return (
+    <g className="az-abroad-marks">
+      {visible.map((town) => {
+        const site = abroadSite(town)
+        const mark = homeMark(zoom, town)
+        const label = labels.towns.get(town.slug)
+        if (!label && !mark && !(site && zoom >= SITES_FROM)) return null
+        const style = styleOf(town.nation)
+        const [hx, hy] = projection.project(town.home!)
+        const isSelected = selected.town === town.slug
+        return (
+          <g
+            className={hit}
+            key={town.slug}
+            onClick={onSelect ? () => onSelect({ kind: 'abroad', slug: town.slug }) : undefined}
+            style={cursor}
+          >
+            {site && zoom >= SITES_FROM ? (
+              <SiteMark facts={site} ring={style.line} scale={scale} selected={isSelected} x={hx} y={hy}>
+                <title>{`${spoken(town.name)} · ${holderWords(town)}`}</title>
+              </SiteMark>
+            ) : mark ? (
+              <>
+                {mark.ring ? <circle cx={hx} cy={hy} fill={GROUND.whitewash} r={mark.ring} stroke={style.line} strokeWidth={1.25} /> : null}
+                <circle
+                  cx={hx}
+                  cy={hy}
+                  fill={isSelected ? GROUND.ink : style.line}
+                  r={mark.r}
+                  stroke={mark.ring ? 'none' : GROUND.whitewash}
+                  strokeWidth={1}
+                >
+                  <title>{spoken(town.name)}</title>
+                </circle>
+              </>
+            ) : null}
+            {label ? (
+              <>
+                <text
+                  className="font-label"
+                  fill={style.text}
+                  fontSize={label.fontSize}
+                  fontWeight={town.capital || isSelected ? 700 : 600}
+                  letterSpacing={label.tracking}
+                  opacity={isSelected ? 1 : 0.88}
+                  textAnchor="middle"
+                  x={label.x + label.width / 2 + label.tracking / 2}
+                  y={label.y + label.fontSize + 2}
+                  {...halo(GROUND.whitewash, 3)}
+                >
+                  {spoken(town.name).toUpperCase()}
+                </text>
+                {label.sub ? (
+                  <text
+                    className="font-body"
+                    fill={style.text}
+                    fontSize={SUB_SIZE}
+                    fontWeight={600}
+                    opacity={0.85}
+                    textAnchor="middle"
+                    x={label.x + label.width / 2}
+                    y={label.y + label.fontSize + 2 + 12}
+                    {...halo(GROUND.whitewash, 3)}
+                  >
+                    {label.sub}
+                  </text>
+                ) : null}
+              </>
+            ) : null}
+          </g>
+        )
+      })}
+      {[...labels.nations].map(([slug, label]) => {
+        const nation: AbroadNation | undefined = slug ? abroad.nationBySlug.get(slug) : undefined
+        const home = !slug
+        const ink = home ? GROUND.sea800 : styleOf(nation?.name ?? null).text
+        return (
+          <g key={slug || 'home'}>
+            <text
+              className={cnHit(hit, 'font-display')}
+              fill={ink}
+              fontSize={label.fontSize}
+              fontWeight={home ? 700 : selected.nation === slug ? 700 : 500}
+              letterSpacing={label.tracking}
+              onClick={onSelect && nation ? () => onSelect({ kind: 'nation', slug: nation.slug }) : undefined}
+              opacity={home ? 1 : label.opacity * (selected.nation && selected.nation !== slug ? 0.7 : 1)}
+              style={nation ? cursor : undefined}
+              textAnchor="middle"
+              x={label.x + label.width / 2 + label.tracking / 2}
+              y={label.y + label.fontSize}
+              {...halo(GROUND.whitewash, home ? 3.5 : 2.5)}
+            >
+              {label.text}
+            </text>
+            {/* Azania's own, underscored in saffron, as the map's home. */}
+            {home ? (
+              <path
+                d={`M${(label.x + label.width * 0.3).toFixed(1)} ${(label.y + label.fontSize + 5).toFixed(1)}h${(label.width * 0.4).toFixed(1)}`}
+                stroke={GROUND.saffron}
+                strokeLinecap="round"
+                strokeWidth={2.5}
+              />
+            ) : null}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+const cnHit = (...names: (string | undefined)[]) => names.filter(Boolean).join(' ')
+
+/** From here out, Azania's towns glow as discs about their homes; nearer, as a casing about their claims. */
+const GLOW_DISCS_BELOW = -4
+
+/**
+ * Under Azania's own towns, while the world is drawn around them: a glow of
+ * saffron, so the nation reads at once among the others. Far out, where a
+ * town is a few pixels, a soft disc about each home, under its lozenge;
+ * nearer, a casing about its claims.
+ */
+export function HomeGlow({
+  projection,
+  towns,
+}: {
+  projection: Projection
+  towns: { home: Point | null; bounds: Bounds | null; claims: Outline[] }[]
+}) {
+  const { zoom } = projection
+  const f = affineOf(projection)
+  let d = ''
+  const discs = zoom < GLOW_DISCS_BELOW
+  for (const town of towns) {
+    if (!town.bounds || !boundsTouch(town.bounds, projection.bounds)) continue
+    if (discs) {
+      const centre: Point = town.home ?? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2]
+      d += dot(at(f, centre), zoom <= -6 ? 7 : 6)
+    } else for (const claim of town.claims) d += ringPath(claim, f, 0.75)
+  }
+  if (!d) return null
+  return discs ? (
+    <path
+      className="az-home-glow"
+      d={d}
+      fill={GROUND.saffronLight}
+      fillOpacity={0.5}
+      pointerEvents="none"
+      stroke={GROUND.saffron}
+      strokeOpacity={0.6}
+      strokeWidth={1}
+    />
+  ) : (
+    <path
+      className="az-home-glow"
+      d={d}
+      fill="none"
+      pointerEvents="none"
+      stroke={GROUND.saffronLight}
+      strokeLinejoin="round"
+      strokeOpacity={0.5}
+      strokeWidth={zoom <= -2 ? 4 : 5}
+    />
+  )
+}
+
+/** Where to look for a town abroad: the claim holding its home, else its home up close. */
+export const abroadTownTarget = (town: AbroadTown): { bounds: Bounds } | { centre: Point; zoom: number } | null => {
+  const bounds = abroadHomeBounds(town)
+  if (bounds) return { bounds }
+  return town.home ? { centre: town.home, zoom: 0 } : null
+}

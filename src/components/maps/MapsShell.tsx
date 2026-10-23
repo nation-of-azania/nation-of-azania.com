@@ -14,6 +14,7 @@ import {
 } from 'react'
 
 import { cn } from '@/blocks/components/shared'
+import { abroadOf, nationFit, type Abroad } from '@/maps/abroad'
 import {
   heartland,
   homeClaimBounds,
@@ -39,12 +40,15 @@ import {
   ALL_LAYERS,
   decodeAt,
   decodeDraw,
+  decodeExtras,
   decodeLayers,
-  decodeLive,
+  DEFAULT_EXTRAS,
   mapsQuery,
   sameSelection,
   selectionHref,
   selectionOf,
+  type ExtraLayer,
+  type Extras,
   type MapPosition,
   type MapSelection,
 } from '@/maps/url'
@@ -53,6 +57,7 @@ import { api, ApiError, messageOf } from './api'
 import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
 import { EditorPanel } from './editor/EditorPanel'
 import { createStore, useHydrated, useMediaQuery, useSearch, useStore } from './hooks'
+import { abroadTownTarget } from './layers/AbroadLayer'
 import { useLivePlayers } from './live'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
 import {
@@ -74,6 +79,7 @@ import { Search } from './ui/Search'
 import { Sheet, type SheetState } from './ui/Sheet'
 import { WhatsOnStrip } from './ui/WhatsOn'
 import { Wordmark } from './ui/Wordmark'
+import { useWorld } from './world'
 
 import './maps.css'
 
@@ -95,6 +101,7 @@ type ShellProps = {
 /** How a selection is named in the panel's head, before the page arrives. */
 function describe(
   data: MapData,
+  world: Abroad | null,
   selection: MapSelection | null,
 ): { title: string; kind: string } | null {
   if (!selection) return null
@@ -127,6 +134,15 @@ function describe(
     case 'event': {
       const found = data.events.find((candidate) => candidate.id === selection.id)
       return found ? { title: found.title, kind: 'Event' } : null
+    }
+    case 'abroad': {
+      const found = world?.townBySlug.get(selection.slug)
+      if (!found) return null
+      return { title: spoken(found.name), kind: found.nation ? `Town · ${spoken(found.nation)}` : 'Town · no nation' }
+    }
+    case 'nation': {
+      const found = world?.nationBySlug.get(selection.slug)
+      return found ? { title: spoken(found.name), kind: 'Nation' } : null
     }
   }
 }
@@ -283,10 +299,24 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The address names the layers until the visitor chooses.
   const [chosenLayers, setLayers] = useState<MapLayer[] | null>(null)
   const layers = chosenLayers ?? decodeLayers(query.get('layers')) ?? ALL_LAYERS
-  // The players online: on unless the address or the visitor says otherwise; polled only while on and the tab is seen.
-  const [chosenLive, setLive] = useState<boolean | null>(null)
-  const live = chosenLive ?? decodeLive(query.get('layers')) ?? true
+  // The layers that aren't the nation's own data (the players online, the world around it), at their defaults unless said otherwise.
+  const [chosenExtras, setExtras] = useState<Extras | null>(null)
+  const extras = chosenExtras ?? decodeExtras(query.get('layers')) ?? DEFAULT_EXTRAS
+  const setExtra = useCallback(
+    (layer: ExtraLayer, on: boolean) => setExtras({ ...extras, [layer]: on }),
+    [extras],
+  )
+  // The players online are polled only while their layer is on and the tab is seen.
+  const live = extras.players
   const liveStore = useLivePlayers(live)
+  // The rest of the world: asked for once the map has settled, at once when the page is a town or a nation abroad.
+  const [mapReady, setMapReady] = useState(false)
+  const foreign = selection?.kind === 'abroad' || selection?.kind === 'nation'
+  const worldState = useWorld(mapReady, foreign)
+  const world = useMemo(
+    () => (worldState.world ? abroadOf(worldState.world, data.towns) : null),
+    [worldState.world, data.towns],
+  )
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [viewProblem, setViewProblem] = useState<string | null>(null)
@@ -387,20 +417,33 @@ export function MapsShell({ data: served, children }: ShellProps) {
     // Kept, not cleared: a scene that mounts again (development's double mount) must look at the same place.
     sceneApi.current = scene
     if (pendingLook.current) scene.look(pendingLook.current)
+    setMapReady(true)
   }, [])
 
+  // A page abroad says where its town or nation is (panels/abroad.tsx → Arrival), since
+  // the world it's in arrives after the page; the map waits a moment for it before opening.
+  const [arrival, setArrival] = useState<LookTarget | null>(null)
+  const arrive = useCallback((target: LookTarget) => setArrival((current) => current ?? target), [])
+  const [waited, setWaited] = useState(false)
+  useEffect(() => {
+    if (!hydrated || !foreign) return
+    const handle = window.setTimeout(() => setWaited(true), 1200)
+    return () => window.clearTimeout(handle)
+  }, [hydrated, foreign])
+
   /** Where the map opens: the address's spot, else the selected thing, else the nation's heartland. Fixed once the page is in the browser. */
-  const opening = useMemo<SceneProps['initial'] | null>(() => {
-    if (!hydrated) return null
+  const [opening, setOpening] = useState<SceneProps['initial'] | null>(null)
+  const awaiting = foreign && !arrival && !world && !waited && !decodeAt(query.get('at'))
+  if (hydrated && !opening && !awaiting) {
     const at = decodeAt(query.get('at'))
-    if (at) return at
-    const bounds = selection ? boundsFor(data, selection) : null
-    if (bounds) return bounds
+    const target = selection ? (lookFor(data, world, selection) ?? arrival) : null
     const heart = heartland(data.towns)
-    return heart ? { bounds: heart, padding: 64 } : { centre: [4300, 5600], zoom: -3 }
-    // Decided on arrival; later moves don't move the opening.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated])
+    setOpening(
+      at ??
+        (target ? initialOf(target) : null) ??
+        (heart ? { bounds: heart, padding: 64 } : { centre: [4300, 5600], zoom: -3 }),
+    )
+  }
 
   // On arrival at a spot the address named, the selection is left where it is.
   useEffect(() => {
@@ -459,7 +502,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       if (!position) return
       window.clearTimeout(handle)
       handle = window.setTimeout(() => {
-        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, live, view: viewing?.id ?? null })}`
+        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, extras, view: viewing?.id ?? null })}`
         if (next !== `${window.location.pathname}${window.location.search}`)
           window.history.replaceState(window.history.state, '', next)
       }, 300)
@@ -470,7 +513,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       unsubscribe()
       window.clearTimeout(handle)
     }
-  }, [centreStore, layers, live, viewing])
+  }, [centreStore, layers, extras, viewing])
 
   // Opening something looks at it, and on a phone draws the sheet up.
   const [sheetFor, setSheetFor] = useState(selection)
@@ -478,26 +521,41 @@ export function MapsShell({ data: served, children }: ShellProps) {
     setSheetFor(selection)
     if (selection) setSheet('half')
   }
+  // A town or a nation abroad opened before the world arrived is looked at once it has.
+  const owedLook = useRef<MapSelection | null>(null)
   useEffect(() => {
     if (lastSelection.current !== undefined && sameSelection(lastSelection.current, selection))
       return
     const first = lastSelection.current === undefined
     lastSelection.current = selection
-    if (first) return
+    owedLook.current = null
+    if (first) {
+      // The map opened before anything said where a page abroad is: it looks once the world arrives.
+      if (selection && !arrival && !lookFor(data, world, selection)) owedLook.current = selection
+      return
+    }
     if (selection) {
-      const target = lookFor(data, selection)
+      const target = lookFor(data, world, selection)
       if (target) look(target)
+      else owedLook.current = selection
     }
     panelRef.current?.scrollTo({ top: 0 })
-  }, [selection, data, look])
+  }, [selection, data, world, arrival, look])
+  useEffect(() => {
+    const owed = owedLook.current
+    if (!world || !owed || !sameSelection(owed, selection)) return
+    owedLook.current = null
+    const target = lookFor(data, world, owed)
+    if (target) look(target)
+  }, [world, selection, data, look])
 
   const select = useCallback(
     (next: MapSelection | null) => {
       setEditor(null)
-      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, live, view: viewing?.id ?? null })
+      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, extras, view: viewing?.id ?? null })
       startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
     },
-    [router, centreStore, layers, live, viewing, setEditor],
+    [router, centreStore, layers, extras, viewing, setEditor],
   )
 
   const mayEdit = useCallback(
@@ -684,8 +742,14 @@ export function MapsShell({ data: served, children }: ShellProps) {
       undo,
       redo,
       historyStore,
+      world,
+      worldStatus: worldState.status,
+      arrive,
     }),
     [
+      world,
+      worldState.status,
+      arrive,
       data,
       rights,
       rightsStatus,
@@ -757,7 +821,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [editor, selection, viewing, select, undo, redo])
 
-  const described = describe(data, selection)
+  const described = describe(data, world, selection)
   const canDraw = rights.anywhere || rights.towns.length > 0
   const liveEvents = data.events.filter((event) => eventPhase(event, now) === 'now').length
   const upcoming = data.events.filter((event) => eventPhase(event, now) === 'upcoming').length
@@ -839,13 +903,14 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const controls = (
     <>
       <LayerMenu
+        extras={extras}
         layers={layers}
-        live={live}
         liveStore={liveStore}
         onChange={setLayers}
-        onLive={setLive}
+        onExtra={setExtra}
         onShowPast={setShowPast}
         showPast={showPast}
+        worldStatus={worldState.status}
       />
       <Legend />
       {canDraw || rights.views ? (
@@ -942,7 +1007,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 <Wordmark />
                 {account}
               </div>
-              <Search className="mt-3" data={data} onPick={select} />
+              <Search className="mt-3" data={data} onPick={select} world={world} />
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto" ref={panelRef}>
               <div className="flex min-h-full flex-col">{content}</div>
@@ -969,7 +1034,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
               rights={rights}
               selection={selection}
               showPast={showPast}
+              showWorld={extras.world}
               viewing={viewing}
+              world={world}
             />
           ) : null}
 
@@ -978,7 +1045,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <div className="absolute left-3 right-3 top-3 z-20 flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 border border-sand-300 bg-sand-50 py-1 pl-2.5 pr-1 shadow-[0_1px_2px_rgba(22,25,31,0.08)]">
                 <Wordmark small />
-                <Search className="min-w-0 flex-1" data={data} onPick={select} />
+                <Search className="min-w-0 flex-1" data={data} onPick={select} world={world} />
               </div>
             </div>
           ) : null}
@@ -1057,19 +1124,26 @@ function editorTarget(editor: Editor): LookTarget | null {
   }
 }
 
-/** The bounds a selection fills on arrival. */
-function boundsFor(data: MapData, selection: MapSelection): SceneProps['initial'] | null {
-  const target = lookFor(data, selection)
-  if (!target) return null
+/** Where the map opens for something to look at: its bounds filled, or its spot at its zoom. */
+function initialOf(target: LookTarget): SceneProps['initial'] | null {
   if ('bounds' in target) return { bounds: target.bounds, padding: 64 }
   if ('centre' in target && 'zoom' in target && target.zoom != null)
     return { centre: target.centre, zoom: target.zoom }
   return null
 }
 
-/** Where to look for a selection: a town's main claim, a road's course, a point up close. */
-function lookFor(data: MapData, selection: MapSelection): LookTarget | null {
+/** Where to look for a selection: a town's main claim, a road's course, a point up close, a nation's heartland. */
+function lookFor(data: MapData, world: Abroad | null, selection: MapSelection): LookTarget | null {
   switch (selection.kind) {
+    case 'abroad': {
+      const town = world?.townBySlug.get(selection.slug)
+      return town ? abroadTownTarget(town) : null
+    }
+    case 'nation': {
+      const nation = world?.nationBySlug.get(selection.slug)
+      const bounds = nation ? nationFit(nation) : null
+      return bounds ? { bounds } : null
+    }
     case 'town': {
       const town = data.towns.find((candidate) => candidate.slug === selection.slug)
       const bounds = town ? homeClaimBounds(town) : null
