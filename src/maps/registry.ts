@@ -95,6 +95,21 @@ export const TOWN_KINDS = {
 export type TownKind = keyof typeof TOWN_KINDS
 export const isTownKind = (value: unknown): value is TownKind => typeof value === 'string' && value in TOWN_KINDS
 
+/**
+ * Where Azania stands with another nation, as the admins set it under
+ * Settings → Azania Maps; a nation not named there is neutral. The map's
+ * diplomacy layer tints the other nations by it.
+ */
+export const STANCES = {
+  ally: { label: 'Allied' },
+  friendly: { label: 'Friendly' },
+  tense: { label: 'Tense' },
+  hostile: { label: 'Hostile' },
+  war: { label: 'At war' },
+} as const
+export type Stance = keyof typeof STANCES
+export const isStance = (value: unknown): value is Stance => typeof value === 'string' && value in STANCES
+
 /** What a map can show on top of the Rulercraft tiles. */
 export const MAP_LAYERS = {
   towns: { label: 'Azanian towns (claims and names)' },

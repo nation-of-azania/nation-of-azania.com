@@ -1,6 +1,7 @@
 import type { GlobalConfig } from 'payload'
 
 import { isAdmin } from '../access'
+import { options, STANCES } from '../maps/registry'
 
 /**
  * Which Towny towns are Azania's (src/lib/towns.ts). The nation's Towny name
@@ -44,6 +45,38 @@ export const AzaniaMaps: GlobalConfig = {
           'Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet. Spelt as the map has it.',
       },
       fields: [{ name: 'name', type: 'text', required: true }],
+    },
+    {
+      name: 'relations',
+      type: 'array',
+      label: 'Diplomacy',
+      labels: { singular: 'Relation', plural: 'Relations' },
+      admin: {
+        description:
+          'Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see. Nations not named here are neutral. Spelt as the map has them.',
+      },
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            { name: 'nation', type: 'text', required: true, admin: { width: '40%' } },
+            {
+              name: 'stance',
+              type: 'select',
+              required: true,
+              defaultValue: 'friendly',
+              options: options(STANCES),
+              admin: { width: '25%' },
+            },
+            {
+              name: 'note',
+              type: 'text',
+              maxLength: 140,
+              admin: { width: '35%', description: 'A line for readers, e.g. "Treaty of Oasis, October 2026".' },
+            },
+          ],
+        },
+      ],
     },
     {
       type: 'row',

@@ -1324,6 +1324,20 @@ export interface AzaniaMap {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see. Nations not named here are neutral. Spelt as the map has them.
+   */
+  relations?:
+    | {
+        nation: string;
+        stance: 'ally' | 'friendly' | 'tense' | 'hostile' | 'war';
+        /**
+         * A line for readers, e.g. "Treaty of Oasis, October 2026".
+         */
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   syncedAt?: string | null;
   syncNote?: string | null;
   updatedAt?: string | null;
@@ -1361,6 +1375,14 @@ export interface AzaniaMapsSelect<T extends boolean = true> {
     | T
     | {
         name?: T;
+        id?: T;
+      };
+  relations?:
+    | T
+    | {
+        nation?: T;
+        stance?: T;
+        note?: T;
         id?: T;
       };
   syncedAt?: T;

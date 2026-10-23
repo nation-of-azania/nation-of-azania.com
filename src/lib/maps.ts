@@ -19,7 +19,7 @@ import {
   type MapViewData,
 } from '@/maps/data'
 import type { Outline } from '@/maps/geo'
-import { isTownKind } from '@/maps/registry'
+import { isStance, isTownKind, type Stance } from '@/maps/registry'
 import type { Article, Town as TownDoc } from '@/payload-types'
 
 /**
@@ -40,7 +40,7 @@ const ALL = { limit: 0, pagination: false as const, depth: 0 }
 export const getMapData = cache(async (): Promise<MapData> => {
   try {
     const payload = await getClient()
-    const [towns, places, roads, events] = await Promise.all([
+    const [towns, places, roads, events, settings] = await Promise.all([
       payload.find({
         collection: 'towns',
         where: { and: [{ azanian: { equals: true } }, { present: { equals: true } }] },
@@ -50,6 +50,7 @@ export const getMapData = cache(async (): Promise<MapData> => {
       payload.find({ collection: 'places', sort: 'name', ...ALL }),
       payload.find({ collection: 'roads', sort: 'name', ...ALL }),
       payload.find({ collection: 'events', sort: 'startsAt', ...ALL }),
+      payload.findGlobal({ slug: 'azania-maps', depth: 0 }),
     ])
     const present = <T>(value: T | null): value is T => value !== null
     return {
@@ -57,9 +58,17 @@ export const getMapData = cache(async (): Promise<MapData> => {
       places: places.docs.map(mapPlace).filter(present),
       roads: roads.docs.map(mapRoad).filter(present),
       events: events.docs.map(mapEvent).filter(present),
+      // Only the diplomacy: the rest of the settings stay with the admins.
+      relations: (settings.relations ?? [])
+        .filter((relation) => relation.nation?.trim() && isStance(relation.stance))
+        .map((relation) => ({
+          nation: relation.nation.trim(),
+          stance: relation.stance as Stance,
+          note: relation.note?.trim() || null,
+        })),
     }
   } catch {
-    return { towns: [], places: [], roads: [], events: [] }
+    return { towns: [], places: [], roads: [], events: [], relations: [] }
   }
 })
 

@@ -22,6 +22,7 @@ import {
   type MapLayer,
   type PlaceCategory,
   type RoadKind,
+  type Stance,
   type TownKind,
 } from './registry'
 
@@ -115,7 +116,12 @@ export type MapData = {
   places: MapPlace[]
   roads: MapRoad[]
   events: MapEvent[]
+  /** Where Azania stands with other nations (Settings → Azania Maps); the rest are neutral. */
+  relations: Relation[]
 }
+
+/** Azania's stance toward another Towny nation, by its name as the map spells it. */
+export type Relation = { nation: string; stance: Stance; note: string | null }
 
 /** What the signed-in person may do on the map; null fields for a visitor. */
 export type MapRights = {
@@ -382,5 +388,6 @@ export function around(data: MapData, bounds: Bounds, reach = 6): MapData {
     places: data.places.filter((place) => inside(place.point)),
     roads: data.roads.filter((road) => touches(boundsOf(road.line))),
     events: data.events.filter((event) => inside(event.point)),
+    relations: data.relations,
   }
 }

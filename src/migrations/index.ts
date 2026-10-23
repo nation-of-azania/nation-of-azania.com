@@ -14,6 +14,7 @@ import * as migration_20261020_092846_azania_maps from './20261020_092846_azania
 import * as migration_20261020_140712_map_polish from './20261020_140712_map_polish';
 import * as migration_20261021_043939_server_sites from './20261021_043939_server_sites';
 import * as migration_20261023_030000_azania_nation from './20261023_030000_azania_nation';
+import * as migration_20261023_063403_diplomacy from './20261023_063403_diplomacy';
 
 export const migrations = [
   {
@@ -89,11 +90,16 @@ export const migrations = [
   {
     up: migration_20261021_043939_server_sites.up,
     down: migration_20261021_043939_server_sites.down,
-    name: '20261021_043939_server_sites'
+    name: '20261021_043939_server_sites',
   },
   {
     up: migration_20261023_030000_azania_nation.up,
     down: migration_20261023_030000_azania_nation.down,
     name: '20261023_030000_azania_nation',
+  },
+  {
+    up: migration_20261023_063403_diplomacy.up,
+    down: migration_20261023_063403_diplomacy.down,
+    name: '20261023_063403_diplomacy'
   },
 ];

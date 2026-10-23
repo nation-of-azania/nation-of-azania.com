@@ -331,6 +331,10 @@ export type Town = {
   income: number | null
   /** What a quarry produces: "Diamond", "Iron", … */
   resource: string | null
+  /** Whether it is its nation's capital; unknown (absent) for a town read from the database. */
+  capital?: boolean
+  /** Its nation's colour as the map draws its claims' edge; absent for a town read from the database. */
+  colour?: string | null
   name: string
   home: { x: number; y: number; z: number } | null
   outlines: Outline[]
@@ -346,17 +350,24 @@ export type Town = {
 const TOWNY_TTL_MS = 60 * 60 * 1000
 let townyCache: { at: number; towns: Map<string, Town> } | null = null
 
-type MarkerFile = {
+export type MarkerFile = {
+  /** When Dynmap last wrote the file, in ms since the epoch. */
+  timestamp?: number
   sets?: Record<
     string,
     {
-      markers?: Record<string, { label?: string; x?: number; y?: number; z?: number }>
-      areas?: Record<string, { label?: string; desc?: string; x?: number[]; z?: number[] }>
+      markers?: Record<
+        string,
+        { label?: string; desc?: string; icon?: string; x?: number; y?: number; z?: number }
+      >
+      areas?: Record<
+        string,
+        { label?: string; desc?: string; x?: number[]; z?: number[]; color?: string; fillcolor?: string }
+      >
     }
   >
 }
 
-/** "Ruler: | Name" style facts out of Towny's info-window HTML. */
 /**
  * Whether a town is one the server runs, and what it pays. Their rulers are
  * the server's own bots (Ruler1, Ruler2, …), and the line where a players'
@@ -385,6 +396,7 @@ function siteOf(name: string, cells: string[], ruler: string | null) {
   }
 }
 
+/** "Ruler: | Name" style facts out of Towny's info-window HTML. */
 function townFacts(name: string, desc: string) {
   const text = desc
     .replace(/<[^>]+>/g, '|')
@@ -425,6 +437,68 @@ function townFacts(name: string, desc: string) {
   }
 }
 
+let markerFile: { at: number; file: MarkerFile } | null = null
+let markerRead: Promise<MarkerFile> | null = null
+
+/**
+ * The map's marker file (towns, sieges and the rest), read at most once per
+ * `maxAgeMs` in this server, with readers arriving meanwhile sharing one
+ * read. About 5 MB, served uncompressed and uncached: too big for Next's
+ * data cache, so it's kept in memory instead. Throws when the map can't be
+ * read.
+ */
+export async function readMarkerFile(maxAgeMs: number): Promise<MarkerFile> {
+  if (markerFile && Date.now() - markerFile.at < maxAgeMs) return markerFile.file
+  markerRead ??= (async () => {
+    const response = await fetch(`${DYNMAP_URL}/tiles/_markers_/marker_${DYNMAP_WORLD}.json`, {
+      signal: AbortSignal.timeout(10000),
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error(`The map answered ${response.status}`)
+    const file = (await response.json()) as MarkerFile
+    markerFile = { at: Date.now(), file }
+    return file
+  })().finally(() => {
+    markerRead = null
+  })
+  return markerRead
+}
+
+/**
+ * Every Towny town in a marker file, by lower-cased name: its claims (one
+ * outline per area), its home block, its facts, its nation's colour as the
+ * map draws it, and whether it is its nation's capital (Towny marks a
+ * capital's home with the "ruler" icon).
+ */
+export function townsOf(file: MarkerFile): Map<string, Town> {
+  const towns = new Map<string, Town>()
+  const set = file.sets?.['towny.markerset']
+  for (const area of Object.values(set?.areas ?? {})) {
+    const name = area.label?.trim()
+    if (!name || !area.x || !area.z) continue
+    const key = name.toLowerCase()
+    const town = towns.get(key) ?? {
+      name,
+      home: null,
+      outlines: [],
+      capital: false,
+      colour: area.color ?? null,
+      ...townFacts(name, area.desc ?? ''),
+    }
+    town.outlines.push({ x: area.x, z: area.z })
+    towns.set(key, town)
+  }
+  for (const [id, marker] of Object.entries(set?.markers ?? {})) {
+    if (!id.endsWith('__home')) continue
+    const town = towns.get((marker.label ?? '').trim().toLowerCase())
+    if (town && marker.x != null && marker.z != null) {
+      town.home = { x: marker.x, y: marker.y ?? 64, z: marker.z }
+      town.capital = marker.icon === 'ruler'
+    }
+  }
+  return towns
+}
+
 /**
  * Every Towny town on the map, by lower-cased name; cached for an hour
  * (`fresh` reads the map regardless). Null when the map can't be read and
@@ -433,36 +507,9 @@ function townFacts(name: string, desc: string) {
  */
 export async function getTowns({ fresh = false }: { fresh?: boolean } = {}): Promise<Map<string, Town> | null> {
   if (!fresh && townyCache && Date.now() - townyCache.at < TOWNY_TTL_MS) return townyCache.towns
-  const towns = new Map<string, Town>()
+  let towns: Map<string, Town>
   try {
-    // About 5 MB: too big for Next's data cache, so it's kept in memory instead.
-    const response = await fetch(`${DYNMAP_URL}/tiles/_markers_/marker_${DYNMAP_WORLD}.json`, {
-      signal: AbortSignal.timeout(10000),
-      cache: 'no-store',
-    })
-    if (!response.ok) throw new Error(`The map answered ${response.status}`)
-    const file = (await response.json()) as MarkerFile
-    const set = file.sets?.['towny.markerset']
-    for (const area of Object.values(set?.areas ?? {})) {
-      const name = area.label?.trim()
-      if (!name || !area.x || !area.z) continue
-      const key = name.toLowerCase()
-      const town = towns.get(key) ?? {
-        name,
-        home: null,
-        outlines: [],
-        ...townFacts(name, area.desc ?? ''),
-      }
-      town.outlines.push({ x: area.x, z: area.z })
-      towns.set(key, town)
-    }
-    for (const [id, marker] of Object.entries(set?.markers ?? {})) {
-      if (!id.endsWith('__home')) continue
-      const town = towns.get((marker.label ?? '').trim().toLowerCase())
-      if (town && marker.x != null && marker.z != null) {
-        town.home = { x: marker.x, y: marker.y ?? 64, z: marker.z }
-      }
-    }
+    towns = townsOf(await readMarkerFile(fresh ? 0 : TOWNY_TTL_MS))
     townyCache = { at: Date.now(), towns }
   } catch {
     // Keep serving the last good copy if the map is down, unless asked for a fresh one.
