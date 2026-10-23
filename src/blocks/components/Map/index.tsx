@@ -7,10 +7,11 @@ import { BylineAvatar, type AvatarTone } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import { dress } from '@/components/styles'
 import { getMapData, getMapView, getTownByName } from '@/lib/maps'
+import { worldSlug } from '@/maps/abroad'
 import { around, mapView, type MapData, type MapViewData } from '@/maps/data'
 import { incomeWords, siteTerms, siteTitle, type SiteFacts } from '@/maps/sites'
 import { routeFrom, spawnRoute, type SpawnRoute } from '@/maps/spawn'
-import { ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
+import { abroadHref, ALL_LAYERS, mapsHref, townHref } from '@/maps/url'
 import { clock } from '@/maps/time'
 import { frameBounds, zoomForSpan } from '@/maps/view'
 import {
@@ -352,7 +353,12 @@ export async function MapBlock({
     town: azanian?.id ?? null,
   }
   const at = { centre: [cx, cz] as [number, number], zoom: zoomForSpan(span, COLUMN_PX) }
-  const mapsLink = azanian ? mapsHref({ at }, townHref(azanian.slug)) : mapsHref({ at })
+  // Azania's own town opens its page; another nation's, its page abroad; a spot, just the spot.
+  const mapsLink = azanian
+    ? mapsHref({ at }, townHref(azanian.slug))
+    : town
+      ? mapsHref({ at }, abroadHref(worldSlug(town.name)))
+      : mapsHref({ at })
   const now = clock()
 
   // The way there as a player has it: the town's own spawn, or, from
