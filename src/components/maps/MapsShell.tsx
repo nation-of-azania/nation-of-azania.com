@@ -73,6 +73,7 @@ import {
 } from './state'
 import { Notice, TextButton } from './ui/chrome'
 import { DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
+import { DiplomacyKey } from './ui/Diplomacy'
 import { Icon } from './ui/icons'
 import { Coordinates, LiveCount, StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
@@ -745,11 +746,15 @@ export function MapsShell({ data: served, children }: ShellProps) {
       world,
       worldStatus: worldState.status,
       arrive,
+      extras,
+      setExtra,
     }),
     [
       world,
       worldState.status,
       arrive,
+      extras,
+      setExtra,
       data,
       rights,
       rightsStatus,
@@ -1020,6 +1025,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
           {opening ? (
             <MapScene
               data={data}
+              diplomacy={extras.diplomacy}
               editor={editor}
               initial={opening}
               layers={sceneLayers}
@@ -1047,6 +1053,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 <Wordmark small />
                 <Search className="min-w-0 flex-1" data={data} onPick={select} world={world} />
               </div>
+            </div>
+          ) : null}
+
+          {/* The map's own notes, top left, clear of the controls: the diplomacy layer's key. */}
+          {extras.diplomacy ? (
+            <div
+              className={cn(
+                'pointer-events-none absolute left-3 z-10 flex max-w-[calc(100%-4.75rem)] flex-col items-start gap-2',
+                wide ? 'top-3' : 'top-16',
+              )}
+            >
+              <DiplomacyKey className="pointer-events-auto w-[19rem] max-w-full" relations={data.relations} />
             </div>
           ) : null}
 

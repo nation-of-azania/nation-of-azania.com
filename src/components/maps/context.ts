@@ -5,7 +5,7 @@ import { createContext, useContext } from 'react'
 import type { Abroad } from '@/maps/abroad'
 import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData } from '@/maps/data'
 import type { MapLayer } from '@/maps/registry'
-import type { MapSelection } from '@/maps/url'
+import type { ExtraLayer, Extras, MapSelection } from '@/maps/url'
 
 import type { Store } from './hooks'
 import type { LookTarget } from './MapScene'
@@ -65,6 +65,9 @@ export type MapsActions = {
   worldStatus: WorldState['status']
   /** A page abroad says where its town or nation is, so the map can open there before the world arrives. */
   arrive: (target: LookTarget) => void
+  /** The layers beyond the nation's own (the world, diplomacy, the players online), and turning one on or off. */
+  extras: Extras
+  setExtra: (layer: ExtraLayer, on: boolean) => void
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)

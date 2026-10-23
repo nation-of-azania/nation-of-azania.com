@@ -2,10 +2,10 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import { homeNationOf, type Abroad } from '@/maps/abroad'
-import { heartland, type MapData, type MapRights, type MapTown, type MapViewData } from '@/maps/data'
+import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
+import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
-import { nationInk, NO_NATION, pixelsPerBlock } from '@/maps/palette'
+import { nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
@@ -63,9 +63,10 @@ export type SceneProps = {
   data: MapData
   rights: MapRights
   layers: MapLayer[]
-  /** The rest of the world, once it has arrived (/maps/world), and whether it's drawn. */
+  /** The rest of the world, once it has arrived (/maps/world), whether it's drawn, and whether tinted by Azania's diplomacy. */
   world: Abroad | null
   showWorld: boolean
+  diplomacy: boolean
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
@@ -352,6 +353,7 @@ const Layers = memo(function Layers({
   layers,
   world: abroad,
   showWorld,
+  diplomacy,
   showPast,
   now,
   selection,
@@ -406,10 +408,10 @@ const Layers = memo(function Layers({
     places: show('places') ? places : [],
     events: show('events') ? events : [],
   }
-  // The world around the nation: never in an article's view, which is the nation's own.
-  const worldShown = abroad && showWorld && !viewLayers ? abroad : null
+  // The world around the nation, drawn for itself or for the diplomacy; never in an article's view, which is the nation's own.
+  const worldShown = abroad && (showWorld || diplomacy) && !viewLayers ? abroad : null
   const home = useHome(data)
-  const styleOf = useNationStyles(abroad)
+  const styleOf = useNationStyles(abroad, diplomacy ? data.relations : null)
   const selectedAbroad = {
     town: selection?.kind === 'abroad' ? selection.slug : null,
     nation: selection?.kind === 'nation' ? selection.slug : null,
@@ -554,14 +556,26 @@ function useHome(data: MapData): HomeNation | null {
   }, [data.towns])
 }
 
-/** Each nation's style, its own colour tempered (src/maps/palette.ts), worked out once per world. */
-function useNationStyles(abroad: Abroad | null): (nation: string | null) => NationStyle {
+/**
+ * Each nation's style, worked out once per world: its own colour tempered
+ * (src/maps/palette.ts), or, with the diplomacy layer on (`relations`
+ * given), where Azania stands with it — allies washed green, enemies red
+ * and, at war, hatched, the neutral receding in grey.
+ */
+function useNationStyles(abroad: Abroad | null, relations: Relation[] | null): (nation: string | null) => NationStyle {
   return useMemo(() => {
+    const styleOf = (name: string, colour: string | null): NationStyle => {
+      if (!relations) return { ...nationInk(colour), fill: 0.08 }
+      const stance = relationWith(name, relations)?.stance ?? 'neutral'
+      const voice = stance === 'neutral' ? 'quiet' : stance === 'ally' || stance === 'war' || stance === 'hostile' ? 'loud' : undefined
+      return { ...STANCE_COLOURS[stance], hatch: stance === 'war', voice }
+    }
     const styles = new Map<string, NationStyle>(
-      (abroad?.nations ?? []).map((nation) => [nation.name, { ...nationInk(nation.colour), fill: 0.08 }]),
+      (abroad?.nations ?? []).map((nation) => [nation.name, styleOf(nation.name, nation.colour)]),
     )
-    const none: NationStyle = { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
-    const unknown: NationStyle = { ...nationInk(null), fill: 0.08 }
-    return (nation) => (nation ? (styles.get(nation) ?? unknown) : none)
-  }, [abroad])
+    const none: NationStyle = relations
+      ? { ...STANCE_COLOURS.neutral, dash: '3 2' }
+      : { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
+    return (nation) => (nation ? (styles.get(nation) ?? styleOf(nation, null)) : none)
+  }, [abroad, relations])
 }

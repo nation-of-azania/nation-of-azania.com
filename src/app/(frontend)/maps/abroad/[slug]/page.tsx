@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { AbroadOffline, AbroadTownPanel } from '@/components/maps/panels/AbroadPanel'
 import { getAbroadTown } from '@/lib/abroad'
 import { getMapData } from '@/lib/maps'
+import { relationWith } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
 import { incomeWords, siteTitle } from '@/maps/sites'
 import { abroadHref, townHref } from '@/maps/url'
@@ -47,5 +48,6 @@ export default async function AbroadPage({ params }: Props) {
     if (own) redirect(townHref(own.slug))
     notFound()
   }
-  return <AbroadTownPanel nation={page.nation} route={page.route} town={page.town} />
+  const relation = relationWith(page.nation?.name, data.relations)
+  return <AbroadTownPanel nation={page.nation} relation={relation} route={page.route} town={page.town} />
 }

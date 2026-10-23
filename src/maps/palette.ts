@@ -1,4 +1,4 @@
-import type { Ink, PlaceGroup, RoadKind } from './registry'
+import type { Ink, PlaceGroup, RoadKind, Stance } from './registry'
 
 /**
  * What Azania Maps draws with: the site's own tokens (src/app/(frontend)/globals.css),
@@ -166,6 +166,23 @@ export function nationInk(colour: string | null | undefined): { line: string; te
     return { line: hsl(0, 0, clamp(l, 0.18, 0.93)), text: l > 0.6 ? GROUND.inkSoft : hsl(0, 0, clamp(l, 0.12, 0.3)) }
   }
   return { line: hsl(h, Math.min(s, 0.72), clamp(l, 0.3, 0.6)), text: hsl(h, Math.min(s, 0.7), clamp(l * 0.6, 0.18, 0.3)) }
+}
+
+/**
+ * Azania's diplomacy on the map (STANCES in ./registry.ts, and neutral for
+ * every nation not named): a road from green to red through a quiet grey,
+ * as a reader expects of friend and foe, kept clear of the nation's own
+ * sea and saffron. `fill` is how strongly a nation is washed, so allies
+ * and enemies stand out and the neutral recede; `text` is the dark shade
+ * names are set in. A nation at war with Azania is also hatched.
+ */
+export const STANCE_COLOURS: Record<Stance | 'neutral', { line: string; text: string; fill: number }> = {
+  ally: { line: '#2e8a55', text: '#1d5c38', fill: 0.26 },
+  friendly: { line: '#78b06a', text: '#3d6b33', fill: 0.18 },
+  neutral: { line: '#8d9199', text: '#4a505b', fill: 0.05 },
+  tense: { line: '#c29a2e', text: '#6e5512', fill: 0.18 },
+  hostile: { line: '#d2642c', text: '#8a3a12', fill: 0.22 },
+  war: { line: '#b3261e', text: '#7d1712', fill: 0.18 },
 }
 
 /** Pixels per block at a map zoom: level 0 is 2 px per block. */

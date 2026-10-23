@@ -13,6 +13,7 @@ import {
 import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from '@/maps/spawn'
 import type { Bounds, Point } from '@/maps/geo'
 import { formatWhen, relativeDay, sortEvents } from '@/maps/time'
+import type { ExtraLayer } from '@/maps/url'
 
 import { messageOf } from '../api'
 import { useMaps } from '../context'
@@ -112,6 +113,27 @@ export function Arrival({ target }: { target: Parameters<ReturnType<typeof useMa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return null
+}
+
+/** One of the layers beyond the nation's own, turned on or off from a panel: "Show on the map", "Hide". */
+export function LayerToggle({
+  layer,
+  on: onLabel,
+  off: offLabel,
+  className,
+}: {
+  layer: ExtraLayer
+  on: string
+  off: string
+  className?: string
+}) {
+  const { extras, setExtra } = useMaps()
+  const shown = extras[layer]
+  return (
+    <button aria-pressed={shown} className={className} onClick={() => setExtra(layer, !shown)} type="button">
+      {shown ? offLabel : onLabel}
+    </button>
+  )
 }
 
 /** Centre the map on a point, or fit bounds. */

@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { AbroadOffline, NationPanel } from '@/components/maps/panels/AbroadPanel'
 import { getAbroadNation } from '@/lib/abroad'
 import { getMapData } from '@/lib/maps'
-import { homeNationOf, worldSlug } from '@/maps/abroad'
+import { homeNationOf, relationWith, worldSlug } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
 import { MAPS_PATH, nationHref } from '@/maps/url'
 
@@ -39,5 +39,12 @@ export default async function NationPage({ params }: Props) {
   const page = await getAbroadNation(slug, data)
   if (!page) notFound()
   if (page.kind === 'offline') return <AbroadOffline what="nation" />
-  return <NationPanel fit={page.fit} members={page.members} nation={page.nation} />
+  return (
+    <NationPanel
+      fit={page.fit}
+      members={page.members}
+      nation={page.nation}
+      relation={relationWith(page.nation.name, data.relations)}
+    />
+  )
 }

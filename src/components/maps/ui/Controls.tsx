@@ -21,6 +21,7 @@ import { SiteMark } from '../layers/SiteMark'
 import type { LiveState } from '../live'
 import type { WorldState } from '../world'
 import { EYEBROW, IconButton, Popover } from './chrome'
+import { STANCE_ORDER, StanceSwatch, stanceLabel } from './Diplomacy'
 import { Icon } from './icons'
 
 const LAYER_WORDS: Record<MapLayer, string> = {
@@ -150,6 +151,14 @@ export function LayerMenu({
             note="Every town on the server in its nation’s colour; Azania stays in full."
             onChange={(on) => onExtra('world', on)}
             state={worldWords ? <span className="ml-auto text-xs text-ink-500">{worldWords}</span> : null}
+          />
+        </li>
+        <li>
+          <ExtraRow
+            checked={extras.diplomacy}
+            label="Diplomacy"
+            note="The nations tinted by where Azania stands with them: allies green, enemies red."
+            onChange={(on) => onExtra('diplomacy', on)}
           />
         </li>
         <li>
@@ -320,6 +329,15 @@ export function Legend() {
             </svg>
             <span>A site another nation holds, rimmed in its colour</span>
           </li>
+        </ul>
+        <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>
+        <ul className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1">
+          {STANCE_ORDER.map((stance) => (
+            <li className="flex items-center gap-1.5 px-1 py-0.5 text-[13px]" key={stance}>
+              <StanceSwatch stance={stance} />
+              <span className="truncate">{stanceLabel(stance)}</span>
+            </li>
+          ))}
         </ul>
       </div>
     </Popover>

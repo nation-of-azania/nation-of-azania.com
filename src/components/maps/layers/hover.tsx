@@ -10,5 +10,7 @@ import { useStore, type Store } from '../hooks'
 export function AbroadHover({ store }: { store: Store<string | null> }) {
   const nation = useStore(store)
   if (!nation) return null
-  return <style>{`.az-abroad g[data-nation=${JSON.stringify(nation)}]{fill-opacity:.2;stroke-opacity:1;stroke-width:2px}`}</style>
+  const group = `.az-abroad g[data-nation=${JSON.stringify(nation)}]`
+  // A hatched nation (at war with Azania) keeps its hatching whole.
+  return <style>{`${group}{stroke-opacity:1;stroke-width:2px}${group}:not([data-hatch]){fill-opacity:.2}`}</style>
 }

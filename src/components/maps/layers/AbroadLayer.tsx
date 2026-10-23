@@ -3,7 +3,7 @@ import type { MouseEvent, PointerEvent } from 'react'
 import { abroadCentre, abroadHomeBounds, type Abroad, type AbroadNation, type AbroadTown } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
-import { GROUND } from '@/maps/palette'
+import { GROUND, STANCE_COLOURS } from '@/maps/palette'
 import { siteLine, type SiteFacts } from '@/maps/sites'
 import type { MapSelection } from '@/maps/url'
 
@@ -35,8 +35,20 @@ import { SITE_R, SiteMark, siteMarkRect } from './SiteMark'
  * handler serve every town (the element under the pointer says which).
  */
 
-/** How a nation is drawn: its edge and fill, the ink of its names, and a dash for the towns of no nation. */
-export type NationStyle = { line: string; text: string; fill: number; dash?: string }
+/**
+ * How a nation is drawn: its edge and fill, the ink of its names, a dash
+ * for the towns of no nation, a hatch for a nation at war with Azania, and
+ * how loudly its name is set — the diplomacy layer sets Azania's friends
+ * and foes in bold and lets the neutral recede.
+ */
+export type NationStyle = {
+  line: string
+  text: string
+  fill: number
+  dash?: string
+  hatch?: boolean
+  voice?: 'loud' | 'quiet'
+}
 
 /** Clicks further out than this open the nation; closer in, the town. */
 export const NATIONS_BELOW = -4.5
@@ -176,11 +188,18 @@ export function AbroadClaims({
     if (nation && (zoom < NATIONS_BELOW || !town)) onSelect({ kind: 'nation', slug: nation.slug })
     else if (town) onSelect({ kind: 'abroad', slug: town.slug })
   }
-  const over = (event: PointerEvent) => hover?.set(hitOf(event)?.nation || null)
+  // Mid-drag the map slides under a still pointer: the nations passing beneath it aren't hovered, and nothing restyles.
+  const over = (event: PointerEvent) => {
+    if (!event.buttons) hover?.set(hitOf(event)?.nation || null)
+  }
   const out = (event: PointerEvent) => {
     const next = event.relatedTarget as Element | null
-    if (!next?.closest?.('.az-abroad [data-nation]')) hover?.set(null)
+    if (!event.buttons && !next?.closest?.('.az-abroad [data-nation]')) hover?.set(null)
   }
+
+  // A nation at war with Azania is hatched in its stance's red, in the page's own pixels, so it reads the same at every zoom.
+  const hatch = `${projection.id}-war-hatch`
+  const anyHatch = [...groups.keys()].some((key) => styleOf(key || null).hatch)
 
   return (
     <g
@@ -190,14 +209,23 @@ export function AbroadClaims({
       onPointerOver={hover ? over : undefined}
       style={onSelect ? { cursor: 'pointer' } : undefined}
     >
+      {anyHatch ? (
+        <defs>
+          <pattern height={7} id={hatch} patternTransform="rotate(-45)" patternUnits="userSpaceOnUse" width={7}>
+            <rect fill={STANCE_COLOURS.war.line} fillOpacity={0.12} height={7} width={7} />
+            <line stroke={STANCE_COLOURS.war.line} strokeOpacity={0.6} strokeWidth={1.5} x1={0} x2={0} y1={0} y2={7} />
+          </pattern>
+        </defs>
+      ) : null}
       {[...groups].map(([key, group]) => {
         const style = styleOf(key || null)
         const strong = Boolean(key) && key === pickedNation
         return (
           <g
+            data-hatch={style.hatch ? '' : undefined}
             data-nation={key}
-            fill={style.line}
-            fillOpacity={strong ? Math.max(0.16, style.fill * 2) : style.fill}
+            fill={style.hatch ? `url(#${hatch})` : style.line}
+            fillOpacity={style.hatch ? 1 : strong ? Math.max(0.16, style.fill * 2) : style.fill}
             key={key}
             stroke={style.line}
             strokeDasharray={style.dash}
@@ -461,17 +489,24 @@ export function AbroadMarks({
       {[...labels.nations].map(([slug, label]) => {
         const nation: AbroadNation | undefined = slug ? abroad.nationBySlug.get(slug) : undefined
         const home = !slug
-        const ink = home ? GROUND.sea800 : styleOf(nation?.name ?? null).text
+        const style = home ? null : styleOf(nation?.name ?? null)
+        const ink = style?.text ?? GROUND.sea800
         return (
           <g key={slug || 'home'}>
             <text
               className={cnHit(hit, 'font-display')}
               fill={ink}
               fontSize={label.fontSize}
-              fontWeight={home ? 700 : selected.nation === slug ? 700 : 500}
+              fontWeight={home || selected.nation === slug || style?.voice === 'loud' ? 700 : 500}
               letterSpacing={label.tracking}
               onClick={onSelect && nation ? () => onSelect({ kind: 'nation', slug: nation.slug }) : undefined}
-              opacity={home ? 1 : label.opacity * (selected.nation && selected.nation !== slug ? 0.7 : 1)}
+              opacity={
+                home
+                  ? 1
+                  : style?.voice === 'loud'
+                    ? 1
+                    : label.opacity * (selected.nation && selected.nation !== slug ? 0.7 : 1) * (style?.voice === 'quiet' ? 0.75 : 1)
+              }
               style={nation ? cursor : undefined}
               textAnchor="middle"
               x={label.x + label.width / 2 + label.tracking / 2}
