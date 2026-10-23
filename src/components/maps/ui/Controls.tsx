@@ -17,6 +17,7 @@ import { DEFAULT_EXTRAS, type ExtraLayer, type Extras } from '@/maps/url'
 
 import { useStore, type Store } from '../hooks'
 import { EventMark } from '../layers/EventsLayer'
+import { SiegeMarkGlyph } from '../layers/SiegesLayer'
 import { SiteMark } from '../layers/SiteMark'
 import type { LiveState } from '../live'
 import type { WorldState } from '../world'
@@ -328,6 +329,19 @@ export function Legend() {
               <SiteMark facts={{ kind: 'quarry', resource: 'Iron' }} ring={NATION_SAMPLE.line} scale={0.7} x={24} y={10} />
             </svg>
             <span>A site another nation holds, rimmed in its colour</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+              <SiegeMarkGlyph battle scale={0.8} side={null} x={13} y={12} />
+              <SiegeMarkGlyph battle={false} scale={0.8} side={null} x={35} y={12} />
+            </svg>
+            <span>A siege, at its banner: a battle on, and quiet. Always shown</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+              <SiegeMarkGlyph battle scale={0.7} side="defending" x={24} y={12} />
+            </svg>
+            <span>A siege Azania is in, ringed in saffron</span>
           </li>
         </ul>
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>

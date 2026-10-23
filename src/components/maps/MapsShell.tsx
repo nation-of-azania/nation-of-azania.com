@@ -14,7 +14,7 @@ import {
 } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { abroadOf, nationFit, type Abroad } from '@/maps/abroad'
+import { abroadOf, homeNationOf, nationFit, type Abroad } from '@/maps/abroad'
 import {
   heartland,
   homeClaimBounds,
@@ -33,6 +33,7 @@ import {
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
+import { azaniaSide, bySiegeWeight, siegeHeadline, siegeTitle } from '@/maps/sieges'
 import { settlements, siteFacts, siteTitle } from '@/maps/sites'
 import { inWorld, wrapPoint } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
@@ -80,6 +81,8 @@ import { Search } from './ui/Search'
 import { Sheet, type SheetState } from './ui/Sheet'
 import { WhatsOnStrip } from './ui/WhatsOn'
 import { Wordmark } from './ui/Wordmark'
+import { SiegeBadge } from './ui/Siege'
+import { useWar } from './war'
 import { useWorld } from './world'
 
 import './maps.css'
@@ -318,6 +321,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
     () => (worldState.world ? abroadOf(worldState.world, data.towns) : null),
     [worldState.world, data.towns],
   )
+  // The war: asked for at once and every few minutes while the tab is seen; a siege is always shown.
+  const war = useWar()
+  const [chosenSiege, setSiegeOpen] = useState<string | null>(null)
+  // A siege that has ended takes its card with it.
+  const siegeOpen = chosenSiege && war.sieges.some((siege) => siege.townId === chosenSiege) ? chosenSiege : null
+  // Azania's own sieges, its towns besieged first: what the map's alert and the front say.
+  const ourSieges = useMemo(() => {
+    const home = { nation: homeNationOf(data.towns), towns: data.towns }
+    return bySiegeWeight(war.sieges.map((siege) => ({ siege, side: azaniaSide(siege, home) }))).filter(
+      (entry) => entry.side !== null,
+    )
+  }, [war.sieges, data.towns])
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [viewProblem, setViewProblem] = useState<string | null>(null)
@@ -708,6 +723,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
     [openEditor],
   )
   const closeEditor = useCallback(() => setEditor(null), [setEditor])
+  /** A siege's card, opened from a panel or the alert: the map comes to its banner, close enough to see the town. */
+  const openSiege = useCallback(
+    (townId: string) => {
+      const siege = war.sieges.find((candidate) => candidate.townId === townId)
+      if (!siege) return
+      setEditor(null)
+      setSiegeOpen(townId)
+      look({ centre: siege.at, zoom: -1.5, minZoom: true })
+    },
+    [war.sieges, setEditor, look],
+  )
   const showView = useCallback(
     (view: MapViewData) => {
       setEditor(null)
@@ -748,6 +774,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
       arrive,
       extras,
       setExtra,
+      war,
+      openSiege,
     }),
     [
       world,
@@ -755,6 +783,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
       arrive,
       extras,
       setExtra,
+      war,
+      openSiege,
       data,
       rights,
       rightsStatus,
@@ -981,6 +1011,16 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </span>
     ) : editor ? (
       <span className="min-w-0 flex-1 truncate font-semibold text-sea-900">Drawing on the map</span>
+    ) : ourSieges.length ? (
+      // A siege Azania is in leads the front, even folded away.
+      <span className="min-w-0 flex-1">
+        <span className="block font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-700">
+          Siege{ourSieges.length > 1 ? ` · ${ourSieges.length} of Azania’s` : ''}
+        </span>
+        <span className="block truncate font-display text-lg leading-tight text-coral-700">
+          {siegeHeadline(ourSieges[0].siege, ourSieges[0].side)}
+        </span>
+      </span>
     ) : (
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="font-display text-lg leading-tight text-sea-950">Azania at a glance</span>
@@ -1041,6 +1081,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
               selection={selection}
               showPast={showPast}
               showWorld={extras.world}
+              siegeOpen={siegeOpen}
+              sieges={war.sieges}
+              onSiege={setSiegeOpen}
               viewing={viewing}
               world={world}
             />
@@ -1056,15 +1099,48 @@ export function MapsShell({ data: served, children }: ShellProps) {
             </div>
           ) : null}
 
-          {/* The map's own notes, top left, clear of the controls: the diplomacy layer's key. */}
-          {extras.diplomacy ? (
+          {/*
+            The map's own notes, top left, clear of the controls: a siege Azania is in, which
+            nobody should miss, and the diplomacy layer's key.
+          */}
+          {ourSieges.length || extras.diplomacy ? (
             <div
               className={cn(
-                'pointer-events-none absolute left-3 z-10 flex max-w-[calc(100%-4.75rem)] flex-col items-start gap-2',
-                wide ? 'top-3' : 'top-16',
+                'pointer-events-none absolute left-3 z-10 flex flex-col items-start gap-2',
+                // Clear of the controls: a column of them beside a wide map, a row of two on a phone's.
+                wide ? 'top-3 max-w-[calc(100%-4.75rem)]' : 'top-16 max-w-[calc(100%-7.75rem)]',
               )}
             >
-              <DiplomacyKey className="pointer-events-auto w-[19rem] max-w-full" relations={data.relations} />
+              {ourSieges.slice(0, wide ? 2 : 1).map(({ siege, side }) => (
+                <div
+                  className="az-siege-alert pointer-events-auto flex w-[22rem] max-w-full items-center gap-2.5 border border-l-4 border-coral-600/50 border-l-coral-600 bg-sand-50/95 py-2 pl-2.5 pr-2 shadow-[0_2px_8px_rgba(22,25,31,0.18)]"
+                  key={siege.townId}
+                  role="status"
+                >
+                  <SiegeBadge className="h-7 w-7" side={side} siege={siege} />
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight text-coral-700">
+                      {siegeHeadline(siege, side)}
+                    </p>
+                    <p className="truncate text-[12px] text-ink-500">
+                      {siegeTitle(siege)}
+                      {siege.progress ? ` · ${siege.progress.done} of ${siege.progress.of} fought` : ''}
+                      {siege.battle ? ' · a battle on' : ''}
+                    </p>
+                  </div>
+                  <TextButton className="shrink-0 px-2.5 py-1" onClick={() => openSiege(siege.townId)}>
+                    Show
+                  </TextButton>
+                </div>
+              ))}
+              {ourSieges.length > (wide ? 2 : 1) ? (
+                <p className="pointer-events-auto border border-sand-300 bg-sand-50/95 px-2.5 py-1 text-[12px] text-coral-700">
+                  and {ourSieges.length - (wide ? 2 : 1)} more of Azania’s sieges: see the front
+                </p>
+              ) : null}
+              {extras.diplomacy ? (
+                <DiplomacyKey className="pointer-events-auto w-[19rem] max-w-full" relations={data.relations} />
+              ) : null}
             </div>
           ) : null}
 

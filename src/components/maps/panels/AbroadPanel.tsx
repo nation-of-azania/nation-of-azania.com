@@ -17,6 +17,7 @@ import { StanceSwatch } from '../ui/Diplomacy'
 import { Swatch } from '../ui/Swatch'
 import { Arrival, Look, Survey } from './islands'
 import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
+import { NationSieges, TownSiege } from './sieges'
 
 /**
  * The panels of the world abroad: a town of another nation (or of none)
@@ -185,6 +186,8 @@ export function AbroadTownPanel({
         ) : null}
       </PanelHead>
 
+      <TownSiege townyId={town.id} />
+
       <div className="mt-4 px-4">
         <Facts
           items={
@@ -313,6 +316,8 @@ export function NationPanel({
           ]}
         />
       </div>
+
+      <NationSieges nation={nation.name} />
 
       {sites.length ? (
         <PanelSection flush title="Holdings">

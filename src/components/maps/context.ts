@@ -10,6 +10,7 @@ import type { ExtraLayer, Extras, MapSelection } from '@/maps/url'
 import type { Store } from './hooks'
 import type { LookTarget } from './MapScene'
 import type { Editor } from './state'
+import type { WarState } from './war'
 import type { WorldState } from './world'
 
 /**
@@ -68,6 +69,9 @@ export type MapsActions = {
   /** The layers beyond the nation's own (the world, diplomacy, the players online), and turning one on or off. */
   extras: Extras
   setExtra: (layer: ExtraLayer, on: boolean) => void
+  /** The war on the server (/maps/war), polled while the tab is seen; and a siege's card opened, by its town's Towny id. */
+  war: WarState
+  openSiege: (townId: string) => void
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)

@@ -12,6 +12,7 @@ import { STANCE_ORDER, StanceSwatch, stanceLabel } from '../ui/Diplomacy'
 import { Icon } from '../ui/icons'
 import { StatTile } from './GrowthChart'
 import { EventsList, LayerToggle } from './islands'
+import { OtherSieges, OurSieges } from './sieges'
 import { EYEBROW, PanelSection } from './shared'
 import { YourViews } from './views'
 
@@ -47,6 +48,8 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           itself. Click anything on the map, or search.
         </p>
       </header>
+      {/* A siege Azania is in leads the front, before anything else. */}
+      <OurSieges />
       <div className="mt-4 grid grid-cols-3 gap-2 px-4">
         <StatTile label="Towns" measure={null} points={census} value={towns.length} />
         <StatTile label="Residents" measure="residents" points={census} value={residents} />
@@ -144,6 +147,8 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           <p className="mt-1 px-4 text-[11px] text-ink-400">Every other nation is neutral.</p>
         </PanelSection>
       ) : null}
+
+      <OtherSieges />
 
       {/* For anyone who may draw views: theirs, so a view made for an article has a home here. */}
       <YourViews />

@@ -5,6 +5,7 @@ import type { Article } from '@/payload-types'
 import { SiteBadge } from '../layers/SiteMark'
 import { AboutActions, AddHere, EventsList, Look, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
+import { TownSiege } from './sieges'
 
 /**
  * A held site's page: what it is and what it pays the nation, the way
@@ -73,6 +74,8 @@ export function SitePanel({
           </>
         ) : null}
       </PanelHead>
+
+      <TownSiege townyId={town.townyId} />
 
       <div className="mt-4 px-4">
         <Facts

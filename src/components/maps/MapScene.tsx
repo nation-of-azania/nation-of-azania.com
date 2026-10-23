@@ -5,12 +5,14 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
 import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
+import { azaniaSide } from '@/maps/sieges'
 import { nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
+import type { Siege } from '@/maps/world'
 
 import type { EditorUpdate } from './context'
 
@@ -27,6 +29,8 @@ import { PlayersLayer } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
 import type { LiveState } from './live'
 import { RoadsLayer } from './layers/RoadsLayer'
+import { SiegeCard } from './layers/SiegeCard'
+import { SiegesLayer, type SiegeOnMap } from './layers/SiegesLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
 import {
@@ -67,6 +71,10 @@ export type SceneProps = {
   world: Abroad | null
   showWorld: boolean
   diplomacy: boolean
+  /** The sieges on the server, always drawn; the one whose card is open, by its town's Towny id; and opening one. */
+  sieges: Siege[]
+  siegeOpen: string | null
+  onSiege: (townId: string | null) => void
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
@@ -91,7 +99,7 @@ export type SceneProps = {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data, world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -293,6 +301,20 @@ export function MapScene(props: SceneProps) {
     }
   }, [onEditor, editorRef])
 
+  // The siege whose card is open, with Azania's side in it and the town besieged, when it's on the map.
+  const open = useMemo(() => {
+    const siege = siegeOpen ? sieges.find((candidate) => candidate.townId === siegeOpen) : null
+    if (!siege) return null
+    const own = data.towns.find((town) => town.townyId === siege.townId)
+    const abroad = world?.towns.find((town) => town.id === siege.townId)
+    const town: MapSelection | null = own
+      ? { kind: 'town', slug: own.slug }
+      : abroad
+        ? { kind: 'abroad', slug: abroad.slug }
+        : null
+    return { siege, side: azaniaSide(siege, { nation: homeNationOf(data.towns), towns: data.towns }), town }
+  }, [siegeOpen, sieges, data.towns, world])
+
   const wantsClicks = editorWantsClicks(editor)
   const frame =
     editor?.kind === 'view' && viewport.width
@@ -318,6 +340,16 @@ export function MapScene(props: SceneProps) {
             </div>
           ) : null}
           {editor ? <PointChip editor={editor} onEditor={onEditor} /> : null}
+          {open ? (
+            <SiegeCard
+              key={open.siege.townId}
+              onClose={() => onSiege(null)}
+              onOpen={props.onSelect}
+              side={open.side}
+              siege={open.siege}
+              town={open.town}
+            />
+          ) : null}
           {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
           <PlayersLayer data={data} enabled={live} store={liveStore} />
         </>
@@ -354,6 +386,9 @@ const Layers = memo(function Layers({
   world: abroad,
   showWorld,
   diplomacy,
+  sieges,
+  siegeOpen,
+  onSiege,
   showPast,
   now,
   selection,
@@ -417,11 +452,12 @@ const Layers = memo(function Layers({
     nation: selection?.kind === 'nation' ? selection.slug : null,
   }
   const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
+  const war = useSiegesOnMap(sieges, data, abroad)
   // One placer for the real world and its echoes, so no name lands on another across a seam.
   const placer = new LabelPlacer()
   const labels = planLabels(
     projection,
-    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld },
+    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
     placer,
   )
   const copies = [
@@ -431,7 +467,11 @@ const Layers = memo(function Layers({
       return {
         copy,
         at,
-        labels: planLabels(at, { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld }, placer),
+        labels: planLabels(
+          at,
+          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
+          placer,
+        ),
       }
     }),
   ]
@@ -507,6 +547,14 @@ const Layers = memo(function Layers({
           styleOf={styleOf}
         />
       ) : null}
+      {/* The sieges, whatever else is shown: news, over everything. */}
+      <SiegesLayer
+        labels={plan.sieges.names}
+        marks={plan.sieges.marks}
+        onOpen={(siege) => onSiege(siege.townId)}
+        projection={at}
+        selected={siegeOpen}
+      />
     </>
   )
 
@@ -578,4 +626,20 @@ function useNationStyles(abroad: Abroad | null, relations: Relation[] | null): (
       : { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
     return (nation) => (nation ? (styles.get(nation) ?? styleOf(nation, null)) : none)
   }, [abroad, relations])
+}
+
+/**
+ * The sieges as the layers draw them: each with Azania's side in it, and
+ * its town's claims and home, from Azania's own towns or the world's.
+ */
+function useSiegesOnMap(sieges: Siege[], data: MapData, abroad: Abroad | null): SiegeOnMap[] {
+  return useMemo(() => {
+    const home = { nation: homeNationOf(data.towns), towns: data.towns }
+    return sieges.map((siege) => {
+      const own = data.towns.find((town) => town.townyId === siege.townId)
+      const other = own ? null : abroad?.byId.get(siege.townId)
+      const town = own ?? other
+      return { siege, side: azaniaSide(siege, home), town: town ? { claims: town.claims, home: town.home } : null }
+    })
+  }, [sieges, data.towns, abroad])
 }
