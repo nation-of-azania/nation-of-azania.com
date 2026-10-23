@@ -1,4 +1,5 @@
-import type { GlobalConfig } from 'payload'
+import { revalidatePath } from 'next/cache'
+import type { GlobalAfterChangeHook, GlobalConfig } from 'payload'
 
 import { isAdmin } from '../access'
 import { options, STANCES } from '../maps/registry'
@@ -11,6 +12,23 @@ import { options, STANCES } from '../maps/registry'
  * collection and the daily census; when Towny renames the nation, the sync
  * renames it here too.
  */
+/**
+ * An admin's change to the diplomacy shows on the map at once rather than
+ * when its cached pages next regenerate. The sync's own writes (when it last
+ * read the map) don't touch the relations and refresh nothing.
+ */
+const refreshDiplomacy: GlobalAfterChangeHook = ({ doc, previousDoc, req }) => {
+  if (!req.user) return doc
+  const relations = (value: unknown) => JSON.stringify((value as { relations?: unknown })?.relations ?? [])
+  if (relations(doc) === relations(previousDoc)) return doc
+  try {
+    revalidatePath('/(frontend)/maps', 'layout')
+  } catch {
+    // Outside a request Next can refresh from (a script, a migration): the pages catch up within a minute.
+  }
+  return doc
+}
+
 export const AzaniaMaps: GlobalConfig = {
   slug: 'azania-maps',
   label: 'Azania Maps',
@@ -23,6 +41,7 @@ export const AzaniaMaps: GlobalConfig = {
     read: isAdmin,
     update: isAdmin,
   },
+  hooks: { afterChange: [refreshDiplomacy] },
   fields: [
     {
       name: 'nations',

@@ -50,7 +50,8 @@ export const getMapData = cache(async (): Promise<MapData> => {
       payload.find({ collection: 'places', sort: 'name', ...ALL }),
       payload.find({ collection: 'roads', sort: 'name', ...ALL }),
       payload.find({ collection: 'events', sort: 'startsAt', ...ALL }),
-      payload.findGlobal({ slug: 'azania-maps', depth: 0 }),
+      // The diplomacy alone: if the settings can't be read, the map goes on without it.
+      payload.findGlobal({ slug: 'azania-maps', depth: 0 }).catch(() => null),
     ])
     const present = <T>(value: T | null): value is T => value !== null
     return {
@@ -59,7 +60,7 @@ export const getMapData = cache(async (): Promise<MapData> => {
       roads: roads.docs.map(mapRoad).filter(present),
       events: events.docs.map(mapEvent).filter(present),
       // Only the diplomacy: the rest of the settings stay with the admins.
-      relations: (settings.relations ?? [])
+      relations: (settings?.relations ?? [])
         .filter((relation) => relation.nation?.trim() && isStance(relation.stance))
         .map((relation) => ({
           nation: relation.nation.trim(),
