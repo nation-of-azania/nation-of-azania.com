@@ -102,7 +102,13 @@ export function placeSiegeNames(
   return placed
 }
 
-/** A siege's mark: crossed swords on coral for a battle, breathing; a fire on whitewash while it's quiet; Azania's ringed in saffron. */
+/**
+ * A siege's mark: crossed swords on coral for a battle, breathing on the
+ * map; a fire on whitewash while it's quiet; Azania's ringed in saffron.
+ * Off the map (a badge in a panel, the alert, the legend) it keeps still:
+ * an SVG that breathes is painted again every frame, and only the map's
+ * one mark needs to.
+ */
 export function SiegeMarkGlyph({
   battle,
   side,
@@ -110,6 +116,7 @@ export function SiegeMarkGlyph({
   y,
   scale = 1,
   selected = false,
+  breathe = true,
 }: {
   battle: boolean
   side: SiegeSide
@@ -117,11 +124,21 @@ export function SiegeMarkGlyph({
   y: number
   scale?: number
   selected?: boolean
+  breathe?: boolean
 }) {
   const r = R * scale
   return (
     <g transform={`translate(${x} ${y})`}>
-      {battle ? <circle className="az-pulse" fill="none" r={r + 3} stroke={GROUND.coral} strokeWidth={2.5} /> : null}
+      {battle ? (
+        <circle
+          className={breathe ? 'az-pulse' : undefined}
+          fill="none"
+          r={r + 3}
+          stroke={GROUND.coral}
+          strokeOpacity={breathe ? 1 : 0.55}
+          strokeWidth={2.5}
+        />
+      ) : null}
       {side ? (
         <circle fill="none" r={r + 4.5} stroke={GROUND.saffron} strokeWidth={3} />
       ) : null}

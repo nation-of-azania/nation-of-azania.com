@@ -28,7 +28,7 @@ import { SiegeMarkGlyph } from '../layers/SiegesLayer'
 export function SiegeBadge({ siege, side, className }: { siege: Siege; side: SiegeSide; className?: string }) {
   return (
     <svg aria-hidden="true" className={cn('h-6 w-6 shrink-0', className)} viewBox="-14 -14 28 28">
-      <SiegeMarkGlyph battle={siege.battle} scale={side ? 0.85 : 1} side={side} x={0} y={0} />
+      <SiegeMarkGlyph battle={siege.battle} breathe={false} scale={side ? 0.85 : 1} side={side} x={0} y={0} />
     </svg>
   )
 }

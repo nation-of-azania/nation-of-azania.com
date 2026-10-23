@@ -104,7 +104,8 @@ export type SceneProps = {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data, world, sieges, siegeOpen, onSiege } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data } = props
+  const { world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })

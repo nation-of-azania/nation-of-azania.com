@@ -436,7 +436,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     setMapReady(true)
   }, [])
 
-  // A page abroad says where its town or nation is (panels/abroad.tsx → Arrival), since
+  // A page abroad says where its town or nation is (panels/AbroadPanel.tsx → Arrival), since
   // the world it's in arrives after the page; the map waits a moment for it before opening.
   const [arrival, setArrival] = useState<LookTarget | null>(null)
   // Said at once as well, for the first look's sake, which runs before the state does.

@@ -341,14 +341,14 @@ export function Legend() {
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <SiegeMarkGlyph battle scale={0.8} side={null} x={13} y={12} />
-              <SiegeMarkGlyph battle={false} scale={0.8} side={null} x={35} y={12} />
+              <SiegeMarkGlyph battle breathe={false} scale={0.8} side={null} x={13} y={12} />
+              <SiegeMarkGlyph battle={false} breathe={false} scale={0.8} side={null} x={35} y={12} />
             </svg>
             <span>A siege, at its banner: a battle on, and quiet. Always shown</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <SiegeMarkGlyph battle scale={0.7} side="defending" x={24} y={12} />
+              <SiegeMarkGlyph battle breathe={false} scale={0.7} side="defending" x={24} y={12} />
             </svg>
             <span>A siege Azania is in, ringed in saffron</span>
           </li>
