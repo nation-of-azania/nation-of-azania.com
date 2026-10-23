@@ -495,9 +495,12 @@ That picture also lies **under the tiles at every zoom**, so whatever they
 haven't covered yet (the ground a pinch out opens around the view just
 left, a slow tile) shows the world there, soft at first and sharpening as
 the tiles arrive, never the bare backdrop. It's on show from the moment a
-zoom starts until the tiles of the zoom it ends at have all arrived and
-faded in; at rest, with the tiles covering it, it's set aside, so a pan
-has nothing extra to draw (past −6 it is the map, and always shown). Its 684
+zoom goes out past where it began until the tiles of the zoom it ends at
+have all arrived and faded in; at rest, through a pan and through a zoom
+in (where the level left behind, scaled up, still covers the page) it's
+set aside, so they have nothing extra to draw. Past −6 it is the map, and
+always shown, so a pinch back in from the whole world keeps it until the
+tiles arrive, where the map used to go dark the moment it crossed −6. Its 684
 small tiles (some 2 MB, kept at the CDN) are fetched once: on the live map
 as soon as its own first tiles are in and the browser is idle, nearest the
 reader first; at once when a zoom starts or the map is past −6; and only

@@ -159,9 +159,11 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
 
   // Whether the sheet is on show. At rest the tiles cover it wherever they
   // are, being opaque, so it's set aside, leaving the compositor nothing to
-  // draw beneath them through a pan; it's back the moment a zoom starts,
-  // until the tiles of the zoom it ends at have all arrived and faded in.
-  // Past SHEET_ZOOM it is the map, and always shown.
+  // draw beneath them through a pan, or a zoom in, where the level left
+  // behind, scaled up, still covers the page. It's back the moment a zoom
+  // goes out past where it began, until the tiles of the zoom it ends at
+  // have all arrived and faded in. Past SHEET_ZOOM it is the map, and
+  // always shown.
   let shown = true
   const show = (on: boolean) => {
     if (on === shown) return
@@ -238,6 +240,8 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   // one by one, so the canvas changes a few times a second, not seventy;
   // less often still while a zoom is under way.
   let zooming = false
+  // The zoom a zoom set out from: zooming in, the level left behind, scaled up, still covers the page.
+  let from = 0
   let resting = 0
   /** Sets the sheet aside if the tiles cover the view: no zoom under way, none past SHEET_ZOOM, none still loading. */
   const rest = () => {
@@ -251,19 +255,26 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }
   const zoomStarted = () => {
     zooming = true
+    from = map.getZoom()
     window.clearTimeout(resting)
-    show(true)
   }
   const zoomEnded = () => {
     zooming = false
     restSoon()
   }
+  /** On show once a zoom goes out past where it began, or the map is past the tiles. */
   const zoomed = () => {
-    if (map.getZoom() < SHEET_ZOOM) show(true)
+    const zoom = map.getZoom()
+    if (zoom < SHEET_ZOOM || (zooming && zoom < from)) show(true)
+  }
+  /** A button's animated zoom out: on show from the start, as the animation shrinks the tiles. */
+  const zoomAnimating = (event: L.ZoomAnimEvent) => {
+    if (event.zoom < map.getZoom()) show(true)
   }
   map.on('zoomstart', zoomStarted)
   map.on('zoomend', zoomEnded)
   map.on('zoom viewreset', zoomed)
+  map.on('zoomanim', zoomAnimating)
   tiles.on('load', restSoon)
   restSoon()
   type Arrived = { picture: ImageBitmap | HTMLImageElement; c: number; r: number }
@@ -343,6 +354,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
     window.clearTimeout(resting)
     tiles.off('load', restSoon)
     map.off('zoom viewreset', zoomed)
+    map.off('zoomanim', zoomAnimating)
     for (const { picture } of arrived) if ('close' in picture) picture.close()
     window.clearTimeout(fallback)
     tiles.off('load', soon)
