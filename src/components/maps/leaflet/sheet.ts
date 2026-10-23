@@ -334,8 +334,12 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   far()
 
   // Wanted soon, on the live map: once its own tiles are in, or a while
-  // after if they're slow, and the browser has a moment.
-  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+  // after if they're slow, and the browser has a moment. Not ahead of time
+  // for a reader saving data or on a slow connection: 2 MB is theirs to
+  // spend, so the sheet comes when they first zoom.
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } })
+    .connection
+  const saveData = connection?.saveData === true || /(^|-)(2g|3g)$/.test(connection?.effectiveType ?? '')
   let fallback = 0
   const soon = () => {
     window.clearTimeout(fallback)

@@ -847,7 +847,7 @@ something was being fetched.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
-- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. While the map errors, the CDN keeps serving the last good tile for a month.
+- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5), which the world beneath the map is made of, are kept 6 hours at the CDN and an hour in the browser. While the map errors, the CDN keeps serving the last good tile for a month.
   - New building shows on Azania Maps about 15 minutes after the Rulercraft map draws it; the Rulercraft map itself often lags behind the game.
   - Ground the map hasn't drawn comes back as an empty, cached tile.
   - `/maps/status` says whether the map is answering.

@@ -26,15 +26,27 @@ const FETCH_TIMEOUT_MS = 6000
 const BROWSER = 'public, max-age=300'
 const CDN = 'max-age=900, stale-while-revalidate=2592000, stale-if-error=2592000'
 const CACHED = { 'Cache-Control': BROWSER, 'Vercel-CDN-Cache-Control': CDN }
+/**
+ * The coarsest levels, each tile hundreds of chunks across, barely change
+ * from one hour to the next, and the live map fetches every level-5 tile
+ * for the world beneath it (src/components/maps/leaflet/sheet.ts): kept
+ * six hours at the CDN and one in the browser, so that costs the server
+ * a few hundred reads a quarter of a day, not every quarter of an hour.
+ */
+const COARSE_FROM_LEVEL = 4
+const COARSE = {
+  'Cache-Control': 'public, max-age=3600',
+  'Vercel-CDN-Cache-Control': 'max-age=21600, stale-while-revalidate=2592000, stale-if-error=2592000',
+}
 
 /** A 1×1 transparent PNG. */
 const EMPTY = Uint8Array.from(
   Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'),
 )
 
-const empty = () =>
+const empty = (cached: Record<string, string>) =>
   new Response(EMPTY, {
-    headers: { 'Content-Type': 'image/png', ...CACHED, 'X-Tile': 'unrendered' },
+    headers: { 'Content-Type': 'image/png', ...cached, 'X-Tile': 'unrendered' },
   })
 
 const unavailable = (message: string) =>
@@ -71,20 +83,21 @@ export async function GET(
     return new Response('Not a map tile.', { status: 404 })
   }
 
+  const cached = level >= COARSE_FROM_LEVEL ? COARSE : CACHED
   try {
     const response = await fetch(dynmapTileUrl(map, level, column, row), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache: 'no-store',
     })
-    if (response.status === 404) return empty()
+    if (response.status === 404) return empty(cached)
     if (!response.ok) return unavailable(`The Rulercraft map answered ${response.status}.`)
     const bytes = new Uint8Array(await response.arrayBuffer())
     // Dynmap answers ground it hasn't drawn with a tiny placeholder.
-    if (bytes.length <= 400) return empty()
+    if (bytes.length <= 400) return empty(cached)
     return new Response(bytes, {
       headers: {
         'Content-Type': response.headers.get('Content-Type') ?? 'image/jpeg',
-        ...CACHED,
+        ...cached,
         // The map's own validators, so a browser's check comes back "not modified".
         ...validators(response),
         'X-Robots-Tag': 'noindex',
