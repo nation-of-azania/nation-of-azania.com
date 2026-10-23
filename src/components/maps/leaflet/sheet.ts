@@ -17,11 +17,12 @@ import { cachedTileUrl, MAPS, WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, 
  *
  * And at every zoom it lies under the tiles, as the big map apps keep a
  * coarse picture under the fine one: whatever the tiles haven't covered —
- * the ground a zoom out opens up around the view just left, a fling into
- * new ground, a tile still on its way — shows the world there, soft at
- * first and sharpening as the tiles arrive, never the bare backdrop.
- * Without it a pinch out was a scrap of the old view shrinking into the
- * dark, with the live heads floating alone over it.
+ * the ground a zoom out opens up around the view just left, a tile still
+ * on its way — shows the world there, soft at first and sharpening as the
+ * tiles arrive, never the bare backdrop. Without it a pinch out was a
+ * scrap of the old view shrinking into the dark, with the live heads
+ * floating alone over it. At rest, with the tiles all in and covering it,
+ * it's set aside, so a pan has nothing more to draw than before.
  *
  * The tiles are the tile layer's own, from the same cache: 684 of them,
  * some 2 MB in all, small and kept at the CDN. On the live map they're
@@ -48,6 +49,8 @@ const DRAW_EVERY_MS = 150
 const DRAW_WHILE_ZOOMING_MS = 400
 /** How long the live map waits for its own tiles before fetching the sheet's anyway, in ms. */
 const PRELOAD_BY_MS = 6000
+/** How long after the tiles have all arrived the sheet is set aside: Leaflet's fade-in, and a little more. */
+const REST_AFTER_MS = 300
 
 /** The level-5 tile grid the sheet covers (src/maps/geo.ts → blockToPixel): the world's columns, and its rows from top to bottom. */
 const column = (x: number) => Math.floor(x / TILE_BLOCKS)
@@ -154,10 +157,23 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }))
   const [real] = sheets
 
+  // Whether the sheet is on show. At rest the tiles cover it wherever they
+  // are, being opaque, so it's set aside, leaving the compositor nothing to
+  // draw beneath them through a pan; it's back the moment a zoom starts,
+  // until the tiles of the zoom it ends at have all arrived and faded in.
+  // Past SHEET_ZOOM it is the map, and always shown.
+  let shown = true
+  const show = (on: boolean) => {
+    if (on === shown) return
+    shown = on
+    for (const sheet of sheets) if (sheet.canvas) sheet.canvas.style.visibility = on ? '' : 'hidden'
+  }
+
   const lay = (sheet: Sheet) => {
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
+    if (!shown) canvas.style.visibility = 'hidden'
     // An echo starts as a copy of whatever the real sheet holds so far.
     if (sheet !== real && real.canvas) canvas.getContext('2d')?.drawImage(real.canvas, 0, 0)
     sheet.canvas = canvas
@@ -171,11 +187,14 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }
   lay(real)
 
-  // An echo's sheet: made when the map settles within a page of it, or at
-  // once should it come onto the page mid-gesture, so the copy is rarely
-  // made in the middle of a pinch.
+  // An echo's sheet: made once the map has settled within a page of it and
+  // the browser has a moment (never in the frame the map settles in, which
+  // has the overlay to draw), or at once should it come onto the page
+  // mid-gesture.
   const echoes = sheets.slice(1)
+  let detached = false
   const layNear = (pages: number) => {
+    if (detached) return
     const reach = map.getBounds().pad(pages)
     for (const sheet of echoes) if (!sheet.canvas && reach.intersects(sheet.bounds)) lay(sheet)
     if (echoes.every((sheet) => sheet.canvas)) {
@@ -183,7 +202,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
       map.off('move zoom', moving)
     }
   }
-  const settled = () => layNear(1)
+  const settled = () => whenIdle(() => layNear(1))
   const moving = () => layNear(0)
   if (echoes.length) {
     map.on('moveend viewreset', settled)
@@ -219,14 +238,34 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   // one by one, so the canvas changes a few times a second, not seventy;
   // less often still while a zoom is under way.
   let zooming = false
+  let resting = 0
+  /** Sets the sheet aside if the tiles cover the view: no zoom under way, none past SHEET_ZOOM, none still loading. */
+  const rest = () => {
+    resting = 0
+    if (!zooming && map.getZoom() >= SHEET_ZOOM && !tiles.isLoading()) show(false)
+  }
+  /** Soon after the tiles last arrived: once Leaflet's fade-in (200 ms) is over. */
+  const restSoon = () => {
+    window.clearTimeout(resting)
+    resting = window.setTimeout(rest, REST_AFTER_MS)
+  }
   const zoomStarted = () => {
     zooming = true
+    window.clearTimeout(resting)
+    show(true)
   }
   const zoomEnded = () => {
     zooming = false
+    restSoon()
+  }
+  const zoomed = () => {
+    if (map.getZoom() < SHEET_ZOOM) show(true)
   }
   map.on('zoomstart', zoomStarted)
   map.on('zoomend', zoomEnded)
+  map.on('zoom viewreset', zoomed)
+  tiles.on('load', restSoon)
+  restSoon()
   type Arrived = { picture: ImageBitmap | HTMLImageElement; c: number; r: number }
   const arrived: Arrived[] = []
   let batch = 0
@@ -298,8 +337,12 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }
 
   return () => {
+    detached = true
     abort.abort()
     window.clearTimeout(batch)
+    window.clearTimeout(resting)
+    tiles.off('load', restSoon)
+    map.off('zoom viewreset', zoomed)
     for (const { picture } of arrived) if ('close' in picture) picture.close()
     window.clearTimeout(fallback)
     tiles.off('load', soon)
