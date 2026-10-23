@@ -81,7 +81,11 @@ export function SitePanel({
             ...(produces ? [{ label: 'Produces', value: produces.adjective }] : []),
             {
               label: 'Held by',
-              value: town.nation ? `Azania, as ${spoken(town.nation)} in Towny` : 'Azania',
+              // Towny's name for the nation, when it isn't Azania's own.
+              value:
+                town.nation && town.nation.toLowerCase() !== 'azania'
+                  ? `Azania, as ${spoken(town.nation)} in Towny`
+                  : 'Azania',
             },
             {
               label: 'Extent',

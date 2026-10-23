@@ -10,6 +10,9 @@ import { getTowns, type Town } from './dynmap'
  * there by name. Towns are keyed on Towny's id, so a rename is the same
  * town; a town that leaves or falls keeps its row (and its places), marked.
  *
+ * When Towny renames the nation, the settings follow by themselves
+ * (followRenames), so the towns keep counting.
+ *
  * Runs at most every few minutes whoever asks: on a schedule (vercel.json),
  * after a page of Azania Maps finds the last reading stale, and from the
  * seed. When the map is down nothing changes and the site keeps showing the
@@ -42,10 +45,13 @@ export const townSlug = (name: string): string =>
 const lowerNames = (rows: { name?: string | null }[] | null | undefined) =>
   new Set((rows ?? []).map((row) => row.name?.trim().toLowerCase()).filter((name): name is string => Boolean(name)))
 
+/** A town's key: Towny's own id, which survives renames, or its name when the map gives none. */
+const townyIdOf = (town: Town): string => town.id ?? `name:${town.name.toLowerCase()}`
+
 function townData(town: Town, azanian: boolean, at: string) {
   return {
     name: town.name,
-    townyId: town.id ?? `name:${town.name.toLowerCase()}`,
+    townyId: townyIdOf(town),
     azanian,
     present: true,
     nation: town.nation,
@@ -76,6 +82,36 @@ export function syncTowns(payload: Payload, options: { force?: boolean } = {}): 
   return running
 }
 
+type StoredTown = { townyId: string; azanian?: boolean | null; present?: boolean | null; nation?: string | null }
+
+/**
+ * A Towny nation renamed in game keeps its towns, and the settings follow
+ * it. When a nation named in the settings is gone from the map, and most of
+ * the towns that counted under it at the last reading (two in three, and at
+ * least two) now share one other nation, that is its new name. A nation
+ * that falls apart, its towns scattered or nationless, is no rename: its
+ * towns stop counting until an admin names the nation they went to. Old
+ * name to new, as the settings and the map spell them.
+ */
+function followRenames(named: string[], rows: StoredTown[], towns: Map<string, Town>): Map<string, string> {
+  const onMap = new Set([...towns.values()].map((town) => town.nation?.toLowerCase()).filter(Boolean))
+  const byId = new Map([...towns.values()].map((town) => [townyIdOf(town), town]))
+  const renames = new Map<string, string>()
+  for (const name of named) {
+    const lower = name.toLowerCase()
+    if (onMap.has(lower)) continue
+    const before = rows.filter((row) => row.azanian && row.present && row.nation?.toLowerCase() === lower)
+    const now = new Map<string, number>()
+    for (const row of before) {
+      const nation = byId.get(row.townyId)?.nation
+      if (nation) now.set(nation, (now.get(nation) ?? 0) + 1)
+    }
+    const [best, count = 0] = [...now].sort((a, b) => b[1] - a[1])[0] ?? []
+    if (best && count >= 2 && count * 3 >= before.length * 2) renames.set(name, best)
+  }
+  return renames
+}
+
 /**
  * Whether an error is a unique value already taken: two servers reading the
  * map at once both create the same new town or census entry, and the second
@@ -103,9 +139,22 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   const towns = await getTowns({ fresh: true })
   if (!towns) return note({ status: 'offline', note: 'The Rulercraft map didn’t answer; the last reading stands.' })
 
+  const { docs: rows } = await payload.find({ collection: 'towns', limit: 0, depth: 0, pagination: false })
+  const renames = followRenames(
+    (settings.nations ?? []).map((nation) => nation.name).filter(Boolean),
+    rows,
+    towns,
+  )
+  if (renames.size) {
+    settings.nations = (settings.nations ?? []).map((nation) => ({
+      ...nation,
+      name: renames.get(nation.name) ?? nation.name,
+    }))
+    await payload.updateGlobal({ slug: 'azania-maps', data: { nations: settings.nations }, depth: 0 })
+    payload.logger.info({ msg: 'Azania Maps: followed a Towny nation rename', renames: Object.fromEntries(renames) })
+  }
   const nations = lowerNames(settings.nations)
   const listed = lowerNames(settings.towns)
-  const { docs: rows } = await payload.find({ collection: 'towns', limit: 0, depth: 0, pagination: false })
   const byTownyId = new Map(rows.map((row) => [row.townyId, row]))
   const at = now.toISOString()
   const date = at.slice(0, 10)
@@ -171,7 +220,8 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
 
   const newTowns = created ? `, ${created} new` : ''
   const sites = siteCount ? ` and ${siteCount} held site${siteCount === 1 ? '' : 's'}` : ''
-  return note({ status: 'synced', note: `${azanianCount} Azanian towns${sites}${newTowns}.` })
+  const renamed = [...renames].map(([from, to]) => ` Towny renamed the nation ${from} to ${to}; the settings follow.`).join('')
+  return note({ status: 'synced', note: `${azanianCount} Azanian towns${sites}${newTowns}.${renamed}` })
 }
 
 /**

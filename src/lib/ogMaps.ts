@@ -339,7 +339,10 @@ async function siteCard(data: MapData, town: MapTown, facts: SiteFacts, pictures
       },
       shown,
       [
-        { label: 'Held by', value: town.nation ? `Azania (${spoken(town.nation)})` : 'Azania' },
+        {
+          label: 'Held by',
+          value: town.nation && town.nation.toLowerCase() !== 'azania' ? `Azania (${spoken(town.nation)})` : 'Azania',
+        },
         ...(produces ? [{ label: 'Produces', value: produces.adjective }] : []),
         { label: 'Claimed chunks', value: town.chunks.toLocaleString('en-GB') },
         { label: 'Places', value: places ? String(places) : 'None yet' },

@@ -38,7 +38,7 @@ export async function seedMaps(payload: Payload, ids: Ids): Promise<void> {
   if (!settings.nations?.length && !settings.towns?.length) {
     await payload.updateGlobal({
       slug: 'azania-maps',
-      data: { nations: [{ name: 'Canada' }], towns: [{ name: 'Patown' }, { name: 'GirlieTown' }] },
+      data: { nations: [{ name: 'Azania' }], towns: [{ name: 'Patown' }, { name: 'GirlieTown' }] },
       depth: 0,
     })
   }

@@ -1299,7 +1299,7 @@ export interface Discord {
   createdAt?: string | null;
 }
 /**
- * Which towns on the Rulercraft map are Azania’s. The map is read about once an hour while people use Azania Maps, and once a day for the census.
+ * Which towns on the Rulercraft map are Azania’s. The map is read every quarter of an hour or so while people use Azania Maps, and once a day for the census.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "azania-maps".
@@ -1307,7 +1307,7 @@ export interface Discord {
 export interface AzaniaMap {
   id: number;
   /**
-   * Every town in these Towny nations counts as Azanian. Spelt as the map has it; when the nation is renamed in game, rename it here.
+   * Every town in these Towny nations counts as Azanian. Spelt as the map has it. When the nation is renamed in game, the next reading of the map follows the new name by itself (and says so under Result).
    */
   nations?:
     | {

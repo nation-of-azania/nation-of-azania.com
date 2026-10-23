@@ -13,6 +13,7 @@ import * as migration_20261019_022500_luixtiter from './20261019_022500_luixtite
 import * as migration_20261020_092846_azania_maps from './20261020_092846_azania_maps';
 import * as migration_20261020_140712_map_polish from './20261020_140712_map_polish';
 import * as migration_20261021_043939_server_sites from './20261021_043939_server_sites';
+import * as migration_20261023_030000_azania_nation from './20261023_030000_azania_nation';
 
 export const migrations = [
   {
@@ -89,5 +90,10 @@ export const migrations = [
     up: migration_20261021_043939_server_sites.up,
     down: migration_20261021_043939_server_sites.down,
     name: '20261021_043939_server_sites'
+  },
+  {
+    up: migration_20261023_030000_azania_nation.up,
+    down: migration_20261023_030000_azania_nation.down,
+    name: '20261023_030000_azania_nation',
   },
 ];

@@ -693,7 +693,7 @@ the Registry; your connection may have dropped"), with *Retry* wherever
 something was being fetched.
 
 - **Which towns are Azanian:** set under Settings → Azania Maps. Every town of the named Towny nations counts, plus any town listed by name, such as towns that haven't joined yet.
-  - The nation still has its old Towny name, "Canada"; rename it there when it changes in game.
+  - The Towny nation is "Azania" (it was "Canada" until October 2026). When Towny renames it, the next reading follows by itself: if a named nation is gone from the map and most of the towns that counted under it now share one other nation, the settings take that name, and the reading's note says so. A nation that falls apart is no rename; its towns stop counting until an admin names where they went.
   - `src/lib/towns.ts` reads the map's marker file into the **Towns** collection.
   - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
 - **When the map is read:**
