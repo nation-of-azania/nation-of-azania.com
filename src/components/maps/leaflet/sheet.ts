@@ -43,6 +43,9 @@ const TILE_BLOCKS = 64 * 2 ** LEVEL
 const TILE_PX = 64
 /** Tiles fetched at once. */
 const AT_ONCE = 12
+/** How often the tiles that have arrived are drawn into the sheet, in ms; and while a zoom is under way. */
+const DRAW_EVERY_MS = 150
+const DRAW_WHILE_ZOOMING_MS = 400
 /** How long the live map waits for its own tiles before fetching the sheet's anyway, in ms. */
 const PRELOAD_BY_MS = 6000
 
@@ -61,9 +64,20 @@ const SHEET = {
   maxZ: (ROWS.to + 1) * TILE_BLOCKS - 64,
 }
 
-type OverlayInternals = { _image: HTMLElement; _zoomAnimated?: boolean }
+type OverlayInternals = {
+  _image: HTMLElement
+  _zoomAnimated?: boolean
+  _bounds: L.LatLngBounds
+  _map: L.Map & { _latLngBoundsToNewLayerBounds: (bounds: L.LatLngBounds, zoom: number, center: L.LatLng) => L.Bounds }
+}
 
-/** An image overlay whose picture is a canvas of ours, not an <img> fetched from a URL. */
+/**
+ * An image overlay whose picture is a canvas of ours, not an <img> fetched
+ * from a URL; placed and scaled by a transform alone, as the tile levels
+ * are. The canvas keeps its own size, so the frames of a gesture move it on
+ * the compositor without laying it out again, where Leaflet's own overlay
+ * sets its width and height every frame.
+ */
 class CanvasOverlay extends L.ImageOverlay {
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -84,7 +98,26 @@ class CanvasOverlay extends L.ImageOverlay {
     // Leaflet's stylesheet lifts every canvas in the map's panes to z-index 100, for its canvas
     // renderer, and its own overlay skips a z-index of 0; the sheet's is set here, or it would lie over the tiles.
     element.style.zIndex = String(this.options.zIndex ?? 0)
+    element.style.width = `${element.width}px`
+    element.style.height = `${element.height}px`
+    element.style.transformOrigin = '0 0'
     self._image = element
+  }
+
+  /** Stands the canvas over its bounds as they lie in `box`, in layer pixels. */
+  private place(box: L.Bounds): void {
+    if (!box.min || !box.max) return
+    L.DomUtil.setTransform(this.canvas, box.min, (box.max.x - box.min.x) / this.canvas.width)
+  }
+
+  _reset(): void {
+    const { _map: map, _bounds: bounds } = this as unknown as OverlayInternals
+    this.place(L.bounds(map.latLngToLayerPoint(bounds.getNorthWest()), map.latLngToLayerPoint(bounds.getSouthEast())))
+  }
+
+  _animateZoom(event: L.ZoomAnimEvent): void {
+    const { _map: map, _bounds: bounds } = this as unknown as OverlayInternals
+    this.place(map._latLngBoundsToNewLayerBounds(bounds, event.zoom, event.center))
   }
 }
 
@@ -138,16 +171,24 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }
   lay(real)
 
-  /** An echo's sheet, the first time the view comes within a page of it. */
+  // An echo's sheet: made when the map settles within a page of it, or at
+  // once should it come onto the page mid-gesture, so the copy is rarely
+  // made in the middle of a pinch.
   const echoes = sheets.slice(1)
-  const near = () => {
-    const reach = map.getBounds().pad(1)
+  const layNear = (pages: number) => {
+    const reach = map.getBounds().pad(pages)
     for (const sheet of echoes) if (!sheet.canvas && reach.intersects(sheet.bounds)) lay(sheet)
-    if (echoes.every((sheet) => sheet.canvas)) map.off('move zoom viewreset', near)
+    if (echoes.every((sheet) => sheet.canvas)) {
+      map.off('moveend viewreset', settled)
+      map.off('move zoom', moving)
+    }
   }
+  const settled = () => layNear(1)
+  const moving = () => layNear(0)
   if (echoes.length) {
-    map.on('move zoom viewreset', near)
-    near()
+    map.on('moveend viewreset', settled)
+    map.on('move zoom', moving)
+    settled()
   }
 
   // The tiles still to fetch, as [column, row].
@@ -174,25 +215,62 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
     return best
   }
 
-  let cancelled = false
+  // The tiles that have arrived, drawn in a batch every so often rather than
+  // one by one, so the canvas changes a few times a second, not seventy;
+  // less often still while a zoom is under way.
+  let zooming = false
+  const zoomStarted = () => {
+    zooming = true
+  }
+  const zoomEnded = () => {
+    zooming = false
+  }
+  map.on('zoomstart', zoomStarted)
+  map.on('zoomend', zoomEnded)
+  type Arrived = { picture: ImageBitmap | HTMLImageElement; c: number; r: number }
+  const arrived: Arrived[] = []
+  let batch = 0
+  const drawArrived = () => {
+    batch = 0
+    for (const sheet of sheets) {
+      const context = sheet.canvas?.getContext('2d')
+      if (!context) continue
+      for (const { picture, c, r } of arrived)
+        context.drawImage(picture, (c - COLUMNS.from) * TILE_PX, (r - ROWS.from) * TILE_PX, TILE_PX, TILE_PX)
+    }
+    for (const { picture } of arrived) if ('close' in picture) picture.close()
+    arrived.length = 0
+  }
+
+  const abort = new AbortController()
+  /** A tile's picture, decoded off the main thread where the browser can, so drawing it costs nothing more. */
+  const fetchTile = async (url: string): Promise<ImageBitmap | HTMLImageElement | null> => {
+    if (typeof createImageBitmap === 'function') {
+      const response = await fetch(url, { signal: abort.signal })
+      return response.ok ? createImageBitmap(await response.blob()) : null
+    }
+    const image = new Image()
+    image.src = url
+    await image.decode()
+    return image
+  }
+
   let started = false
   const take = () => {
-    if (cancelled || !pending.length) return
+    if (abort.signal.aborted || !pending.length) return
     const [c, r] = pending.splice(nearest(), 1)[0]
-    const image = new Image()
-    image.decoding = 'async'
-    image.onload = () => {
-      if (cancelled) return
-      const x = (c - COLUMNS.from) * TILE_PX
-      const y = (r - ROWS.from) * TILE_PX
-      for (const sheet of sheets) sheet.canvas?.getContext('2d')?.drawImage(image, x, y, TILE_PX, TILE_PX)
-      take()
-    }
-    image.onerror = take
-    image.src = cachedTileUrl('flat', LEVEL, c, r)
+    fetchTile(cachedTileUrl('flat', LEVEL, c, r))
+      .then((picture) => {
+        if (!picture || abort.signal.aborted) return
+        arrived.push({ picture, c, r })
+        if (!batch) batch = window.setTimeout(drawArrived, zooming ? DRAW_WHILE_ZOOMING_MS : DRAW_EVERY_MS)
+      })
+      // A tile the cache can't give is left out; the backdrop shows there.
+      .catch(() => {})
+      .finally(take)
   }
   const start = () => {
-    if (started || cancelled) return
+    if (started || abort.signal.aborted) return
     started = true
     for (let i = 0; i < AT_ONCE; i++) take()
   }
@@ -220,12 +298,17 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   }
 
   return () => {
-    cancelled = true
+    abort.abort()
+    window.clearTimeout(batch)
+    for (const { picture } of arrived) if ('close' in picture) picture.close()
     window.clearTimeout(fallback)
     tiles.off('load', soon)
     map.off('zoomstart', start)
     map.off('zoom', far)
-    map.off('move zoom viewreset', near)
+    map.off('zoomstart', zoomStarted)
+    map.off('zoomend', zoomEnded)
+    map.off('moveend viewreset', settled)
+    map.off('move zoom', moving)
     for (const sheet of sheets) sheet.overlay?.remove()
   }
 }
