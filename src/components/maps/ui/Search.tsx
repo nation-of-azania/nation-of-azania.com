@@ -3,16 +3,20 @@
 import { useId, useMemo, useRef, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
+import type { Abroad } from '@/maps/abroad'
 import { spoken, type MapData } from '@/maps/data'
 import { PlaceIcon } from '@/maps/icons'
+import { nationInk, NO_NATION } from '@/maps/palette'
 import { PLACE_CATEGORIES, ROAD_KINDS } from '@/maps/registry'
 import { incomeWords, siteFacts, siteTitle } from '@/maps/sites'
 import type { MapSelection } from '@/maps/url'
 import { formatWhen } from '@/maps/time'
 
+import { abroadSite } from '../layers/AbroadLayer'
 import { placeColour } from '../layers/PlacesLayer'
 import { SiteBadge } from '../layers/SiteMark'
 import { Icon } from './icons'
+import { Swatch } from './Swatch'
 
 type Result = { selection: MapSelection; title: string; subtitle: string; icon: React.ReactNode }
 
@@ -22,17 +26,21 @@ const normalise = (text: string) =>
 /**
  * Finds anything on the map by name: towns and the sites the nation holds
  * (by name or by kind, so "diamond" finds the quarry), places, roads and
- * events, a dozen at a time, soonest and nearest-sounding first. Arrow keys
- * walk the list; Enter opens; Escape clears. The list is a listbox the
- * input owns, so a screen reader hears what's offered.
+ * events, and, once the world has arrived, the other nations and their
+ * towns and sites, after Azania's own; a dozen at a time, soonest and
+ * nearest-sounding first. Arrow keys walk the list; Enter opens; Escape
+ * clears. The list is a listbox the input owns, so a screen reader hears
+ * what's offered.
  */
 export function Search({
   data,
+  world = null,
   onPick,
   className,
   autoFocus,
 }: {
   data: MapData
+  world?: Abroad | null
   onPick: (selection: MapSelection) => void
   className?: string
   autoFocus?: boolean
@@ -119,8 +127,38 @@ export function Search({
         })
       }
     }
+    // The rest of the world comes after Azania's own, nations before their towns.
+    for (const nation of world?.nations ?? []) {
+      if (!hit(nation.name)) continue
+      found.push({
+        rank: rank(nation.name) + 2,
+        selection: { kind: 'nation', slug: nation.slug },
+        title: spoken(nation.name),
+        subtitle: `Nation · ${nation.towns} town${nation.towns === 1 ? '' : 's'} · ${nation.residents} resident${nation.residents === 1 ? '' : 's'}`,
+        icon: <Swatch colour={nation.colour} />,
+      })
+    }
+    for (const town of world?.towns ?? []) {
+      const site = abroadSite(town)
+      if (!hit(town.name) && !(site && hit(siteTitle(site)))) continue
+      const nation = town.nation ? world?.nationByName.get(town.nation) : null
+      const holder = town.nation ? spoken(town.nation) : site ? 'unheld' : 'no nation'
+      found.push({
+        rank: rank(town.name) + 3,
+        selection: { kind: 'abroad', slug: town.slug },
+        title: spoken(town.name),
+        subtitle: site
+          ? [siteTitle(site), holder, incomeWords(site.income)].filter(Boolean).join(' · ')
+          : `${town.capital ? 'Capital' : 'Town'} · ${holder} · ${town.residents} resident${town.residents === 1 ? '' : 's'}`,
+        icon: site ? (
+          <SiteBadge className="h-5 w-5" facts={site} ring={nation ? nationInk(nation.colour).line : NO_NATION.line} />
+        ) : (
+          <Swatch colour={nation?.colour ?? null} round />
+        ),
+      })
+    }
     return found.sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title)).slice(0, 12)
-  }, [query, data])
+  }, [query, data, world])
 
   const pick = (result: Result) => {
     onPick(result.selection)
@@ -168,7 +206,7 @@ export function Search({
               setOpen(false)
             }
           }}
-          placeholder="Search towns, sites, places, roads, events"
+          placeholder="Search towns, nations, places, roads, events"
           ref={inputRef}
           role="combobox"
           type="search"

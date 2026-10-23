@@ -36,6 +36,8 @@ function SiteGlyph({ facts }: { facts: Pick<SiteFacts, 'kind' | 'resource'> }) {
  * tint for a quarry, a ship, a bare tree, a banner. Gold because the site
  * is what it pays; a disc rather than a town's lozenge because nobody
  * lives there. Exported for the lists and the legend, which draw it small.
+ * A site another nation holds is rimmed in that nation's colour instead
+ * (`ring`), since only Azania's pay the treasury.
  */
 export function SiteMark({
   facts,
@@ -43,6 +45,7 @@ export function SiteMark({
   y,
   scale = 1,
   selected = false,
+  ring = GROUND.saffronDeep,
   children,
 }: {
   facts: Pick<SiteFacts, 'kind' | 'resource'>
@@ -50,6 +53,7 @@ export function SiteMark({
   y: number
   scale?: number
   selected?: boolean
+  ring?: string
   /** A <title>, for a mark without a name beside it. */
   children?: ReactNode
 }) {
@@ -58,7 +62,7 @@ export function SiteMark({
     <g transform={`translate(${x} ${y})`}>
       {children}
       {selected ? <circle fill="none" r={r + 4} stroke={GROUND.saffron} strokeWidth={3} /> : null}
-      <circle fill={GROUND.whitewash} r={r} stroke={GROUND.saffronDeep} strokeWidth={2 * scale} />
+      <circle fill={GROUND.whitewash} r={r} stroke={ring} strokeWidth={2 * scale} />
       <g transform={`translate(${-6.5 * scale} ${-6.5 * scale}) scale(${(13 / 24) * scale})`}>
         <SiteGlyph facts={facts} />
       </g>

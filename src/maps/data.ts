@@ -39,6 +39,8 @@ export type MapTown = {
   id: number
   name: string
   slug: string
+  /** Towny's own id, which survives renames: how the rest of the world (src/maps/world.ts) knows the town is Azania's. Null for a town the map gave none. */
+  townyId: string | null
   nation: string | null
   ruler: string | null
   residents: number
@@ -192,6 +194,8 @@ export function mapTown(town: Town): MapTown {
     id: town.id,
     name: town.name,
     slug: town.slug,
+    // A town the map gave no id is keyed by its name ("name:…"), which no town of the world's matches.
+    townyId: town.townyId && !town.townyId.startsWith('name:') ? town.townyId : null,
     nation: town.nation ?? null,
     ruler: town.ruler ?? null,
     residents: town.residentCount ?? 0,

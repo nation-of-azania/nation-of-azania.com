@@ -2,28 +2,36 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import type { MapData, MapRights, MapTown, MapViewData } from '@/maps/data'
+import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
+import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
-import { pixelsPerBlock } from '@/maps/palette'
+import { azaniaSide } from '@/maps/sieges'
+import { GROUND, nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
 import { frameInViewport, zoomForSpan } from '@/maps/view'
+import type { Siege, War } from '@/maps/world'
 
 import type { EditorUpdate } from './context'
 
 import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
-import { useLatest, type Store } from './hooks'
+import { createStore, useLatest, type Store } from './hooks'
+import { AbroadClaims, AbroadMarks, HomeGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
+import { AbroadHover, HoverReach } from './layers/hover'
 import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
 import { PlayersLayer } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
 import type { LiveState } from './live'
+import { WarReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
+import { SiegeCard } from './layers/SiegeCard'
+import { SiegesLayer, type SiegeOnMap } from './layers/SiegesLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
 import {
@@ -60,6 +68,18 @@ export type SceneProps = {
   data: MapData
   rights: MapRights
   layers: MapLayer[]
+  /** The rest of the world, once it has arrived (/maps/world), whether it's drawn, and whether tinted by Azania's diplomacy. */
+  world: Abroad | null
+  showWorld: boolean
+  diplomacy: boolean
+  /** The sieges on the server, always drawn; the one whose card is open, by its town's Towny id; and opening one. */
+  sieges: Siege[]
+  siegeOpen: string | null
+  onSiege: (townId: string | null) => void
+  /** Every nation's capital (/maps/war), the reach of a capital's war, and whether it's drawn. */
+  capitals: War['capitals']
+  radius: number
+  showReach: boolean
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
@@ -85,9 +105,12 @@ export type SceneProps = {
  */
 export function MapScene(props: SceneProps) {
   const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data } = props
+  const { world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  // The nation under the pointer: changing as the pointer moves, so kept out of the layers' props.
+  const hover = useMemo(() => createStore<string | null>(null), [])
 
   const api = useMemo<SceneApi>(
     () => ({
@@ -284,6 +307,20 @@ export function MapScene(props: SceneProps) {
     }
   }, [onEditor, editorRef])
 
+  // The siege whose card is open, with Azania's side in it and the town besieged, when it's on the map.
+  const open = useMemo(() => {
+    const siege = siegeOpen ? sieges.find((candidate) => candidate.townId === siegeOpen) : null
+    if (!siege) return null
+    const own = data.towns.find((town) => town.townyId === siege.townId)
+    const abroad = world?.towns.find((town) => town.id === siege.townId)
+    const town: MapSelection | null = own
+      ? { kind: 'town', slug: own.slug }
+      : abroad
+        ? { kind: 'abroad', slug: abroad.slug }
+        : null
+    return { siege, side: azaniaSide(siege, { nation: homeNationOf(data.towns), towns: data.towns }), town }
+  }, [siegeOpen, sieges, data.towns, world])
+
   const wantsClicks = editorWantsClicks(editor)
   const frame =
     editor?.kind === 'view' && viewport.width
@@ -309,6 +346,16 @@ export function MapScene(props: SceneProps) {
             </div>
           ) : null}
           {editor ? <PointChip editor={editor} onEditor={onEditor} /> : null}
+          {open ? (
+            <SiegeCard
+              key={open.siege.townId}
+              onClose={() => onSiege(null)}
+              onOpen={props.onSelect}
+              side={open.side}
+              siege={open.siege}
+              town={open.town}
+            />
+          ) : null}
           {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
           <PlayersLayer data={data} enabled={live} store={liveStore} />
         </>
@@ -324,7 +371,8 @@ export function MapScene(props: SceneProps) {
       onReady={onReady}
       wrap
     >
-      <Layers {...props} />
+      <Layers {...props} hover={hover} />
+      <AbroadHover store={hover} />
     </MapCanvas>
   )
 }
@@ -341,6 +389,15 @@ const Layers = memo(function Layers({
   data,
   rights,
   layers,
+  world: abroad,
+  showWorld,
+  diplomacy,
+  sieges,
+  siegeOpen,
+  onSiege,
+  capitals,
+  radius,
+  showReach,
   showPast,
   now,
   selection,
@@ -348,7 +405,8 @@ const Layers = memo(function Layers({
   editor,
   onSelect: open,
   onEditor,
-}: SceneProps) {
+  hover,
+}: SceneProps & { hover: Store<string | null> }) {
   const projection = useProjection('maps')
   const { map, world } = useLeaflet()
   // A drag that began on a pin ends on it too, since the pin moves with the
@@ -394,20 +452,64 @@ const Layers = memo(function Layers({
     places: show('places') ? places : [],
     events: show('events') ? events : [],
   }
+  // The world around the nation, drawn for itself or for the diplomacy; never in an article's view, which is the nation's own.
+  const worldShown = abroad && (showWorld || diplomacy) && !viewLayers ? abroad : null
+  const home = useHome(data)
+  const styleOf = useNationStyles(abroad, diplomacy ? data.relations : null)
+  const selectedAbroad = {
+    town: selection?.kind === 'abroad' ? selection.slug : null,
+    nation: selection?.kind === 'nation' ? selection.slug : null,
+  }
+  const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
+  const war = useSiegesOnMap(sieges, data, abroad)
+  // The reach of the wars: Azania's always (with its layer on), and another nation's while it's open or hovered.
+  const reachOf = useReaches(capitals, abroad, styleOf)
+  const homeName = home?.name ?? null
+  const openNation = selection?.kind === 'nation' ? (abroad?.nationBySlug.get(selection.slug)?.name ?? null) : null
+  const homeReach = showReach && homeName ? reachOf(homeName, { home: true }) : null
+  const openReach = showReach && openNation && openNation !== homeName ? reachOf(openNation, { named: true }) : null
+  const hoverReach = (nation: string) => (nation === homeName || nation === openNation ? null : reachOf(nation))
   // One placer for the real world and its echoes, so no name lands on another across a seam.
   const placer = new LabelPlacer()
-  const labels = planLabels(projection, { drawings, ...shown, now, phases, selectedPlace, selectedEvent }, placer)
+  const labels = planLabels(
+    projection,
+    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
+    placer,
+  )
   const copies = [
     { copy: 0, at: projection, labels },
     ...echoesIn(projection).map((copy) => {
       const at = echoProjection(projection, copy)
-      return { copy, at, labels: planLabels(at, { ...shown, now, phases, selectedPlace, selectedEvent }, placer) }
+      return {
+        copy,
+        at,
+        labels: planLabels(
+          at,
+          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
+          placer,
+        ),
+      }
     }),
   ]
 
   /** The nation's layers over one projection: the real world's, or an echo's. */
   const nation = (at: Projection, plan: LabelPlan) => (
     <>
+      {/* The rings of the wars' reach, under everything: long, calm lines across the map. */}
+      {homeReach ? <WarReach projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <WarReach projection={at} radius={radius} reach={openReach} /> : null}
+      {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
+      {worldShown ? (
+        <AbroadClaims
+          abroad={worldShown}
+          hover={hover}
+          onSelect={onSelect}
+          projection={at}
+          selected={selectedAbroad}
+          styleOf={styleOf}
+        />
+      ) : null}
+      {worldShown && show('towns') ? <HomeGlow projection={at} towns={data.towns} /> : null}
       {show('towns') ? (
         <TownsLayer
           emphasised={emphasised}
@@ -455,6 +557,24 @@ const Layers = memo(function Layers({
           towns={data.towns}
         />
       ) : null}
+      {worldShown ? (
+        <AbroadMarks
+          abroad={worldShown}
+          labels={plan.abroad}
+          onSelect={onSelect}
+          projection={at}
+          selected={selectedAbroad}
+          styleOf={styleOf}
+        />
+      ) : null}
+      {/* The sieges, whatever else is shown: news, over everything. */}
+      <SiegesLayer
+        labels={plan.sieges.names}
+        marks={plan.sieges.marks}
+        onOpen={(siege) => onSiege(siege.townId)}
+        projection={at}
+        selected={siegeOpen}
+      />
     </>
   )
 
@@ -490,3 +610,78 @@ const Layers = memo(function Layers({
     </>
   )
 })
+
+/**
+ * Azania among the nations far out: its Towny name, set across its
+ * heartland like any other nation's, in the deep sea of its own claims.
+ */
+function useHome(data: MapData): HomeNation | null {
+  return useMemo(() => {
+    const name = homeNationOf(data.towns)
+    const extent = heartland(data.towns)
+    if (!name || !extent) return null
+    return { name, extent, heart: [(extent.minX + extent.maxX) / 2, (extent.minZ + extent.maxZ) / 2] }
+  }, [data.towns])
+}
+
+/**
+ * Each nation's style, worked out once per world: its own colour tempered
+ * (src/maps/palette.ts), or, with the diplomacy layer on (`relations`
+ * given), where Azania stands with it — allies washed green, enemies red
+ * and, at war, hatched, the neutral receding in grey.
+ */
+function useNationStyles(abroad: Abroad | null, relations: Relation[] | null): (nation: string | null) => NationStyle {
+  return useMemo(() => {
+    const styleOf = (name: string, colour: string | null): NationStyle => {
+      if (!relations) return { ...nationInk(colour), fill: 0.08 }
+      const stance = relationWith(name, relations)?.stance ?? 'neutral'
+      const voice = stance === 'neutral' ? 'quiet' : stance === 'ally' || stance === 'war' || stance === 'hostile' ? 'loud' : undefined
+      return { ...STANCE_COLOURS[stance], hatch: stance === 'war', voice }
+    }
+    const styles = new Map<string, NationStyle>(
+      (abroad?.nations ?? []).map((nation) => [nation.name, styleOf(nation.name, nation.colour)]),
+    )
+    const none: NationStyle = relations
+      ? { ...STANCE_COLOURS.neutral, dash: '3 2' }
+      : { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
+    return (nation) => (nation ? (styles.get(nation) ?? styleOf(nation, null)) : none)
+  }, [abroad, relations])
+}
+
+/**
+ * The sieges as the layers draw them: each with Azania's side in it, and
+ * its town's claims and home, from Azania's own towns or the world's.
+ */
+function useSiegesOnMap(sieges: Siege[], data: MapData, abroad: Abroad | null): SiegeOnMap[] {
+  return useMemo(() => {
+    const home = { nation: homeNationOf(data.towns), towns: data.towns }
+    return sieges.map((siege) => {
+      const own = data.towns.find((town) => town.townyId === siege.townId)
+      const other = own ? null : abroad?.byId.get(siege.townId)
+      const town = own ?? other
+      return { siege, side: azaniaSide(siege, home), town: town ? { claims: town.claims, home: town.home } : null }
+    })
+  }, [sieges, data.towns, abroad])
+}
+
+/**
+ * A nation's war reach, ready to draw: its capital (from /maps/war, else
+ * the world's reading) and its colour — Azania's the deep sea of its own
+ * claims, another's as the nations are drawn just now. Null for a nation
+ * with no capital on the map.
+ */
+function useReaches(
+  capitals: War['capitals'],
+  abroad: Abroad | null,
+  styleOf: (nation: string | null) => NationStyle,
+): (nation: string, how?: { home?: boolean; named?: boolean }) => Reach | null {
+  return useMemo(() => {
+    const byName = new Map(capitals.map((capital) => [capital.nation, { town: capital.town, home: capital.home }]))
+    return (nation, how = {}) => {
+      const capital = byName.get(nation) ?? abroad?.nationByName.get(nation)?.capital ?? null
+      if (!capital) return null
+      const home = Boolean(how.home)
+      return { nation, capital, colour: home ? GROUND.sea800 : styleOf(nation).line, home, named: home || Boolean(how.named) }
+    }
+  }, [capitals, abroad, styleOf])
+}

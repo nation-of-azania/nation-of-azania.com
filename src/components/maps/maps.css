@@ -96,6 +96,11 @@
   left: var(--az-nib, 50%);
   transform: translateX(-50%) rotate(135deg);
 }
+/* A siege's card is kept within the map's height; its nib points at the banner wherever the card sits. */
+.az-siege-card[data-side='right']::before,
+.az-siege-card[data-side='left']::before {
+  top: var(--az-nib-y, 50%);
+}
 /* While a tool is in hand, the features step aside so clicks reach the map; the editor's own marks (a view's highlights, to pick) don't. */
 .az-maps[data-tool] .az-overlay .az-hit,
 .az-maps[data-tool] .az-overlay .az-hit path {

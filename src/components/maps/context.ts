@@ -2,13 +2,16 @@
 
 import { createContext, useContext } from 'react'
 
+import type { Abroad } from '@/maps/abroad'
 import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData } from '@/maps/data'
 import type { MapLayer } from '@/maps/registry'
-import type { MapSelection } from '@/maps/url'
+import type { ExtraLayer, Extras, MapSelection } from '@/maps/url'
 
 import type { Store } from './hooks'
 import type { LookTarget } from './MapScene'
 import type { Editor } from './state'
+import type { WarState } from './war'
+import type { WorldState } from './world'
 
 /**
  * A change to the editor: the next state, or a function of the current
@@ -58,6 +61,17 @@ export type MapsActions = {
   redo: () => void
   /** Whether there is anything to undo or redo; read with useStore. */
   historyStore: Store<{ canUndo: boolean; canRedo: boolean }>
+  /** The rest of the world, once it has arrived (/maps/world), and how the asking goes. */
+  world: Abroad | null
+  worldStatus: WorldState['status']
+  /** A page abroad says where its town or nation is, so the map can open there before the world arrives. */
+  arrive: (target: LookTarget) => void
+  /** The layers beyond the nation's own (the world, diplomacy, the players online), and turning one on or off. */
+  extras: Extras
+  setExtra: (layer: ExtraLayer, on: boolean) => void
+  /** The war on the server (/maps/war), polled while the tab is seen; and a siege's card opened, by its town's Towny id. */
+  war: WarState
+  openSiege: (townId: string) => void
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)

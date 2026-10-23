@@ -7,6 +7,7 @@ import type { Article } from '@/payload-types'
 import { GrowthChart } from './GrowthChart'
 import { AboutActions, AddHere, EventsList, Look, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
+import { TownSiege } from './sieges'
 
 /** "Oct 10 2026", as Towny writes it, in the site's own date form; the raw text if it won't parse. */
 function foundedOn(raw: string | null): string | null {
@@ -72,6 +73,8 @@ export function TownPanel({
           <Survey className="mt-3" fit={main} point={town.home} town={town} y={64} />
         ) : null}
       </PanelHead>
+
+      <TownSiege townyId={town.townyId} />
 
       <div className="mt-4 px-4">
         <Facts

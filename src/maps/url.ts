@@ -11,12 +11,16 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  *   /maps/place/<id>            a place
  *   /maps/road/<id>             a road
  *   /maps/event/<id>            an event
+ *   /maps/abroad/<slug>         a town of another nation, or of none
+ *   /maps/nation/<slug>         another nation
  *
  * and the view itself travels in the query, on any of them:
  *
  *   ?at=<x>,<z>,<zoom>          centre and zoom (zoom 0 is the map's native scale, 2 px per block)
- *   &layers=towns,roads         which layers show (all, when absent), with `players` among
- *                               them for the live players layer, which is on when absent
+ *   &layers=towns,roads         which layers show (all, when absent), with the layers that
+ *                               aren't the nation's own data among them (EXTRA_LAYERS:
+ *                               `players`, `world` and `reach` on, `diplomacy` off), each at
+ *                               its default when absent
  *   &view=<id>                  an article's map view, framed with its highlights
  *   &draw=view                  the view editor, open: a new view, or the one named by &view=
  *
@@ -29,6 +33,8 @@ export type MapSelection =
   | { kind: 'place'; id: number }
   | { kind: 'road'; id: number }
   | { kind: 'event'; id: number }
+  | { kind: 'abroad'; slug: string }
+  | { kind: 'nation'; slug: string }
 
 export type MapPosition = { centre: Point; zoom: number }
 
@@ -38,6 +44,8 @@ export const townHref = (slug: string) => `${MAPS_PATH}/town/${encodeURIComponen
 export const placeHref = (id: number) => `${MAPS_PATH}/place/${id}`
 export const roadHref = (id: number) => `${MAPS_PATH}/road/${id}`
 export const eventHref = (id: number) => `${MAPS_PATH}/event/${id}`
+export const abroadHref = (slug: string) => `${MAPS_PATH}/abroad/${encodeURIComponent(slug)}`
+export const nationHref = (slug: string) => `${MAPS_PATH}/nation/${encodeURIComponent(slug)}`
 
 export function selectionHref(selection: MapSelection | null): string {
   if (!selection) return MAPS_PATH
@@ -50,15 +58,23 @@ export function selectionHref(selection: MapSelection | null): string {
       return roadHref(selection.id)
     case 'event':
       return eventHref(selection.id)
+    case 'abroad':
+      return abroadHref(selection.slug)
+    case 'nation':
+      return nationHref(selection.slug)
   }
 }
 
+/** Whether a selection is named by a slug rather than an id. */
+const bySlug = (selection: MapSelection): selection is Extract<MapSelection, { slug: string }> =>
+  'slug' in selection
+
 /** The selection a path names, or null for the plain map. */
 export function selectionOf(pathname: string): MapSelection | null {
-  const match = /^\/maps\/(town|place|road|event)\/([^/?#]+)\/?$/.exec(pathname)
+  const match = /^\/maps\/(town|place|road|event|abroad|nation)\/([^/?#]+)\/?$/.exec(pathname)
   if (!match) return null
   const [, kind, raw] = match
-  if (kind === 'town') return { kind, slug: decodeURIComponent(raw) }
+  if (kind === 'town' || kind === 'abroad' || kind === 'nation') return { kind, slug: decodeURIComponent(raw) }
   const id = /^\d{1,9}$/.test(raw) ? Number(raw) : null
   if (id == null) return null
   return { kind: kind as 'place' | 'road' | 'event', id }
@@ -69,9 +85,7 @@ export const sameSelection = (a: MapSelection | null, b: MapSelection | null): b
   (a != null &&
     b != null &&
     a.kind === b.kind &&
-    (a.kind === 'town'
-      ? a.slug === (b as { slug: string }).slug
-      : a.id === (b as { id: number }).id))
+    (bySlug(a) ? a.slug === (b as { slug: string }).slug : a.id === (b as { id: number }).id))
 
 /** "4296,4952,1.5": the `at` parameter. Coordinates to the block, zoom to a quarter step. */
 export const encodeAt = ({ centre: [x, z], zoom }: MapPosition): string =>
@@ -93,11 +107,28 @@ export const isMapLayer = (value: unknown): value is MapLayer =>
 export const ALL_LAYERS = Object.keys(MAP_LAYERS) as MapLayer[]
 
 /**
- * The live players layer's token in `layers`. It isn't one of MAP_LAYERS,
- * which are the map's own data and what a map view may show; players are
- * the server's, live, and never part of a view.
+ * The layers that aren't the nation's own data, and so aren't MAP_LAYERS,
+ * which a map view stores: the players online, the server's, live; the
+ * rest of the world around the nation; Azania's diplomacy, the other
+ * nations tinted by where it stands with them; and the reach of Azania's
+ * war about its capital. None is ever part of a view. Each has its token
+ * in `layers` and is at its default when the address names no layers;
+ * when it names some, a token is on when it's there.
  */
-export const LIVE_LAYER = 'players'
+export const EXTRA_LAYERS = {
+  players: { on: true },
+  world: { on: true },
+  diplomacy: { on: false },
+  reach: { on: true },
+} as const satisfies Record<string, { on: boolean }>
+export type ExtraLayer = keyof typeof EXTRA_LAYERS
+export type Extras = Record<ExtraLayer, boolean>
+
+export const DEFAULT_EXTRAS = Object.fromEntries(
+  Object.entries(EXTRA_LAYERS).map(([layer, { on }]) => [layer, on]),
+) as Extras
+
+const isExtra = (value: string): value is ExtraLayer => value in EXTRA_LAYERS
 
 export function decodeLayers(value: string | null | undefined): MapLayer[] | null {
   if (value == null) return null
@@ -105,9 +136,14 @@ export function decodeLayers(value: string | null | undefined): MapLayer[] | nul
   return layers
 }
 
-/** Whether `layers` names the live players layer; null when the address names no layers at all. */
-export const decodeLive = (value: string | null | undefined): boolean | null =>
-  value == null ? null : value.split(',').includes(LIVE_LAYER)
+/** Which of the extra layers `layers` turns on; null when the address names no layers at all. */
+export function decodeExtras(value: string | null | undefined): Extras | null {
+  if (value == null) return null
+  const named = new Set(value.split(',').filter(isExtra))
+  return Object.fromEntries(Object.keys(EXTRA_LAYERS).map((layer) => [layer, named.has(layer as ExtraLayer)])) as Extras
+}
+
+const sameExtras = (a: Extras, b: Extras) => (Object.keys(EXTRA_LAYERS) as ExtraLayer[]).every((layer) => a[layer] === b[layer])
 
 /** What the editor may be asked to open on arrival. */
 export type MapDraw = 'view'
@@ -116,7 +152,7 @@ export type MapDraw = 'view'
 export function mapsQuery({
   at,
   layers,
-  live = true,
+  extras,
   view,
   draw,
 }: {
@@ -124,15 +160,17 @@ export function mapsQuery({
   /** Accepted for the callers that still name a base map; there is only the one, so it isn't written. */
   map?: MapName | null
   layers?: MapLayer[] | null
-  /** Whether the live players layer shows; on unless said otherwise, so it's written only when off or the layers are. */
-  live?: boolean
+  /** The extra layers; written only when they or the layers differ from the defaults. */
+  extras?: Extras
   view?: number | null
   draw?: MapDraw | null
 }): string {
   const query = new URLSearchParams()
   if (at) query.set('at', encodeAt(at))
-  if (layers && (layers.length !== ALL_LAYERS.length || !live)) {
-    query.set('layers', [...layers, ...(live ? [LIVE_LAYER] : [])].join(','))
+  const shown = extras ?? DEFAULT_EXTRAS
+  if (layers && (layers.length !== ALL_LAYERS.length || !sameExtras(shown, DEFAULT_EXTRAS))) {
+    const on = (Object.keys(EXTRA_LAYERS) as ExtraLayer[]).filter((layer) => shown[layer])
+    query.set('layers', [...layers, ...on].join(','))
   }
   if (view) query.set('view', String(view))
   if (draw) query.set('draw', draw)

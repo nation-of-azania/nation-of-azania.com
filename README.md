@@ -472,6 +472,7 @@ sheet drawn up over it on a phone) that holds whatever is open.
 - Named **roads**, railways and waterways, straight from point to point or curved smoothly through them, drawn like a road map: casings under translucent fills (a wash the build shows through, thinner the closer you come), widths by zoom, the name along the line once it fits.
 - **Events** with a time and a place.
 - **Map views**: framed pieces of the map with highlights drawn on them, which an article's Map block can show.
+- Around it all, **the rest of the world**: every other nation and its towns, Azania's **diplomacy** with them, the **sieges** on the server, and the **reach** of a capital's war (see *The world around Azania* below). None of it is kept in the database.
 
 Everything is stored in block coordinates (`src/maps/geo.ts`), never pixels.
 The categories, road kinds and highlight inks are defined in code
@@ -559,16 +560,23 @@ carries what's already drawn into place until the fresh render lands.
   description and events; a road's class and length; an event's time in the
   reader's own time zone, its place, host and article. A town with claims
   away from the one holding its home block lists them as **outposts**, each
-  with *Show on map*; *Fit to town* fits the main claim. These pages are
+  with *Show on map*; *Fit to town* fits the main claim. `/maps/abroad/<slug>`
+  and `/maps/nation/<slug>` open a town of another nation (or of none) and
+  another nation (see *The world around Azania*). These pages are
   rendered on the server and cached for everyone alike, a minute at a time
   (and regenerated at once after someone draws), so links unfurl and search
   engines read them; the visitor's own drawing rights are fetched in the
   browser (`/api/users/me`). The map's own spot travels in the query —
   `?at=<x>,<z>,<zoom>`, `&layers=towns,roads`, `&view=<id>` for an article's
   view with its highlights — written as the map moves, so any address can
-  be shared. (Old links with `&map=biomes` still open; the biome map is no
-  longer drawn.) Every one of these pages has its own link-preview card, a
-  clipping of the map with the thing on it (see [Link previews](#link-previews)).
+  be shared. `layers` also names the layers that aren't the nation's own
+  data (`EXTRA_LAYERS` in `src/maps/url.ts`): `players`, `world` and
+  `reach`, on unless the address lists layers without them, and
+  `diplomacy`, off unless listed. (Old links with `&map=biomes` still open;
+  the biome map is no longer drawn.) Every page of Azania's own has its own
+  link-preview card, a clipping of the map with the thing on it (see
+  [Link previews](#link-previews)); the pages abroad have the site's plain
+  card for now.
 - **Getting there.** Players have no `/tp`, so what's offered to copy is
   what they can type: `/t spawn <Town>` for a town, and for anything else
   the nearest town's spawn with the walk from its home block ("then 40
@@ -577,12 +585,15 @@ carries what's already drawn into place until the fresh render lands.
   only its residents can use it. Coordinates stay on the page, as F3
   shows them.
 - **Tools.** Search across towns, held sites (by name or by kind: "diamond"
-  finds the quarry), places, roads and events; layer toggles and a legend;
-  the block under the pointer (the centre, on a phone) with its nearest
-  spawn to copy; the nation at a glance on the map's own front — the
-  players' towns, residents and chunks with the census's trend, and a small
-  ledger of **Holdings**: the sites the nation holds, what each pays, and
-  the day's total.
+  finds the quarry), places, roads and events, and once the world has
+  arrived the other nations and their towns and sites, after Azania's own;
+  layer toggles (Azania's own layers, then the world's) and a legend; the
+  block under the pointer (the centre, on a phone) with its nearest spawn
+  to copy; the nation at a glance on the map's own front — any siege
+  Azania is in, first of all; the players' towns, residents and chunks
+  with the census's trend; a small ledger of **Holdings**: the sites the
+  nation holds, what each pays, and the day's total; Azania's
+  **Diplomacy**, friends first; and the rest of the server's sieges.
 - **Players (live).** Who is on the server and where, as the Rulercraft
   map's own feed has it, passed on through `/maps/players`
   (`src/maps/players.ts`) and kept nowhere: the CDN shares each answer
@@ -615,7 +626,101 @@ carries what's already drawn into place until the fresh render lands.
 - **When the Rulercraft map is down:** `/maps/status` says so, the page
   notes it is showing the map as last saved, and tiles the cache doesn't have
   leave a plain ground; towns, places and everything else are the site's own
-  data, so they never go dark.
+  data, so they never go dark. The world around Azania and the war come from
+  the Rulercraft map itself: the last reading stays on the page while it's
+  down, and a page abroad says plainly when there's none to show.
+
+**The world around Azania.** The map draws the whole server around the
+nation, from two readings of the Rulercraft map's markers that the site
+passes on and keeps nowhere: `/maps/world`, every Towny town and nation
+(`src/lib/world.ts`, types in `src/maps/world.ts`), shared at the CDN for
+a quarter of an hour, and `/maps/war`, the sieges and every capital,
+shared for three minutes. The browser always asks for the bare path,
+which the routes insist on, so every viewer shares one copy.
+
+- **Other nations** (a layer, on by default). The world is asked for once
+  the map has settled and the browser is idle, so Azania paints first (at
+  once on a page abroad, which needs it), and again every quarter of an
+  hour while the tab is in view. `src/maps/abroad.ts` makes it ready:
+  Azania's own towns, matched by Towny's id (`MapTown.townyId`), are left
+  to the nation's own layers, and every other town gets an address, its
+  bounds and its nation. They are drawn quietly under Azania's layers
+  (`layers/AbroadLayer.tsx`): a thin edge and a faint fill in the nation's
+  Towny colour, tempered so a web red or yellow doesn't shout (the hue is
+  kept, the saturation reined in; `nationInk` in `src/maps/palette.ts`),
+  and the towns of no nation in grey with a dashed edge. Azania stays the
+  one in full colour, and glows saffron among the others: soft discs about
+  its towns far out, a casing about its claims nearer. Far out the world
+  is nations: their names in spaced capitals across their heartlands (the
+  towns about the capital, weighted by the ground they hold; only the great
+  ones at the scale of the world), Azania's own underscored in saffron; a
+  town too small to draw is a dot, all a nation's claims are one path, and
+  a click opens the nation. Coming in, the capitals' names appear, ringed
+  dots as an atlas marks them, then every town's, smaller than Azania's and
+  placed after them; a click opens the town. A server site another nation
+  holds wears the site's mark rimmed in its holder's colour, with what it
+  pays, since it changes hands by siege. The pointer over a nation
+  strengthens its claims. The echoes carry the world like everything else,
+  washed.
+- **Pages abroad.** `/maps/abroad/<slug>` is a light page for a town of
+  another nation or of none: its nation, ruler, residents, claims and
+  founding, its `/t spawn` when anyone may use it (otherwise, and for a
+  site, the nearest spawn anyone may use, anywhere on the server, with the
+  walk), a site's pay, Azania's stance with its nation, any siege of it,
+  and how far it is from Azania's capital. `/maps/nation/<slug>` is a
+  nation's: its totals, capital, Azania's stance, its sieges, the reach of
+  its war, its holdings and its towns. There's no editing, census or mayor
+  abroad. Both are cached like the others; they read the world through
+  `src/lib/abroad.ts` (`unstable_cache`, so the read doesn't make them
+  dynamic), and tell the map where to open before the world arrives. A
+  town that has joined Azania redirects to its own page, and Azania's
+  nation to the front.
+- **Diplomacy** (a layer, off by default). Where Azania stands with the
+  other nations, set under Settings → Azania Maps → Diplomacy, and public
+  on the map: the nations are drawn by stance instead of their own colours,
+  a road from green to red through a quiet grey (`STANCE_COLOURS` in
+  `src/maps/palette.ts`): allies washed deep green, enemies red and, at
+  war, hatched, the neutral receding; far out, friends' and foes' names are
+  set in bold. A key sits at the map's top left while it's on; a nation's
+  page says the stance in a sentence, with the admins' note, and so does a
+  town abroad of a nation that isn't neutral.
+- **Sieges**, always, whenever there are any: there's no layer to switch
+  off. The war is asked for as the page arrives and every three minutes
+  while the tab is in view (`components/maps/war.ts`); offline, the last
+  sieges known stay, said to be as of then. A mark stands at each siege
+  banner (`layers/SiegesLayer.tsx`): crossed swords on coral, breathing,
+  while a battle is fought; a small fire while it's quiet; named "Siege:
+  attacker vs defender", and the town besieged edged in coral, with a
+  thread from the banner to its home. A click opens a card beside the
+  banner with the siege in plain words (`src/maps/sieges.ts`): what kind,
+  the battle sessions fought, who's ahead, who holds the banner, this
+  battle's points and time left, the war chest, and SiegeWar's own lines.
+  A siege Azania is in — its town besieged, or Azania attacking or
+  defending — is unmissable: a larger mark ringed in saffron, the town's
+  claims glowing, its name placed before Azania's own towns'; an alert at
+  the map's top left ("Cape Agulhas is under siege", with *Show*), the
+  same in full at the top of the front, and on a phone the sheet's folded
+  line. A besieged town's page and a nation's page show theirs.
+- **War reach** (a layer, on by default). A nation may besiege towns only
+  within 12,320 blocks of its capital (`CAPITAL_WAR_RADIUS`, about Africa's
+  width), and this is that circle (`layers/ReachLayer.tsx`): Azania's about
+  its capital, a calm dashed line in the deep sea on a whitewash casing,
+  named along its arc; another nation's in its colour while its page is
+  open or it's under the pointer. It's sampled finely enough to stay round
+  at every zoom, and only the arcs over the page are drawn. It ends where
+  the world does — the game's world doesn't wrap, so no capital reaches
+  across a seam — so each copy of the world draws its ring cut at its own
+  edges: a ring near the east edge stops at the tear, and is seen again,
+  washed, just west of the west tear, in the echo that is the east edge's
+  copy. A town abroad says whether it lies within Azania's reach; a nation
+  which of Azania's towns lie within its own.
+- **Keeping it quick.** Three hundred-odd towns and some thirty thousand
+  claim corners are redrawn each time the map settles, so the drawing is
+  lean: the projection is applied as the scale and shift it is rather than
+  point by point, a corner within a pixel of the last is dropped, a claim
+  off the page or under a pixel is left out, far out a nation's claims are
+  one path and a small town a dot, one click and one hover handler serve
+  every town, and a hover restyles by a rule of its own, never mid-drag.
 
 **Drawing on the map.** Sign in (the panel's *Sign in* comes back to the map)
 and, with rights, the pencil in the map's corner offers what you may do;
@@ -696,6 +801,7 @@ something was being fetched.
   - The Towny nation is "Azania" (it was "Canada" until October 2026). When Towny renames it, the next reading follows by itself: if a named nation is gone from the map and most of the towns that counted under it now share one other nation, the settings take that name, and the reading's note says so. A nation that falls apart is no rename; its towns stop counting until an admin names where they went.
   - `src/lib/towns.ts` reads the map's marker file into the **Towns** collection.
   - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
+- **Diplomacy:** also under Settings → Azania Maps, a nation (spelt as the map has it; case, spaces and underscores don't matter), a stance (allied, friendly, tense, hostile, at war) and a line for readers. Every nation not named is neutral. It is public: the map's diplomacy layer, the front and the nations' pages show it to anyone.
 - **When the map is read:**
   - after a page of Azania Maps finds the last reading a quarter of an hour old, so while people use the map it is at most about fifteen minutes behind Towny's own markers;
   - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.

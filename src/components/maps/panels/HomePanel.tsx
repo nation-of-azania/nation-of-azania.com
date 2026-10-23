@@ -1,20 +1,25 @@
 import Link from 'next/link'
 
 import type { CensusPoint } from '@/lib/maps'
+import { worldSlug } from '@/maps/abroad'
 import { spoken, type MapData } from '@/maps/data'
+import { STANCE_COLOURS } from '@/maps/palette'
 import { holdingsOf, incomeWords, settlements, siteFacts, siteTitle } from '@/maps/sites'
-import { townHref } from '@/maps/url'
+import { nationHref, townHref } from '@/maps/url'
 
 import { SiteBadge } from '../layers/SiteMark'
+import { STANCE_ORDER, StanceSwatch, stanceLabel } from '../ui/Diplomacy'
 import { Icon } from '../ui/icons'
 import { StatTile } from './GrowthChart'
-import { EventsList } from './islands'
+import { EventsList, LayerToggle } from './islands'
+import { OtherSieges, OurSieges } from './sieges'
 import { EYEBROW, PanelSection } from './shared'
 import { YourViews } from './views'
 
 /**
  * The map's own front: the nation at a glance (its totals, with the
- * census's trend beneath), what it holds, what's on, and the towns.
+ * census's trend beneath), what it holds, where it stands with the other
+ * nations, what's on, and the towns.
  * Server-rendered, so a search engine and a reader without JavaScript get
  * the nation in words. The figures count players' towns alone: a held
  * quarry's bot isn't a resident, and its fixed claims aren't growth.
@@ -27,6 +32,9 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
   const chunks = towns.reduce((sum, town) => sum + town.chunks, 0)
   const { sites, total } = holdingsOf(data.towns)
   const since = census[0]?.date
+  const relations = [...data.relations].sort(
+    (a, b) => STANCE_ORDER.indexOf(a.stance) - STANCE_ORDER.indexOf(b.stance) || a.nation.localeCompare(b.nation),
+  )
 
   return (
     <div className="pb-6">
@@ -40,6 +48,8 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           itself. Click anything on the map, or search.
         </p>
       </header>
+      {/* A siege Azania is in leads the front, before anything else. */}
+      <OurSieges />
       <div className="mt-4 grid grid-cols-3 gap-2 px-4">
         <StatTile label="Towns" measure={null} points={census} value={towns.length} />
         <StatTile label="Residents" measure="residents" points={census} value={residents} />
@@ -93,6 +103,52 @@ export function HomePanel({ data, census }: { data: MapData; census: CensusPoint
           ) : null}
         </PanelSection>
       ) : null}
+
+      {/* Where Azania stands, friends first: the nations the admins have named, each opening its page. */}
+      {relations.length ? (
+        <PanelSection
+          action={
+            <LayerToggle
+              className="text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+              layer="diplomacy"
+              off="Hide on the map"
+              on="Show on the map"
+            />
+          }
+          flush
+          title="Diplomacy"
+        >
+          <ul className="divide-y divide-sand-300/70">
+            {relations.map((relation) => (
+              <li key={relation.nation}>
+                <Link
+                  className="group flex items-center gap-3 px-4 py-2 transition-colors hover:bg-sand-100"
+                  href={nationHref(worldSlug(relation.nation))}
+                >
+                  <StanceSwatch className="h-3.5 w-5" stance={relation.stance} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                      {spoken(relation.nation)}
+                    </span>
+                    {relation.note ? (
+                      <span className="block truncate text-xs text-ink-500">{relation.note}</span>
+                    ) : null}
+                  </span>
+                  <span
+                    className="shrink-0 font-label text-[10px] font-semibold uppercase tracking-[0.16em]"
+                    style={{ color: STANCE_COLOURS[relation.stance].text }}
+                  >
+                    {stanceLabel(relation.stance)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 px-4 text-[11px] text-ink-400">Every other nation is neutral.</p>
+        </PanelSection>
+      ) : null}
+
+      <OtherSieges />
 
       {/* For anyone who may draw views: theirs, so a view made for an article has a home here. */}
       <YourViews />
