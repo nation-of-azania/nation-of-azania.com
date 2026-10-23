@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { minecraftHeadUrl } from '@/components/site/format'
 import { spoken, type MapData, type MapTown } from '@/maps/data'
@@ -53,11 +53,35 @@ const at = (player: LivePlayer): Point => [player.x, player.z]
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-/** The head: the skin service's, or a monogram where there is none (Bedrock) or it won't load. */
+/**
+ * A monogram's ink: one of the house's quieter colours, picked by the name
+ * so a player keeps theirs, as an account's initial does in a mail app.
+ * Never saffron (Azania's ring), coral (a siege) or the night sea of the
+ * map's backdrop, where a monogram used to read as a hole in the map. All
+ * take the whitewash letter at 4.9:1 or better.
+ */
+const MONOGRAM_INKS = ['#215577', '#11707d', '#357166', '#9b2f5e', '#6b5540', '#8a5a9c']
+
+/** A player's monogram: the first letter of the name (a Bedrock player's without its dot) and its ink. */
+function monogramOf(name: string): { letter: string; ink: string } {
+  const bare = name.replace(/^\./, '')
+  let hash = 0
+  for (const char of bare.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return { letter: bare.charAt(0).toUpperCase() || '·', ink: MONOGRAM_INKS[hash % MONOGRAM_INKS.length] }
+}
+
+/**
+ * The head: the player's monogram, with the skin service's face laid over
+ * it once the face has arrived. A Bedrock player (whom the skin service
+ * doesn't know), a face still on its way and one that won't load all show
+ * the monogram, so a head is never an empty square.
+ */
 function headOf(name: string): HTMLElement {
+  const { letter, ink } = monogramOf(name)
   const mark = document.createElement('span')
   mark.className = 'az-player-mark'
-  mark.textContent = name.replace(/^\./, '').charAt(0).toUpperCase() || '·'
+  mark.style.setProperty('--az-monogram', ink)
+  mark.textContent = letter
   if (isBedrockName(name)) return mark
   const image = document.createElement('img')
   image.className = 'az-player-head'
@@ -65,9 +89,36 @@ function headOf(name: string): HTMLElement {
   image.decoding = 'async'
   image.width = HEAD_PX
   image.height = HEAD_PX
+  image.onload = () => image.setAttribute('data-loaded', '')
+  image.onerror = () => image.remove()
   image.src = minecraftHeadUrl(name, HEAD_PX * 2)
-  image.onerror = () => image.replaceWith(mark)
-  return image
+  mark.appendChild(image)
+  return mark
+}
+
+/** The same head in React, for the card. */
+function PlayerHead({ name }: { name: string }) {
+  const { letter, ink } = monogramOf(name)
+  const [face, setFace] = useState<'loading' | 'loaded' | 'failed'>('loading')
+  return (
+    <span className="az-player-mark" style={{ '--az-monogram': ink } as CSSProperties}>
+      {letter}
+      {isBedrockName(name) || face === 'failed' ? null : (
+        // eslint-disable-next-line @next/next/no-img-element -- the skin service's head, kept crisp; the marker uses the same picture
+        <img
+          alt=""
+          className="az-player-head"
+          data-loaded={face === 'loaded' ? '' : undefined}
+          decoding="async"
+          height={HEAD_PX}
+          onError={() => setFace('failed')}
+          onLoad={() => setFace('loaded')}
+          src={minecraftHeadUrl(name, HEAD_PX * 2)}
+          width={HEAD_PX}
+        />
+      )}
+    </span>
+  )
 }
 
 /** The marker's element: the head, and the name beneath it. */
@@ -309,12 +360,7 @@ function PlayerCard({
     >
       <div className="flex items-start gap-2.5 px-3 pt-2.5">
         <span className="az-player-portrait mt-0.5 shrink-0" data-azanian={town ? '' : undefined}>
-          {isBedrockName(name) ? (
-            <span className="az-player-mark">{name.replace(/^\./, '').charAt(0).toUpperCase()}</span>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element -- the skin service's head, kept crisp; the marker uses the same picture
-            <img alt="" className="az-player-head" decoding="async" height={HEAD_PX} src={minecraftHeadUrl(name, HEAD_PX * 2)} width={HEAD_PX} />
-          )}
+          <PlayerHead key={name} name={name} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold leading-tight text-sea-950">{name}</p>

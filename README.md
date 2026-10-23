@@ -491,6 +491,27 @@ and laid over the map in their place (`leaflet/sheet.ts`), since seven
 hundred tiles on screen made a pan stutter. The map's JavaScript loads only
 on `/maps` and in an interactive Map block, never with any other page.
 
+That picture also lies **under the tiles at every zoom**, so whatever they
+haven't covered yet (the ground a pinch out opens around the view just
+left, a slow tile) shows the world there, soft at first and sharpening as
+the tiles arrive, never the bare backdrop. It's on show from the moment a
+zoom goes out past where it began until the tiles of the zoom it ends at
+have all arrived and faded in; at rest, through a pan and through a zoom
+in (where the level left behind, scaled up, still covers the page) it's
+set aside, so they have nothing extra to draw. Past −6 it is the map, and
+always shown, so a pinch back in from the whole world keeps it until the
+tiles arrive, where the map used to go dark the moment it crossed −6. Its 684
+small tiles (some 2 MB, kept at the CDN) are fetched once: on the live map
+as soon as its own first tiles are in and the browser is idle, nearest the
+reader first; at once when a zoom starts or the map is past −6; and only
+then for a connection that asks to save data, or in an article's map. They
+are decoded off the main thread and drawn into the canvas a batch at a
+time. An echo's copy of the picture is made only when the view first comes
+near that echo, so a session that stays close in holds one canvas, not
+three. And when a zoom out ends, the tiles of the view just left stay
+until the new level's tiles over them have arrived (`leaflet/tiles.ts`),
+so the place the reader was looking at never goes soft.
+
 The live map repeats the world east and west, so a pan never runs out of
 map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
 36,864, the level-5 tiles' columns −18 to 17). The world doesn't wrap in
@@ -537,10 +558,15 @@ carries what's already drawn into place until the fresh render lands.
   a trackpad's two-finger scroll zooms in proportion to how far you scroll,
   easing around the pointer as you go; a click-wheel mouse zooms half a
   level a notch; a trackpad pinch (which browsers send as a wheel with Ctrl
-  held) zooms at its own ratio. The ratios are at the top of
+  held) zooms at its own ratio. Safari sends a trackpad pinch as gesture
+  events of its own instead, and would otherwise magnify the whole page
+  (or, pinching out, show its tabs): the map takes those too, zooming by
+  the pinch's scale about the pointer, at the same ratio; a pinch on a
+  touchscreen stays Leaflet's, and should a browser send one pinch both
+  ways, it still zooms once. The ratios are at the top of
   `leaflet/canvas.tsx`, with the zoom's floor and ceiling, which the wheel
-  and the buttons both keep to. In an article's embedded map the wheel is
-  left to the page, so scrolling past it never catches.
+  and the buttons both keep to. In an article's embedded map the wheel and
+  the pinch are left to the page, so scrolling past it never catches.
 - **Names.** Where every name goes is planned in one pass before anything
   is drawn (`layers/labels.ts`): an article's highlights outrank the map's
   own names, no name ever covers a pin or a mark, and towns, roads, places
@@ -606,8 +632,12 @@ carries what's already drawn into place until the fresh render lands.
   frame loop, so nothing else on the map is redrawn for a poll) that
   **glides** from one reading to the next rather than jumping, and jumps
   only for a teleport; Azania's residents, matched against the towns'
-  resident lists, are ringed in saffron; a Bedrock player (a name starting
-  with ".") or a head that won't load gets a monogram. Names show on hover,
+  resident lists, are ringed in saffron. Every head is the player's
+  monogram, an initial in an ink of its own (picked by name, from the
+  house's quieter colours: never saffron, coral or the backdrop's night
+  sea), with the face laid over it once the face has arrived; so a Bedrock
+  player (a name starting with "."), a face still on its way and one that
+  won't load all read as a person, never an empty square. Names show on hover,
   on the chosen player, and close in. A click opens a small card beside the
   head: who they are and, if Azanian, of which town; their coordinates to
   copy; and the way there as a player has it, the nearest town's `/t spawn`
