@@ -27,6 +27,11 @@ type GridInternals = {
   _map: L.Map & { _getMapPanePos: () => L.Point; _animatingZoom?: boolean }
   _tiles: L.InternalTiles
   _levels: Record<string, Level>
+  _tileZoom?: number
+  _retainParent: (x: number, y: number, z: number, minZoom: number) => boolean
+  _retainChildren: (x: number, y: number, z: number, maxZoom: number) => void
+  _removeTile: (key: string) => void
+  _removeAllTiles: () => void
 }
 
 /**
@@ -34,7 +39,9 @@ type GridInternals = {
  * only the native levels are ever asked for, and only over the sheet the
  * map draws: beyond it to the north and south lies nothing, and to the
  * east and west, when the world wraps, an echo's tiles are the sheet's own.
- * Past SHEET_ZOOM the tiles give way to the sheet.
+ * Past SHEET_ZOOM the tiles give way to the sheet, which also lies under
+ * them at every zoom (./sheet.ts), so ground they haven't covered yet shows
+ * the world, soft, rather than the bare backdrop.
  */
 export class AzaniaTileLayer extends L.TileLayer {
   constructor(wrap: boolean) {
@@ -83,6 +90,46 @@ export class AzaniaTileLayer extends L.TileLayer {
       if (level) L.DomUtil.setPosition(tile.el, coords.scaleBy(size).subtract(level.origin))
     }
     self._tiles = next
+  }
+
+  /**
+   * Which tiles stay on the page once the map has settled: Leaflet's own
+   * rule, and one more. Leaflet keeps a tile of another level while the
+   * current level's tile over it is still on its way only from up to two
+   * levels closer, so a zoom out of three levels or more dropped the view
+   * just left, crisp, the moment the zoom ended, and the place the reader
+   * was looking at went soft (the sheet beneath) until the new tiles came.
+   * Here any loaded tile of a closer level stays while the tile over it at
+   * the current level hasn't arrived; once that one has, it goes as before.
+   */
+  _pruneTiles(): void {
+    const self = this as unknown as GridInternals
+    const map = self._map
+    if (!map) return
+    const zoom = map.getZoom()
+    if (zoom > (this.options.maxZoom ?? Infinity) || zoom < (this.options.minZoom ?? -Infinity)) {
+      self._removeAllTiles()
+      return
+    }
+    const tiles = self._tiles
+    const level = self._tileZoom
+    for (const key in tiles) tiles[key].retain = tiles[key].current
+    for (const key in tiles) {
+      const tile = tiles[key]
+      const { x, y, z } = tile.coords
+      if (tile.current && !tile.active) {
+        // Leaflet's: a loaded parent up to five levels out, else loaded children up to two in.
+        if (!self._retainParent(x, y, z, z - 5)) self._retainChildren(x, y, z, z + 2)
+      } else if (!tile.current && tile.loaded && level !== undefined && z > level) {
+        // Ours: a closer level's tile, under a current one still loading.
+        const scale = 2 ** (z - level)
+        const over = L.point(Math.floor(x / scale), Math.floor(y / scale)) as L.Coords
+        over.z = level
+        const cover = tiles[this._tileCoordsToKey(over)]
+        if (cover?.current && !cover.active) tile.retain = true
+      }
+    }
+    for (const key in tiles) if (!tiles[key].retain) self._removeTile(key)
   }
 
   /**

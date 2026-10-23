@@ -138,6 +138,9 @@ type MapInternals = L.Map & {
 /** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
 const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
 
+/** Safari's own pinch event: the scale since the fingers came down (1 at the start), and where. */
+type GestureEvent = UIEvent & { scale: number; clientX?: number; clientY?: number }
+
 /**
  * Zooming with the wheel, by hand, the way a map app does it. Leaflet's own
  * handler waits, snaps and animates each step for 250 ms, dropping whatever
@@ -150,6 +153,16 @@ const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ea
  * transforms on the tiles and the overlay, nothing re-rendered, until the
  * gesture ends and the map settles once. Fractional zooms scale the
  * nearest native level's tiles; tiles are only ever asked for at those.
+ *
+ * Safari sends a trackpad pinch another way: not as a wheel but as gesture
+ * events of its own, which the page must refuse, or Safari magnifies the
+ * whole page instead (and, pinching out, shows its tabs). Where there are
+ * such events, a pinch zooms the map the same way, by its scale — fingers
+ * twice as far apart, a level in, Chrome's own ratio — about the pointer.
+ * A pinch on a touchscreen is left to Leaflet's touch zoom, which has it
+ * already. Should a browser ever send one pinch both ways, whichever moves
+ * the map first in a gesture keeps it, and from the next gesture on the
+ * wheel alone zooms, so a pinch never zooms twice.
  */
 function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
   const internals = map as MapInternals
@@ -199,6 +212,24 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
     if (current === target && now - lastWheel > 120) finish()
   }
 
+  /** Moves the target zoom by `dz` levels about `at`, a point in the container; the frames ease the map after it. */
+  const nudge = (dz: number, at: L.Point) => {
+    if (!frame) {
+      target = map.getZoom()
+      current = target
+      last = performance.now()
+    }
+    target = internals._limitZoom(target + dz)
+    anchor = at
+    lastWheel = performance.now()
+    if (!frame) frame = requestAnimationFrame(step)
+  }
+
+  // A Safari pinch under way (see below): its scale so far, and which of the two ways is zooming with it.
+  let gesture: { scale: number; by: 'gesture' | 'wheel' | null } | null = null
+  // Once a pinch has come as a wheel too, the wheel alone zooms.
+  let wheelPinches = false
+
   const onWheel = (event: WheelEvent) => {
     event.preventDefault()
     let dy = event.deltaY
@@ -206,6 +237,11 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
     else if (event.deltaMode === 2) dy *= container.clientHeight
     if (!dy) return
     const pinch = event.ctrlKey
+    if (pinch && gesture) {
+      wheelPinches = true
+      if (gesture.by === 'gesture') return
+      gesture.by = 'wheel'
+    }
     // A click-wheel mouse sends whole notches, big and far apart; a trackpad a stream of small ones.
     const notch = !pinch && (event.deltaMode !== 0 || Math.abs(dy) >= 60)
     const dz = pinch
@@ -213,20 +249,81 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
       : notch
         ? -Math.sign(dy) * WHEEL.notchLevels * Math.min(2, Math.max(1, Math.abs(dy) / 100))
         : -dy / WHEEL.scrollPxPerLevel
-    if (!frame) {
-      target = map.getZoom()
-      current = target
-      last = performance.now()
+    nudge(dz, map.mouseEventToContainerPoint(event))
+  }
+
+  // Safari's pinch: only where the browser has gesture events at all.
+  const gestures = 'GestureEvent' in window
+  let touching = false
+  let pointer: L.Point | null = null
+  const onTouch = (event: TouchEvent) => {
+    touching = event.touches.length > 0
+  }
+  const onPointerMove = (event: PointerEvent) => {
+    pointer = map.mouseEventToContainerPoint(event)
+  }
+  const onPointerLeave = () => {
+    pointer = null
+  }
+  /** Where a pinch zooms about: the pointer, as for the wheel; else where the event says, if that's on the map; else the middle. */
+  const anchorOf = (event: GestureEvent): L.Point => {
+    if (pointer) return pointer
+    const { clientX, clientY } = event
+    if (typeof clientX === 'number' && typeof clientY === 'number' && Number.isFinite(clientX) && Number.isFinite(clientY)) {
+      const rect = container.getBoundingClientRect()
+      const at = L.point(clientX - rect.left, clientY - rect.top)
+      if (at.x >= 0 && at.y >= 0 && at.x <= rect.width && at.y <= rect.height) return at
     }
-    target = internals._limitZoom(target + dz)
-    anchor = map.mouseEventToContainerPoint(event)
-    lastWheel = performance.now()
-    if (!frame) frame = requestAnimationFrame(step)
+    return map.getSize().divideBy(2)
+  }
+  const onGestureStart = (event: Event) => {
+    // Fingers on a touchscreen: Leaflet's touch zoom has the pinch.
+    if (touching) return
+    event.preventDefault()
+    gesture = { scale: 1, by: null }
+  }
+  const onGestureChange = (event: Event) => {
+    if (!gesture) return
+    event.preventDefault()
+    const { scale } = event as GestureEvent
+    if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) return
+    const dz = Math.log2(scale / gesture.scale)
+    gesture.scale = scale
+    if (!dz || wheelPinches || gesture.by === 'wheel') return
+    gesture.by = 'gesture'
+    nudge(dz, anchorOf(event as GestureEvent))
+  }
+  const onGestureEnd = (event: Event) => {
+    if (!gesture) return
+    event.preventDefault()
+    // Let go: the map settles as soon as it has eased to where the pinch left it.
+    if (gesture.by === 'gesture') lastWheel = 0
+    gesture = null
   }
 
   container.addEventListener('wheel', onWheel, { passive: false })
+  if (gestures) {
+    container.addEventListener('gesturestart', onGestureStart, { passive: false })
+    container.addEventListener('gesturechange', onGestureChange, { passive: false })
+    container.addEventListener('gestureend', onGestureEnd, { passive: false })
+    container.addEventListener('touchstart', onTouch, { passive: true })
+    container.addEventListener('touchend', onTouch, { passive: true })
+    container.addEventListener('touchcancel', onTouch, { passive: true })
+    container.addEventListener('pointermove', onPointerMove, { passive: true })
+    container.addEventListener('pointerleave', onPointerLeave, { passive: true })
+  }
   return () => {
     container.removeEventListener('wheel', onWheel)
+    if (gestures) {
+      container.removeEventListener('gesturestart', onGestureStart)
+      container.removeEventListener('gesturechange', onGestureChange)
+      container.removeEventListener('gestureend', onGestureEnd)
+      container.removeEventListener('touchstart', onTouch)
+      container.removeEventListener('touchend', onTouch)
+      container.removeEventListener('touchcancel', onTouch)
+      container.removeEventListener('pointermove', onPointerMove)
+      container.removeEventListener('pointerleave', onPointerLeave)
+    }
     cancelAnimationFrame(frame)
     frame = 0
     if (begun) finish()
@@ -338,7 +435,8 @@ export function MapCanvas({
     }
 
     const tiles = new AzaniaTileLayer(wrap).addTo(map)
-    const detachSheets = attachSheets(map, wrap)
+    // The world as one picture, under the tiles; fetched ahead of a zoom on the live map, not in an article.
+    const detachSheets = attachSheets(map, { wrap, tiles, preload: wrap })
 
     // The overlay: Leaflet's SVG renderer, with a group of our own for React.
     const renderer = L.svg({ padding: 0.6 }).addTo(map)
