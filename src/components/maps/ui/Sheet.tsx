@@ -23,6 +23,7 @@ export function Sheet({
   state,
   onState,
   handle,
+  page,
   children,
   className,
 }: {
@@ -30,6 +31,8 @@ export function Sheet({
   onState: (state: SheetState) => void
   /** The peek line: what the sheet holds, in one line. */
   handle: ReactNode
+  /** Which page the sheet holds: another one opens at its top, not where the last was scrolled to. */
+  page?: string
   children: ReactNode
   className?: string
 }) {
@@ -42,7 +45,7 @@ export function Sheet({
 
   useEffect(() => {
     if (state !== 'peek' && sheetRef.current) sheetRef.current.scrollTop = 0
-  }, [state])
+  }, [state, page])
 
   const onPointerDown = (event: React.PointerEvent) => {
     const height = sheetRef.current?.parentElement?.getBoundingClientRect().height ?? 0

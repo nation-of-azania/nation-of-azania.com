@@ -39,6 +39,8 @@ const PATHS = {
   town: 'M12 3l7 6v12H5V9zM10 21v-5h4v5',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   corner: 'M4 20V9a5 5 0 0 1 5-5h11M15 20l5-5-5-5',
+  clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
+  offline: 'M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M2 8.5a15 15 0 0 1 20 0M12 19h.01M3 3l18 18',
 } as const
 
 export type IconName = keyof typeof PATHS

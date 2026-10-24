@@ -14,7 +14,7 @@ import {
 } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { abroadOf, homeNationOf, nationFit, type Abroad } from '@/maps/abroad'
+import { abroadOf, abroadTownPage, homeNationOf, nationFit, worldSlug, type Abroad } from '@/maps/abroad'
 import {
   heartland,
   homeClaimBounds,
@@ -44,6 +44,7 @@ import {
   decodeExtras,
   decodeLayers,
   DEFAULT_EXTRAS,
+  MAPS_PATH,
   mapsQuery,
   sameSelection,
   selectionHref,
@@ -57,10 +58,11 @@ import {
 import { api, ApiError, messageOf } from './api'
 import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
 import { EditorPanel } from './editor/EditorPanel'
-import { createStore, useHydrated, useMediaQuery, useSearch, useStore } from './hooks'
+import { createStore, useHydrated, useLatest, useMediaQuery, useSearch, useStore } from './hooks'
 import { abroadTownTarget } from './layers/AbroadLayer'
 import { useLivePlayers } from './live'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
+import { Preview } from './panels/Preview'
 import {
   emptyEvent,
   emptyPlace,
@@ -153,6 +155,25 @@ function describe(
 
 type Store<T> = ReturnType<typeof createStore<T>>
 
+/**
+ * A page the reader has opened that hasn't arrived yet: what it is (null
+ * for the map's front), its address, whether it has been sent for (it
+ * isn't while the browser is offline), and whether the reader came to it
+ * by back or forward, when asking again must not add a step to the
+ * history. Each asking has a number of its own, so a timer set for one
+ * can't speak for the next.
+ */
+type Asked = {
+  selection: MapSelection | null
+  href: string
+  sent: boolean
+  traversed?: boolean
+  id: number
+}
+
+/** How long a page may take before the panel says it's slow in coming and offers to ask again. */
+const SLOW_MS = 8000
+
 /** How long to wait before asking the Registry again who the visitor is, attempt by attempt. */
 const RIGHTS_RETRIES = [0, 1500, 4000]
 
@@ -241,7 +262,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const search = useSearch()
   // The panel stands beside the map on a wide screen; on a phone it's a sheet. One or the other, never both.
   const wide = useMediaQuery('(min-width: 1024px)', true)
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   // The nation as served, with the visitor's own edits until the server catches up.
   const [data, setData] = useState(served)
@@ -297,7 +318,25 @@ export function MapsShell({ data: served, children }: ShellProps) {
   }, [rightsStatus, retryRights])
   const rightsKnown = rightsStatus === 'known'
 
-  const selection = useMemo(() => selectionOf(pathname), [pathname])
+  // The page the reader has opened, from the moment they open it until it
+  // arrives: meanwhile the panel is drawn from what the browser already
+  // holds (panels/Preview.tsx), the map marks it, and the page is on its
+  // way. It has arrived when the address moves, to it or to wherever the
+  // server sent the reader instead (a page that isn't on the map).
+  const [asked, setAsked] = useState<Asked | null>(null)
+  // Whether the panel holds a page that came after its preview: what it brought fades in.
+  const [handedOver, setHandedOver] = useState(false)
+  const [seenPath, setSeenPath] = useState(pathname)
+  if (pathname !== seenPath) {
+    setSeenPath(pathname)
+    if (asked) {
+      setAsked(null)
+      setHandedOver(true)
+    }
+  }
+  const landed = useMemo(() => selectionOf(pathname), [pathname])
+  // What's open: the page asked for, ahead of the address.
+  const selection = asked ? asked.selection : landed
   const query = useMemo(() => new URLSearchParams(search), [search])
 
   // The address names the layers until the visitor chooses.
@@ -469,7 +508,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // On arrival at a spot the address named, the selection is left where it is.
   useEffect(() => {
     if (!hydrated || lastSelection.current !== undefined) return
-    if (decodeAt(query.get('at'))) lastSelection.current = selection
+    if (decodeAt(query.get('at'))) lastSelection.current = landed
     // Arrival only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated])
@@ -536,50 +575,152 @@ export function MapsShell({ data: served, children }: ShellProps) {
     }
   }, [centreStore, layers, extras, viewing])
 
-  // Opening something looks at it, and on a phone draws the sheet up.
+  // Opening something draws the sheet up on a phone, and starts the panel at its top, at once.
   const [sheetFor, setSheetFor] = useState(selection)
   if (!sameSelection(sheetFor, selection)) {
     setSheetFor(selection)
     if (selection) setSheet('half')
   }
+  const page = selectionHref(selection)
+  useEffect(() => {
+    panelRef.current?.scrollTo({ top: 0 })
+  }, [page])
+  // The map looks at it once its page has arrived, as it always has. Flown
+  // the moment it's opened, the map's new tiles would share a slow
+  // connection with the page and the code it needs, and keep the panel's
+  // placeholders up for seconds longer; the map marks it at once instead.
   // A town or a nation abroad opened before the world arrived is looked at once it has.
   const owedLook = useRef<MapSelection | null>(null)
   useEffect(() => {
-    if (lastSelection.current !== undefined && sameSelection(lastSelection.current, selection))
-      return
+    if (lastSelection.current !== undefined && sameSelection(lastSelection.current, landed)) return
     const first = lastSelection.current === undefined
-    lastSelection.current = selection
+    lastSelection.current = landed
     owedLook.current = null
     if (first) {
       // The map opened before anything said where a page abroad is: it looks once the world arrives,
       // unless the address named a spot, which is where the reader asked to be.
       const placed = Boolean(decodeAt(new URLSearchParams(window.location.search).get('at')))
-      if (selection && !placed && !arrived.current && !lookFor(data, world, selection)) owedLook.current = selection
+      if (landed && !placed && !arrived.current && !lookFor(data, world, landed)) owedLook.current = landed
       return
     }
-    if (selection) {
-      const target = lookFor(data, world, selection)
+    if (landed) {
+      const target = lookFor(data, world, landed)
       if (target) look(target)
-      else owedLook.current = selection
+      else owedLook.current = landed
     }
-    panelRef.current?.scrollTo({ top: 0 })
-  }, [selection, data, world, look])
+  }, [landed, data, world, look])
   useEffect(() => {
     const owed = owedLook.current
-    if (!world || !owed || !sameSelection(owed, selection)) return
+    if (!world || !owed || !sameSelection(owed, landed)) return
     owedLook.current = null
     const target = lookFor(data, world, owed)
     if (target) look(target)
-  }, [world, selection, data, look])
+  }, [world, landed, data, look])
+
+  const askedRef = useLatest(asked)
+  const pathRef = useLatest(pathname)
+  const askings = useRef(0)
+  /**
+   * Open a page: its panel at once, the page itself sent for now, or, while
+   * the browser is offline, once it's back (asked for offline, the router
+   * would have the browser leave the map for its own error page). The same
+   * page opened twice is sent for once; the page already open is only
+   * addressed afresh.
+   */
+  const go = useCallback(
+    (chosen: MapSelection | null) => {
+      const next = settle(chosen, data, world)
+      const waiting = askedRef.current
+      if (waiting && sameSelection(waiting.selection, next)) return
+      const href = `${selectionHref(next)}${mapsQuery({ at: realPosition(centreStore.get()), layers, extras, view: viewing?.id ?? null })}`
+      const here = next ? sameSelection(next, selectionOf(pathRef.current)) : pathRef.current === MAPS_PATH
+      const sent = here || navigator.onLine
+      setHandedOver(false)
+      setAsked(here ? null : { selection: next, href, sent, id: ++askings.current })
+      if (sent) startTransition(() => router.push(href, { scroll: false }))
+    },
+    [router, centreStore, layers, extras, viewing, askedRef, pathRef, data, world],
+  )
 
   const select = useCallback(
     (next: MapSelection | null) => {
       setEditor(null)
-      const query = mapsQuery({ at: realPosition(centreStore.get()), layers, extras, view: viewing?.id ?? null })
-      startTransition(() => router.push(`${selectionHref(next)}${query}`, { scroll: false }))
+      go(next)
     },
-    [router, centreStore, layers, extras, viewing, setEditor],
+    [go, setEditor],
   )
+
+  // Back and forward: the page the browser goes to is drawn at once too,
+  // while the router fetches it. One it still holds replaces it within a
+  // frame, before any placeholder shows.
+  useEffect(() => {
+    const onPop = () => {
+      const path = window.location.pathname
+      const next = selectionOf(path)
+      if (path === pathRef.current || (!next && path !== MAPS_PATH)) return
+      setHandedOver(false)
+      setAsked({
+        selection: next,
+        href: `${path}${window.location.search}`,
+        sent: true,
+        traversed: true,
+        id: ++askings.current,
+      })
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [pathRef])
+
+  // A page held while the browser was offline is sent for once it's back.
+  useEffect(() => {
+    if (!asked || asked.sent) return
+    const send = () => {
+      setAsked((current) => (current?.id === asked.id ? { ...current, sent: true } : current))
+      startTransition(() => router.push(asked.href, { scroll: false }))
+    }
+    window.addEventListener('online', send)
+    return () => window.removeEventListener('online', send)
+  }, [asked, router])
+
+  // A page slow in coming is said to be, with a way to ask again, rather than left shimmering for ever.
+  const [stalled, setStalled] = useState<number | null>(null)
+  useEffect(() => {
+    if (!asked?.sent) return
+    const id = asked.id
+    const handle = window.setTimeout(() => setStalled(id), SLOW_MS)
+    return () => window.clearTimeout(handle)
+  }, [asked])
+  const slow = asked?.sent === true && stalled === asked.id
+  // Slow, or held offline: its placeholders stop shimmering, and the panel says why.
+  const held = asked != null && (slow || !asked.sent)
+  const askAgain = () => {
+    if (!asked) return
+    const sent = navigator.onLine
+    setAsked({ ...asked, sent, id: ++askings.current })
+    if (!sent) return
+    // Reached by back or forward, the address is already the page's own.
+    if (asked.traversed) startTransition(() => router.replace(asked.href, { scroll: false }))
+    else startTransition(() => router.push(asked.href, { scroll: false }))
+  }
+
+  // A link to another of the map's pages, anywhere in the shell (a place in
+  // a town's panel, the wordmark), opens it as everything else does: the
+  // panel at once, the map's state kept. Like the link it was, it leaves an
+  // editor open, drawing and all. A link with its own query, or one opened
+  // in a new tab, goes its own way.
+  const followLink = (event: React.MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0) return
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const anchor = (event.target as Element).closest('a[href]')
+    if (!(anchor instanceof HTMLAnchorElement) || anchor.hasAttribute('download')) return
+    if (anchor.target && anchor.target !== '_self') return
+    const url = new URL(anchor.href)
+    if (url.origin !== window.location.origin || url.search || url.hash) return
+    const next = selectionOf(url.pathname)
+    if (!next && url.pathname !== MAPS_PATH) return
+    event.preventDefault()
+    go(next)
+  }
 
   const mayEdit = useCallback(
     (town: number | null) => rights.anywhere || (town != null && rights.towns.includes(town)),
@@ -664,10 +805,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
         events: kind === 'event' ? current.events.filter((item) => item.id !== id) : current.events,
       }))
       setEditor(null)
-      startTransition(() => router.push('/maps', { scroll: false }))
+      go(null)
       refresh()
     },
-    [router, refresh, setEditor],
+    [go, refresh, setEditor],
   )
 
   const editPlace = useCallback(
@@ -833,9 +974,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       }
     })
     setEditor(null)
-    startTransition(() =>
-      router.push(selectionHref({ kind, id: item.id } as MapSelection), { scroll: false }),
-    )
+    go({ kind, id: item.id })
     refresh()
   }
 
@@ -924,21 +1063,35 @@ export function MapsShell({ data: served, children }: ShellProps) {
       {wide && selection ? (
         <div className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
           <span className="mt-0.5">{back}</span>
-          {pending && described ? (
-            <div aria-busy="true" className="min-w-0 flex-1">
-              <p className="font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
-                {described.kind}
-              </p>
-              <p className="truncate font-display text-xl text-sea-950">{described.title}</p>
-            </div>
-          ) : (
-            <p className="min-w-0 flex-1 self-center text-[11px] uppercase tracking-[0.18em] text-ink-400">
-              Azania Maps
-            </p>
-          )}
+          <p className="min-w-0 flex-1 self-center text-[11px] uppercase tracking-[0.18em] text-ink-400">
+            Azania Maps
+          </p>
         </div>
       ) : null}
-      <div className={cn('flex-1', pending && 'opacity-60 transition-opacity')}>{children}</div>
+      {/* The page, or until it arrives its preview: busy meanwhile, still once it's slow or held. */}
+      <div
+        aria-busy={asked ? true : undefined}
+        className="az-panel flex-1"
+        data-arrived={handedOver ? '' : undefined}
+        data-stalled={held ? '' : undefined}
+      >
+        {asked && held ? (
+          <div className="mx-4 mt-3 flex items-center gap-3 border border-sand-300 bg-sand-100/70 px-3 py-2 text-[13px] leading-snug text-ink-700">
+            <Icon className="h-4 w-4 shrink-0 text-saffron-600" name={asked.sent ? 'clock' : 'offline'} />
+            <span className="min-w-0 flex-1">
+              {asked.sent
+                ? 'Still on its way: the connection is slow.'
+                : 'You’re offline. It opens as soon as the connection is back.'}
+            </span>
+            {asked.sent ? (
+              <TextButton className="shrink-0 px-2.5 py-1" onClick={askAgain}>
+                Try again
+              </TextButton>
+            ) : null}
+          </div>
+        ) : null}
+        {asked ? <Preview selection={asked.selection} /> : children}
+      </div>
     </>
   )
 
@@ -1042,12 +1195,26 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </span>
     )
 
+  // Said to a screen reader as a page is opened, while the panel is busy with it.
+  const askedName = asked ? (described?.title ?? (asked.selection ? 'the page' : 'Azania at a glance')) : null
+  const announcement = !asked
+    ? ''
+    : !asked.sent
+      ? `You’re offline: ${askedName} opens as soon as the connection is back.`
+      : slow
+        ? `Still loading ${askedName}: the connection is slow.`
+        : `Loading ${askedName}…`
+
   return (
     <MapsContext.Provider value={actions}>
       <div
         className="az-maps fixed inset-0 flex bg-sea-900 text-ink-900"
         data-tool={editor ? editor.kind : undefined}
+        onClickCapture={followLink}
       >
+        <p aria-live="polite" className="sr-only" role="status">
+          {announcement}
+        </p>
         {/* The panel, beside the map on a wide screen. */}
         {wide ? (
           <aside
@@ -1194,7 +1361,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
 
         {/* Phone: the panel as a sheet. */}
         {!wide ? (
-          <Sheet handle={handle} onState={setSheet} state={sheet}>
+          <Sheet handle={handle} onState={setSheet} page={page} state={sheet}>
             {/* One line of tools over the page: the way back, the map's centre, the account. */}
             <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
               {selection && !editor ? back : null}
@@ -1234,6 +1401,25 @@ function initialOf(target: LookTarget): SceneProps['initial'] | null {
   if ('centre' in target && 'zoom' in target && target.zoom != null)
     return { centre: target.centre, zoom: target.zoom }
   return null
+}
+
+/**
+ * Where a selection's page really is, when the browser can tell: a town
+ * named abroad that is Azania's own has a page of its own, and Azania's
+ * own nation is the map's front. The server would send the reader on from
+ * the other, after a round trip and a blank panel between.
+ */
+function settle(selection: MapSelection | null, data: MapData, world: Abroad | null): MapSelection | null {
+  if (selection?.kind === 'nation') {
+    const home = homeNationOf(data.towns)
+    return home && worldSlug(home) === selection.slug ? null : selection
+  }
+  if (selection?.kind === 'abroad' && world && !world.townBySlug.has(selection.slug)) {
+    const page = abroadTownPage(world, selection.slug, null)
+    const own = page?.kind === 'own' ? data.towns.find((town) => town.townyId === page.townyId) : null
+    if (own) return { kind: 'town', slug: own.slug }
+  }
+  return selection
 }
 
 /** Where to look for a selection: a town's main claim, a road's course, a point up close, a nation's heartland. */
