@@ -13,7 +13,7 @@ import { planLabels } from '../layers/labels'
 import { PlacesLayer } from '../layers/PlacesLayer'
 import { RoadsLayer } from '../layers/RoadsLayer'
 import { TownLabels, TownsLayer } from '../layers/TownsLayer'
-import { fitBounds, MapCanvas, useProjection, type L } from '../leaflet/canvas'
+import { fitBounds, MapCanvas, OnTop, useProjection, type L } from '../leaflet/canvas'
 import { MapsMark } from '../Mark'
 import type { Frame } from '../still/Still'
 import { IconButton } from '../ui/chrome'
@@ -96,31 +96,35 @@ function Layers({ frame, data, now }: { frame: Frame; data: MapData; now: number
     events: show('events') ? data.events : [],
     now,
   })
+  // The ground, and over it what keeps its size on the page mid-zoom (leaflet/canvas.tsx → OnTop).
   return (
     <>
       {show('towns') ? (
         <TownsLayer projection={projection} selected={frame.town ?? null} towns={data.towns} />
       ) : null}
-      {show('roads') ? (
-        <RoadsLayer labels={labels.roads} projection={projection} roads={data.roads} />
-      ) : null}
-      {show('places') ? (
-        <PlacesLayer labels={labels.places} places={data.places} projection={projection} />
-      ) : null}
-      {show('events') ? (
-        <EventsLayer events={data.events} labels={labels.events} now={now} projection={projection} />
-      ) : null}
-      {show('towns') ? (
-        <TownLabels
-          labels={labels.towns}
-          projection={projection}
-          selected={frame.town ?? null}
-          towns={data.towns}
-        />
-      ) : null}
-      {frame.drawings.length ? (
-        <DrawingsLayer drawings={frame.drawings} projection={projection} />
-      ) : null}
+      {show('roads') ? <RoadsLayer part="roads" projection={projection} roads={data.roads} /> : null}
+      <OnTop>
+        {show('roads') ? (
+          <RoadsLayer labels={labels.roads} part="names" projection={projection} roads={data.roads} />
+        ) : null}
+        {show('places') ? (
+          <PlacesLayer labels={labels.places} places={data.places} projection={projection} />
+        ) : null}
+        {show('events') ? (
+          <EventsLayer events={data.events} labels={labels.events} now={now} projection={projection} />
+        ) : null}
+        {show('towns') ? (
+          <TownLabels
+            labels={labels.towns}
+            projection={projection}
+            selected={frame.town ?? null}
+            towns={data.towns}
+          />
+        ) : null}
+        {frame.drawings.length ? (
+          <DrawingsLayer drawings={frame.drawings} projection={projection} />
+        ) : null}
+      </OnTop>
     </>
   )
 }

@@ -40,6 +40,7 @@ import {
   L,
   MapCanvas,
   MAX_ZOOM,
+  OnTop,
   toLatLng,
   toPoint,
   useLeaflet,
@@ -492,12 +493,16 @@ const Layers = memo(function Layers({
     }),
   ]
 
-  /** The nation's layers over one projection: the real world's, or an echo's. */
-  const nation = (at: Projection, plan: LabelPlan) => (
+  /**
+   * The nation's ground over one projection, the real world's or an
+   * echo's: what grows and shrinks with a zoom, drawn in the overlay's
+   * first SVG, which mid-zoom is scaled whole as a picture.
+   */
+  const ground = (at: Projection) => (
     <>
       {/* The rings of the wars' reach, under everything: long, calm lines across the map. */}
-      {homeReach ? <WarReach projection={at} radius={radius} reach={homeReach} /> : null}
-      {openReach ? <WarReach projection={at} radius={radius} reach={openReach} /> : null}
+      {homeReach ? <WarReach part="ring" projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <WarReach part="ring" projection={at} radius={radius} reach={openReach} /> : null}
       {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
       {worldShown ? (
         <AbroadClaims
@@ -509,7 +514,7 @@ const Layers = memo(function Layers({
           styleOf={styleOf}
         />
       ) : null}
-      {worldShown && show('towns') ? <HomeGlow projection={at} towns={data.towns} /> : null}
+      {worldShown && show('towns') ? <HomeGlow part="casing" projection={at} towns={data.towns} /> : null}
       {show('towns') ? (
         <TownsLayer
           emphasised={emphasised}
@@ -521,13 +526,26 @@ const Layers = memo(function Layers({
       ) : null}
       {show('roads') ? (
         <RoadsLayer
-          labels={plan.roads}
           onSelect={(road) => onSelect({ kind: 'road', id: road.id })}
+          part="roads"
           projection={at}
           roads={roads}
           selected={selection?.kind === 'road' ? selection.id : null}
         />
       ) : null}
+    </>
+  )
+
+  /**
+   * And what's drawn over it: names, pins and marks, which keep their size
+   * on the page mid-zoom, in the overlay's second SVG (OnTop).
+   */
+  const marks = (at: Projection, plan: LabelPlan) => (
+    <>
+      {worldShown && show('towns') ? <HomeGlow part="discs" projection={at} towns={data.towns} /> : null}
+      {homeReach ? <WarReach part="name" projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <WarReach part="name" projection={at} radius={radius} reach={openReach} /> : null}
+      {show('roads') ? <RoadsLayer labels={plan.roads} part="names" projection={at} roads={roads} /> : null}
       {show('places') ? (
         <PlacesLayer
           labels={plan.places}
@@ -587,26 +605,34 @@ const Layers = memo(function Layers({
         comes back to it. Each copy is keyed by which copy of the world it is
         to the reader, not to the map, so when the map re-bases a world over
         (leaflet/home.ts) the copy under the reader keeps its group and fades
-        up to full colour, and the one they came from fades down.
+        up to full colour, and the one they came from fades down. Its ground
+        and its marks are drawn apart, in a group of each kind.
       */}
-      {copies.map(({ copy, at, labels: plan }) => (
+      {copies.map(({ copy, at }) => (
         <g className="az-world" data-echo={copy ? '' : undefined} key={world + copy}>
-          {nation(at, plan)}
+          {ground(at)}
         </g>
       ))}
-      {viewing && editor?.kind !== 'view' ? (
-        <DrawingsLayer drawings={viewing.drawings} projection={projection} />
-      ) : null}
-      {editor ? (
-        <Tools
-          data={data}
-          editor={editor}
-          onEditor={onEditor}
-          projection={projection}
-          rights={rights}
-        />
-      ) : null}
-      <Seams projection={projection} />
+      <OnTop>
+        {copies.map(({ copy, at, labels: plan }) => (
+          <g className="az-world" data-echo={copy ? '' : undefined} key={world + copy}>
+            {marks(at, plan)}
+          </g>
+        ))}
+        {viewing && editor?.kind !== 'view' ? (
+          <DrawingsLayer drawings={viewing.drawings} projection={projection} />
+        ) : null}
+        {editor ? (
+          <Tools
+            data={data}
+            editor={editor}
+            onEditor={onEditor}
+            projection={projection}
+            rights={rights}
+          />
+        ) : null}
+        <Seams projection={projection} />
+      </OnTop>
     </>
   )
 })

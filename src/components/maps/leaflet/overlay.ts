@@ -71,9 +71,14 @@ export type Layer = {
   dispose: () => void
 }
 
-/** A group of the overlay that's moved as a whole: React's drawing, or the names leaving it. */
-export function createLayer(element: SVGGElement): Layer {
-  const steady = createSteady(element)
+/**
+ * A group of the overlay that's moved as a whole: React's drawing, or the
+ * names leaving it. With `steady`, its marks and names are held their size
+ * at the scale it's moved by (./steady.ts); the ground's group, which is
+ * only ever moved into place as the view settles, has none to hold.
+ */
+export function createLayer(element: SVGGElement, steady = true): Layer {
+  const held = steady ? createSteady(element) : null
   let at = IDENTITY
   return {
     element,
@@ -83,9 +88,9 @@ export function createLayer(element: SVGGElement): Layer {
       const { k, x, y } = placement
       element.style.transform =
         k === 1 && x === 0 && y === 0 ? '' : `matrix(${k}, 0, 0, ${k}, ${x}, ${y})`
-      steady.apply(k)
+      held?.apply(k)
     },
-    dispose: () => steady.disconnect(),
+    dispose: () => held?.disconnect(),
   }
 }
 

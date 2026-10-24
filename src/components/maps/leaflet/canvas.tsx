@@ -89,6 +89,8 @@ type MapContextValue = {
    * be drawn as one.
    */
   world: number
+  /** The group over the ground that OnTop draws into: what keeps its size on the page mid-zoom. */
+  marks: SVGGElement | null
 }
 
 const MapContext = createContext<MapContextValue | null>(null)
@@ -98,6 +100,17 @@ export function useLeaflet(): MapContextValue {
   const value = useContext(MapContext)
   if (!value) throw new Error('useLeaflet needs a MapCanvas above it.')
   return value
+}
+
+/**
+ * Draws its children over the map's ground, in the overlay's second SVG
+ * (see MapCanvas): names, pins, marks, anything that keeps its size on the
+ * page mid-zoom. Outside a live map (a still, rendered on the server) it
+ * draws them where it stands.
+ */
+export function OnTop({ children }: { children: ReactNode }) {
+  const marks = useContext(MapContext)?.marks
+  return marks ? createPortal(children, marks) : <>{children}</>
 }
 
 /** The projection for the overlay at the settled view; recomputed when the view settles. */
@@ -375,17 +388,18 @@ type CanvasProps = {
 
 /**
  * The map itself: a Leaflet map in a div, its tiles from the cache, and an
- * SVG overlay the children are rendered into through a portal. Leaflet's
- * own SVG renderer holds that overlay, but where Leaflet would scale the
- * whole SVG like a picture mid-zoom — names ballooning, lines swelling —
- * the SVG keeps its size and the overlay's group is moved and scaled
- * inside it instead, frame by frame (./overlay.ts), with nothing of
- * React's running: the ground grows and shrinks, while what has a size on
- * the page keeps it and glides with its point (./steady.ts). When the view
- * settles, or holds still a moment mid-gesture, the children are rendered
- * again at the new layer points and the names hand over to the new plan;
- * until that render lands, the same move keeps what's drawn in place, so
- * no frame shows it askew.
+ * SVG overlay the children are rendered into through a portal, in two
+ * parts. The ground (the children themselves) lies in one of Leaflet's SVG
+ * renderers, which mid-zoom Leaflet scales whole like a picture, on the
+ * compositor, at no cost. What keeps its size on the page (whatever the
+ * children draw through OnTop: names, pins, marks) lies over it in a
+ * second, which keeps its size while its group is moved and scaled inside
+ * it, frame by frame (./overlay.ts), its marks held steady and gliding with
+ * their points (./steady.ts); nothing of React's runs meanwhile. When the
+ * view settles, or holds still a moment mid-gesture, the children are
+ * rendered again at the new layer points and the names hand over to the
+ * new plan; until that render lands, a move keeps what's drawn in place,
+ * so no frame shows it askew.
  */
 export function MapCanvas({
   initial,
@@ -410,8 +424,9 @@ export function MapCanvas({
   const drawn = useRef<View | null>(null)
   const settled = useRef<View | null>(null)
   const shown = useRef<Shown | null>(null)
-  // The overlay's group as it's moved (./overlay.ts), and the names' hand-over.
+  // The overlay's groups as they're moved (./overlay.ts): the marks' and the ground's; and the names' hand-over.
   const layer = useRef<Layer | null>(null)
+  const groundLayer = useRef<Layer | null>(null)
   const handover = useRef<Handover | null>(null)
   const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick })
   useEffect(() => {
@@ -465,39 +480,67 @@ export function MapCanvas({
       return fly(centre, zoom, options)
     }
 
-    // The overlay: Leaflet's SVG renderer, with a group of our own for React.
-    const renderer = L.svg({ padding: OVERLAY_PADDING }).addTo(map)
-    const svg = renderer as unknown as { _container: SVGSVGElement; _update: () => void }
-    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-    group.setAttribute('class', 'az-overlay')
-    svg._container.appendChild(group)
-    // Beside it, the names going as the view settles, fading where they stood (./overlay.ts).
+    // The overlay, in two of Leaflet's SVG renderers, each with a group of
+    // our own for React. The ground (claims, roads, rings) is drawn into
+    // the first, and mid-zoom Leaflet scales that SVG whole, like a picture,
+    // which the compositor does without painting it again: its many long
+    // shapes cost nothing through a gesture, though their lines thicken and
+    // thin with it until the view settles. What keeps its size on the page
+    // (names, pins, marks: OnTop) is drawn into the second, over it, which
+    // keeps its own size; its group is moved and scaled frame by frame and
+    // its marks held steady (./overlay.ts), so only those few things are
+    // painted again each frame. Drawn as one SVG, a pinch painted every
+    // claim and road anew each frame, some four times the work.
+    const overlaySvg = (name: string) => {
+      const renderer = L.svg({ padding: OVERLAY_PADDING }).addTo(map)
+      const svg = renderer as unknown as { _container: SVGSVGElement; _update: () => void }
+      svg._container.classList.add(`${name}-svg`)
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      group.setAttribute('class', `az-overlay ${name}`)
+      svg._container.appendChild(group)
+      // React listens for focus on the element it renders a portal into, and
+      // Chromium makes an SVG element with focus listeners focusable: a tap on
+      // a town or a nation focused the whole overlay, and the browser ringed
+      // all that's drawn in it with its focus outline, a box the size of the
+      // drawing, out of sight until a pinch shrank the overlay. Focus belongs
+      // to the map itself, which shows a ring only for the keyboard.
+      group.addEventListener('focus', () => container.focus({ preventScroll: true }))
+      return { renderer, svg, group }
+    }
+    const ground = overlaySvg('az-ground')
+    const top = overlaySvg('az-marks')
+    /** Fits both SVGs to the view, as Leaflet does when the map settles. */
+    const fit = () => {
+      ground.svg._update()
+      top.svg._update()
+    }
+    // Beside the marks, the names going as the view settles, fading where they stood (./overlay.ts).
     const gone = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     gone.setAttribute('class', 'az-leaving')
     gone.setAttribute('aria-hidden', 'true')
-    svg._container.appendChild(gone)
-    // React listens for focus on the element it renders a portal into, and
-    // Chromium makes an SVG element with focus listeners focusable: a tap on
-    // a town or a nation focused the whole overlay, and the browser ringed
-    // all that's drawn in it with its focus outline, a box the size of the
-    // drawing, out of sight until a pinch shrank the overlay. Focus belongs
-    // to the map itself, which shows a ring only for the keyboard.
-    group.addEventListener('focus', () => container.focus({ preventScroll: true }))
-    setOverlay(group)
+    top.svg._container.appendChild(gone)
+    setOverlay(ground.group)
     const shownNow = () => shown.current ?? shownAt(takeView(map))
-    const drawing = createLayer(group)
+    const drawing = createLayer(top.group)
+    const groundDrawing = createLayer(ground.group, false)
     const leaving = createLayer(gone)
     layer.current = drawing
-    const names = createHandover({ map, container, group, leaving, shown: shownNow })
+    groundLayer.current = groundDrawing
+    const names = createHandover({ map, container, group: top.group, leaving, shown: shownNow })
     handover.current = names
+    // Mid-zoom the ground's SVG is held as the picture it was when the zoom set out, scaled by the
+    // compositor rather than painted afresh at each new scale; it's painted sharp again as it settles.
+    map.on('zoomstart', () => container.classList.add('az-zooming'))
+    map.on('zoomend', () => container.classList.remove('az-zooming'))
 
     /**
-     * The map is shown at `at`: what's drawn is moved there. Leaflet would
-     * scale the SVG itself mid-zoom, like a picture; instead the SVG stays
-     * where Leaflet last fitted it, over the map and a margin about it, at
-     * its own size, so its pixels are still the layer's, and the group
-     * inside is moved and scaled, its marks and names held steady. A zoom's
-     * animation is followed frame by frame as the tiles ease.
+     * The map is shown at `at`: the marks are moved there. Leaflet would
+     * scale their SVG itself mid-zoom, like a picture, as it does the
+     * ground's; instead it stays where Leaflet last fitted it, over the map
+     * and a margin about it, at its own size, so its pixels are still the
+     * layer's, and the group inside is moved and scaled, its marks and
+     * names held steady. A zoom's animation is followed frame by frame as
+     * the tiles ease.
      */
     const show = (at: Shown) => {
       shown.current = at
@@ -509,7 +552,7 @@ export function MapCanvas({
       ease.stop()
       show(shownAt(at))
     }
-    const scaler = renderer as unknown as SvgRenderer
+    const scaler = top.renderer as unknown as SvgRenderer
     scaler._updateTransform = (center, zoom) => {
       const at = { zoom, origin: (map as MapInternals)._getNewPixelOrigin(center, zoom) }
       if ((map as MapInternals)._animatingZoom) ease.start(at)
@@ -536,10 +579,10 @@ export function MapCanvas({
         const scale = 2 ** (map.getZoom() - drawn.current.zoom)
         drawn.current = { ...drawn.current, origin: drawn.current.origin.add(rebase.shift.divideBy(scale)) }
         // The viewreset left the overlay's box a fraction of a pixel off, as Leaflet's does; its own update sets it exactly.
-        svg._update()
+        fit()
       }
-      // Leaflet fits the SVG to the view when the map settles; held mid-gesture, it's fitted here, since a long drag may have carried it off the page.
-      if (held) svg._update()
+      // Leaflet fits the SVGs to the view when the map settles; held mid-gesture, they're fitted here, since a long drag may have carried them off the page.
+      if (held) fit()
       const view = takeView(map)
       const last = settled.current
       settled.current = view
@@ -548,6 +591,7 @@ export function MapCanvas({
       // first); move what's drawn into place before React runs. A pan
       // leaves the layer points as they were, and the overlay untouched.
       follow(view)
+      if (drawn.current) groundDrawing.place(placementOf(drawn.current, shownAt(view)))
       // Let go where a pause already drew it, the view is the same, and so is the drawing.
       const same =
         last !== null &&
@@ -558,7 +602,7 @@ export function MapCanvas({
       // Where the names stand, to hand over from once the new drawing is in; a re-basing moves nothing on the page.
       if (rebase) names.drop()
       else if (drawn.current) names.note(drawn.current)
-      setContext({ map, version: ++version, view, world: home?.world() ?? 0 })
+      setContext({ map, version: ++version, view, world: home?.world() ?? 0, marks: top.group })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
     const real = (point: Point) => !wrap || inWorld(point)
@@ -629,6 +673,7 @@ export function MapCanvas({
       window.clearTimeout(pause)
       ease.remove()
       drawing.dispose()
+      groundDrawing.dispose()
       leaving.dispose()
       observer.disconnect()
       detachSheets()
@@ -638,6 +683,7 @@ export function MapCanvas({
       settled.current = null
       shown.current = null
       layer.current = null
+      groundLayer.current = null
       handover.current = null
       setOverlay(null)
       setContext(null)
@@ -653,6 +699,8 @@ export function MapCanvas({
     if (!context || !overlay) return
     drawn.current = context.view
     layer.current?.place(placementOf(context.view, shown.current ?? shownAt(context.view)))
+    // The ground's SVG stands as Leaflet last fitted it, for the view the map last settled at.
+    groundLayer.current?.place(placementOf(context.view, shownAt(settled.current ?? context.view)))
     handover.current?.play()
   }, [context, overlay])
 

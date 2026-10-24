@@ -580,19 +580,27 @@ const GLOW_DISCS_BELOW = -4
  * Under Azania's own towns, while the world is drawn around them: a glow of
  * saffron, so the nation reads at once among the others. Far out, where a
  * town is a few pixels, a soft disc about each home, under its lozenge;
- * nearer, a casing about its claims.
+ * nearer, a casing about its claims. The live map draws the casing with
+ * the ground and the discs over it, under the lozenges, where they keep
+ * their size mid-zoom as the lozenges do (leaflet/canvas.tsx → OnTop);
+ * `part` says which this one is, and without it, it's whichever the zoom
+ * calls for.
  */
 export function HomeGlow({
   projection,
   towns,
+  part,
 }: {
   projection: Projection
   towns: { home: Point | null; bounds: Bounds | null; claims: Outline[] }[]
+  part?: 'casing' | 'discs'
 }) {
   const { zoom } = projection
+  const discs = zoom < GLOW_DISCS_BELOW
+  if (part && (part === 'discs') !== discs) return null
   const f = affineOf(projection)
   const shown = towns.filter((town) => town.bounds && boundsTouch(town.bounds, projection.bounds))
-  if (zoom < GLOW_DISCS_BELOW) {
+  if (discs) {
     const r = zoom <= -6 ? 7 : 6
     const homes = shown.map((town) =>
       at(f, town.home ?? [(town.bounds!.minX + town.bounds!.maxX) / 2, (town.bounds!.minZ + town.bounds!.maxZ) / 2]),

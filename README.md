@@ -538,13 +538,18 @@ shows them before the map settles.
 
 **Zooming is continuous.** Leaflet would scale the overlay like a picture
 mid-zoom and redraw it only when the gesture ends, so names ballooned and
-then snapped. Instead the overlay's group is moved and scaled with the
-ground frame by frame (`leaflet/overlay.ts`), while names, pins, marks and
-heads keep their size on the page and glide with their point, and lines
-keep their width (`leaflet/steady.ts`; the layers say what holds steady in
-data attributes, `layers/projection.ts`). A button or key zoom follows
-the tiles' own CSS transition exactly. A gesture held still for 150 ms
-draws the overlay again for the view as it stands, and when the view
+then snapped. The overlay is drawn as two SVGs (`leaflet/canvas.tsx`).
+The ground (claims, roads, rings) is still scaled whole as a picture,
+which the compositor does without painting it again, so its lines thicken
+and thin with a pinch until the view settles. Names, pins and marks are
+drawn over it, through `OnTop`, in a second SVG whose group is moved and
+scaled frame by frame (`leaflet/overlay.ts`) while they keep their size on
+the page and glide with their point (`leaflet/steady.ts`; the layers say
+what holds steady in data attributes, `layers/projection.ts`). Only those
+few are painted again each frame: drawn as one SVG, a pinch repainted every
+claim and road each frame, some four times the work. A button or key zoom
+follows the tiles' own CSS transition exactly. A gesture held still for
+150 ms draws the overlay again for the view as it stands, and when the view
 settles the names glide to their new spots, fade out or fade in rather
 than swap (a plain swap for readers who ask for less motion). Sizes that
 step with the zoom (a name's 11, 12 or 13 px) still change when it settles.

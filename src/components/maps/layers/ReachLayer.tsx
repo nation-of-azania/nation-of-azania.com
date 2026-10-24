@@ -146,8 +146,23 @@ export type Reach = {
   named: boolean
 }
 
-/** One ring on one projection: cut to the world and to the page, cased, dashed, and named along its top. */
-export function WarReach({ projection, reach, radius }: { projection: Projection; reach: Reach; radius: number }) {
+/**
+ * One ring on one projection: cut to the world and to the page, cased,
+ * dashed, and named along its top. The ring, its name, or both (the
+ * default): the live map draws the ring with the ground and the name over
+ * it, where it keeps its size mid-zoom (leaflet/canvas.tsx → OnTop).
+ */
+export function WarReach({
+  projection,
+  reach,
+  radius,
+  part,
+}: {
+  projection: Projection
+  reach: Reach
+  radius: number
+  part?: 'ring' | 'name'
+}) {
   const clip = intersect(WORLD, projection.bounds)
   if (!clip) return null
   const runs = ringRuns(reach.capital.home, radius, projection.ppb, clip)
@@ -168,17 +183,21 @@ export function WarReach({ projection, reach, radius }: { projection: Projection
   const id = `${projection.id}-reach-${reach.nation.replace(/[^\w-]/g, '')}`
   return (
     <g className="az-reach" pointerEvents="none">
-      <path d={d} fill="none" stroke={GROUND.whitewash} strokeLinecap="round" strokeOpacity={0.7} strokeWidth={reach.home ? 4 : 3.5} />
-      <path
-        d={d}
-        fill="none"
-        stroke={reach.colour}
-        strokeDasharray={reach.home ? '10 6' : '6 5'}
-        strokeLinecap="round"
-        strokeOpacity={0.9}
-        strokeWidth={reach.home ? 2 : 1.5}
-      />
-      {arc ? (
+      {part === 'name' ? null : (
+        <>
+          <path d={d} fill="none" stroke={GROUND.whitewash} strokeLinecap="round" strokeOpacity={0.7} strokeWidth={reach.home ? 4 : 3.5} />
+          <path
+            d={d}
+            fill="none"
+            stroke={reach.colour}
+            strokeDasharray={reach.home ? '10 6' : '6 5'}
+            strokeLinecap="round"
+            strokeOpacity={0.9}
+            strokeWidth={reach.home ? 2 : 1.5}
+          />
+        </>
+      )}
+      {arc && part !== 'ring' ? (
         // Along the ring itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
         <g {...named(projection, 'reach', reach.nation)}>
           <path d={arc} fill="none" id={id} stroke="none" />

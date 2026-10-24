@@ -21,6 +21,12 @@ type Props = {
   labels?: Map<number, RoadName>
   selected?: number | null
   onSelect?: (road: MapRoad) => void
+  /**
+   * The roads, their names, or both (the default). The live map draws the
+   * roads with the ground and the names over it, where they keep their size
+   * mid-zoom (leaflet/canvas.tsx → OnTop).
+   */
+  part?: 'roads' | 'names'
 }
 
 /** A road's name, placed: how far along the course it sits, as a fraction. */
@@ -137,7 +143,7 @@ export function placeRoadNames(
  * course (src/maps/geo.ts → roadCourse). A name runs along the line where
  * the plan found it room.
  */
-export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Props) {
+export function RoadsLayer({ projection, roads, labels, selected, onSelect, part }: Props) {
   const { ppb, zoom, id } = projection
   const interactive = Boolean(onSelect)
   const { courses, ordered } = onPage(projection, roads)
@@ -150,7 +156,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
 
   return (
     <g className="az-roads">
-      {chosen ? (
+      {chosen && part !== 'names' ? (
         <path
           d={paths.get(chosen.id)}
           fill="none"
@@ -163,74 +169,76 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
         />
       ) : null}
       {/* Solid inside, washed as one: roads meeting merge, and nothing shows through a fill but the ground. */}
-      <g className="az-road-body" opacity={wash}>
-        <g className="az-road-casings">
-          {ordered.map((road) => {
-            const style = ROAD_STYLES[road.kind]
-            if (!style.casing) return null
-            return (
-              <path
-                key={road.id}
-                d={paths.get(road.id)}
-                fill="none"
-                stroke={style.casing}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={roadWidth(road, ppb) + edge}
-                {...roadSteady(road, ppb, { plus: edge })}
-              />
-            )
-          })}
-        </g>
-        <g className="az-road-fills">
-          {ordered.map((road) => {
-            const style = ROAD_STYLES[road.kind]
-            const width = roadWidth(road, ppb)
-            return (
-              <g
-                key={road.id}
-                className={interactive ? 'az-hit' : undefined}
-                onClick={onSelect ? () => onSelect(road) : undefined}
-                style={interactive ? { cursor: 'pointer' } : undefined}
-              >
-                {/* A wide, invisible stroke makes a thin road easy to click. */}
-                {interactive ? (
-                  <path
-                    d={paths.get(road.id)}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth={Math.max(width + 2, 12)}
-                    {...roadSteady(road, ppb, { plus: 2, least: 12 })}
-                  />
-                ) : null}
+      {part === 'names' ? null : (
+        <g className="az-road-body" opacity={wash}>
+          <g className="az-road-casings">
+            {ordered.map((road) => {
+              const style = ROAD_STYLES[road.kind]
+              if (!style.casing) return null
+              return (
                 <path
+                  key={road.id}
                   d={paths.get(road.id)}
                   fill="none"
-                  stroke={style.fill}
-                  strokeDasharray={
-                    style.dash ? style.dash.map((n) => n * width).join(' ') : undefined
-                  }
-                  strokeLinecap={style.dash ? 'butt' : 'round'}
+                  stroke={style.casing}
+                  strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={width}
-                  {...roadSteady(road, ppb, {}, style.dash)}
+                  strokeWidth={roadWidth(road, ppb) + edge}
+                  {...roadSteady(road, ppb, { plus: edge })}
                 />
-                {style.over ? (
+              )
+            })}
+          </g>
+          <g className="az-road-fills">
+            {ordered.map((road) => {
+              const style = ROAD_STYLES[road.kind]
+              const width = roadWidth(road, ppb)
+              return (
+                <g
+                  key={road.id}
+                  className={interactive ? 'az-hit' : undefined}
+                  onClick={onSelect ? () => onSelect(road) : undefined}
+                  style={interactive ? { cursor: 'pointer' } : undefined}
+                >
+                  {/* A wide, invisible stroke makes a thin road easy to click. */}
+                  {interactive ? (
+                    <path
+                      d={paths.get(road.id)}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={Math.max(width + 2, 12)}
+                      {...roadSteady(road, ppb, { plus: 2, least: 12 })}
+                    />
+                  ) : null}
                   <path
                     d={paths.get(road.id)}
                     fill="none"
-                    stroke={style.over.colour}
-                    strokeDasharray={style.over.dash.map((n) => n * width).join(' ')}
-                    strokeWidth={width * 0.45}
-                    {...roadSteady(road, ppb, { times: 0.45 }, style.over.dash)}
+                    stroke={style.fill}
+                    strokeDasharray={
+                      style.dash ? style.dash.map((n) => n * width).join(' ') : undefined
+                    }
+                    strokeLinecap={style.dash ? 'butt' : 'round'}
+                    strokeLinejoin="round"
+                    strokeWidth={width}
+                    {...roadSteady(road, ppb, {}, style.dash)}
                   />
-                ) : null}
-              </g>
-            )
-          })}
+                  {style.over ? (
+                    <path
+                      d={paths.get(road.id)}
+                      fill="none"
+                      stroke={style.over.colour}
+                      strokeDasharray={style.over.dash.map((n) => n * width).join(' ')}
+                      strokeWidth={width * 0.45}
+                      {...roadSteady(road, ppb, { times: 0.45 }, style.over.dash)}
+                    />
+                  ) : null}
+                </g>
+              )
+            })}
+          </g>
         </g>
-      </g>
-      {labels?.size ? (
+      )}
+      {labels?.size && part !== 'roads' ? (
         <g className="az-road-names">
           {ordered.map((road) => {
             const name = labels.get(road.id)
