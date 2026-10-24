@@ -1,126 +1,42 @@
 import { unstable_cache } from 'next/cache'
 
 import {
-  abroadHomeBounds,
+  abroadNationPage,
   abroadOf,
+  abroadTownPage,
   homeNationOf,
-  nationFit,
-  sameNation,
-  worldSlug,
-  type AbroadNation,
-  type AbroadTown,
+  type AbroadNationPage as NationPage,
+  type AbroadTownPage as TownPage,
 } from '@/maps/abroad'
 import type { MapData } from '@/maps/data'
-import type { Bounds, Point } from '@/maps/geo'
-import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from '@/maps/spawn'
-import { WORLD_EVERY_S, type World, type WorldTown } from '@/maps/world'
+import { WORLD_EVERY_S } from '@/maps/world'
 
 import { getWorld } from './world'
 
 /**
  * What the pages of Azania Maps for the world abroad say (/maps/abroad/…
  * and /maps/nation/…; src/maps/abroad.ts): one town or one nation out of
- * /maps/world.json's reading, in the few fields its panel shows. Kept by
- * unstable_cache, keyed by the address and Azania's own towns, so a page
- * neither waits on the Rulercraft map's 5 MB marker file each time nor
- * stops being cached (the read inside doesn't make the page dynamic); the
- * world changes slowly, so a quarter of an hour, as /maps/world.json itself.
+ * /maps/world.json's reading, in the few fields its panel shows, built by
+ * the same pure functions the browser uses to show the panel before the
+ * page arrives. Kept by unstable_cache, keyed by the address and Azania's
+ * own towns, so a page neither waits on the Rulercraft map's 5 MB marker
+ * file each time nor stops being cached (the read inside doesn't make the
+ * page dynamic); the world changes slowly, so a quarter of an hour, as
+ * /maps/world.json itself.
  */
 
-/** A town abroad as its panel shows it: the facts, without the claims. */
-export type AbroadFacts = Omit<AbroadTown, 'claims' | 'claimBounds' | 'bounds'> & {
-  /** The claim holding its home, for "Fit to town". */
-  fit: Bounds | null
-  outposts: number
-}
+export type { AbroadFacts, HomeCapital, NationSummary } from '@/maps/abroad'
 
-/** A nation as a line: what a town's panel says of it, and a nation's of itself. */
-export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'towns' | 'residents' | 'chunks'> & {
-  capital: { name: string; slug: string; home: Point } | null
-}
+/** A town abroad, Azania's own ('own'), none (null), or 'offline' while the Rulercraft map can't say. */
+export type AbroadTownPage = TownPage | { kind: 'offline' }
 
-/** Azania's capital, from which its war reaches: its name and home block. */
-export type HomeCapital = { town: string; home: Point } | null
-
-export type AbroadTownPage =
-  | {
-      kind: 'town'
-      town: AbroadFacts
-      nation: NationSummary | null
-      route: SpawnRoute<SpawnTown> | null
-      capital: HomeCapital
-    }
-  /** The town is Azania's own: its page is /maps/town/<slug>. */
-  | { kind: 'own'; townyId: string }
-  | { kind: 'offline' }
-  | null
-
-export type AbroadNationPage =
-  | { kind: 'nation'; nation: NationSummary; fit: Bounds | null; members: AbroadFacts[]; capital: HomeCapital }
-  | { kind: 'offline' }
-  | null
-
-const factsOf = (town: AbroadTown): AbroadFacts => {
-  // The claims stay out of the page: its panel only says how many there are.
-  const { claims: _claims, claimBounds, bounds: _bounds, ...facts } = town
-  return { ...facts, fit: abroadHomeBounds(town), outposts: Math.max(0, claimBounds.length - 1) }
-}
-
-const summaryOf = (nation: AbroadNation, towns: Map<string, AbroadTown>): NationSummary => {
-  const capital = nation.capital ? towns.get(worldSlug(nation.capital.town)) : undefined
-  return {
-    name: nation.name,
-    slug: nation.slug,
-    colour: nation.colour,
-    towns: nation.towns,
-    residents: nation.residents,
-    chunks: nation.chunks,
-    capital: nation.capital
-      ? { name: nation.capital.town, slug: capital?.slug ?? worldSlug(nation.capital.town), home: nation.capital.home }
-      : null,
-  }
-}
-
-/** Azania's capital on the map, by its Towny nation's name. */
-const capitalOf = (world: World, home: string | null): HomeCapital =>
-  world.nations.find((nation) => sameNation(nation.name, home))?.capital ?? null
-
-/** Only the spawns anyone may use: a reader abroad isn't a resident. */
-const openSpawns = (towns: WorldTown[]): SpawnTown[] =>
-  towns
-    .filter((town) => town.kind === 'town' && town.home && town.publicSpawn !== false)
-    .map((town) => ({ name: town.name, home: town.home, publicSpawn: town.publicSpawn, kind: town.kind }))
-
-/**
- * The way there: the town's own `/t spawn` when anyone may use it; for a
- * private spawn or a site (nobody's spawn), the nearest spawn anyone may
- * use, anywhere on the server, and the walk from it.
- */
-function routeTo(town: AbroadTown, all: WorldTown[]): SpawnRoute<SpawnTown> | null {
-  if (!town.home) return null
-  const own: SpawnTown = { name: town.name, home: town.home, publicSpawn: town.publicSpawn, kind: town.kind }
-  if (town.kind === 'town' && town.publicSpawn !== false) return routeFrom(own, town.home)
-  return spawnRoute(town.home, openSpawns(all.filter((other) => other.id !== town.id)))
-}
+export type AbroadNationPage = NationPage | { kind: 'offline' }
 
 const readTown = unstable_cache(
   async (slug: string, own: string[], home: string | null): Promise<AbroadTownPage> => {
     const world = await getWorld()
     if (!world) return { kind: 'offline' }
-    const abroad = abroadOf(world, own.map((townyId) => ({ townyId })))
-    const town = abroad.townBySlug.get(slug)
-    if (!town) {
-      const ours = world.towns.find((candidate) => candidate.id && own.includes(candidate.id) && worldSlug(candidate.name) === slug)
-      return ours?.id ? { kind: 'own', townyId: ours.id } : null
-    }
-    const nation = town.nation ? abroad.nationByName.get(town.nation) : null
-    return {
-      kind: 'town',
-      town: factsOf(town),
-      nation: nation ? summaryOf(nation, abroad.townBySlug) : null,
-      route: routeTo(town, world.towns),
-      capital: capitalOf(world, home),
-    }
+    return abroadTownPage(abroadOf(world, own.map((townyId) => ({ townyId }))), slug, home)
   },
   ['maps-abroad-town'],
   { revalidate: WORLD_EVERY_S },
@@ -130,16 +46,7 @@ const readNation = unstable_cache(
   async (slug: string, own: string[], home: string | null): Promise<AbroadNationPage> => {
     const world = await getWorld()
     if (!world) return { kind: 'offline' }
-    const abroad = abroadOf(world, own.map((townyId) => ({ townyId })))
-    const nation = abroad.nationBySlug.get(slug)
-    if (!nation) return null
-    return {
-      kind: 'nation',
-      nation: summaryOf(nation, abroad.townBySlug),
-      fit: nationFit(nation),
-      members: nation.members.map(factsOf),
-      capital: capitalOf(world, home),
-    }
+    return abroadNationPage(abroadOf(world, own.map((townyId) => ({ townyId }))), slug, home)
   },
   ['maps-abroad-nation'],
   { revalidate: WORLD_EVERY_S },

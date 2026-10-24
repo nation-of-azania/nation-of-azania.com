@@ -1,5 +1,6 @@
 import { spoken, type MapTown, type Relation } from './data'
 import type { Bounds, Outline, Point } from './geo'
+import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from './spawn'
 import type { World, WorldNation, WorldTown } from './world'
 
 /**
@@ -56,6 +57,10 @@ export type Abroad = {
   townBySlug: Map<string, AbroadTown>
   nationBySlug: Map<string, AbroadNation>
   nationByName: Map<string, AbroadNation>
+  /** The reading it was made from, Azania's own towns and nation among the rest. */
+  reading: World
+  /** Azania's own towns, by Towny id. */
+  ours: Set<string>
 }
 
 const outlineBounds = (outline: Outline): Bounds | null =>
@@ -88,7 +93,7 @@ const HEARTLAND = 4500
  * the same are told apart by the id.
  */
 export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad {
-  const ours = new Set(own.map((town) => town.townyId).filter(Boolean))
+  const ours = new Set(own.map((town) => town.townyId).filter((id): id is string => Boolean(id)))
   const byId = new Map<string, WorldTown>()
   const townBySlug = new Map<string, AbroadTown>()
   const towns: AbroadTown[] = []
@@ -145,6 +150,8 @@ export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad 
     townBySlug,
     nationBySlug: new Map(nations.map((nation) => [nation.slug, nation])),
     nationByName: new Map(nations.map((nation) => [nation.name, nation])),
+    reading: world,
+    ours,
   }
 }
 
@@ -192,3 +199,123 @@ export const farWords = (blocks: number): string =>
 /** A nation's heartland as bounds to fit, when it has one; else all of it. */
 export const nationFit = (nation: Pick<AbroadNation, 'extent' | 'bounds'>): Bounds | null =>
   nation.extent ?? nation.bounds
+
+/*
+ * The pages of the world abroad, as their panels show them: one town or
+ * one nation out of the world's reading, in the few fields its panel
+ * shows. The server's cached pages are built with these
+ * (src/lib/abroad.ts), and the browser builds the same panel with them the
+ * moment one is opened, from the world it already holds, while the page
+ * itself is on its way.
+ */
+
+/** A town abroad as its panel shows it: the facts, without the claims. */
+export type AbroadFacts = Omit<AbroadTown, 'claims' | 'claimBounds' | 'bounds'> & {
+  /** The claim holding its home, for "Fit to town". */
+  fit: Bounds | null
+  outposts: number
+}
+
+/** A nation as a line: what a town's panel says of it, and a nation's of itself. */
+export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'towns' | 'residents' | 'chunks'> & {
+  capital: { name: string; slug: string; home: Point } | null
+}
+
+/** Azania's capital, from which its war reaches: its name and home block. */
+export type HomeCapital = { town: string; home: Point } | null
+
+export type AbroadTownPage =
+  | {
+      kind: 'town'
+      town: AbroadFacts
+      nation: NationSummary | null
+      route: SpawnRoute<SpawnTown> | null
+      capital: HomeCapital
+    }
+  /** The town is Azania's own: its page is /maps/town/<slug>. */
+  | { kind: 'own'; townyId: string }
+  | null
+
+export type AbroadNationPage = {
+  kind: 'nation'
+  nation: NationSummary
+  fit: Bounds | null
+  members: AbroadFacts[]
+  capital: HomeCapital
+} | null
+
+const factsOf = (town: AbroadTown): AbroadFacts => {
+  // The claims stay out of the page: its panel only says how many there are.
+  const { claims: _claims, claimBounds, bounds: _bounds, ...facts } = town
+  return { ...facts, fit: abroadHomeBounds(town), outposts: Math.max(0, claimBounds.length - 1) }
+}
+
+const summaryOf = (nation: AbroadNation, towns: Map<string, AbroadTown>): NationSummary => {
+  const capital = nation.capital ? towns.get(worldSlug(nation.capital.town)) : undefined
+  return {
+    name: nation.name,
+    slug: nation.slug,
+    colour: nation.colour,
+    towns: nation.towns,
+    residents: nation.residents,
+    chunks: nation.chunks,
+    capital: nation.capital
+      ? { name: nation.capital.town, slug: capital?.slug ?? worldSlug(nation.capital.town), home: nation.capital.home }
+      : null,
+  }
+}
+
+/** Azania's capital on the map, by its Towny nation's name. */
+const capitalOf = (world: World, home: string | null): HomeCapital =>
+  world.nations.find((nation) => sameNation(nation.name, home))?.capital ?? null
+
+/** Only the spawns anyone may use: a reader abroad isn't a resident. */
+const openSpawns = (towns: WorldTown[]): SpawnTown[] =>
+  towns
+    .filter((town) => town.kind === 'town' && town.home && town.publicSpawn !== false)
+    .map((town) => ({ name: town.name, home: town.home, publicSpawn: town.publicSpawn, kind: town.kind }))
+
+/**
+ * The way there: the town's own `/t spawn` when anyone may use it; for a
+ * private spawn or a site (nobody's spawn), the nearest spawn anyone may
+ * use, anywhere on the server, and the walk from it.
+ */
+function routeTo(town: AbroadTown, all: WorldTown[]): SpawnRoute<SpawnTown> | null {
+  if (!town.home) return null
+  const own: SpawnTown = { name: town.name, home: town.home, publicSpawn: town.publicSpawn, kind: town.kind }
+  if (town.kind === 'town' && town.publicSpawn !== false) return routeFrom(own, town.home)
+  return spawnRoute(town.home, openSpawns(all.filter((other) => other.id !== town.id)))
+}
+
+/** A town abroad by its address, as its page shows it; 'own' for one of Azania's, null for none. `home` is Azania's Towny nation. */
+export function abroadTownPage(abroad: Abroad, slug: string, home: string | null): AbroadTownPage {
+  const world = abroad.reading
+  const town = abroad.townBySlug.get(slug)
+  if (!town) {
+    const ours = world.towns.find(
+      (candidate) => candidate.id && abroad.ours.has(candidate.id) && worldSlug(candidate.name) === slug,
+    )
+    return ours?.id ? { kind: 'own', townyId: ours.id } : null
+  }
+  const nation = town.nation ? abroad.nationByName.get(town.nation) : null
+  return {
+    kind: 'town',
+    town: factsOf(town),
+    nation: nation ? summaryOf(nation, abroad.townBySlug) : null,
+    route: routeTo(town, world.towns),
+    capital: capitalOf(world, home),
+  }
+}
+
+/** Another nation by its address, as its page shows it; null for none. `home` is Azania's Towny nation. */
+export function abroadNationPage(abroad: Abroad, slug: string, home: string | null): AbroadNationPage {
+  const nation = abroad.nationBySlug.get(slug)
+  if (!nation) return null
+  return {
+    kind: 'nation',
+    nation: summaryOf(nation, abroad.townBySlug),
+    fit: nationFit(nation),
+    members: nation.members.map(factsOf),
+    capital: capitalOf(abroad.reading, home),
+  }
+}
