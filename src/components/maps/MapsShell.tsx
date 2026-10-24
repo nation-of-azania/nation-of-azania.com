@@ -624,8 +624,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
    * Open a page: its panel at once, the page itself sent for now, or, while
    * the browser is offline, once it's back (asked for offline, the router
    * would have the browser leave the map for its own error page). The same
-   * page opened twice is sent for once; the page already open is only
-   * addressed afresh.
+   * page opened twice is sent for once. The page already open needs
+   * nothing, unless another is on its way, which it must overtake.
    */
   const go = useCallback(
     (chosen: MapSelection | null) => {
@@ -633,11 +633,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
       const waiting = askedRef.current
       if (waiting && sameSelection(waiting.selection, next)) return
       const href = `${selectionHref(next)}${mapsQuery({ at: realPosition(centreStore.get()), layers, extras, view: viewing?.id ?? null })}`
+      const push = () => startTransition(() => router.push(href, { scroll: false }))
       const here = next ? sameSelection(next, selectionOf(pathRef.current)) : pathRef.current === MAPS_PATH
-      const sent = here || navigator.onLine
+      if (here) {
+        setAsked(null)
+        if (waiting?.sent) push()
+        return
+      }
+      const sent = navigator.onLine
       setHandedOver(false)
-      setAsked(here ? null : { selection: next, href, sent, id: ++askings.current })
-      if (sent) startTransition(() => router.push(href, { scroll: false }))
+      setAsked({ selection: next, href, sent, id: ++askings.current })
+      if (sent) push()
     },
     [router, centreStore, layers, extras, viewing, askedRef, pathRef, data, world],
   )

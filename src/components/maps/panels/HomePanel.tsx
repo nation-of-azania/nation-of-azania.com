@@ -153,8 +153,11 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
 
       <OtherSieges />
 
-      {/* For anyone who may draw views: theirs, so a view made for an article has a home here. */}
-      <YourViews />
+      {/*
+        For anyone who may draw views: theirs, so a view made for an article has a home here.
+        Asked for afresh each time they're shown, so by the page itself, not by its preview too.
+      */}
+      {census === undefined ? null : <YourViews />}
 
       <PanelSection flush title="What’s on">
         <EventsList
