@@ -20,6 +20,12 @@
   outline-offset: -2px;
 }
 
+/* The overlay can take focus by accident (see canvas.tsx); it never shows a ring. */
+.az-overlay:focus,
+.az-overlay:focus-visible {
+  outline: none;
+}
+
 .az-tile {
   image-rendering: pixelated;
 }

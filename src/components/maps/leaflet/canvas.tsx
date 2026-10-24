@@ -444,6 +444,13 @@ export function MapCanvas({
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     group.setAttribute('class', 'az-overlay')
     svg._container.appendChild(group)
+    // React listens for focus on the element it renders a portal into, and
+    // Chromium makes an SVG element with focus listeners focusable: a tap on
+    // a town or a nation focused the whole overlay, and the browser ringed
+    // all that's drawn in it with its focus outline, a box the size of the
+    // drawing, out of sight until a pinch shrank the overlay. Focus belongs
+    // to the map itself, which shows a ring only for the keyboard.
+    group.addEventListener('focus', () => container.focus({ preventScroll: true }))
     setOverlay(group)
 
     // Past the coarsest tiles, the level-5 tiles are drawn smaller: smoothed, since dropping pixels only speckles them.
