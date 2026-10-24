@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import sharp from 'sharp'
 
 import {
@@ -24,6 +25,10 @@ import { dynmapTileUrl } from '@/maps/source'
  * missing is served too, transparent where they'd be, but kept only ten
  * minutes; with many missing it isn't made at all, and the browser falls
  * back on the tiles themselves.
+ *
+ * A deploy empties the CDN, and making the sheet takes some five seconds,
+ * so a whole sheet is also kept in Next's data cache, which outlives a
+ * deploy: the first reader after one gets it at once.
  */
 
 export const runtime = 'nodejs'
@@ -35,8 +40,10 @@ const AT_ONCE = 24
 const FETCH_TIMEOUT_MS = 8000
 /** The share of tiles that may fail before the sheet isn't worth making. */
 const MOST_MISSING = 0.1
-/** How long a sheet made here is served again from memory before it's made afresh, in ms. */
+/** How long a sheet made here is served again from memory before it's asked for afresh, in ms. */
 const KEEP_MS = 60 * 60 * 1000
+/** How long the data cache keeps a whole sheet before making it again in the background, in seconds. */
+const STORE_S = 6 * 60 * 60
 
 const WHOLE = {
   'Cache-Control': 'public, max-age=3600',
@@ -98,12 +105,38 @@ async function make(): Promise<Sheet | null> {
   return { at: Date.now(), picture: new Uint8Array(picture), missing }
 }
 
+/** A sheet that wasn't whole: handed back for now, never kept. */
+class Unkept extends Error {
+  constructor(readonly sheet: Sheet | null) {
+    super('The sheet was not whole.')
+  }
+}
+
+/** A whole sheet, as the data cache keeps it (as text: it keeps JSON). */
+const stored = unstable_cache(
+  async (): Promise<{ at: number; picture: string }> => {
+    const sheet = await make()
+    if (!sheet || sheet.missing) throw new Unkept(sheet)
+    return { at: sheet.at, picture: Buffer.from(sheet.picture).toString('base64') }
+  },
+  ['maps-sheet'],
+  { revalidate: STORE_S },
+)
+
+async function read(): Promise<Sheet | null> {
+  try {
+    const { at, picture } = await stored()
+    return { at, picture: new Uint8Array(Buffer.from(picture, 'base64')), missing: 0 }
+  } catch (error) {
+    return error instanceof Unkept ? error.sheet : null
+  }
+}
+
 export async function GET(request: Request) {
   // One address, so every viewer shares the CDN's copy; a query would only get around it.
   if (new URL(request.url).search) return new Response('No query here.', { status: 400 })
   if (!last || Date.now() - last.at > KEEP_MS) {
-    making ??= make()
-      .catch(() => null)
+    making ??= read()
       .finally(() => {
         making = null
       })
