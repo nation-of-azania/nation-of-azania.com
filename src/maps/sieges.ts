@@ -80,6 +80,41 @@ export function balanceWords(siege: Siege): string | null {
   return `${spoken(ahead)} ahead by ${Math.abs(siege.balance).toLocaleString('en-GB')}`
 }
 
+/** Short words a name's initials skip: "The Balkan Kingdom" is BK. */
+const SLIGHT = new Set(['the', 'of', 'and', 'de', 'del', 'la', 'le', 'du', 'von', 'van'])
+
+/** A name's own words, the slight ones left out unless that leaves none. */
+function wordsOf(name: string): string[] {
+  const words = name.split(/\s+/).filter(Boolean)
+  const strong = words.filter((word) => !SLIGHT.has(word.toLowerCase()))
+  return strong.length ? strong : words
+}
+
+/** Both sides' names together fit the ends of a balance bar as they are. */
+const FIT_TOGETHER = 20
+
+/**
+ * The two sides' names for the ends of a balance bar, attacker then
+ * defender: as they are when both fit, else as initials ("Imperial
+ * Avalonia" is IA; a name of one word stays that word). Two names with
+ * the same initials go by their first words instead, and two that still
+ * read alike by their parts in the siege.
+ */
+export function sideTags(siege: Siege): [attacker: string, defender: string] {
+  const attacker = spoken(siege.attacker)
+  const defender = spoken(siege.defender)
+  if (attacker.length + defender.length <= FIT_TOGETHER) return [attacker, defender]
+  const tag = (name: string) => {
+    const words = wordsOf(name)
+    return words.length === 1 ? words[0] : words.map((word) => word[0].toUpperCase()).join('')
+  }
+  const alike = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+  const tags: [string, string] = [tag(attacker), tag(defender)]
+  if (!alike(...tags)) return tags
+  const first: [string, string] = [wordsOf(attacker)[0], wordsOf(defender)[0]]
+  return alike(...first) ? ['Attacker', 'Defender'] : first
+}
+
 /** "2 of 7 battle sessions fought". */
 export const progressWords = (siege: Siege): string | null =>
   siege.progress

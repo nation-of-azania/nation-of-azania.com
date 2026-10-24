@@ -91,7 +91,7 @@ export function SiegeCard({
   return (
     <div
       aria-label={siegeTitle(siege)}
-      className="az-chip az-siege-card pointer-events-auto absolute left-0 top-0 z-[500] w-72 border border-sand-300 bg-sand-50 text-ink-900 shadow-[0_2px_8px_rgba(22,25,31,0.18)]"
+      className="az-chip az-siege-card pointer-events-auto absolute left-0 top-0 z-[500] w-80 max-w-[calc(100%-1rem)] border border-sand-300 bg-sand-50 text-ink-900 shadow-[0_2px_8px_rgba(22,25,31,0.18)]"
       data-side="right"
       ref={ref}
       role="dialog"
@@ -102,7 +102,7 @@ export function SiegeCard({
           <p className="font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-700">
             {siege.battle ? 'Siege · a battle on' : 'Siege · quiet'}
           </p>
-          <p className="font-display text-base leading-tight text-sea-950">{siegeTitle(siege)}</p>
+          <p className="font-display text-base leading-tight text-sea-950 [overflow-wrap:anywhere]">{siegeTitle(siege)}</p>
           {side ? (
             <p className="mt-0.5 text-[12px] font-semibold leading-snug text-coral-700">{siegeHeadline(siege, side)}</p>
           ) : null}
@@ -116,8 +116,8 @@ export function SiegeCard({
           <Icon className="h-3.5 w-3.5" name="close" />
         </button>
       </div>
-      {/* The figures scroll within a short map; the card's nib stays outside the scroll. */}
-      <div className="max-h-[min(22rem,calc(100vh-14rem))] overflow-y-auto">
+      {/* The figures scroll within a short map, never sideways (their text wraps); the card's nib stays outside the scroll. */}
+      <div className="max-h-[min(22rem,calc(100vh-14rem))] overflow-y-auto overflow-x-hidden">
         <SiegeFigures className="mt-1.5 border-t border-sand-300/70 px-3 py-2" siege={siege} />
       </div>
       {town ? (

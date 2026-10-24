@@ -7,6 +7,7 @@ import {
   chestWords,
   pointsOf,
   progressWords,
+  sideTags,
   siegeKind,
   timeWords,
   type SiegeSide,
@@ -44,11 +45,16 @@ function Pips({ done, of }: { done: number; of: number }) {
   )
 }
 
-/** Who's ahead, as a bar about the middle: the attacker's lead runs left, the defender's right. */
+/**
+ * Who's ahead, as a bar about the middle: the attacker's lead runs left in
+ * coral, the defender's right in sea, each end named in its side's colour
+ * (shortened when the two names would run together: sieges.ts → sideTags).
+ */
 function Balance({ siege }: { siege: Siege }) {
   const balance = siege.balance ?? 0
   // A lead of a couple of hundred fills most of a side; the bar never quite fills.
   const share = Math.abs(balance) / (Math.abs(balance) + 200)
+  const [attacker, defender] = sideTags(siege)
   return (
     <span className="block">
       <span aria-hidden="true" className="relative mt-1 block h-2 bg-sand-200">
@@ -64,15 +70,20 @@ function Balance({ siege }: { siege: Siege }) {
           />
         ) : null}
       </span>
-      <span className="mt-0.5 flex justify-between text-[10px] uppercase tracking-[0.12em] text-ink-400">
-        <span className="truncate">{spoken(siege.attacker)}</span>
-        <span className="truncate">{spoken(siege.defender)}</span>
+      <span className="mt-0.5 flex justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
+        <abbr className="min-w-0 truncate no-underline" style={{ color: GROUND.coral }} title={spoken(siege.attacker)}>
+          {attacker}
+        </abbr>
+        <abbr className="min-w-0 truncate no-underline" style={{ color: GROUND.sea500 }} title={spoken(siege.defender)}>
+          {defender}
+        </abbr>
       </span>
     </span>
   )
 }
 
-const ROW = 'grid grid-cols-[5.5rem_1fr] gap-x-2 py-1'
+// The figures' column may narrow below its longest word or line: text in it wraps, anywhere if it must, rather than widen the card.
+const ROW = 'grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 py-1'
 const LABEL = 'font-label text-[10px] uppercase tracking-[0.16em] text-ink-500 pt-0.5'
 
 export function SiegeFigures({ siege, className }: { siege: Siege; className?: string }) {
@@ -83,7 +94,7 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
   const points = pointsOf(siege)
   const chest = chestWords(siege)
   return (
-    <div className={cn('text-[13px] leading-snug text-ink-700', className)}>
+    <div className={cn('text-[13px] leading-snug text-ink-700 [overflow-wrap:anywhere]', className)}>
       {kind ? <p className="mb-1.5">{kind}</p> : null}
       <dl className="divide-y divide-sand-300/60">
         {progress && siege.progress ? (
