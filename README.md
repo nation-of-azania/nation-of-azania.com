@@ -536,6 +536,19 @@ The overlay (claims, roads, names) is drawn 60% of the page beyond each
 edge, as far as Leaflet's renderer reaches, so a pan of up to that much
 shows them before the map settles.
 
+**Zooming is continuous.** Leaflet would scale the overlay like a picture
+mid-zoom and redraw it only when the gesture ends, so names ballooned and
+then snapped. Instead the overlay's group is moved and scaled with the
+ground frame by frame (`leaflet/overlay.ts`), while names, pins, marks and
+heads keep their size on the page and glide with their point, and lines
+keep their width (`leaflet/steady.ts`; the layers say what holds steady in
+data attributes, `layers/projection.ts`). A button or key zoom follows
+the tiles' own CSS transition exactly. A gesture held still for 150 ms
+draws the overlay again for the view as it stands, and when the view
+settles the names glide to their new spots, fade out or fade in rather
+than swap (a plain swap for readers who ask for less motion). Sizes that
+step with the zoom (a name's 11, 12 or 13 px) still change when it settles.
+
 The live map repeats the world east and west, so a pan never runs out of
 map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
 36,864, the level-5 tiles' columns −18 to 17). The world doesn't wrap in
