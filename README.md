@@ -542,12 +542,15 @@ then snapped. The overlay is drawn as two SVGs (`leaflet/canvas.tsx`).
 The ground (claims, roads, rings) is still scaled whole as a picture,
 which the compositor does without painting it again, so its lines thicken
 and thin with a pinch until the view settles. Names, pins and marks are
-drawn over it, through `OnTop`, in a second SVG whose group is moved and
-scaled frame by frame (`leaflet/overlay.ts`) while they keep their size on
-the page and glide with their point (`leaflet/steady.ts`; the layers say
-what holds steady in data attributes, `layers/projection.ts`). Only those
-few are painted again each frame: drawn as one SVG, a pinch repainted every
-claim and road each frame, some four times the work. A button or key zoom
+drawn over it, through `OnTop`, in a second SVG, and moved frame by frame
+one by one (`leaflet/overlay.ts`, `leaflet/steady.ts`; the layers say what
+holds steady in data attributes, `layers/projection.ts`): a name or a mark
+is only shifted to where its point has gone, never scaled, so it keeps its
+size and the browser never lays its text out again mid-gesture, which it
+does for any text under a group whose scale changes, however that's undone
+below. The few other shapes there (a siege's line, the seams) are scaled
+with the ground. Only those few things are painted again each frame:
+drawn as one SVG, a pinch repainted every claim and road each frame. A button or key zoom
 follows the tiles' own CSS transition exactly. A gesture held still for
 150 ms draws the overlay again for the view as it stands, and when the view
 settles the names glide to their new spots, fade out or fade in rather

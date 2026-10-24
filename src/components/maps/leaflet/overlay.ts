@@ -66,16 +66,18 @@ export function easedTowards(shown: Shown, to: Frame, p: number): Shown {
 
 export type Layer = {
   element: SVGGElement
-  /** Moves the group as a whole, and holds its marks steady at the scale it's moved by. */
+  /** Shows what's drawn in the group moved by `placement`: the group as a whole, or element by element. */
   place: (placement: Placement) => void
   dispose: () => void
 }
 
 /**
- * A group of the overlay that's moved as a whole: React's drawing, or the
- * names leaving it. With `steady`, its marks and names are held their size
- * at the scale it's moved by (./steady.ts); the ground's group, which is
- * only ever moved into place as the view settles, has none to hold.
+ * A group of the overlay, as it's moved from the view it was drawn for to
+ * the view the map is shown at: the marks' (React's drawing over the
+ * ground, or the names leaving it), moved element by element, their marks
+ * and names only shifted, never scaled (./steady.ts); or, without
+ * `steady`, the ground's, moved as a whole, which happens only as the view
+ * settles (mid-zoom Leaflet scales its SVG instead).
  */
 export function createLayer(element: SVGGElement, steady = true): Layer {
   const held = steady ? createSteady(element) : null
@@ -85,10 +87,10 @@ export function createLayer(element: SVGGElement, steady = true): Layer {
     place: (placement) => {
       if (placement.k === at.k && placement.x === at.x && placement.y === at.y) return
       at = placement
+      if (held) return held.apply(placement)
       const { k, x, y } = placement
       element.style.transform =
         k === 1 && x === 0 && y === 0 ? '' : `matrix(${k}, 0, 0, ${k}, ${x}, ${y})`
-      held?.apply(k)
     },
     dispose: () => held?.disconnect(),
   }

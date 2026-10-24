@@ -200,7 +200,9 @@ export function WarReach({
       {arc && part !== 'ring' ? (
         // Along the ring itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
         <g {...named(projection, 'reach', reach.nation)}>
-          <path d={arc} fill="none" id={id} stroke="none" />
+          <defs>
+            <path d={arc} id={id} />
+          </defs>
           <text
             className="font-label"
             fill={reach.colour}
