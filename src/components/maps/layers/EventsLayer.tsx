@@ -2,7 +2,16 @@ import type { MapEvent } from '@/maps/data'
 import { GROUND } from '@/maps/palette'
 import { eventPhase, type EventPhase } from '@/maps/time'
 
-import { halo, inBounds, labelBeside, LabelPlacer, textWidth, type Projection, type Rect } from './projection'
+import {
+  halo,
+  inBounds,
+  labelBeside,
+  LabelPlacer,
+  textWidth,
+  upright,
+  type Projection,
+  type Rect,
+} from './projection'
 
 type Props = {
   projection: Projection
@@ -22,8 +31,8 @@ const R = 9
 /** Titles show from this zoom. */
 const NAMED_FROM = -0.5
 
-/** A mark as it will be drawn: the event, its phase, where and how big. */
-export type PlacedMark = { event: MapEvent; phase: EventPhase; x: number; y: number; scale: number }
+/** A mark as it will be drawn: the event, its phase, where and how big, and the event's own point it stands beside. */
+export type PlacedMark = { event: MapEvent; phase: EventPhase; x: number; y: number; scale: number; at: [number, number] }
 
 /** An event's title, placed: the text's anchor and position. */
 export type EventName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number }
@@ -61,6 +70,7 @@ export function eventMarks(
         x: px + 16 * scale + stacked * 20 * scale,
         y: py - 14 * scale,
         scale: isSelected ? scale * 1.2 : scale,
+        at: [px, py] as [number, number],
       }
     })
 }
@@ -159,7 +169,7 @@ export function EventsLayer({
 
   return (
     <g className="az-events">
-      {marks.map(({ event, phase, x, y, scale }) => {
+      {marks.map(({ event, phase, x, y, scale, at }) => {
         const isSelected = selected === event.id
         const name = labels?.get(event.id) ?? null
         return (
@@ -170,22 +180,25 @@ export function EventsLayer({
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
             {!name ? <title>{event.title}</title> : null}
-            <EventMark phase={phase} scale={scale} selected={isSelected} x={x} y={y} />
-            {name ? (
-              <text
-                className="font-body"
-                dy={fontSize * 0.36}
-                fill={GROUND.coralDeep}
-                fontSize={fontSize}
-                fontWeight={600}
-                textAnchor={name.anchor}
-                x={name.tx}
-                y={name.ty}
-                {...halo(GROUND.whitewash, 3)}
-              >
-                {event.title}
-              </text>
-            ) : null}
+            {/* The mark stands a little off the event's point, and keeps that distance mid-zoom. */}
+            <g {...upright(at[0], at[1])}>
+              <EventMark phase={phase} scale={scale} selected={isSelected} x={x} y={y} />
+              {name ? (
+                <text
+                  className="font-body"
+                  dy={fontSize * 0.36}
+                  fill={GROUND.coralDeep}
+                  fontSize={fontSize}
+                  fontWeight={600}
+                  textAnchor={name.anchor}
+                  x={name.tx}
+                  y={name.ty}
+                  {...halo(GROUND.whitewash, 3)}
+                >
+                  {event.title}
+                </text>
+              ) : null}
+            </g>
           </g>
         )
       })}

@@ -2,7 +2,16 @@ import { roadPoints, type MapRoad } from '@/maps/data'
 import { boundsOf, pathLength, type Point } from '@/maps/geo'
 import { GROUND, ROAD_ORDER, ROAD_STYLES } from '@/maps/palette'
 
-import { boundsTouch, halo, LabelPlacer, pathOf, textWidth, type Projection } from './projection'
+import {
+  boundsTouch,
+  halo,
+  LabelPlacer,
+  pathOf,
+  steadyType,
+  steadyWidth,
+  textWidth,
+  type Projection,
+} from './projection'
 
 type Props = {
   projection: Projection
@@ -37,6 +46,23 @@ function pointAlong(line: Point[], fraction: number): Point {
 const roadWidth = (road: MapRoad, ppb: number) => {
   const style = ROAD_STYLES[road.kind]
   return Math.min(style.maxPx, Math.max(style.minPx, style.blocks * ppb))
+}
+
+/**
+ * The same width as the live map follows it mid-zoom (./projection.ts →
+ * steadyWidth): a road widens and narrows as each zoom it passes through
+ * would draw it, its blocks within its floor and ceiling, so it lands on
+ * its settled width without a jump. `plus` px are added and the whole is
+ * taken `times` over, never under `least`; dashes are so many widths.
+ */
+const roadSteady = (
+  road: MapRoad,
+  ppb: number,
+  how: { plus?: number; times?: number; least?: number } = {},
+  dash?: readonly number[],
+) => {
+  const style = ROAD_STYLES[road.kind]
+  return steadyWidth({ min: style.minPx, base: style.blocks * ppb, max: style.maxPx, ...how }, dash)
 }
 
 /** Whether a course reads left to right as drawn; a name along it is set the other way otherwise. */
@@ -132,6 +158,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
           strokeLinejoin="round"
           strokeOpacity={0.9}
           strokeWidth={roadWidth(chosen, ppb) + 6}
+          {...roadSteady(chosen, ppb, { plus: 6 })}
         />
       ) : null}
       {/* Solid inside, washed as one: roads meeting merge, and nothing shows through a fill but the ground. */}
@@ -149,6 +176,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={roadWidth(road, ppb) + edge}
+                {...roadSteady(road, ppb, { plus: edge })}
               />
             )
           })}
@@ -171,6 +199,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
                     fill="none"
                     stroke="transparent"
                     strokeWidth={Math.max(width + 2, 12)}
+                    {...roadSteady(road, ppb, { plus: 2, least: 12 })}
                   />
                 ) : null}
                 <path
@@ -183,6 +212,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
                   strokeLinecap={style.dash ? 'butt' : 'round'}
                   strokeLinejoin="round"
                   strokeWidth={width}
+                  {...roadSteady(road, ppb, {}, style.dash)}
                 />
                 {style.over ? (
                   <path
@@ -191,6 +221,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
                     stroke={style.over.colour}
                     strokeDasharray={style.over.dash.map((n) => n * width).join(' ')}
                     strokeWidth={width * 0.45}
+                    {...roadSteady(road, ppb, { times: 0.45 }, style.over.dash)}
                   />
                 ) : null}
               </g>
@@ -207,6 +238,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
             // Set left to right; a course drawn the other way is read backwards.
             const ahead = forwards(projection, course)
             const pathId = `${id}-road-${road.id}`
+            // Along the road itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
             return (
               <g key={road.id}>
                 <defs>
@@ -217,12 +249,13 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
                 </defs>
                 <text
                   className="font-body"
-                  dy={fontSize * 0.36}
+                  dy="0.36em"
                   fill={GROUND.ink}
                   fontSize={fontSize}
                   fontWeight={600}
                   letterSpacing={0.4}
                   {...halo(GROUND.whitewash, 3)}
+                  {...steadyType(fontSize, 0.4, 3)}
                 >
                   <textPath
                     href={`#${pathId}`}

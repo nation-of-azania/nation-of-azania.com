@@ -14,7 +14,7 @@ import { useLatest } from '../hooks'
 import { DrawingsLayer } from '../layers/DrawingsLayer'
 import { EventMark } from '../layers/EventsLayer'
 import { PlacePin } from '../layers/PlacesLayer'
-import { pathOf, type Projection } from '../layers/projection'
+import { pathOf, upright, type Projection } from '../layers/projection'
 import { RoadsLayer } from '../layers/RoadsLayer'
 import { L, toPoint, useLeaflet } from '../leaflet/canvas'
 import type { Editor, RoadDraft } from '../state'
@@ -169,26 +169,28 @@ function Handle({
       ref={ref}
     >
       {title ? <title>{title}</title> : null}
-      {/* Room for a finger. */}
-      <circle cx={x} cy={y} fill="transparent" r={14} />
-      {picked ? (
-        <circle cx={x} cy={y} fill="none" r={r + 5} stroke={colour} strokeOpacity={0.4} strokeWidth={2} />
-      ) : null}
-      <g className="az-handle-mark">
-        {square ? (
-          <rect height={r * 2} width={r * 2} x={x - r} y={y - r} {...paint} />
-        ) : (
-          <circle cx={x} cy={y} r={r} {...paint} />
-        )}
-        {plus ? (
-          <path
-            d={`M${x - 2.5} ${y}h5M${x} ${y - 2.5}v5`}
-            fill="none"
-            stroke={colour}
-            strokeLinecap="round"
-            strokeWidth={1.5}
-          />
+      <g {...upright(x, y)}>
+        {/* Room for a finger. */}
+        <circle cx={x} cy={y} fill="transparent" r={14} />
+        {picked ? (
+          <circle cx={x} cy={y} fill="none" r={r + 5} stroke={colour} strokeOpacity={0.4} strokeWidth={2} />
         ) : null}
+        <g className="az-handle-mark">
+          {square ? (
+            <rect height={r * 2} width={r * 2} x={x - r} y={y - r} {...paint} />
+          ) : (
+            <circle cx={x} cy={y} r={r} {...paint} />
+          )}
+          {plus ? (
+            <path
+              d={`M${x - 2.5} ${y}h5M${x} ${y - 2.5}v5`}
+              fill="none"
+              stroke={colour}
+              strokeLinecap="round"
+              strokeWidth={1.5}
+            />
+          ) : null}
+        </g>
       </g>
     </g>
   )
@@ -261,7 +263,7 @@ function Course({
         <title>Press on the line to add a point there</title>
       </path>
       {g ? (
-        <g className="az-ghost" pointerEvents="none">
+        <g className="az-ghost" pointerEvents="none" {...upright(g[0], g[1])}>
           <circle cx={g[0]} cy={g[1]} fill={GROUND.whitewash} fillOpacity={0.9} r={6} stroke={colour} strokeDasharray="2 2" strokeWidth={1.5} />
           <path d={`M${g[0] - 2.5} ${g[1]}h5M${g[0]} ${g[1] - 2.5}v5`} fill="none" stroke={colour} strokeLinecap="round" strokeWidth={1.5} />
         </g>
@@ -674,12 +676,14 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           />
           {draft.point ? (
             <>
-              <PlacePin
-                place={{ category: draft.category }}
-                selected
-                x={projection.project(draft.point)[0]}
-                y={projection.project(draft.point)[1]}
-              />
+              <g {...upright(...projection.project(draft.point))}>
+                <PlacePin
+                  place={{ category: draft.category }}
+                  selected
+                  x={projection.project(draft.point)[0]}
+                  y={projection.project(draft.point)[1]}
+                />
+              </g>
               <Handle
                 colour={colour}
                 onDrag={(next, press) =>
@@ -777,7 +781,9 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
       const [x, y] = projection.project(point)
       return (
         <g className="az-tools">
-          <EventMark phase="upcoming" selected x={x + 16} y={y - 14} />
+          <g {...upright(x, y)}>
+            <EventMark phase="upcoming" selected x={x + 16} y={y - 14} />
+          </g>
           {!place ? (
             <Handle
               colour={ok ? GROUND.saffron : GROUND.coral}

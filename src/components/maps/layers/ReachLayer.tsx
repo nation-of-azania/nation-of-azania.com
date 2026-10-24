@@ -3,7 +3,7 @@ import type { Bounds, Point } from '@/maps/geo'
 import { GROUND } from '@/maps/palette'
 import { WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST } from '@/maps/source'
 
-import { halo, type Projection } from './projection'
+import { halo, steadyType, type Projection } from './projection'
 
 /**
  * The reach of a nation's war: the server lets a nation besiege towns only
@@ -179,6 +179,7 @@ export function WarReach({ projection, reach, radius }: { projection: Projection
         strokeWidth={reach.home ? 2 : 1.5}
       />
       {arc ? (
+        // Along the ring itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
         <>
           <path d={arc} fill="none" id={id} stroke="none" />
           <text
@@ -188,6 +189,7 @@ export function WarReach({ projection, reach, radius }: { projection: Projection
             fontWeight={700}
             letterSpacing={tracking}
             {...halo(GROUND.whitewash, 3)}
+            {...steadyType(fontSize, tracking, 3)}
           >
             <textPath href={`#${id}`} startOffset="50%" textAnchor="middle">
               {text}

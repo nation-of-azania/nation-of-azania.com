@@ -8,7 +8,17 @@ import { siteLine, type SiteFacts } from '@/maps/sites'
 import type { MapSelection } from '@/maps/url'
 
 import type { Store } from '../hooks'
-import { boundsTouch, halo, inBounds, LabelPlacer, textWidth, type Projection, type Rect } from './projection'
+import {
+  boundsTouch,
+  halo,
+  inBounds,
+  LabelPlacer,
+  steadyHatch,
+  textWidth,
+  upright,
+  type Projection,
+  type Rect,
+} from './projection'
 import { SITE_R, SiteMark, siteMarkRect } from './SiteMark'
 
 /**
@@ -108,8 +118,13 @@ function claimsPath(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): str
   return d
 }
 
-const dot = ([x, y]: [number, number], r: number): string =>
-  `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`
+/**
+ * A dot as a stroke of no length with a round cap, which draws a disc the
+ * stroke's width across: one path holds a nation's hundreds, and on the
+ * live map, whose lines keep their width mid-zoom (maps.css), each keeps
+ * its size as a mark should.
+ */
+const dot = ([x, y]: [number, number]): string => `M${x.toFixed(1)} ${y.toFixed(1)}h0`
 
 const onPage = (projection: Projection, town: AbroadTown) =>
   town.bounds !== null && boundsTouch(town.bounds, projection.bounds)
@@ -167,7 +182,7 @@ export function AbroadClaims({
     groups.set(key, group)
     if (sizePx(town.bounds!, ppb) < DOT_BELOW) {
       const centre = abroadCentre(town)
-      if (centre) group.dots += dot(at(f, centre), zoom < -6 ? 1.3 : 1.6)
+      if (centre) group.dots += dot(at(f, centre))
       continue
     }
     const d = claimsPath(town, f, cull, ppb)
@@ -211,7 +226,14 @@ export function AbroadClaims({
     >
       {anyHatch ? (
         <defs>
-          <pattern height={7} id={hatch} patternTransform="rotate(-45)" patternUnits="userSpaceOnUse" width={7}>
+          <pattern
+            height={7}
+            id={hatch}
+            patternTransform="rotate(-45)"
+            patternUnits="userSpaceOnUse"
+            width={7}
+            {...steadyHatch(-45)}
+          >
             <rect fill={STANCE_COLOURS.war.line} fillOpacity={0.12} height={7} width={7} />
             <line stroke={STANCE_COLOURS.war.line} strokeOpacity={0.6} strokeWidth={1.5} x1={0} x2={0} y1={0} y2={7} />
           </pattern>
@@ -237,7 +259,17 @@ export function AbroadClaims({
             {group.paths.map(({ town, d }) => (
               <path d={d} data-town={town.slug} key={town.slug} />
             ))}
-            {group.dots ? <path d={group.dots} fillOpacity={0.9} stroke="none" /> : null}
+            {group.dots ? (
+              <path
+                d={group.dots}
+                fill="none"
+                stroke={style.hatch ? `url(#${hatch})` : style.line}
+                strokeDasharray="none"
+                strokeLinecap="round"
+                strokeOpacity={0.9}
+                strokeWidth={zoom < -6 ? 2.6 : 3.2}
+              />
+            ) : null}
           </g>
         )
       })}
@@ -431,27 +463,29 @@ export function AbroadMarks({
             onClick={onSelect ? () => onSelect({ kind: 'abroad', slug: town.slug }) : undefined}
             style={cursor}
           >
-            {site && zoom >= SITES_FROM ? (
-              <SiteMark facts={site} ring={style.line} scale={scale} selected={isSelected} x={hx} y={hy}>
-                <title>{`${spoken(town.name)} · ${holderWords(town)}`}</title>
-              </SiteMark>
-            ) : mark ? (
-              <>
-                {mark.ring ? <circle cx={hx} cy={hy} fill={GROUND.whitewash} r={mark.ring} stroke={style.line} strokeWidth={1.25} /> : null}
-                <circle
-                  cx={hx}
-                  cy={hy}
-                  fill={isSelected ? GROUND.ink : style.line}
-                  r={mark.r}
-                  stroke={mark.ring ? 'none' : GROUND.whitewash}
-                  strokeWidth={1}
-                >
-                  <title>{spoken(town.name)}</title>
-                </circle>
-              </>
-            ) : null}
+            <g {...upright(hx, hy)}>
+              {site && zoom >= SITES_FROM ? (
+                <SiteMark facts={site} ring={style.line} scale={scale} selected={isSelected} x={hx} y={hy}>
+                  <title>{`${spoken(town.name)} · ${holderWords(town)}`}</title>
+                </SiteMark>
+              ) : mark ? (
+                <>
+                  {mark.ring ? <circle cx={hx} cy={hy} fill={GROUND.whitewash} r={mark.ring} stroke={style.line} strokeWidth={1.25} /> : null}
+                  <circle
+                    cx={hx}
+                    cy={hy}
+                    fill={isSelected ? GROUND.ink : style.line}
+                    r={mark.r}
+                    stroke={mark.ring ? 'none' : GROUND.whitewash}
+                    strokeWidth={1}
+                  >
+                    <title>{spoken(town.name)}</title>
+                  </circle>
+                </>
+              ) : null}
+            </g>
             {label ? (
-              <>
+              <g {...upright(hx, hy)}>
                 <text
                   className="font-label"
                   fill={style.text}
@@ -481,7 +515,7 @@ export function AbroadMarks({
                     {label.sub}
                   </text>
                 ) : null}
-              </>
+              </g>
             ) : null}
           </g>
         )
@@ -491,8 +525,12 @@ export function AbroadMarks({
         const home = !slug
         const style = home ? null : styleOf(nation?.name ?? null)
         const ink = style?.text ?? GROUND.sea800
+        // Set across the heartland, it keeps its size about its own middle mid-zoom.
         return (
-          <g key={slug || 'home'}>
+          <g
+            key={slug || 'home'}
+            {...upright(label.x + label.width / 2, label.y + label.height / 2)}
+          >
             <text
               className={cnHit(hit, 'font-display')}
               fill={ink}
@@ -551,28 +589,34 @@ export function HomeGlow({
 }) {
   const { zoom } = projection
   const f = affineOf(projection)
-  let d = ''
-  const discs = zoom < GLOW_DISCS_BELOW
-  for (const town of towns) {
-    if (!town.bounds || !boundsTouch(town.bounds, projection.bounds)) continue
-    if (discs) {
-      const centre: Point = town.home ?? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2]
-      d += dot(at(f, centre), zoom <= -6 ? 7 : 6)
-    } else for (const claim of town.claims) d += ringPath(claim, f, 0.75)
+  const shown = towns.filter((town) => town.bounds && boundsTouch(town.bounds, projection.bounds))
+  if (zoom < GLOW_DISCS_BELOW) {
+    const r = zoom <= -6 ? 7 : 6
+    const homes = shown.map((town) =>
+      at(f, town.home ?? [(town.bounds!.minX + town.bounds!.maxX) / 2, (town.bounds!.minZ + town.bounds!.maxZ) / 2]),
+    )
+    if (!homes.length) return null
+    // A disc apiece, so each keeps its size about its home mid-zoom as the lozenge over it does; the
+    // fills washed as one and the rims as one, so where two discs meet they merge, as one path's would.
+    return (
+      <g className="az-home-glow" pointerEvents="none">
+        <g opacity={0.5}>
+          {homes.map(([x, y], i) => (
+            <circle key={i} {...upright(x, y)} cx={x} cy={y} fill={GROUND.saffronLight} r={r} />
+          ))}
+        </g>
+        <g opacity={0.6}>
+          {homes.map(([x, y], i) => (
+            <circle key={i} {...upright(x, y)} cx={x} cy={y} fill="none" r={r} stroke={GROUND.saffron} strokeWidth={1} />
+          ))}
+        </g>
+      </g>
+    )
   }
+  let d = ''
+  for (const town of shown) for (const claim of town.claims) d += ringPath(claim, f, 0.75)
   if (!d) return null
-  return discs ? (
-    <path
-      className="az-home-glow"
-      d={d}
-      fill={GROUND.saffronLight}
-      fillOpacity={0.5}
-      pointerEvents="none"
-      stroke={GROUND.saffron}
-      strokeOpacity={0.6}
-      strokeWidth={1}
-    />
-  ) : (
+  return (
     <path
       className="az-home-glow"
       d={d}

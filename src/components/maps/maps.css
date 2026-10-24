@@ -34,6 +34,26 @@
   image-rendering: auto;
 }
 
+/*
+ * The overlay mid-zoom (leaflet/overlay.ts): its group is scaled with the
+ * ground, its marks and names scaled back about their points
+ * (leaflet/steady.ts), and every other line keeps its width on the page,
+ * dashes and all — a road's is set to its own each frame. Inside a mark
+ * held upright the two scales cancel, and the mark's own (a glyph drawn
+ * small) is meant; a pattern's hatching is the pattern's affair.
+ */
+.az-overlay :is(path, circle, ellipse, line, polyline, polygon, rect):not([data-az-at] *, pattern *) {
+  vector-effect: non-scaling-stroke;
+}
+/* The hidden element a zoom's animation is read back from, eased by Leaflet's own rule. */
+.az-zoom-clock {
+  position: absolute;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Only what is drawn takes the pointer; the ground beneath stays Leaflet's. Leaflet's own
    stylesheet turns every path in its panes off, so the hit strokes are named as well as their group. */
 .az-overlay {

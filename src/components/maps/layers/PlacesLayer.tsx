@@ -10,6 +10,7 @@ import {
   LabelPlacer,
   pathOf,
   textWidth,
+  upright,
   type Projection,
   type Rect,
 } from './projection'
@@ -190,7 +191,9 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
               style={interactive ? { cursor: 'pointer' } : undefined}
             >
               <title>{place.name}</title>
-              <PlacePin place={place} scale={scale} selected={selected === place.id} x={x} y={y} />
+              <g {...upright(x, y)}>
+                <PlacePin place={place} scale={scale} selected={selected === place.id} x={x} y={y} />
+              </g>
             </g>
           ) : (
             <g
@@ -198,20 +201,23 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
               className={interactive ? 'az-hit' : undefined}
               onClick={onSelect ? () => onSelect(place) : undefined}
               style={interactive ? { cursor: 'pointer' } : undefined}
-              transform={`translate(${x} ${y})`}
             >
               <title>{group.map((member) => member.name).join(', ')}</title>
-              <circle fill={GROUND.sea800} r={12} stroke={GROUND.whitewash} strokeWidth={2} />
-              <text
-                className="font-label"
-                dy={4}
-                fill={GROUND.whitewash}
-                fontSize={11}
-                fontWeight={700}
-                textAnchor="middle"
-              >
-                {group.length}
-              </text>
+              <g {...upright(x, y)}>
+                <g transform={`translate(${x} ${y})`}>
+                  <circle fill={GROUND.sea800} r={12} stroke={GROUND.whitewash} strokeWidth={2} />
+                  <text
+                    className="font-label"
+                    dy={4}
+                    fill={GROUND.whitewash}
+                    fontSize={11}
+                    fontWeight={700}
+                    textAnchor="middle"
+                  >
+                    {group.length}
+                  </text>
+                </g>
+              </g>
             </g>
           ),
         )}
@@ -251,21 +257,23 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
             {!name ? <title>{place.name}</title> : null}
-            <PlacePin place={place} scale={scale} selected={isSelected} x={x} y={y} />
-            <text
-              className="font-body az-place-label"
-              dy={fontSize * 0.36}
-              fill={GROUND.ink}
-              fontSize={fontSize}
-              fontWeight={600}
-              opacity={name ? 1 : 0}
-              textAnchor={name?.anchor ?? 'start'}
-              x={name?.tx ?? x + PIN * scale + 6}
-              y={name?.ty ?? y}
-              {...halo(GROUND.whitewash, 3)}
-            >
-              {place.name}
-            </text>
+            <g {...upright(x, y)}>
+              <PlacePin place={place} scale={scale} selected={isSelected} x={x} y={y} />
+              <text
+                className="font-body az-place-label"
+                dy={fontSize * 0.36}
+                fill={GROUND.ink}
+                fontSize={fontSize}
+                fontWeight={600}
+                opacity={name ? 1 : 0}
+                textAnchor={name?.anchor ?? 'start'}
+                x={name?.tx ?? x + PIN * scale + 6}
+                y={name?.ty ?? y}
+                {...halo(GROUND.whitewash, 3)}
+              >
+                {place.name}
+              </text>
+            </g>
           </g>
         )
       })}

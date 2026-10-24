@@ -22,6 +22,15 @@ import type { Projection } from '../layers/projection'
 
 import { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
 import { createHome } from './home'
+import {
+  createLayer,
+  createZoomEase,
+  placementOf,
+  shownAt,
+  type Frame,
+  type Layer,
+  type Shown,
+} from './overlay'
 import { attachSheets } from './sheet'
 import { AzaniaTileLayer, MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
 
@@ -58,33 +67,13 @@ const OVERLAY_PADDING = 0.6
  * what React renders and the transform that moves it into place can never
  * disagree, however late the render runs.
  */
-type View = { zoom: number; origin: L.Point; bounds: L.LatLngBounds }
+type View = Frame & { bounds: L.LatLngBounds }
 
 const takeView = (map: L.Map): View => ({
   zoom: map.getZoom(),
   origin: map.getPixelOrigin(),
   bounds: map.getBounds(),
 })
-
-/**
- * The transform that moves something drawn for one view into place for
- * another: the projection is linear in the zoom's scale, so it's a scale
- * and a shift. Empty when the two are the same.
- */
-function alignment(from: View, to: View): string {
-  const s = 2 ** (to.zoom - from.zoom)
-  const dx = from.origin.x * s - to.origin.x
-  const dy = from.origin.y * s - to.origin.y
-  if (s === 1 && dx === 0 && dy === 0) return ''
-  return `matrix(${s} 0 0 ${s} ${dx} ${dy})`
-}
-
-/** Sets or clears the overlay's transform, touching the DOM only when it changes. */
-function setTransform(group: SVGGElement, transform: string): void {
-  if ((group.getAttribute('transform') ?? '') === transform) return
-  if (transform) group.setAttribute('transform', transform)
-  else group.removeAttribute('transform')
-}
 
 type MapContextValue = {
   map: L.Map
@@ -141,7 +130,11 @@ type MapInternals = L.Map & {
   _move: (center: L.LatLng, zoom: number, data?: object, supressEvent?: boolean) => L.Map
   _moveEnd: (zoomChanged: boolean) => L.Map
   _limitZoom: (zoom: number) => number
+  _getNewPixelOrigin: (center: L.LatLng, zoom?: number) => L.Point
 }
+
+/** Leaflet's SVG renderer's own step mid-zoom, which scales the whole SVG; the overlay takes it over. */
+type SvgRenderer = { _updateTransform: (center: L.LatLng, zoom: number) => void }
 
 /** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
 const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
@@ -371,11 +364,14 @@ type CanvasProps = {
 /**
  * The map itself: a Leaflet map in a div, its tiles from the cache, and an
  * SVG overlay the children are rendered into through a portal. Leaflet's
- * own SVG renderer owns that overlay, so during a drag, a pinch or a zoom
- * animation it is moved and scaled by Leaflet like any path layer, with
- * nothing of React's running. When the view settles, the children are
- * re-rendered once, at the new layer points; until that render lands, a
- * transform on the overlay moves what's already drawn into place, so no
+ * own SVG renderer holds that overlay, but where Leaflet would scale the
+ * whole SVG like a picture mid-zoom — names ballooning, lines swelling —
+ * the SVG keeps its size and the overlay's group is moved and scaled
+ * inside it instead, frame by frame (./overlay.ts), with nothing of
+ * React's running: the ground grows and shrinks, while what has a size on
+ * the page keeps it and glides with its point (./steady.ts). When the view
+ * settles, the children are rendered again at the new layer points; until
+ * that render lands, the same move keeps what's drawn in place, so no
  * frame shows it askew.
  */
 export function MapCanvas({
@@ -397,9 +393,12 @@ export function MapCanvas({
   const mapRef = useRef<L.Map | null>(null)
   const [overlay, setOverlay] = useState<SVGGElement | null>(null)
   const [context, setContext] = useState<MapContextValue | null>(null)
-  // The view the overlay's contents were drawn for, and the view the map last settled at.
+  // The view the overlay's contents were drawn for, the view the map last settled at, and where it's shown just now.
   const drawn = useRef<View | null>(null)
   const settled = useRef<View | null>(null)
+  const shown = useRef<Shown | null>(null)
+  // The overlay's group as it's moved (./overlay.ts).
+  const layer = useRef<Layer | null>(null)
   const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick })
   useEffect(() => {
     handlers.current = { onMove, onPointer, onClick, onDoubleClick }
@@ -466,6 +465,33 @@ export function MapCanvas({
     // to the map itself, which shows a ring only for the keyboard.
     group.addEventListener('focus', () => container.focus({ preventScroll: true }))
     setOverlay(group)
+    const shownNow = () => shown.current ?? shownAt(takeView(map))
+    const drawing = createLayer(group)
+    layer.current = drawing
+
+    /**
+     * The map is shown at `at`: what's drawn is moved there. Leaflet would
+     * scale the SVG itself mid-zoom, like a picture; instead the SVG stays
+     * where Leaflet last fitted it, over the map and a margin about it, at
+     * its own size, so its pixels are still the layer's, and the group
+     * inside is moved and scaled, its marks and names held steady. A zoom's
+     * animation is followed frame by frame as the tiles ease.
+     */
+    const show = (at: Shown) => {
+      shown.current = at
+      if (drawn.current) drawing.place(placementOf(drawn.current, at))
+    }
+    const ease = createZoomEase({ map, shown: shownNow, show })
+    const follow = (at: Frame) => {
+      ease.stop()
+      show(shownAt(at))
+    }
+    const scaler = renderer as unknown as SvgRenderer
+    scaler._updateTransform = (center, zoom) => {
+      const at = { zoom, origin: (map as MapInternals)._getNewPixelOrigin(center, zoom) }
+      if ((map as MapInternals)._animatingZoom) ease.start(at)
+      else follow(at)
+    }
 
     // Past the coarsest tiles, the level-5 tiles are drawn smaller: smoothed, since dropping pixels only speckles them.
     const far = () => container.classList.toggle('az-far', map.getZoom() < MIN_NATIVE_ZOOM)
@@ -489,10 +515,10 @@ export function MapCanvas({
       const view = takeView(map)
       settled.current = view
       far()
-      // Leaflet has just repositioned the overlay for the new view (its own
-      // moveend ran first); move what's drawn into place before React runs.
-      // A pan leaves the layer points as they were, and the overlay untouched.
-      if (drawn.current) setTransform(group, alignment(drawn.current, view))
+      // Leaflet has just fitted the SVG to the new view (its own moveend ran
+      // first); move what's drawn into place before React runs. A pan
+      // leaves the layer points as they were, and the overlay untouched.
+      follow(view)
       setContext({ map, version: ++version, view, world: home?.world() ?? 0 })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
@@ -531,12 +557,16 @@ export function MapCanvas({
     onReady?.(map)
 
     return () => {
+      ease.remove()
+      drawing.dispose()
       observer.disconnect()
       detachSheets()
       map.remove()
       mapRef.current = null
       drawn.current = null
       settled.current = null
+      shown.current = null
+      layer.current = null
       setOverlay(null)
       setContext(null)
     }
@@ -545,11 +575,11 @@ export function MapCanvas({
   }, [])
 
   // The children have just been drawn for the settled view: they stand in
-  // place of their own accord, unless the map settled again meanwhile.
+  // place of their own accord, unless the map has moved on meanwhile.
   useLayoutEffect(() => {
     if (!context || !overlay) return
     drawn.current = context.view
-    setTransform(overlay, settled.current ? alignment(context.view, settled.current) : '')
+    layer.current?.place(placementOf(context.view, shown.current ?? shownAt(context.view)))
   }, [context, overlay])
 
   useEffect(() => {

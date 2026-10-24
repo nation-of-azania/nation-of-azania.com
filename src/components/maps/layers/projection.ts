@@ -94,6 +94,49 @@ export const halo = (colour: string, width = 3) => ({
   strokeLinecap: 'round' as const,
 })
 
+/*
+ * Mid-zoom, the live map scales the whole overlay at once, and draws it
+ * again only when the view settles (leaflet/canvas.tsx). The ground's
+ * shapes — claims, roads, rings — should scale: they are the ground. A
+ * name, a pin or a mark should not: it has a size on the page. So what
+ * has one says so, in data attributes the live map reads each frame
+ * (leaflet/steady.ts): a mark or a name is drawn about the point it
+ * belongs to and scaled back about that point, so it keeps its size and
+ * glides with it; a road's width follows its blocks as each zoom it
+ * passes through would draw it; text along a path keeps its type size.
+ * Every other line keeps its width (maps.css). The attributes are inert
+ * anywhere else, and the drawing stands as it is drawn.
+ */
+
+/** Keeps an element its size on the page about (x, y), the point it belongs to: for marks and names. */
+export const upright = (x: number, y: number) => ({
+  'data-az-at': `${x.toFixed(1)} ${y.toFixed(1)}`,
+})
+
+/** Keeps the type of text set along a path its size, which can't be scaled back as a whole: its size, tracking and halo, in px. */
+export const steadyType = (fontSize: number, tracking: number, halo: number) => ({
+  'data-az-type': `${fontSize} ${tracking} ${halo}`,
+})
+
+/** Keeps a hatching's lines their spacing on the page, as a hatching is meant to: on its pattern, with the pattern's turn. */
+export const steadyHatch = (degrees: number) => ({
+  'data-az-hatch': String(degrees),
+})
+
+/**
+ * A road's width as each zoom draws it, for the live map to follow
+ * mid-zoom: its blocks at this zoom (`base`, in px), held within its floor
+ * and ceiling, taken `times` over with `plus` px added and never under
+ * `least`; and its dashes, each so many of that width.
+ */
+export const steadyWidth = (
+  width: { min: number; base: number; max: number; times?: number; plus?: number; least?: number },
+  dash?: readonly number[],
+) => ({
+  'data-az-width': [width.min, width.base.toFixed(3), width.max, width.times ?? 1, width.plus ?? 0, width.least ?? 0].join(' '),
+  'data-az-dash': dash?.join(' '),
+})
+
 /** A label's box beside a point, on the side asked for; `gap` is the room left for a pin. */
 export function labelBeside(
   x: number,

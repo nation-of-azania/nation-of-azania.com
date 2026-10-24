@@ -4,7 +4,16 @@ import { GROUND } from '@/maps/palette'
 import { siegeTitle, type SiegeSide } from '@/maps/sieges'
 import type { Siege } from '@/maps/world'
 
-import { halo, inBounds, LabelPlacer, pathOf, textWidth, type Projection, type Rect } from './projection'
+import {
+  halo,
+  inBounds,
+  LabelPlacer,
+  pathOf,
+  textWidth,
+  upright,
+  type Projection,
+  type Rect,
+} from './projection'
 
 /**
  * The sieges on the server, as SiegeWar marks them: always drawn when there
@@ -231,9 +240,11 @@ export function SiegesLayer({
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
             <title>{siegeTitle(siege)}</title>
-            <SiegeMarkGlyph battle={siege.battle} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
+            <g {...upright(x, y)}>
+              <SiegeMarkGlyph battle={siege.battle} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
+            </g>
             {name ? (
-              <>
+              <g {...upright(x, y)}>
                 <text
                   className="font-body"
                   fill={GROUND.coralDeep}
@@ -258,7 +269,7 @@ export function SiegesLayer({
                     {name.sub}
                   </text>
                 ) : null}
-              </>
+              </g>
             ) : null}
           </g>
         )

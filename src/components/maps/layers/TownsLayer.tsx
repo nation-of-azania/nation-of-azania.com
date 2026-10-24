@@ -3,7 +3,17 @@ import { outlineToRing } from '@/maps/geo'
 import { GROUND } from '@/maps/palette'
 import { siteFacts, siteLine } from '@/maps/sites'
 
-import { boundsTouch, halo, LabelPlacer, pathOf, textWidth, type Projection, type Rect } from './projection'
+import {
+  boundsTouch,
+  halo,
+  LabelPlacer,
+  pathOf,
+  steadyHatch,
+  textWidth,
+  upright,
+  type Projection,
+  type Rect,
+} from './projection'
 import { SITE_R, SiteMark, siteMarkRect } from './SiteMark'
 
 /** Where a town's name was found room (its box), for TownLabels to draw. */
@@ -168,7 +178,14 @@ export function TownsLayer({ projection, towns, selected, emphasised, onSelect }
     <g className="az-towns">
       {anySite ? (
         <defs>
-          <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
+          <pattern
+            height={6}
+            id={hatch}
+            patternTransform="rotate(45)"
+            patternUnits="userSpaceOnUse"
+            width={6}
+            {...steadyHatch(45)}
+          >
             <line stroke={GROUND.saffronDeep} strokeOpacity={0.55} strokeWidth={1.2} x1={0} x2={0} y1={0} y2={6} />
           </pattern>
         </defs>
@@ -262,22 +279,27 @@ export function TownLabels({
             onClick={onSelect ? () => onSelect(town) : undefined}
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
-            {site ? (
-              <SiteMark facts={site} scale={scale} selected={isSelected} x={hx} y={hy}>
-                <title>{spoken(town.name)}</title>
-              </SiteMark>
-            ) : (
-              <path
-                d={`M${hx} ${hy - r}L${hx + r} ${hy}L${hx} ${hy + r}L${hx - r} ${hy}Z`}
-                fill={isSelected ? GROUND.saffron : GROUND.sea800}
-                stroke={GROUND.whitewash}
-                strokeWidth={1.5}
-              >
-                <title>{spoken(town.name)}</title>
-              </path>
-            )}
+            <g {...upright(hx, hy)}>
+              {site ? (
+                <SiteMark facts={site} scale={scale} selected={isSelected} x={hx} y={hy}>
+                  <title>{spoken(town.name)}</title>
+                </SiteMark>
+              ) : (
+                <path
+                  d={`M${hx} ${hy - r}L${hx + r} ${hy}L${hx} ${hy + r}L${hx - r} ${hy}Z`}
+                  fill={isSelected ? GROUND.saffron : GROUND.sea800}
+                  stroke={GROUND.whitewash}
+                  strokeWidth={1.5}
+                >
+                  <title>{spoken(town.name)}</title>
+                </path>
+              )}
+            </g>
             {label ? (
-              <>
+              // At the home, the name keeps its distance from the mark; along the claim's edge, its own spot there.
+              <g
+                {...(label.at === 'home' ? upright(hx, hy) : upright(label.x + label.width / 2, label.y))}
+              >
                 <text
                   className="font-label"
                   fill={ink}
@@ -307,7 +329,7 @@ export function TownLabels({
                     {label.sub}
                   </text>
                 ) : null}
-              </>
+              </g>
             ) : null}
           </g>
         )

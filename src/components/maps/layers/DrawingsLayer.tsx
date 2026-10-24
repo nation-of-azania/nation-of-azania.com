@@ -2,7 +2,7 @@ import type { Point } from '@/maps/geo'
 import { INK_COLOURS } from '@/maps/palette'
 import type { Drawing } from '@/maps/registry'
 
-import { halo, LabelPlacer, pathOf, textWidth, type Projection, type Rect } from './projection'
+import { halo, LabelPlacer, pathOf, textWidth, upright, type Projection, type Rect } from './projection'
 
 type Props = {
   projection: Projection
@@ -154,31 +154,34 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
                   strokeLinejoin="round"
                   strokeWidth={width}
                 />
-                {head ? (
-                  <path
-                    d={head}
-                    fill={ink.fill}
-                    stroke={ink.halo}
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                  />
-                ) : null}
-                {drawing.label ? (
-                  <text
-                    className="font-display"
-                    dy={-width - 6}
-                    fill={ink.fill}
-                    fontSize={fontSize}
-                    fontStyle="italic"
-                    fontWeight={600}
-                    textAnchor="middle"
-                    x={lx}
-                    y={ly}
-                    {...halo(ink.halo, 3.5)}
-                  >
-                    {drawing.label}
-                  </text>
-                ) : null}
+                {/* The head and the words keep their size about the line's end mid-zoom. */}
+                <g {...upright(lx, ly)}>
+                  {head ? (
+                    <path
+                      d={head}
+                      fill={ink.fill}
+                      stroke={ink.halo}
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                    />
+                  ) : null}
+                  {drawing.label ? (
+                    <text
+                      className="font-display"
+                      dy={-width - 6}
+                      fill={ink.fill}
+                      fontSize={fontSize}
+                      fontStyle="italic"
+                      fontWeight={600}
+                      textAnchor="middle"
+                      x={lx}
+                      y={ly}
+                      {...halo(ink.halo, 3.5)}
+                    >
+                      {drawing.label}
+                    </text>
+                  ) : null}
+                </g>
                 {isSelected ? (
                   <path
                     d={d}
@@ -215,20 +218,22 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
                   strokeDasharray={isSelected ? '4 3' : undefined}
                 />
                 {drawing.label ? (
-                  <text
-                    className="font-display"
-                    dy={fontSize * 0.36}
-                    fill={ink.fill}
-                    fontSize={fontSize}
-                    fontStyle="italic"
-                    fontWeight={600}
-                    textAnchor="middle"
-                    x={cx}
-                    y={cy}
-                    {...halo(ink.halo, 3.5)}
-                  >
-                    {drawing.label}
-                  </text>
+                  <g {...upright(cx, cy)}>
+                    <text
+                      className="font-display"
+                      dy={fontSize * 0.36}
+                      fill={ink.fill}
+                      fontSize={fontSize}
+                      fontStyle="italic"
+                      fontWeight={600}
+                      textAnchor="middle"
+                      x={cx}
+                      y={cy}
+                      {...halo(ink.halo, 3.5)}
+                    >
+                      {drawing.label}
+                    </text>
+                  </g>
                 ) : null}
               </g>
             )
@@ -237,28 +242,30 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
             const [x, y] = projection.project(drawing.at)
             return (
               <g key={index} {...hit}>
-                <HighlightPin
-                  fill={ink.fill}
-                  halo={ink.halo}
-                  scale={isSelected ? 1.2 : 1}
-                  x={x}
-                  y={y}
-                />
-                {drawing.label ? (
-                  <text
-                    className="font-display"
-                    dy={fontSize * 0.36}
+                <g {...upright(x, y)}>
+                  <HighlightPin
                     fill={ink.fill}
-                    fontSize={fontSize}
-                    fontStyle="italic"
-                    fontWeight={600}
-                    x={x + 12}
-                    y={y - 16}
-                    {...halo(ink.halo, 3.5)}
-                  >
-                    {drawing.label}
-                  </text>
-                ) : null}
+                    halo={ink.halo}
+                    scale={isSelected ? 1.2 : 1}
+                    x={x}
+                    y={y}
+                  />
+                  {drawing.label ? (
+                    <text
+                      className="font-display"
+                      dy={fontSize * 0.36}
+                      fill={ink.fill}
+                      fontSize={fontSize}
+                      fontStyle="italic"
+                      fontWeight={600}
+                      x={x + 12}
+                      y={y - 16}
+                      {...halo(ink.halo, 3.5)}
+                    >
+                      {drawing.label}
+                    </text>
+                  ) : null}
+                </g>
               </g>
             )
           }
@@ -266,21 +273,23 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
             const [x, y] = projection.project(drawing.at)
             return (
               <g key={index} {...hit}>
-                <text
-                  className="font-display"
-                  dy={fontSize * 0.36}
-                  fill={ink.fill}
-                  fontSize={fontSize + 1}
-                  fontStyle="italic"
-                  fontWeight={600}
-                  textAnchor="middle"
-                  textDecoration={isSelected ? 'underline' : undefined}
-                  x={x}
-                  y={y}
-                  {...halo(ink.halo, 4)}
-                >
-                  {drawing.text}
-                </text>
+                <g {...upright(x, y)}>
+                  <text
+                    className="font-display"
+                    dy={fontSize * 0.36}
+                    fill={ink.fill}
+                    fontSize={fontSize + 1}
+                    fontStyle="italic"
+                    fontWeight={600}
+                    textAnchor="middle"
+                    textDecoration={isSelected ? 'underline' : undefined}
+                    x={x}
+                    y={y}
+                    {...halo(ink.halo, 4)}
+                  >
+                    {drawing.text}
+                  </text>
+                </g>
               </g>
             )
           }
