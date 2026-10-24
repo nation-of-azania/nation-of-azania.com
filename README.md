@@ -494,13 +494,12 @@ on `/maps` and in an interactive Map block, never with any other page.
 That picture also lies **under the tiles at every zoom**, so whatever they
 haven't covered yet (the ground a pinch out opens around the view just
 left, a slow tile) shows the world there, soft at first and sharpening as
-the tiles arrive, never the bare backdrop. It's on show from the moment a
-zoom goes out past where it began until the tiles of the zoom it ends at
-have all arrived and faded in; at rest, through a pan and through a zoom
-in (where the level left behind, scaled up, still covers the page) it's
-set aside, so they have nothing extra to draw. Past −6 it is the map, and
-always shown, so a pinch back in from the whole world keeps it until the
-tiles arrive, where the map used to go dark the moment it crossed −6. The
+the tiles arrive, never the bare backdrop. It stays under them at rest
+too: at the zooms between Dynmap's levels the tiles are scaled by a
+fraction, and hairline gaps open along their edges, which then show the
+world's own colours rather than dark lines. Past −6 it is the map, so a
+pinch back in from the whole world keeps it until the tiles arrive, where
+the map used to go dark the moment it crossed −6. The
 server makes the picture from the 684 level-5 tiles, half size, as one WebP
 of some 170 KB (`/maps/sheet`, kept at the CDN six hours and served stale
 for a month while the Rulercraft map is down): one request where the browser
