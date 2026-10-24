@@ -20,9 +20,9 @@ import { savesData } from './connection'
 
 /**
  * The whole world as one picture: the level-5 tiles at half their size,
- * since the sheet is never shown sharper than that, drawn into a canvas,
- * and the canvas laid on the map as an image overlay, placed and
- * scaled by Leaflet like any other. It serves twice.
+ * since the sheet is never shown sharper than that, laid on the map as an
+ * image overlay, placed and scaled by Leaflet like any other. It serves
+ * twice.
  *
  * Past SHEET_ZOOM it *is* the map. The tiles there would number in the
  * hundreds and a pan would stutter, so the tile layer stops and the sheet
@@ -77,15 +77,16 @@ type OverlayInternals = {
 }
 
 /**
- * An image overlay whose picture is a canvas of ours, not an <img> fetched
- * from a URL; placed and scaled by a transform alone, as the tile levels
- * are. The canvas keeps its own size, so the frames of a gesture move it on
- * the compositor without laying it out again, where Leaflet's own overlay
- * sets its width and height every frame.
+ * An image overlay whose picture is an element of ours: the server's sheet
+ * as an <img>, or a canvas the tiles are drawn into while that's slow in
+ * coming. Placed and scaled by a transform alone, as the tile levels are;
+ * the picture keeps its own size, so the frames of a gesture move it on the
+ * compositor without laying it out again, where Leaflet's own overlay sets
+ * its width and height every frame.
  */
-class CanvasOverlay extends L.ImageOverlay {
+class PictureOverlay extends L.ImageOverlay {
   constructor(
-    private readonly canvas: HTMLCanvasElement,
+    private readonly picture: HTMLCanvasElement | HTMLImageElement,
     bounds: L.LatLngBoundsExpression,
     options: L.ImageOverlayOptions,
   ) {
@@ -94,7 +95,7 @@ class CanvasOverlay extends L.ImageOverlay {
 
   _initImage(): void {
     const self = this as unknown as OverlayInternals
-    const element = this.canvas
+    const element = this.picture
     L.DomUtil.addClass(element, 'leaflet-image-layer')
     if (self._zoomAnimated) L.DomUtil.addClass(element, 'leaflet-zoom-animated')
     if (this.options.className) L.DomUtil.addClass(element, this.options.className)
@@ -103,16 +104,16 @@ class CanvasOverlay extends L.ImageOverlay {
     // Leaflet's stylesheet lifts every canvas in the map's panes to z-index 100, for its canvas
     // renderer, and its own overlay skips a z-index of 0; the sheet's is set here, or it would lie over the tiles.
     element.style.zIndex = String(this.options.zIndex ?? 0)
-    element.style.width = `${element.width}px`
-    element.style.height = `${element.height}px`
+    element.style.width = `${SHEET_WIDTH}px`
+    element.style.height = `${SHEET_HEIGHT}px`
     element.style.transformOrigin = '0 0'
     self._image = element
   }
 
-  /** Stands the canvas over its bounds as they lie in `box`, in layer pixels. */
+  /** Stands the picture over its bounds as they lie in `box`, in layer pixels. */
   private place(box: L.Bounds): void {
     if (!box.min || !box.max) return
-    L.DomUtil.setTransform(this.canvas, box.min, (box.max.x - box.min.x) / this.canvas.width)
+    L.DomUtil.setTransform(this.picture, box.min, (box.max.x - box.min.x) / SHEET_WIDTH)
   }
 
   _reset(): void {
@@ -126,8 +127,17 @@ class CanvasOverlay extends L.ImageOverlay {
   }
 }
 
-/** One copy of the world's sheet: where it lies, and its canvas once it has one. */
-type Sheet = { bounds: L.LatLngBounds; canvas: HTMLCanvasElement | null; overlay: CanvasOverlay | null }
+/**
+ * One copy of the world's sheet: where it lies, whether it's wanted on the
+ * map (the real one always; an echo once the view comes near it), and its
+ * picture once it has one.
+ */
+type Sheet = {
+  bounds: L.LatLngBounds
+  wanted: boolean
+  picture: HTMLCanvasElement | HTMLImageElement | null
+  overlay: PictureOverlay | null
+}
 
 type SheetOptions = {
   /** Whether the world repeats east and west, with an echo of the sheet either side. */
@@ -155,27 +165,52 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
       [SHEET_BOUNDS.minZ, SHEET_BOUNDS.minX + copy * WORLD_WIDTH],
       [SHEET_BOUNDS.maxZ, SHEET_BOUNDS.maxX + copy * WORLD_WIDTH],
     ),
-    canvas: null,
+    wanted: copy === 0,
+    picture: null,
     overlay: null,
   }))
   const [real] = sheets
 
+  // What the sheets are drawn from: nothing yet; the server's picture, an
+  // <img> each, which the compositor moves as it is (one picture, decoded
+  // once, whatever the number of copies); or, while that's slow or failing,
+  // a canvas each, which the tiles are drawn into as they come. A canvas
+  // costs more on every frame of a gesture than an image (Chromium makes a
+  // fresh resource of it each time it's moved), so it's never laid before
+  // there's something to draw in it, and gives way to the image once that
+  // has come.
+  let source: 'image' | 'canvas' | null = null
   const lay = (sheet: Sheet) => {
-    const canvas = document.createElement('canvas')
-    canvas.width = SHEET_WIDTH
-    canvas.height = SHEET_HEIGHT
-    // An echo starts as a copy of whatever the real sheet holds so far.
-    if (sheet !== real && real.canvas) canvas.getContext('2d')?.drawImage(real.canvas, 0, 0)
-    sheet.canvas = canvas
+    if (!source || !sheet.wanted) return
+    if (sheet.overlay && (source === 'image') === sheet.picture instanceof HTMLImageElement) return
+    sheet.overlay?.remove()
+    let picture: HTMLCanvasElement | HTMLImageElement
+    if (source === 'image') {
+      picture = new Image(SHEET_WIDTH, SHEET_HEIGHT)
+      picture.alt = ''
+      picture.src = SHEET_URL
+    } else {
+      picture = document.createElement('canvas')
+      picture.width = SHEET_WIDTH
+      picture.height = SHEET_HEIGHT
+      // An echo starts as a copy of whatever the real sheet holds so far.
+      if (sheet !== real && real.picture instanceof HTMLCanvasElement)
+        picture.getContext('2d')?.drawImage(real.picture, 0, 0)
+    }
+    sheet.picture = picture
     // Under the tiles (zIndex 1), at every zoom.
-    sheet.overlay = new CanvasOverlay(canvas, sheet.bounds, {
+    sheet.overlay = new PictureOverlay(picture, sheet.bounds, {
       pane: 'tilePane',
       zIndex: 0,
       className: 'az-sheet',
       interactive: false,
     }).addTo(map)
   }
-  lay(real)
+  const drawFrom = (next: 'image' | 'canvas') => {
+    if (source === 'image') return
+    source = next
+    for (const sheet of sheets) lay(sheet)
+  }
 
   // An echo's sheet: made once the map has settled within a page of it and
   // the browser has a moment (never in the frame the map settles in, which
@@ -186,8 +221,12 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   const layNear = (pages: number) => {
     if (detached) return
     const reach = map.getBounds().pad(pages)
-    for (const sheet of echoes) if (!sheet.canvas && reach.intersects(sheet.bounds)) lay(sheet)
-    if (echoes.every((sheet) => sheet.canvas)) {
+    for (const sheet of echoes)
+      if (!sheet.wanted && reach.intersects(sheet.bounds)) {
+        sheet.wanted = true
+        lay(sheet)
+      }
+    if (echoes.every((sheet) => sheet.wanted)) {
       map.off('moveend viewreset', settled)
       map.off('move zoom', moving)
     }
@@ -243,7 +282,8 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   const drawArrived = () => {
     batch = 0
     for (const sheet of sheets) {
-      const context = sheet.canvas?.getContext('2d')
+      if (!(sheet.picture instanceof HTMLCanvasElement)) continue
+      const context = sheet.picture.getContext('2d')
       if (!context) continue
       for (const { picture, c, r } of arrived)
         context.drawImage(
@@ -285,19 +325,25 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
       .catch(() => {})
       .finally(take)
   }
-  /** The whole sheet, as the server makes it, drawn into every canvas at once; false if it didn't come. */
+  /**
+   * The whole sheet, as the server makes it: decoded off the page first,
+   * then laid as an <img> on every copy wanted, in place of any canvas the
+   * tiles had begun; false if it didn't come.
+   */
+  let whole: HTMLImageElement | null = null
   const fetchWhole = async (): Promise<boolean> => {
+    whole = new Image()
+    whole.decoding = 'async'
+    whole.src = SHEET_URL
     try {
-      const picture = await fetchPicture(SHEET_URL)
-      if (!picture) return false
-      if (abort.signal.aborted) return true
-      for (const sheet of sheets) sheet.canvas?.getContext('2d')?.drawImage(picture, 0, 0, SHEET_WIDTH, SHEET_HEIGHT)
-      if ('close' in picture) picture.close()
-      pending.length = 0
-      return true
+      await whole.decode()
     } catch {
       return abort.signal.aborted
     }
+    if (abort.signal.aborted) return true
+    pending.length = 0
+    drawFrom('image')
+    return true
   }
   let byTiles = false
   let slow = 0
@@ -305,6 +351,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   const takeTiles = () => {
     if (byTiles) return
     byTiles = true
+    drawFrom('canvas')
     for (let i = 0; i < AT_ONCE; i++) take()
   }
   const start = () => {
@@ -344,6 +391,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   return () => {
     detached = true
     abort.abort()
+    if (whole && !whole.complete) whole.src = ''
     window.clearTimeout(slow)
     window.clearTimeout(batch)
     for (const { picture } of arrived) if ('close' in picture) picture.close()
