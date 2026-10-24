@@ -136,6 +136,16 @@ type MapInternals = L.Map & {
 /** Leaflet's SVG renderer's own step mid-zoom, which scales the whole SVG; the overlay takes it over. */
 type SvgRenderer = { _updateTransform: (center: L.LatLng, zoom: number) => void }
 
+/**
+ * How long the map must hold still mid-gesture — fingers on the glass but
+ * not moving, a drag held — before the overlay is drawn again for the view
+ * as it stands, rather than when the gesture ends.
+ */
+const PAUSE_MS = 150
+
+/** How far a held drag must have gone, as a share of the map's larger side, for a pause to draw again. */
+const PAUSE_PAN = 0.15
+
 /** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
 const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
 
@@ -370,9 +380,9 @@ type CanvasProps = {
  * inside it instead, frame by frame (./overlay.ts), with nothing of
  * React's running: the ground grows and shrinks, while what has a size on
  * the page keeps it and glides with its point (./steady.ts). When the view
- * settles, the children are rendered again at the new layer points; until
- * that render lands, the same move keeps what's drawn in place, so no
- * frame shows it askew.
+ * settles, or holds still a moment mid-gesture, the children are rendered
+ * again at the new layer points; until that render lands, the same move
+ * keeps what's drawn in place, so no frame shows it askew.
  */
 export function MapCanvas({
   initial,
@@ -500,8 +510,11 @@ export function MapCanvas({
     // When the world repeats, the reader is kept in the real copy of it.
     const home = wrap ? createHome(map, tiles) : null
     let version = 0
-    /** The map has settled, or been re-based (`rebase`, if not checked for here). */
-    const settle = (rebase = home?.check()) => {
+    /**
+     * The map has settled, or been re-based (`rebase`, if not checked for
+     * here), or is held still mid-gesture (`held`).
+     */
+    const settle = (rebase = home?.check(), held = false) => {
       if (rebase && drawn.current) {
         // The map's origin moved a world's width, and nothing on the page
         // did: what's drawn stands where it should, in the old colours,
@@ -512,18 +525,58 @@ export function MapCanvas({
         // The viewreset left the overlay's box a fraction of a pixel off, as Leaflet's does; its own update sets it exactly.
         svg._update()
       }
+      // Leaflet fits the SVG to the view when the map settles; held mid-gesture, it's fitted here, since a long drag may have carried it off the page.
+      if (held) svg._update()
       const view = takeView(map)
+      const last = settled.current
       settled.current = view
       far()
       // Leaflet has just fitted the SVG to the new view (its own moveend ran
       // first); move what's drawn into place before React runs. A pan
       // leaves the layer points as they were, and the overlay untouched.
       follow(view)
+      // Let go where a pause already drew it, the view is the same, and so is the drawing.
+      const same =
+        last !== null &&
+        view.zoom === last.zoom &&
+        view.origin.equals(last.origin) &&
+        view.bounds.equals(last.bounds)
+      if (same && !rebase) return
       setContext({ map, version: ++version, view, world: home?.world() ?? 0 })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
     const real = (point: Point) => !wrap || inWorld(point)
     map.on('moveend', () => settle())
+
+    // A gesture held still — a pinch whose fingers rest, a drag held — is
+    // drawn again for the view as it stands, so the names and what's come
+    // onto the page catch up while the reader looks, not only once they
+    // let go. Not while a zoom animates, which never pauses, nor for a drag
+    // too short to have brought anything new onto the page; and never
+    // re-based mid-gesture, which the gesture would undo.
+    let moving = false
+    let pause = 0
+    const paused = () => {
+      pause = 0
+      const last = settled.current
+      if (!moving || !last || (map as MapInternals)._animatingZoom) return
+      const size = map.getSize()
+      const shift = map.latLngToContainerPoint(last.bounds.getCenter()).distanceTo(size.divideBy(2))
+      if (Math.abs(map.getZoom() - last.zoom) < 0.02 && shift < PAUSE_PAN * Math.max(size.x, size.y)) return
+      settle(null, true)
+    }
+    map.on('movestart', () => {
+      moving = true
+    })
+    map.on('move', () => {
+      if (!moving) return
+      window.clearTimeout(pause)
+      pause = window.setTimeout(paused, PAUSE_MS)
+    })
+    map.on('moveend', () => {
+      moving = false
+      window.clearTimeout(pause)
+    })
     // Mid-pan, by hand or by inertia, the seam is crossed where it's crossed: the map re-bases there and then.
     if (home)
       map.on('move', () => {
@@ -557,6 +610,7 @@ export function MapCanvas({
     onReady?.(map)
 
     return () => {
+      window.clearTimeout(pause)
       ease.remove()
       drawing.dispose()
       observer.disconnect()
