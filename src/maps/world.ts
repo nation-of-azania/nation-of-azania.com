@@ -3,7 +3,7 @@ import type { TownKind } from './registry'
 
 /**
  * The rest of the Rulercraft world, as Azania Maps shows it around the
- * nation: every Towny town and nation (/maps/world), and the war going on
+ * nation: every Towny town and nation (/maps/world.json), and the war going on
  * (/maps/war): sieges as SiegeWar marks them, and the nations' capitals
  * with the reach of their war. Read from the Rulercraft map's marker file
  * and passed on, cached at the CDN; nothing of it is kept in the database.
@@ -63,6 +63,43 @@ export type World = {
   /** True when the map didn't answer and nothing was cached: the lists are then empty. */
   offline?: boolean
 }
+
+/** Where the browser asks for the world. */
+export const WORLD_URL = '/maps/world.json'
+
+/**
+ * A claim's outline as /maps/world.json sends it: its x and then its z, each
+ * as the first corner and then the step to each next one. Claims follow the
+ * chunk grid, so the steps are a few round numbers over and over, and they
+ * compress to a third of what the corners themselves do; the claims are
+ * most of the world.
+ */
+export type PackedOutline = [number[], number[]]
+export type PackedWorld = Omit<World, 'towns'> & {
+  towns: (Omit<WorldTown, 'claims'> & { claims: PackedOutline[] })[]
+}
+
+const steps = (values: number[]): number[] => values.map((value, i) => (i ? value - values[i - 1] : value))
+const corners = (steps: number[]): number[] => {
+  let at = 0
+  return steps.map((step) => (at += step))
+}
+
+export const packWorld = (world: World): PackedWorld => ({
+  ...world,
+  towns: world.towns.map((town) => ({
+    ...town,
+    claims: town.claims.map((outline): PackedOutline => [steps(outline.x), steps(outline.z)]),
+  })),
+})
+
+export const unpackWorld = (world: PackedWorld): World => ({
+  ...world,
+  towns: world.towns.map((town) => ({
+    ...town,
+    claims: town.claims.map(([x, z]) => ({ x: corners(x), z: corners(z) })),
+  })),
+})
 
 /** A siege in progress, from SiegeWar's map marker. */
 export type Siege = {

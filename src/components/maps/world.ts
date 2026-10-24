@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react'
 
-import { WORLD_EVERY_S, type World } from '@/maps/world'
+import { unpackWorld, WORLD_EVERY_S, WORLD_URL, type PackedWorld, type World } from '@/maps/world'
 
 /**
- * The rest of the world, as the map in the browser has it: /maps/world,
- * asked for once the map has settled and the browser is idle, so the
- * nation's own map paints first and the half-megabyte of everyone else's
- * claims comes after; asked again every quarter of an hour while the tab
- * is in view, as the CDN refreshes it. A world that comes back offline
- * leaves the last one standing. Always the bare path, which every viewer
- * shares at the CDN (the route refuses a query).
+ * The rest of the world, as the map in the browser has it:
+ * /maps/world.json, asked for once the map has settled and the browser is
+ * idle, so the nation's own map paints first and everyone else's claims
+ * (some 50 KB as they travel, packed) come after; asked again every
+ * quarter of an hour while the tab is in view, as the CDN refreshes it. A
+ * world that comes back offline leaves the last one standing. Always the
+ * bare path, which every viewer shares at the CDN (the route refuses a
+ * query).
  */
 
 export type WorldState = {
@@ -20,8 +21,8 @@ export type WorldState = {
   status: 'waiting' | 'asking' | 'live' | 'down'
 }
 
-const isWorld = (body: unknown): body is World => {
-  const world = body as World
+const isWorld = (body: unknown): body is PackedWorld => {
+  const world = body as PackedWorld
   return Boolean(world) && Array.isArray(world.towns) && Array.isArray(world.nations)
 }
 
@@ -66,13 +67,13 @@ export function useWorld(start: boolean, eager: boolean): WorldState {
       last = Date.now()
       setState((current) => (current.world ? current : { world: null, status: 'asking' }))
       try {
-        const response = await fetch('/maps/world')
+        const response = await fetch(WORLD_URL)
         if (!response.ok) throw new Error(`The world answered ${response.status}`)
         const body: unknown = await response.json()
         if (cancelled) return
         if (!isWorld(body) || body.offline) {
           setState((current) => (current.world ? current : { world: null, status: 'down' }))
-        } else setState({ world: body, status: 'live' })
+        } else setState({ world: unpackWorld(body), status: 'live' })
       } catch {
         if (!cancelled) setState((current) => (current.world ? current : { world: null, status: 'down' }))
       } finally {

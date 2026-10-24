@@ -28,10 +28,11 @@ const CDN = 'max-age=900, stale-while-revalidate=2592000, stale-if-error=2592000
 const CACHED = { 'Cache-Control': BROWSER, 'Vercel-CDN-Cache-Control': CDN }
 /**
  * The coarsest levels, each tile hundreds of chunks across, barely change
- * from one hour to the next, and the live map fetches every level-5 tile
- * for the world beneath it (src/components/maps/leaflet/sheet.ts): kept
- * six hours at the CDN and one in the browser, so that costs the server
- * a few hundred reads a quarter of a day, not every quarter of an hour.
+ * from one hour to the next, and the world beneath the live map is made
+ * of every level-5 tile (/maps/sheet, or the browser itself when that's
+ * slow): kept six hours at the CDN and one in the browser, so that costs
+ * the server a few hundred reads a quarter of a day, not every quarter of
+ * an hour.
  */
 const COARSE_FROM_LEVEL = 4
 const COARSE = {

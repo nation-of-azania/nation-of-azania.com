@@ -61,7 +61,7 @@ export type MapsActions = {
   redo: () => void
   /** Whether there is anything to undo or redo; read with useStore. */
   historyStore: Store<{ canUndo: boolean; canRedo: boolean }>
-  /** The rest of the world, once it has arrived (/maps/world), and how the asking goes. */
+  /** The rest of the world, once it has arrived (/maps/world.json), and how the asking goes. */
   world: Abroad | null
   worldStatus: WorldState['status']
   /** A page abroad says where its town or nation is, so the map can open there before the world arrives. */

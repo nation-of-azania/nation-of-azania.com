@@ -1,11 +1,16 @@
 import { getWorld } from '@/lib/world'
-import { WORLD_EVERY_S } from '@/maps/world'
+import { packWorld, WORLD_EVERY_S } from '@/maps/world'
 
 /**
  * Every Towny town and nation on the Rulercraft map, for Azania Maps'
  * layer of the rest of the world (src/maps/world.ts):
  *
  *   { at, nations: [{ name, colour, capital, towns, residents, chunks }], towns: [...] }
+ *
+ * with each town's claims packed as steps from corner to corner
+ * (PackedOutline), which halves what a visit downloads. The address
+ * changed with the packing, from /maps/world: a tab opened before then asks
+ * the old one, finds nothing, and keeps the world it has.
  *
  * Read from the map's marker file and passed on; nothing is stored. The
  * CDN shares one copy among everyone for a quarter of an hour and keeps
@@ -25,7 +30,7 @@ export async function GET(request: Request) {
       { headers: { 'Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'max-age=60' } },
     )
   }
-  return Response.json(world, {
+  return Response.json(packWorld(world), {
     headers: {
       'Cache-Control': 'public, max-age=300',
       'Vercel-CDN-Cache-Control': `max-age=${WORLD_EVERY_S}, stale-while-revalidate=86400, stale-if-error=86400`,

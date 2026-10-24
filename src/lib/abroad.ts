@@ -20,11 +20,11 @@ import { getWorld } from './world'
 /**
  * What the pages of Azania Maps for the world abroad say (/maps/abroad/…
  * and /maps/nation/…; src/maps/abroad.ts): one town or one nation out of
- * /maps/world's reading, in the few fields its panel shows. Kept by
+ * /maps/world.json's reading, in the few fields its panel shows. Kept by
  * unstable_cache, keyed by the address and Azania's own towns, so a page
  * neither waits on the Rulercraft map's 5 MB marker file each time nor
  * stops being cached (the read inside doesn't make the page dynamic); the
- * world changes slowly, so a quarter of an hour, as /maps/world itself.
+ * world changes slowly, so a quarter of an hour, as /maps/world.json itself.
  */
 
 /** A town abroad as its panel shows it: the facts, without the claims. */

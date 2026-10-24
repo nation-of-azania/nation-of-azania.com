@@ -68,7 +68,7 @@ export type SceneProps = {
   data: MapData
   rights: MapRights
   layers: MapLayer[]
-  /** The rest of the world, once it has arrived (/maps/world), whether it's drawn, and whether tinted by Azania's diplomacy. */
+  /** The rest of the world, once it has arrived (/maps/world.json), whether it's drawn, and whether tinted by Azania's diplomacy. */
   world: Abroad | null
   showWorld: boolean
   diplomacy: boolean

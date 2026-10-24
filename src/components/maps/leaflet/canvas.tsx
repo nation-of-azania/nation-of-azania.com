@@ -46,6 +46,14 @@ export const MIN_ZOOM = MIN_NATIVE_ZOOM - 2.5
 export type MapPosition = { centre: Point; zoom: number }
 
 /**
+ * How far beyond the page the overlay reaches, as a share of the page's
+ * size on each side: Leaflet's SVG renderer draws that far, and the layers
+ * draw whatever lies within it, so a pan of up to this much of the page
+ * shows the claims and names there before the map settles, not after.
+ */
+const OVERLAY_PADDING = 0.6
+
+/**
  * The view the overlay is drawn for: taken the moment the map settles, so
  * what React renders and the transform that moves it into place can never
  * disagree, however late the render runs.
@@ -118,7 +126,7 @@ export function useProjection(id = 'map'): Projection {
       },
       ppb: pixelsPerBlock(view.zoom),
       zoom: view.zoom,
-      bounds: toBounds(view.bounds.pad(0.3)),
+      bounds: toBounds(view.bounds.pad(OVERLAY_PADDING)),
       view: toBounds(view.bounds),
       id,
     }
@@ -437,9 +445,15 @@ export function MapCanvas({
     const tiles = new AzaniaTileLayer(wrap).addTo(map)
     // The world as one picture, under the tiles; fetched ahead of a zoom on the live map, not in an article.
     const detachSheets = attachSheets(map, { wrap, tiles, preload: wrap })
+    // A flight's destination has its tiles asked for at take-off, so they're in when it lands (flyToBounds flies through here too).
+    const fly = map.flyTo.bind(map)
+    map.flyTo = (centre, zoom, options) => {
+      tiles.prefetch(L.latLng(centre), zoom ?? map.getZoom())
+      return fly(centre, zoom, options)
+    }
 
     // The overlay: Leaflet's SVG renderer, with a group of our own for React.
-    const renderer = L.svg({ padding: 0.6 }).addTo(map)
+    const renderer = L.svg({ padding: OVERLAY_PADDING }).addTo(map)
     const svg = renderer as unknown as { _container: SVGSVGElement; _update: () => void }
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     group.setAttribute('class', 'az-overlay')

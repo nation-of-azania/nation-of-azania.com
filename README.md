@@ -500,17 +500,42 @@ have all arrived and faded in; at rest, through a pan and through a zoom
 in (where the level left behind, scaled up, still covers the page) it's
 set aside, so they have nothing extra to draw. Past −6 it is the map, and
 always shown, so a pinch back in from the whole world keeps it until the
-tiles arrive, where the map used to go dark the moment it crossed −6. Its 684
-small tiles (some 2 MB, kept at the CDN) are fetched once: on the live map
-as soon as its own first tiles are in and the browser is idle, nearest the
-reader first; at once when a zoom starts or the map is past −6; and only
-then for a connection that asks to save data, or in an article's map. They
-are decoded off the main thread and drawn into the canvas a batch at a
-time. An echo's copy of the picture is made only when the view first comes
-near that echo, so a session that stays close in holds one canvas, not
-three. And when a zoom out ends, the tiles of the view just left stay
-until the new level's tiles over them have arrived (`leaflet/tiles.ts`),
-so the place the reader was looking at never goes soft.
+tiles arrive, where the map used to go dark the moment it crossed −6. The
+server makes the picture from the 684 level-5 tiles, half size, as one WebP
+of some 170 KB (`/maps/sheet`, kept at the CDN six hours and served stale
+for a month while the Rulercraft map is down): one request where the browser
+used to fetch the tiles themselves, 2.5 MB in 684 requests, three quarters
+of all a visit to the map downloaded. It's fetched once: on the live map as
+soon as its own first tiles are in and the browser is idle; at once when a
+zoom starts or the map is past −6; and only then for a connection that asks
+to save data, or in an article's map. While it's slow in coming (a deploy
+empties the CDN, and the first visitor waits a few seconds while it's made)
+or should it fail, the browser makes it from the tiles as before, nearest
+the reader first, decoded off the main thread and drawn a batch at a time.
+An echo's copy of the picture is made only when the view first comes near
+that echo, so a session that stays close in holds one canvas, not three.
+And when a zoom out ends, the tiles of the view just left stay until the
+new level's tiles over them have arrived (`leaflet/tiles.ts`), so the place
+the reader was looking at never goes soft.
+
+The tiles come **a little ahead of the reader** (`leaflet/tiles.ts`):
+
+- Through a pan, on phones too, every 200 ms rather than only once the
+  finger lifts; with a ring of one tile beyond the page all round, and up
+  to two more on the side a pan is heading. The ring waits until a level's
+  tiles on the page are all in, so it never slows them.
+- Through a pinch or the wheel, the sharper (or coarser) level the zoom has
+  reached, once it has stayed there 150 ms: a pinch held sharpens before
+  the fingers lift, and a quick one through three levels doesn't download
+  the two it only passed.
+- Before a flight to somewhere (a place, a view, "Centre here"), the
+  destination's tiles, so they're in when it lands; none on the way.
+- Nothing ahead of time on a connection that asks to save data, or one the
+  browser rates 2g or 3g.
+
+The overlay (claims, roads, names) is drawn 60% of the page beyond each
+edge, as far as Leaflet's renderer reaches, so a pan of up to that much
+shows them before the map settles.
 
 The live map repeats the world east and west, so a pan never runs out of
 map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
@@ -662,8 +687,9 @@ carries what's already drawn into place until the fresh render lands.
 
 **The world around Azania.** The map draws the whole server around the
 nation, from two readings of the Rulercraft map's markers that the site
-passes on and keeps nowhere: `/maps/world`, every Towny town and nation
-(`src/lib/world.ts`, types in `src/maps/world.ts`), shared at the CDN for
+passes on and keeps nowhere: `/maps/world.json`, every Towny town and nation
+(`src/lib/world.ts`, types in `src/maps/world.ts`; each claim's corners sent
+as steps from one to the next, which halves the download), shared at the CDN for
 a quarter of an hour, and `/maps/war`, the sieges and every capital,
 shared for three minutes. The browser always asks for the bare path,
 which the routes insist on, so every viewer shares one copy.
@@ -847,7 +873,7 @@ something was being fetched.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
-- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5), which the world beneath the map is made of, are kept 6 hours at the CDN and an hour in the browser. While the map errors, the CDN keeps serving the last good tile for a month.
+- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5) are kept 6 hours at the CDN and an hour in the browser, as is `/maps/sheet`, the whole world as one picture made from level 5. While the map errors, the CDN keeps serving the last good tile for a month.
   - New building shows on Azania Maps about 15 minutes after the Rulercraft map draws it; the Rulercraft map itself often lags behind the game.
   - Ground the map hasn't drawn comes back as an empty, cached tile.
   - `/maps/status` says whether the map is answering.

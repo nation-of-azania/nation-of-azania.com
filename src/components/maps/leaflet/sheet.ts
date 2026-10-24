@@ -2,12 +2,26 @@
 
 import L from 'leaflet'
 
-import { cachedTileUrl, MAPS, WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, WORLD_WIDTH, wrapPoint } from '@/maps/source'
+import {
+  SHEET_BOUNDS,
+  SHEET_COLUMNS,
+  SHEET_HEIGHT,
+  SHEET_LEVEL,
+  SHEET_ROWS,
+  SHEET_SPAN,
+  SHEET_TILE_BLOCKS,
+  SHEET_TILE_PX,
+  SHEET_URL,
+  SHEET_WIDTH,
+} from '@/maps/sheet'
+import { cachedTileUrl, WORLD_WIDTH, wrapPoint } from '@/maps/source'
+
+import { savesData } from './connection'
 
 /**
- * The whole world as one picture: the level-5 tiles drawn once into a
- * canvas, at half their size since the sheet is never shown sharper than
- * that, and the canvas laid on the map as an image overlay, placed and
+ * The whole world as one picture: the level-5 tiles at half their size,
+ * since the sheet is never shown sharper than that, drawn into a canvas,
+ * and the canvas laid on the map as an image overlay, placed and
  * scaled by Leaflet like any other. It serves twice.
  *
  * Past SHEET_ZOOM it *is* the map. The tiles there would number in the
@@ -24,48 +38,34 @@ import { cachedTileUrl, MAPS, WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, 
  * floating alone over it. At rest, with the tiles all in and covering it,
  * it's set aside, so a pan has nothing more to draw than before.
  *
- * The tiles are the tile layer's own, from the same cache: 684 of them,
- * some 2 MB in all, small and kept at the CDN. On the live map they're
- * asked for once its first tiles are in and the browser has a moment,
- * twelve at a time, those nearest the reader first; at once when a zoom
- * starts or the map is past SHEET_ZOOM; and, for a reader whose connection
- * asks to save data or in an article's map, only then. An echo's canvas is
- * made only when the view first comes near that echo — for most readers
- * only far out — as a copy of the real one, so a session that stays close
- * in holds one canvas, not three.
+ * The sheet comes from the server as one picture of some 150–200 KB, made
+ * from the coarsest tiles and kept at the CDN (src/maps/sheet.ts). While
+ * it's slow in coming (a deploy empties the CDN, and the server makes it
+ * afresh), or should it fail, it's made here from the tiles themselves:
+ * the tile layer's own from the same cache, 684 of them and 2.5 MB,
+ * twelve at a time, those nearest the reader first. On the live map it's
+ * asked for once its first tiles are in and the browser has a moment; at
+ * once when a zoom starts or the map is past SHEET_ZOOM; and, for a reader
+ * whose connection asks to save data or in an article's map, only then.
+ * An echo's canvas is made only when the view first comes near that echo
+ * — for most readers only far out — as a copy of the real one, so a
+ * session that stays close in holds one canvas, not three.
  */
 
 /** Below this zoom the sheet stands in for the tiles; the tile layer keeps its tiles down to here. */
 export const SHEET_ZOOM = -6
 
-const LEVEL = MAPS.flat.maxLevel
-/** A level-5 tile's extent in blocks, and the pixels it takes in the sheet. */
-const TILE_BLOCKS = 64 * 2 ** LEVEL
-const TILE_PX = 64
-/** Tiles fetched at once. */
+/** Tiles fetched at once, should the sheet have to be made here from the tiles. */
 const AT_ONCE = 12
+/** How long the server's sheet may take before the tiles are fetched meanwhile, in ms: a deploy leaves the CDN without it until it's made again. */
+const WHOLE_WAIT_MS = 2500
 /** How often the tiles that have arrived are drawn into the sheet, in ms; and while a zoom is under way. */
 const DRAW_EVERY_MS = 150
 const DRAW_WHILE_ZOOMING_MS = 400
-/** How long the live map waits for its own tiles before fetching the sheet's anyway, in ms. */
+/** How long the live map waits for its own tiles before fetching the sheet anyway, in ms. */
 const PRELOAD_BY_MS = 6000
 /** How long after the tiles have all arrived the sheet is set aside: Leaflet's fade-in, and a little more. */
 const REST_AFTER_MS = 300
-
-/** The level-5 tile grid the sheet covers (src/maps/geo.ts → blockToPixel): the world's columns, and its rows from top to bottom. */
-const column = (x: number) => Math.floor(x / TILE_BLOCKS)
-const row = (z: number) => Math.floor((2 * z + 128) / (128 * 2 ** LEVEL))
-const COLUMNS = { from: column(WORLD_WEST), to: column(WORLD_EAST - 1) }
-const ROWS = { from: row(WORLD_NORTH), to: row(WORLD_SOUTH - 1) }
-const SPAN = COLUMNS.to - COLUMNS.from + 1
-
-/** The sheet's extent in blocks: its tiles' own edges. */
-const SHEET = {
-  minX: COLUMNS.from * TILE_BLOCKS,
-  maxX: (COLUMNS.to + 1) * TILE_BLOCKS,
-  minZ: ROWS.from * TILE_BLOCKS - 64,
-  maxZ: (ROWS.to + 1) * TILE_BLOCKS - 64,
-}
 
 type OverlayInternals = {
   _image: HTMLElement
@@ -148,10 +148,11 @@ function whenIdle(run: () => void): void {
  * arrives. Returns what takes them off again.
  */
 export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions): () => void {
-  const width = SPAN * TILE_PX
-  const height = (ROWS.to - ROWS.from + 1) * TILE_PX
   const sheets: Sheet[] = (wrap ? [0, -1, 1] : [0]).map((copy) => ({
-    bounds: L.latLngBounds([SHEET.minZ, SHEET.minX + copy * WORLD_WIDTH], [SHEET.maxZ, SHEET.maxX + copy * WORLD_WIDTH]),
+    bounds: L.latLngBounds(
+      [SHEET_BOUNDS.minZ, SHEET_BOUNDS.minX + copy * WORLD_WIDTH],
+      [SHEET_BOUNDS.maxZ, SHEET_BOUNDS.maxX + copy * WORLD_WIDTH],
+    ),
     canvas: null,
     overlay: null,
   }))
@@ -173,8 +174,8 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
 
   const lay = (sheet: Sheet) => {
     const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
+    canvas.width = SHEET_WIDTH
+    canvas.height = SHEET_HEIGHT
     if (!shown) canvas.style.visibility = 'hidden'
     // An echo starts as a copy of whatever the real sheet holds so far.
     if (sheet !== real && real.canvas) canvas.getContext('2d')?.drawImage(real.canvas, 0, 0)
@@ -214,19 +215,20 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
 
   // The tiles still to fetch, as [column, row].
   const pending: [number, number][] = []
-  for (let r = ROWS.from; r <= ROWS.to; r++) for (let c = COLUMNS.from; c <= COLUMNS.to; c++) pending.push([c, r])
+  for (let r = SHEET_ROWS.from; r <= SHEET_ROWS.to; r++)
+    for (let c = SHEET_COLUMNS.from; c <= SHEET_COLUMNS.to; c++) pending.push([c, r])
 
   /** Which pending tile lies nearest the middle of the view, in tiles; across the seam too, when the world wraps. */
   const nearest = (): number => {
     const [x, z] = wrapPoint([map.getCenter().lng, map.getCenter().lat])
-    const cx = x / TILE_BLOCKS - 0.5
-    const cy = (2 * z + 128) / (128 * 2 ** LEVEL) - 0.5
+    const cx = x / SHEET_TILE_BLOCKS - 0.5
+    const cy = (2 * z + 128) / (128 * 2 ** SHEET_LEVEL) - 0.5
     let best = -1
     let bestDistance = Infinity
     for (let i = 0; i < pending.length; i++) {
       const [c, r] = pending[i]
       const across = Math.abs(c - cx)
-      const dx = wrap ? Math.min(across, SPAN - across) : across
+      const dx = wrap ? Math.min(across, SHEET_SPAN - across) : across
       const distance = dx * dx + (r - cy) * (r - cy)
       if (distance < bestDistance) {
         bestDistance = distance
@@ -286,15 +288,21 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
       const context = sheet.canvas?.getContext('2d')
       if (!context) continue
       for (const { picture, c, r } of arrived)
-        context.drawImage(picture, (c - COLUMNS.from) * TILE_PX, (r - ROWS.from) * TILE_PX, TILE_PX, TILE_PX)
+        context.drawImage(
+          picture,
+          (c - SHEET_COLUMNS.from) * SHEET_TILE_PX,
+          (r - SHEET_ROWS.from) * SHEET_TILE_PX,
+          SHEET_TILE_PX,
+          SHEET_TILE_PX,
+        )
     }
     for (const { picture } of arrived) if ('close' in picture) picture.close()
     arrived.length = 0
   }
 
   const abort = new AbortController()
-  /** A tile's picture, decoded off the main thread where the browser can, so drawing it costs nothing more. */
-  const fetchTile = async (url: string): Promise<ImageBitmap | HTMLImageElement | null> => {
+  /** A picture, decoded off the main thread where the browser can, so drawing it costs nothing more. */
+  const fetchPicture = async (url: string): Promise<ImageBitmap | HTMLImageElement | null> => {
     if (typeof createImageBitmap === 'function') {
       const response = await fetch(url, { signal: abort.signal })
       return response.ok ? createImageBitmap(await response.blob()) : null
@@ -309,7 +317,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   const take = () => {
     if (abort.signal.aborted || !pending.length) return
     const [c, r] = pending.splice(nearest(), 1)[0]
-    fetchTile(cachedTileUrl('flat', LEVEL, c, r))
+    fetchPicture(cachedTileUrl('flat', SHEET_LEVEL, c, r))
       .then((picture) => {
         if (!picture || abort.signal.aborted) return
         arrived.push({ picture, c, r })
@@ -319,10 +327,36 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
       .catch(() => {})
       .finally(take)
   }
+  /** The whole sheet, as the server makes it, drawn into every canvas at once; false if it didn't come. */
+  const fetchWhole = async (): Promise<boolean> => {
+    try {
+      const picture = await fetchPicture(SHEET_URL)
+      if (!picture) return false
+      if (abort.signal.aborted) return true
+      for (const sheet of sheets) sheet.canvas?.getContext('2d')?.drawImage(picture, 0, 0, SHEET_WIDTH, SHEET_HEIGHT)
+      if ('close' in picture) picture.close()
+      pending.length = 0
+      return true
+    } catch {
+      return abort.signal.aborted
+    }
+  }
+  let byTiles = false
+  let slow = 0
+  /** The tiles one by one, nearest first: while the server's sheet is slow, or instead of it. */
+  const takeTiles = () => {
+    if (byTiles) return
+    byTiles = true
+    for (let i = 0; i < AT_ONCE; i++) take()
+  }
   const start = () => {
     if (started || abort.signal.aborted) return
     started = true
-    for (let i = 0; i < AT_ONCE; i++) take()
+    slow = window.setTimeout(takeTiles, WHOLE_WAIT_MS)
+    void fetchWhole().then((whole) => {
+      window.clearTimeout(slow)
+      if (!whole) takeTiles()
+    })
   }
 
   // Wanted now: a zoom under way, or the map past the tiles.
@@ -335,11 +369,9 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
 
   // Wanted soon, on the live map: once its own tiles are in, or a while
   // after if they're slow, and the browser has a moment. Not ahead of time
-  // for a reader saving data or on a slow connection: 2 MB is theirs to
-  // spend, so the sheet comes when they first zoom.
-  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } })
-    .connection
-  const saveData = connection?.saveData === true || /(^|-)(2g|3g)$/.test(connection?.effectiveType ?? '')
+  // for a reader saving data or on a slow connection: the bytes are theirs
+  // to spend, so the sheet comes when they first zoom.
+  const saveData = savesData()
   let fallback = 0
   const soon = () => {
     window.clearTimeout(fallback)
@@ -354,6 +386,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
   return () => {
     detached = true
     abort.abort()
+    window.clearTimeout(slow)
     window.clearTimeout(batch)
     window.clearTimeout(resting)
     tiles.off('load', restSoon)
