@@ -36,6 +36,7 @@ type GridInternals = {
   _levels: Record<string, Level>
   _tileZoom?: number
   _noPrune?: boolean
+  _fadeFrame: number
   _retainParent: (x: number, y: number, z: number, minZoom: number) => boolean
   _retainChildren: (x: number, y: number, z: number, maxZoom: number) => void
   _removeTile: (key: string) => void
@@ -324,6 +325,40 @@ export class AzaniaTileLayer extends L.TileLayer {
   }
 
   /**
+   * Leaflet's fade-in, a frame at a time while tiles arrive, touching only
+   * the tiles still fading. Leaflet set every tile's opacity on every
+   * frame, and pruned on every frame once any tile was in, so a level's
+   * eighty tiles arriving over a second or two were pruned a hundred times
+   * over. Here a frame prunes only when a tile has just faded in, the one
+   * moment pruning can change anything.
+   */
+  _updateOpacity(): void {
+    const self = this as unknown as GridInternals
+    if (!self._map) return
+    const container = this.getContainer()
+    if (container) L.DomUtil.setOpacity(container, this.options.opacity ?? 1)
+    const now = Date.now()
+    let fading = false
+    let opaque = false
+    for (const key in self._tiles) {
+      const tile = self._tiles[key]
+      if (!tile.current || !tile.loaded || tile.active) continue
+      const fade = Math.min(1, (now - Number(tile.loaded)) / 200)
+      L.DomUtil.setOpacity(tile.el, fade)
+      if (fade < 1) fading = true
+      else {
+        tile.active = true
+        opaque = true
+      }
+    }
+    if (opaque && !self._noPrune) this._pruneTiles()
+    if (fading) {
+      L.Util.cancelAnimFrame(self._fadeFrame)
+      self._fadeFrame = L.Util.requestAnimFrame(this._updateOpacity, this)
+    }
+  }
+
+  /**
    * Which tiles stay on the page once the map has settled: Leaflet's own
    * rule, and one more. Leaflet keeps a tile of another level while the
    * current level's tile over it is still on its way only from up to two
@@ -344,8 +379,15 @@ export class AzaniaTileLayer extends L.TileLayer {
     }
     const tiles = self._tiles
     const level = self._tileZoom
-    for (const key in tiles) tiles[key].retain = tiles[key].current
+    // With every tile at the level in use, as most of the time, there's no
+    // other level's tile to keep, and the walks up and down the levels for
+    // each one still loading (the profile's busiest code) can be skipped.
+    let mixed = false
     for (const key in tiles) {
+      tiles[key].retain = tiles[key].current
+      if (tiles[key].coords.z !== level) mixed = true
+    }
+    if (mixed) for (const key in tiles) {
       const tile = tiles[key]
       const { x, y, z } = tile.coords
       if (tile.current && !tile.active) {
