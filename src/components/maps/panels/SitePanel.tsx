@@ -3,6 +3,7 @@ import { incomeWords, resourceWords, siteTerms, siteTitle, type SiteFacts } from
 import type { Article } from '@/payload-types'
 
 import { SiteBadge } from '../layers/SiteMark'
+import { ComingClippings, ComingText, type Coming } from './coming'
 import { AboutActions, AddHere, EventsList, Look, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
 import { TownSiege } from './sieges'
@@ -14,6 +15,8 @@ import { TownSiege } from './sieges'
  * chart: the ruler is the server's bot, nobody lives there, and the claims
  * never grow. A site is nobody's `/t spawn` either, so the way there is
  * the nearest town's spawn and the walk, as for any spot on the map.
+ * Drawn by the shell the moment the site is opened, with its record and
+ * the papers still to come (./coming.tsx).
  */
 export function SitePanel({
   town,
@@ -25,8 +28,8 @@ export function SitePanel({
   town: MapTown
   facts: SiteFacts
   data: MapData
-  record: { about: string | null } | null
-  articles: Article[]
+  record: Coming<{ about: string | null } | null>
+  articles: Coming<Article[]>
 }) {
   const places = data.places
     .filter((place) => place.town === town.id)
@@ -144,13 +147,16 @@ export function SitePanel({
 
       {/* Staff and cartographers may write a few lines: how it was taken, what's built there. */}
       <PanelSection
-        action={<AboutActions about={record?.about ?? null} town={town} />}
+        action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />}
         title="About"
       >
-        {record?.about ? (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700">{record.about}</p>
+        {record === undefined ? (
+          // Two lines in the note's type, as the note that nothing is written yet takes: what most sites have.
+          <ComingText className="text-sm" lines={2} />
+        ) : record?.about ? (
+          <p className="az-arrive whitespace-pre-line text-sm leading-relaxed text-ink-700">{record.about}</p>
         ) : (
-          <p className="text-sm italic text-ink-500">
+          <p className="az-arrive text-sm italic text-ink-500">
             Nothing written yet. The nation’s cartographers can add a few lines here.
           </p>
         )}
@@ -182,7 +188,13 @@ export function SitePanel({
       </PanelSection>
 
       <PanelSection title="In the papers">
-        <ArticleLinks articles={articles} emptyNote="Nothing written about the site yet." />
+        {articles === undefined ? (
+          <ComingClippings />
+        ) : (
+          <div className="az-arrive">
+            <ArticleLinks articles={articles} emptyNote="Nothing written about the site yet." />
+          </div>
+        )}
       </PanelSection>
     </article>
   )

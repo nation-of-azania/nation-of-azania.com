@@ -10,6 +10,7 @@ import { nationHref, townHref } from '@/maps/url'
 import { SiteBadge } from '../layers/SiteMark'
 import { STANCE_ORDER, StanceSwatch, stanceLabel } from '../ui/Diplomacy'
 import { Icon } from '../ui/icons'
+import type { Coming } from './coming'
 import { StatTile } from './GrowthChart'
 import { EventsList, LayerToggle } from './islands'
 import { OtherSieges, OurSieges } from './sieges'
@@ -22,16 +23,18 @@ import { YourViews } from './views'
  * nations, what's on, and the towns.
  * Server-rendered, so a search engine and a reader without JavaScript get
  * the nation in words. The figures count players' towns alone: a held
- * quarry's bot isn't a resident, and its fixed claims aren't growth.
+ * quarry's bot isn't a resident, and its fixed claims aren't growth. The
+ * shell draws it at once on the way back to the front, the census's
+ * trends still to come.
  */
-export function HomePanel({ data, census }: { data: MapData; census: CensusPoint[] }) {
+export function HomePanel({ data, census }: { data: MapData; census: Coming<CensusPoint[]> }) {
   const towns = settlements(data.towns).sort(
     (a, b) => b.residents - a.residents || a.name.localeCompare(b.name),
   )
   const residents = towns.reduce((sum, town) => sum + town.residents, 0)
   const chunks = towns.reduce((sum, town) => sum + town.chunks, 0)
   const { sites, total } = holdingsOf(data.towns)
-  const since = census[0]?.date
+  const since = census?.[0]?.date
   const relations = [...data.relations].sort(
     (a, b) => STANCE_ORDER.indexOf(a.stance) - STANCE_ORDER.indexOf(b.stance) || a.nation.localeCompare(b.nation),
   )

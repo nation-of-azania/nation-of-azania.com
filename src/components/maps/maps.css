@@ -234,6 +234,61 @@
 }
 
 /*
+ * A panel drawn before its page arrives (panels/coming.tsx): what the
+ * server is still sending stands as bars in the sand of the page, and a
+ * light passes over them, all together, as over paper turned to the lamp.
+ * They come up only after a moment's grace, so a page that arrives at once
+ * never flashes them. A page that is slow in coming, or held while the
+ * browser is offline, stills them (the shell says why); so does a reader
+ * who asks for less motion.
+ */
+.az-coming {
+  display: block;
+  border-radius: 1px;
+  background-color: var(--color-sand-200);
+  background-image: linear-gradient(90deg, transparent, rgba(251, 248, 241, 0.9) 50%, transparent);
+  background-size: 10rem 100%;
+  background-repeat: no-repeat;
+  background-position: -10rem 0;
+  animation:
+    az-coming-in 240ms ease-out 140ms both,
+    az-sweep 1.8s ease-in-out 380ms infinite;
+}
+@keyframes az-coming-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes az-sweep {
+  to {
+    background-position: calc(100% + 10rem) 0;
+  }
+}
+/* A chart to come: a line's silhouette, rising. */
+.az-coming-rise {
+  clip-path: polygon(0 74%, 16% 64%, 31% 69%, 47% 50%, 63% 55%, 80% 33%, 100% 20%, 100% 100%, 0 100%);
+}
+.az-panel[data-stalled] .az-coming {
+  animation: az-coming-in 240ms ease-out both;
+}
+/* What the server sent, faded in where its placeholder stood; the rest of the panel was there already. */
+.az-panel[data-arrived] .az-arrive {
+  animation: az-arrive 360ms ease-out both;
+}
+@keyframes az-arrive {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-coming,
+  .az-panel[data-stalled] .az-coming,
+  .az-panel[data-arrived] .az-arrive {
+    animation: none;
+  }
+}
+
+/*
  * The players online: a head in a ring, the name beneath it. Leaflet moves the marker;
  * only the look is here. Names show on hover, on the chosen player, and close in (the
  * pane's class); a head arriving fades in; one leaving just goes. The head is the

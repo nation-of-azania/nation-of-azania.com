@@ -5,10 +5,16 @@ import type { MapData, MapEvent } from '@/maps/data'
 import { placeHref } from '@/maps/url'
 import type { Article } from '@/payload-types'
 
+import { ComingClippings, ComingWords, type Coming } from './coming'
 import { EventActions, LocalTime, RelativeDay, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow, TownLink } from './shared'
 
-/** An event's page: when, in the reader's own time, where, who's holding it, and the article announcing it. */
+/**
+ * An event's page: when, in the reader's own time, where, who's holding
+ * it, and the article announcing it. While the shell shows it before the
+ * page arrives, the announcement and the papers are still to come; the
+ * event says whether it has an announcement, so its place is kept.
+ */
 export function EventPanel({
   event,
   data,
@@ -17,8 +23,8 @@ export function EventPanel({
 }: {
   event: MapEvent
   data: MapData
-  article: Article | null
-  articles: Article[]
+  article: Coming<Article | null>
+  articles: Coming<Article[]>
 }) {
   const place =
     event.place != null
@@ -79,8 +85,17 @@ export function EventPanel({
             { label: 'Host', value: event.host ?? 'Not named' },
           ]}
         />
-        {article ? (
-          <p className="mt-4 border-l-2 border-saffron-400 pl-3 text-sm">
+        {article === undefined && event.article != null ? (
+          <p aria-hidden="true" className="mt-4 border-l-2 border-saffron-400 pl-3 text-sm">
+            <span className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
+              Announced in
+            </span>
+            <span className="mt-0.5 block font-display text-base leading-snug">
+              <ComingWords width="78%" />
+            </span>
+          </p>
+        ) : article ? (
+          <p className="az-arrive mt-4 border-l-2 border-saffron-400 pl-3 text-sm">
             <span className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
               Announced in
             </span>
@@ -104,7 +119,13 @@ export function EventPanel({
       ) : null}
 
       <PanelSection title="In the papers">
-        <ArticleLinks articles={articles} emptyNote="Nothing written about it yet." />
+        {articles === undefined ? (
+          <ComingClippings />
+        ) : (
+          <div className="az-arrive">
+            <ArticleLinks articles={articles} emptyNote="Nothing written about it yet." />
+          </div>
+        )}
       </PanelSection>
     </article>
   )

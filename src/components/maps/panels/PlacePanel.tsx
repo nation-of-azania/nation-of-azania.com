@@ -6,10 +6,11 @@ import { siteFacts, siteTitle } from '@/maps/sites'
 import type { Article } from '@/payload-types'
 
 import { placeColour } from '../layers/PlacesLayer'
+import { ComingClippings, type Coming } from './coming'
 import { EventsList, PlaceActions, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, TownLink } from './shared'
 
-/** A place's page: what it is, where, the events held there, and the papers' coverage. */
+/** A place's page: what it is, where, the events held there, and the papers' coverage, which is still to come while the shell shows the page before it arrives. */
 export function PlacePanel({
   place,
   data,
@@ -17,7 +18,7 @@ export function PlacePanel({
 }: {
   place: MapPlace
   data: MapData
-  articles: Article[]
+  articles: Coming<Article[]>
 }) {
   const town = data.towns.find((candidate) => candidate.id === place.town) ?? null
   // A place at a held site: the site is named, its bot is no mayor.
@@ -84,7 +85,13 @@ export function PlacePanel({
       </PanelSection>
 
       <PanelSection title="In the papers">
-        <ArticleLinks articles={articles} emptyNote="Nothing written about it yet." />
+        {articles === undefined ? (
+          <ComingClippings />
+        ) : (
+          <div className="az-arrive">
+            <ArticleLinks articles={articles} emptyNote="Nothing written about it yet." />
+          </div>
+        )}
       </PanelSection>
     </article>
   )
