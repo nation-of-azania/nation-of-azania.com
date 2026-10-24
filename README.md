@@ -528,7 +528,12 @@ The tiles come **a little ahead of the reader** (`leaflet/tiles.ts`):
   the fingers lift, and a quick one through three levels doesn't download
   the two it only passed.
 - Before a flight to somewhere (a place, a view, "Centre here"), the
-  destination's tiles, so they're in when it lands; none on the way.
+  destination's tiles, so they're in when it lands; none on the way. A
+  flight always flies (`flyTo`, `fitBounds` in `leaflet/canvas.tsx`),
+  in 0.6–1.4 s by how far it zooms, where Leaflet's own `fitBounds` jumps
+  any zoom of four levels or more; one of a level and a half or more fades
+  the claims and roads out on the way and back in once it lands, rather
+  than stretch them over the page.
 - Nothing ahead of time on a connection that asks to save data, or one the
   browser rates 2g or 3g.
 

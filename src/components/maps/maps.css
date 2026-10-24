@@ -44,6 +44,14 @@
 .az-zooming .az-ground-svg {
   will-change: transform;
 }
+/* A long flight (leaflet/canvas.tsx): the ground's shapes bow out as it sets off, rather than swell into blurs, and come back once it lands. */
+.az-ground-svg {
+  transition: opacity 240ms ease-in;
+}
+.az-flying .az-ground-svg {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
 .az-marks-svg {
   pointer-events: none;
 }

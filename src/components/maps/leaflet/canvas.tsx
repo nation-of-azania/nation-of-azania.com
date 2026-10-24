@@ -158,6 +158,9 @@ type SvgRenderer = { _updateTransform: (center: L.LatLng, zoom: number) => void 
  */
 const PAUSE_MS = 150
 
+/** How many levels a flight must zoom by for the ground's shapes to bow out on the way. */
+const FADE_FLIGHTS_FROM = 1.5
+
 /** How far a held drag must have gone, as a share of the map's larger side, for a pause to draw again. */
 const PAUSE_PAN = 0.15
 
@@ -474,9 +477,16 @@ export function MapCanvas({
     // The world as one picture, under the tiles; fetched ahead of a zoom on the live map, not in an article.
     const detachSheets = attachSheets(map, { wrap, tiles, preload: wrap })
     // A flight's destination has its tiles asked for at take-off, so they're in when it lands (flyToBounds flies through here too).
+    // On a long one the ground's shapes bow out on the way and come back drawn for where it lands (maps.css → .az-flying):
+    // scaled as a picture over several levels, a town's border swells into a blur on the way down.
     const fly = map.flyTo.bind(map)
     map.flyTo = (centre, zoom, options) => {
-      tiles.prefetch(L.latLng(centre), zoom ?? map.getZoom())
+      const to = zoom ?? map.getZoom()
+      tiles.prefetch(L.latLng(centre), to)
+      if (Math.abs(to - map.getZoom()) >= FADE_FLIGHTS_FROM) {
+        container.classList.add('az-flying')
+        map.once('moveend', () => requestAnimationFrame(() => container.classList.remove('az-flying')))
+      }
       return fly(centre, zoom, options)
     }
 
@@ -739,6 +749,16 @@ export function MapCanvas({
 }
 
 /**
+ * How long a flight takes, in seconds: a hop next door quick, a dive from
+ * the whole nation down to a town's streets long enough to follow, never
+ * so long that it's a wait. Leaflet's own reckoning ran past two seconds
+ * for the dive; a fixed 0.8 rushed it.
+ */
+function flightTime(map: L.Map, zoom: number): number {
+  return Math.min(1.4, Math.max(0.6, 0.4 + 0.25 * Math.abs(zoom - map.getZoom())))
+}
+
+/**
  * Fly the map somewhere, settling without animation for readers who ask
  * for less motion. `inset` is how much of the foot of the map a sheet
  * covers on a phone: the spot lands in the middle of what's left.
@@ -750,17 +770,26 @@ export function flyTo(map: L.Map, centre: Point, zoom?: number, inset = 0): void
     ? map.unproject(map.project(toLatLng(centre), z).add([0, inset / 2]), z)
     : toLatLng(centre)
   if (reduced) map.setView(target, z, { animate: false })
-  else map.flyTo(target, z, { duration: 0.8 })
+  else map.flyTo(target, z, { duration: flightTime(map, z) })
 }
 
+/**
+ * Fly the map to frame `bounds`, as flyTo does. Not Leaflet's fitBounds:
+ * that animates a zoom of four levels at most and jumps past it, and a
+ * town is often further in than that from a view of the whole nation, so
+ * a click on one on a laptop cut straight to it.
+ */
 export function fitBounds(map: L.Map, bounds: Bounds, padding = 48, inset = 0): void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  map.fitBounds(toLatLngBounds(bounds), {
-    paddingTopLeft: [padding, padding],
-    paddingBottomRight: [padding, padding + inset],
-    animate: !reduced,
-    duration: 0.8,
-  })
+  const target = toLatLngBounds(bounds)
+  const paddingTopLeft = L.point(padding, padding)
+  const paddingBottomRight = L.point(padding, padding + inset)
+  if (reduced) {
+    map.fitBounds(target, { paddingTopLeft, paddingBottomRight, animate: false })
+    return
+  }
+  const zoom = Math.min(map.getMaxZoom(), map.getBoundsZoom(target, false, paddingTopLeft.add(paddingBottomRight)))
+  map.flyToBounds(target, { paddingTopLeft, paddingBottomRight, duration: flightTime(map, zoom) })
 }
 
 export { L }
