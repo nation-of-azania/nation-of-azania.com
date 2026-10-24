@@ -7,6 +7,7 @@ import {
   boundsTouch,
   halo,
   LabelPlacer,
+  named,
   pathOf,
   steadyHatch,
   textWidth,
@@ -299,6 +300,7 @@ export function TownLabels({
               // At the home, the name keeps its distance from the mark; along the claim's edge, its own spot there.
               <g
                 {...(label.at === 'home' ? upright(hx, hy) : upright(label.x + label.width / 2, label.y))}
+                {...named(projection, 'town', town.id)}
               >
                 <text
                   className="font-label"

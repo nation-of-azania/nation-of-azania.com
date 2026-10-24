@@ -13,6 +13,7 @@ import {
   halo,
   inBounds,
   LabelPlacer,
+  named,
   steadyHatch,
   textWidth,
   upright,
@@ -485,7 +486,7 @@ export function AbroadMarks({
               ) : null}
             </g>
             {label ? (
-              <g {...upright(hx, hy)}>
+              <g {...upright(hx, hy)} {...named(projection, 'abroad', town.slug)}>
                 <text
                   className="font-label"
                   fill={style.text}
@@ -530,6 +531,7 @@ export function AbroadMarks({
           <g
             key={slug || 'home'}
             {...upright(label.x + label.width / 2, label.y + label.height / 2)}
+            {...named(projection, 'nation', slug || 'home')}
           >
             <text
               className={cnHit(hit, 'font-display')}

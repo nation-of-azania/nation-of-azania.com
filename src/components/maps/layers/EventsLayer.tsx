@@ -7,6 +7,7 @@ import {
   inBounds,
   labelBeside,
   LabelPlacer,
+  named,
   textWidth,
   upright,
   type Projection,
@@ -193,6 +194,7 @@ export function EventsLayer({
                   textAnchor={name.anchor}
                   x={name.tx}
                   y={name.ty}
+                  {...named(projection, 'event', event.id)}
                   {...halo(GROUND.whitewash, 3)}
                 >
                   {event.title}

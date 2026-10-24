@@ -45,6 +45,10 @@
 .az-overlay :is(path, circle, ellipse, line, polyline, polygon, rect):not([data-az-at] *, pattern *) {
   vector-effect: non-scaling-stroke;
 }
+/* The names going as the view settles, fading where they stood (leaflet/overlay.ts): never in a click's way. */
+.az-leaving {
+  pointer-events: none;
+}
 /* The hidden element a zoom's animation is read back from, eased by Leaflet's own rule. */
 .az-zoom-clock {
   position: absolute;

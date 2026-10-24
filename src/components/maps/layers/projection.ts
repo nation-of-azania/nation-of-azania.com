@@ -113,6 +113,18 @@ export const upright = (x: number, y: number) => ({
   'data-az-at': `${x.toFixed(1)} ${y.toFixed(1)}`,
 })
 
+/**
+ * Marks an element as a name in the plan, keyed by what it names on this
+ * projection, so the live map knows the same town's name across two
+ * drawings and can hand one over to the next (leaflet/overlay.ts): a name
+ * that stays glides to its new spot, one that goes fades out, one that
+ * comes fades in. The element carries no opacity of its own, since the
+ * fades set it; it is mounted only while the name is placed.
+ */
+export const named = (projection: Projection, kind: string, id: string | number) => ({
+  'data-az-name': `${projection.id}/${kind}/${id}`,
+})
+
 /** Keeps the type of text set along a path its size, which can't be scaled back as a whole: its size, tracking and halo, in px. */
 export const steadyType = (fontSize: number, tracking: number, halo: number) => ({
   'data-az-type': `${fontSize} ${tracking} ${halo}`,

@@ -8,6 +8,7 @@ import {
   inBounds,
   labelBeside,
   LabelPlacer,
+  named,
   pathOf,
   textWidth,
   upright,
@@ -259,7 +260,9 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
             {!name ? <title>{place.name}</title> : null}
             <g {...upright(x, y)}>
               <PlacePin place={place} scale={scale} selected={isSelected} x={x} y={y} />
+              {/* Keyed apart, so a name the plan places is mounted afresh and one it drops is let go of. */}
               <text
+                key={name ? 'named' : 'unnamed'}
                 className="font-body az-place-label"
                 dy={fontSize * 0.36}
                 fill={GROUND.ink}
@@ -269,6 +272,7 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
                 textAnchor={name?.anchor ?? 'start'}
                 x={name?.tx ?? x + PIN * scale + 6}
                 y={name?.ty ?? y}
+                {...(name ? named(projection, 'place', place.id) : null)}
                 {...halo(GROUND.whitewash, 3)}
               >
                 {place.name}

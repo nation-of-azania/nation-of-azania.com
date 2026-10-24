@@ -23,11 +23,13 @@ import type { Projection } from '../layers/projection'
 import { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
 import { createHome } from './home'
 import {
+  createHandover,
   createLayer,
   createZoomEase,
   placementOf,
   shownAt,
   type Frame,
+  type Handover,
   type Layer,
   type Shown,
 } from './overlay'
@@ -381,8 +383,9 @@ type CanvasProps = {
  * React's running: the ground grows and shrinks, while what has a size on
  * the page keeps it and glides with its point (./steady.ts). When the view
  * settles, or holds still a moment mid-gesture, the children are rendered
- * again at the new layer points; until that render lands, the same move
- * keeps what's drawn in place, so no frame shows it askew.
+ * again at the new layer points and the names hand over to the new plan;
+ * until that render lands, the same move keeps what's drawn in place, so
+ * no frame shows it askew.
  */
 export function MapCanvas({
   initial,
@@ -407,8 +410,9 @@ export function MapCanvas({
   const drawn = useRef<View | null>(null)
   const settled = useRef<View | null>(null)
   const shown = useRef<Shown | null>(null)
-  // The overlay's group as it's moved (./overlay.ts).
+  // The overlay's group as it's moved (./overlay.ts), and the names' hand-over.
   const layer = useRef<Layer | null>(null)
+  const handover = useRef<Handover | null>(null)
   const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick })
   useEffect(() => {
     handlers.current = { onMove, onPointer, onClick, onDoubleClick }
@@ -467,6 +471,11 @@ export function MapCanvas({
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     group.setAttribute('class', 'az-overlay')
     svg._container.appendChild(group)
+    // Beside it, the names going as the view settles, fading where they stood (./overlay.ts).
+    const gone = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    gone.setAttribute('class', 'az-leaving')
+    gone.setAttribute('aria-hidden', 'true')
+    svg._container.appendChild(gone)
     // React listens for focus on the element it renders a portal into, and
     // Chromium makes an SVG element with focus listeners focusable: a tap on
     // a town or a nation focused the whole overlay, and the browser ringed
@@ -477,7 +486,10 @@ export function MapCanvas({
     setOverlay(group)
     const shownNow = () => shown.current ?? shownAt(takeView(map))
     const drawing = createLayer(group)
+    const leaving = createLayer(gone)
     layer.current = drawing
+    const names = createHandover({ map, container, group, leaving, shown: shownNow })
+    handover.current = names
 
     /**
      * The map is shown at `at`: what's drawn is moved there. Leaflet would
@@ -490,6 +502,7 @@ export function MapCanvas({
     const show = (at: Shown) => {
       shown.current = at
       if (drawn.current) drawing.place(placementOf(drawn.current, at))
+      names.show(at)
     }
     const ease = createZoomEase({ map, shown: shownNow, show })
     const follow = (at: Frame) => {
@@ -542,6 +555,9 @@ export function MapCanvas({
         view.origin.equals(last.origin) &&
         view.bounds.equals(last.bounds)
       if (same && !rebase) return
+      // Where the names stand, to hand over from once the new drawing is in; a re-basing moves nothing on the page.
+      if (rebase) names.drop()
+      else if (drawn.current) names.note(drawn.current)
       setContext({ map, version: ++version, view, world: home?.world() ?? 0 })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
@@ -613,6 +629,7 @@ export function MapCanvas({
       window.clearTimeout(pause)
       ease.remove()
       drawing.dispose()
+      leaving.dispose()
       observer.disconnect()
       detachSheets()
       map.remove()
@@ -621,6 +638,7 @@ export function MapCanvas({
       settled.current = null
       shown.current = null
       layer.current = null
+      handover.current = null
       setOverlay(null)
       setContext(null)
     }
@@ -629,11 +647,13 @@ export function MapCanvas({
   }, [])
 
   // The children have just been drawn for the settled view: they stand in
-  // place of their own accord, unless the map has moved on meanwhile.
+  // place of their own accord, unless the map has moved on meanwhile. The
+  // names then hand over from the last drawing to this one.
   useLayoutEffect(() => {
     if (!context || !overlay) return
     drawn.current = context.view
     layer.current?.place(placementOf(context.view, shown.current ?? shownAt(context.view)))
+    handover.current?.play()
   }, [context, overlay])
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import {
   halo,
   inBounds,
   LabelPlacer,
+  named,
   pathOf,
   textWidth,
   upright,
@@ -244,7 +245,7 @@ export function SiegesLayer({
               <SiegeMarkGlyph battle={siege.battle} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
             </g>
             {name ? (
-              <g {...upright(x, y)}>
+              <g {...upright(x, y)} {...named(projection, 'siege', siege.townId)}>
                 <text
                   className="font-body"
                   fill={GROUND.coralDeep}

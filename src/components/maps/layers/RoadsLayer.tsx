@@ -6,6 +6,7 @@ import {
   boundsTouch,
   halo,
   LabelPlacer,
+  named,
   pathOf,
   steadyType,
   steadyWidth,
@@ -240,7 +241,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect }: Pr
             const pathId = `${id}-road-${road.id}`
             // Along the road itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
             return (
-              <g key={road.id}>
+              <g key={road.id} {...named(projection, 'road', road.id)}>
                 <defs>
                   <path
                     d={pathOf(projection, ahead ? course : [...course].reverse())}
