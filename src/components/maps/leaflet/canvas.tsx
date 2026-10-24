@@ -50,7 +50,7 @@ export { MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
  * Two and a half levels further out than the tiles go: the level-5 tiles
  * drawn smaller down to SHEET_ZOOM, and past that the world as one picture
  * (./sheet.ts). At −7 the whole world is 1,152 px across; at −7.5 it fits
- * beside the panel on a laptop, with its echoes and torn edges beyond.
+ * beside the panel on a laptop, with its echoes and seams beyond.
  */
 export const MIN_ZOOM = MIN_NATIVE_ZOOM - 2.5
 

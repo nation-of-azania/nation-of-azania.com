@@ -8,6 +8,7 @@ import {
   SHEET_ROWS,
   SHEET_TILE_PX,
   SHEET_WIDTH,
+  sheetRowTop,
 } from '@/maps/sheet'
 import { dynmapTileUrl } from '@/maps/source'
 
@@ -15,8 +16,10 @@ import { dynmapTileUrl } from '@/maps/source'
  * The whole world as one picture, for the live map to lay under its tiles
  * (src/maps/sheet.ts, src/components/maps/leaflet/sheet.ts): the flat
  * map's 684 coarsest tiles, each drawn at half its size into one WebP of
- * some 150–200 KB. The browser used to fetch the tiles one by one, 2.5 MB
- * in 684 requests, three quarters of all a visit to the map downloaded.
+ * some 150–200 KB, cut at the poles where the void beyond them begins
+ * (src/maps/source.ts), 2304 by 1152. The browser used to fetch the tiles
+ * one by one, 2.5 MB in 684 requests, three quarters of all a visit to
+ * the map downloaded.
  *
  * Those tiles cover hundreds of chunks each and barely change in an hour,
  * so the CDN keeps the sheet six hours, then makes it afresh in the
@@ -89,8 +92,9 @@ async function make(): Promise<Sheet | null> {
         if (bytes.length <= 400) continue
         const tile = await sharp(bytes).resize(SHEET_TILE_PX, SHEET_TILE_PX).ensureAlpha().raw().toBuffer()
         const left = (column - SHEET_COLUMNS.from) * SHEET_TILE_PX
-        const top = (row - SHEET_ROWS.from) * SHEET_TILE_PX
-        for (let y = 0; y < SHEET_TILE_PX; y++)
+        const top = sheetRowTop(row)
+        // The first and last rows reach past the poles, into the void: only what's on the sheet is copied.
+        for (let y = Math.max(0, -top); y < Math.min(SHEET_TILE_PX, SHEET_HEIGHT - top); y++)
           tile.copy(pixels, ((top + y) * SHEET_WIDTH + left) * 4, y * rowBytes, (y + 1) * rowBytes)
       } catch {
         missing++
@@ -119,7 +123,8 @@ const stored = unstable_cache(
     if (!sheet || sheet.missing) throw new Unkept(sheet)
     return { at: sheet.at, picture: Buffer.from(sheet.picture).toString('base64') }
   },
-  ['maps-sheet'],
+  // Named for its extent: a sheet kept from before it was cut at the poles is never handed out for one that is.
+  ['maps-sheet-1152'],
   { revalidate: STORE_S },
 )
 

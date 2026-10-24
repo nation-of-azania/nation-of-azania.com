@@ -9,10 +9,10 @@ import type { Projection } from './projection'
  * so it can be scrolled without end. The repeats aren't real — the game's
  * world ends at its edges, and nobody walks west out of one into the other
  * — and the map says so without a word: each echo is washed pale, like a
- * sheet seen through tracing paper, and at every edge the sheet is torn, a
- * dark gap with ragged paper either side between the real world and its
- * copy. Plain SVG over the overlay's projection, drawn afresh when the view
- * settles like every layer; nothing here answers the pointer.
+ * sheet seen through tracing paper, and a dashed hairline marks every edge
+ * between the real world and its copy. Plain SVG over the overlay's
+ * projection, drawn afresh when the view settles like every layer;
+ * nothing here answers the pointer.
  */
 
 /** The echoes a view shows: 1 is the copy east of the real world, −1 the one west; none while the view is all real. */
@@ -42,7 +42,7 @@ export function echoProjection(projection: Projection, copy: number): Projection
   }
 }
 
-/** The sheet's height on the page, in layer px: the rows the map draws, within what's on the page; null when none is. */
+/** The world's height on the page, in layer px, pole to pole, within what's on the page; null when none of it is. */
 function sheetSpan(projection: Projection): { top: number; bottom: number } | null {
   const minZ = Math.max(projection.bounds.minZ, WORLD_NORTH)
   const maxZ = Math.min(projection.bounds.maxZ, WORLD_SOUTH)
@@ -88,75 +88,38 @@ export function EchoWash({ projection, world = 0 }: { projection: Projection; wo
 }
 
 /**
- * A torn edge down the page: a ragged line about `x`, in layer px, as one
- * path. The teeth vary in reach and spacing by a fixed pattern, so the edge
- * reads as torn paper rather than a zip, and tears the same way each time
- * it's drawn.
- */
-function tear(x: number, top: number, bottom: number): string {
-  const parts = [`M${(x - 2).toFixed(1)} ${top.toFixed(1)}`]
-  for (let y = top, tooth = 0; y < bottom; tooth++) {
-    const wobble = ((tooth * 7919) % 11) / 10
-    y = Math.min(bottom, y + 4 + wobble * 7)
-    const reach = 1.5 + wobble * 3
-    parts.push(`L${(x + (tooth % 2 ? reach : -reach)).toFixed(1)} ${y.toFixed(1)}`)
-  }
-  return parts.join('')
-}
-
-/**
- * The seams, drawn over everything: at every edge of the sheet on the page,
- * a dark gap with the ragged edges of the two sheets either side, and a
- * soft shadow across it. Fixed in pixels, so the tear reads the same at
- * every zoom, and only as tall as the sheet, so beyond its last rows the
- * void is plain void.
+ * The seams, drawn over everything: at every edge of the world on the
+ * page, a hairline the height of the world, half black and dashed, where
+ * the real world meets its echo. The wash over the echo says the rest.
+ * Fixed in pixels, so it reads the same at every zoom, and kept to the
+ * device's pixels, so it stays a hairline.
  */
 export function Seams({ projection }: { projection: Projection }) {
-  const { bounds, id } = projection
+  const { bounds } = projection
   const span = sheetSpan(projection)
   if (!span) return null
   const first = Math.ceil((bounds.minX - WORLD_WEST) / WORLD_WIDTH)
   const last = Math.floor((bounds.maxX - WORLD_WEST) / WORLD_WIDTH)
   if (first > last) return null
-  const shade = `${id}-seam`
   const edges: number[] = []
   for (let copy = first; copy <= last; copy++) edges.push(WORLD_WEST + copy * WORLD_WIDTH)
   return (
     <g className="az-seams" pointerEvents="none">
-      <defs>
-        <linearGradient id={shade} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor={GROUND.sea} stopOpacity={0} />
-          <stop offset="0.5" stopColor={GROUND.sea} stopOpacity={0.7} />
-          <stop offset="1" stopColor={GROUND.sea} stopOpacity={0} />
-        </linearGradient>
-      </defs>
       {edges.map((edge) => {
         const [x] = projection.project([edge, 0])
-        const torn = tear(x, span.top, span.bottom)
         return (
-          <g key={edge}>
-            <rect fill={`url(#${shade})`} height={span.bottom - span.top} width={40} x={x - 20} y={span.top} />
-            {/* The gap, then the paper's edges either side of it. */}
-            <path d={torn} fill="none" stroke={GROUND.sea} strokeLinejoin="round" strokeOpacity={0.92} strokeWidth={9} />
-            <path
-              d={torn}
-              fill="none"
-              stroke={GROUND.whitewash}
-              strokeLinejoin="round"
-              strokeOpacity={0.95}
-              strokeWidth={1.5}
-              transform="translate(-4.5 0)"
-            />
-            <path
-              d={torn}
-              fill="none"
-              stroke={GROUND.whitewash}
-              strokeLinejoin="round"
-              strokeOpacity={0.95}
-              strokeWidth={1.5}
-              transform="translate(4.5 0)"
-            />
-          </g>
+          <line
+            key={edge}
+            shapeRendering="crispEdges"
+            stroke="#000"
+            strokeDasharray="6 4"
+            strokeOpacity={0.5}
+            strokeWidth={1}
+            x1={x}
+            x2={x}
+            y1={span.top}
+            y2={span.bottom}
+          />
         )
       })}
     </g>

@@ -13,6 +13,7 @@ import {
   SHEET_TILE_PX,
   SHEET_URL,
   SHEET_WIDTH,
+  sheetRowTop,
 } from '@/maps/sheet'
 import { cachedTileUrl, WORLD_WIDTH, wrapPoint } from '@/maps/source'
 
@@ -289,7 +290,7 @@ export function attachSheets(map: L.Map, { wrap, tiles, preload }: SheetOptions)
         context.drawImage(
           picture,
           (c - SHEET_COLUMNS.from) * SHEET_TILE_PX,
-          (r - SHEET_ROWS.from) * SHEET_TILE_PX,
+          sheetRowTop(r),
           SHEET_TILE_PX,
           SHEET_TILE_PX,
         )

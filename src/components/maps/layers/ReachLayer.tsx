@@ -19,8 +19,8 @@ import { halo, named, steadyType, type Projection } from './projection'
  * page are kept. It ends where the world does: the game's world doesn't
  * wrap, so no capital reaches across a seam, and each copy of the world on
  * the page draws its own ring cut at its own edges — a ring near the east
- * edge stops at the tear there, and its arc is seen again, washed, just
- * west of the west tear, in the echo that is the east edge's copy.
+ * edge stops at the seam there, and its arc is seen again, washed, just
+ * west of the west seam, in the echo that is the east edge's copy.
  */
 
 /** The world the game has, which a ring stops at: the sheet's own extent. */

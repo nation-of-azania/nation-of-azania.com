@@ -21,17 +21,33 @@ export const SHEET_COLUMNS = { from: sheetColumn(WORLD_WEST), to: sheetColumn(WO
 export const SHEET_ROWS = { from: sheetRow(WORLD_NORTH), to: sheetRow(WORLD_SOUTH - 1) }
 export const SHEET_SPAN = SHEET_COLUMNS.to - SHEET_COLUMNS.from + 1
 
-/** The sheet's size in pixels. */
-export const SHEET_WIDTH = SHEET_SPAN * SHEET_TILE_PX
-export const SHEET_HEIGHT = (SHEET_ROWS.to - SHEET_ROWS.from + 1) * SHEET_TILE_PX
+/** Blocks to a pixel of the sheet. */
+const BLOCKS_PER_PX = SHEET_TILE_BLOCKS / SHEET_TILE_PX
 
-/** The sheet's extent in blocks: its tiles' own edges. */
+/**
+ * The sheet's extent in blocks: the world's own, east to west the tiles'
+ * edges, north to south the poles, cut where the void past them begins
+ * (the first and last rows of tiles reach a little beyond).
+ */
 export const SHEET_BOUNDS = {
   minX: SHEET_COLUMNS.from * SHEET_TILE_BLOCKS,
   maxX: (SHEET_COLUMNS.to + 1) * SHEET_TILE_BLOCKS,
-  minZ: SHEET_ROWS.from * SHEET_TILE_BLOCKS - 64,
-  maxZ: (SHEET_ROWS.to + 1) * SHEET_TILE_BLOCKS - 64,
+  minZ: WORLD_NORTH,
+  maxZ: WORLD_SOUTH,
 }
 
-/** Where the site serves the sheet, made and cached (src/app/(frontend)/maps/sheet/route.ts). */
-export const SHEET_URL = '/maps/sheet'
+/** The sheet's size in pixels: 2304 by 1152, a world map. */
+export const SHEET_WIDTH = SHEET_SPAN * SHEET_TILE_PX
+export const SHEET_HEIGHT = (WORLD_SOUTH - WORLD_NORTH) / BLOCKS_PER_PX
+
+/** Where a row of tiles is drawn in the sheet, in its pixels: the first row's top lies above it, in the void. */
+export const sheetRowTop = (row: number): number =>
+  (row * SHEET_TILE_BLOCKS - 64 - WORLD_NORTH) / BLOCKS_PER_PX
+
+/**
+ * Where the site serves the sheet, made and cached
+ * (src/app/(frontend)/maps/sheet.webp/route.ts). It was /maps/sheet while
+ * the sheet ran into the void; the new address keeps a browser's copy of
+ * the old one from being laid over the new extent.
+ */
+export const SHEET_URL = '/maps/sheet.webp'

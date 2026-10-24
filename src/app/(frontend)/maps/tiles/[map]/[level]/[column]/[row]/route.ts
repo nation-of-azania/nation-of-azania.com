@@ -1,5 +1,7 @@
+import sharp from 'sharp'
+
 import { WORLD_LIMIT } from '@/maps/geo'
-import { dynmapTileUrl, isMapName, MAPS, TILE_SIZE } from '@/maps/source'
+import { dynmapTileUrl, isMapName, MAPS, TILE_SIZE, voidRows } from '@/maps/source'
 
 /**
  * One Rulercraft map tile through the site's own cache, for Azania Maps:
@@ -14,7 +16,9 @@ import { dynmapTileUrl, isMapName, MAPS, TILE_SIZE } from '@/maps/source'
  * cheaply by its ETag, so someone who comes back sees new building soon
  * after the Rulercraft map draws it. Ground the map hasn't drawn comes back
  * as an empty transparent tile, cached alike, so the slippy map shows its
- * own backdrop.
+ * own backdrop; and so does the void past the poles, which Dynmap paints
+ * black in its coarser tiles: a tile reaching past one comes back as a
+ * WebP with that part cleared (src/maps/source.ts → voidRows).
  */
 
 export const runtime = 'nodejs'
@@ -67,6 +71,23 @@ const validators = (response: Response): Record<string, string> => {
 
 const integer = (value: string) => (/^-?\d{1,7}$/.test(value) ? Number(value) : null)
 
+/** A tile with the rows outside [from, to) cleared to transparent: the void past a pole. */
+async function clearVoid(bytes: Uint8Array, from: number, to: number): Promise<Uint8Array> {
+  const { data, info } = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const rowBytes = info.width * 4
+  const scale = info.height / TILE_SIZE
+  data.fill(0, 0, Math.round(from * scale) * rowBytes)
+  data.fill(0, Math.round(to * scale) * rowBytes)
+  const webp = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .webp({ quality: 82 })
+    .toBuffer()
+  return new Uint8Array(webp)
+}
+
+/** The map's validators for a tile changed here: told apart from the map's own, so a cache never confuses the two. */
+const cleared = (headers: Record<string, string>): Record<string, string> =>
+  headers.ETag ? { ...headers, ETag: headers.ETag.replace(/"$/, '-void"') } : headers
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ map: string; level: string; column: string; row: string }> },
@@ -85,6 +106,9 @@ export async function GET(
   }
 
   const cached = level >= COARSE_FROM_LEVEL ? COARSE : CACHED
+  // Wholly past a pole: nothing to ask the map for.
+  const { from, to } = voidRows(level, row)
+  if (from >= to) return empty(cached)
   try {
     const response = await fetch(dynmapTileUrl(map, level, column, row), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -95,6 +119,16 @@ export async function GET(
     const bytes = new Uint8Array(await response.arrayBuffer())
     // Dynmap answers ground it hasn't drawn with a tiny placeholder.
     if (bytes.length <= 400) return empty(cached)
+    if (from > 0 || to < TILE_SIZE) {
+      return new Response(await clearVoid(bytes, from, to), {
+        headers: {
+          'Content-Type': 'image/webp',
+          ...cached,
+          ...cleared(validators(response)),
+          'X-Robots-Tag': 'noindex',
+        },
+      })
+    }
     return new Response(bytes, {
       headers: {
         'Content-Type': response.headers.get('Content-Type') ?? 'image/jpeg',

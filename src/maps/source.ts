@@ -8,15 +8,17 @@ import { TILE_SIZE, type Point } from './geo'
 
 /**
  * How far the rendered world reaches: Dynmap draws x in [WORLD_WEST,
- * WORLD_EAST), 73,728 blocks (its level-5 tiles run from column −18 to
- * 17), and z over the level-5 rows −9 to 9, from WORLD_NORTH to
- * WORLD_SOUTH: a sheet two blocks wide for every one tall, with a little
- * void drawn past the poles. The world doesn't wrap in the game — nobody
- * walks west out of one edge into the other — but the live map repeats it
- * to either side so it can be scrolled without end
+ * WORLD_EAST), 73,728 blocks (its level-5 tiles run from column −18 to 17),
+ * and z from WORLD_NORTH to WORLD_SOUTH, half as far: a world map two
+ * blocks wide for every one tall. Past the poles the world is void, which
+ * Dynmap leaves undrawn up close but paints black in its coarser tiles (the
+ * level-5 rows −9 and 9 straddle the edges); the site's tile cache clears
+ * it (voidRows), so the map simply ends there. The world doesn't wrap in
+ * the game — nobody walks west out of one edge into the other — but the
+ * live map repeats it to either side so it can be scrolled without end
  * (src/components/maps/leaflet/canvas.tsx), says the repeats aren't real
- * without a word (src/components/maps/layers/WorldEdge.tsx), and keeps
- * the reader in the real copy, re-basing itself a world over whenever the
+ * without a word (src/components/maps/layers/WorldEdge.tsx), and keeps the
+ * reader in the real copy, re-basing itself a world over whenever the
  * view's centre crosses an edge (src/components/maps/leaflet/home.ts).
  * WORLD_LIMIT (src/maps/geo.ts) stays the generous bound the server checks
  * coordinates against; this is the picture's own extent.
@@ -24,8 +26,8 @@ import { TILE_SIZE, type Point } from './geo'
 export const WORLD_WIDTH = 73_728
 export const WORLD_WEST = -WORLD_WIDTH / 2
 export const WORLD_EAST = WORLD_WIDTH / 2
-export const WORLD_NORTH = -18_496
-export const WORLD_SOUTH = 20_416
+export const WORLD_NORTH = -18_432
+export const WORLD_SOUTH = 18_432
 
 /** Which copy of the world an x lies in: 0 the real one, 1 the echo east of it, −1 the one west. */
 export const worldCopyOf = (x: number): number => Math.floor((x - WORLD_WEST) / WORLD_WIDTH)
@@ -65,6 +67,21 @@ export function dynmapTileUrl(map: MapName, level: number, column: number, row: 
   const y = -row * scale
   const zoomPrefix = level > 0 ? `${'z'.repeat(level)}_` : ''
   return `${DYNMAP_URL}/tiles/${DYNMAP_WORLD}/${MAPS[map].prefix}/${x >> 5}_${y >> 5}/${zoomPrefix}${x}_${y}.jpg`
+}
+
+/**
+ * The pixel rows of a tile that lie past the world's north or south edge,
+ * as the rows above `from` and from `to` on (0 and TILE_SIZE when it has
+ * none): the void Dynmap paints black in its coarser tiles. A tile wholly
+ * past an edge has `from` ≥ `to`.
+ */
+export function voidRows(level: number, row: number): { from: number; to: number } {
+  // A tile's pixel y at level n is (2z + 128) / 2ⁿ, less its row's TILE_SIZE times row (blockToPixel).
+  const y = (z: number) => (2 * z + TILE_SIZE) / 2 ** level - TILE_SIZE * row
+  return {
+    from: Math.min(TILE_SIZE, Math.max(0, Math.round(y(WORLD_NORTH)))),
+    to: Math.min(TILE_SIZE, Math.max(0, Math.round(y(WORLD_SOUTH)))),
+  }
 }
 
 /**

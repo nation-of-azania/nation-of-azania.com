@@ -559,12 +559,15 @@ step with the zoom (a name's 11, 12 or 13 px) still change when it settles.
 
 The live map repeats the world east and west, so a pan never runs out of
 map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
-36,864, the level-5 tiles' columns −18 to 17). The world doesn't wrap in
+36,864, the level-5 tiles' columns −18 to 17, and z from −18,432 to
+18,432, pole to pole; past the poles is void, which Dynmap paints black in
+its coarser tiles, and the tile cache and the world picture leave it out,
+so the map just ends there). The world doesn't wrap in
 the game — nobody walks west out of one edge into the other — and the map
 says so without a word, since that is a thing to see rather than read:
 each repeat is an **echo**, the sheet washed pale under it and the nation's
-layers drawn faded over it, and at every edge the sheet is **torn**, a dark
-gap with ragged paper either side (`layers/WorldEdge.tsx`). An echo is
+layers drawn faded over it, and every edge is marked by a **seam**, a
+dashed hairline of half-black (`layers/WorldEdge.tsx`). An echo is
 inert: the pointer over it is over nothing (the readout goes quiet), a
 click on its ground lands nowhere, a tool's drag stops at the world's edge,
 and a frame drawn over it is saved over the real world; but a click on a
@@ -786,8 +789,8 @@ which the routes insist on, so every viewer shares one copy.
   at every zoom, and only the arcs over the page are drawn. It ends where
   the world does — the game's world doesn't wrap, so no capital reaches
   across a seam — so each copy of the world draws its ring cut at its own
-  edges: a ring near the east edge stops at the tear, and is seen again,
-  washed, just west of the west tear, in the echo that is the east edge's
+  edges: a ring near the east edge stops at the seam, and is seen again,
+  washed, just west of the west seam, in the echo that is the east edge's
   copy. A town abroad says whether it lies within Azania's reach; a nation
   which of Azania's towns lie within its own.
 - **Keeping it quick.** Three hundred-odd towns and some thirty thousand
