@@ -3,13 +3,21 @@ import Link from 'next/link'
 import { cn } from '@/blocks/components/shared'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
-import { blocksBetween, farWords, type AbroadFacts, type HomeCapital, type NationSummary } from '@/maps/abroad'
+import {
+  blocksBetween,
+  farWords,
+  type AbroadFacts,
+  type HomeCapital,
+  type NationSummary,
+  type TradingAround,
+} from '@/maps/abroad'
 import { spoken, type Relation } from '@/maps/data'
 import type { Bounds, Point } from '@/maps/geo'
 import { nationInk, NO_NATION, STANCE_COLOURS } from '@/maps/palette'
 import type { Stance } from '@/maps/registry'
-import { incomeWords, resourceWords, siteTitle, type SiteFacts } from '@/maps/sites'
+import { incomeWords, isSiteKind, resourceWords, siteTitle, type SiteFacts } from '@/maps/sites'
 import type { SpawnRoute, SpawnTown } from '@/maps/spawn'
+import { isServerKind } from '@/maps/trading'
 import { abroadHref, nationHref, townHref } from '@/maps/url'
 import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
@@ -19,12 +27,15 @@ import { Swatch } from '../ui/Swatch'
 import { Arrival, Look, Survey } from './islands'
 import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
 import { NationSieges, TownSiege } from './sieges'
+import { TradingPanel } from './TradingPanel'
 
 /**
  * The panels of the world abroad: a town of another nation (or of none)
  * and another nation, each light — what Towny says of it, the way there,
  * and its place in the world — since Azania Maps keeps nothing of other
- * nations' towns: no census, no mayors, no places drawn. Server-rendered
+ * nations' towns: no census, no mayors, no places drawn. The server's own
+ * places, its trading outposts and landmarks, have a panel of their own
+ * (./TradingPanel.tsx), since they are no towns. Server-rendered
  * from the world's reading (src/lib/abroad.ts), so a link unfurls and a
  * search engine reads it; the map is told where to look (Arrival), since
  * the world itself reaches the browser after the page.
@@ -43,7 +54,7 @@ const plural = (count: number, one: string, many = `${one}s`) =>
   `${count.toLocaleString('en-GB')} ${count === 1 ? one : many}`
 
 const siteOf = (town: AbroadFacts): SiteFacts | null =>
-  town.kind === 'town' ? null : { kind: town.kind, income: town.income, resource: town.resource, note: null }
+  isSiteKind(town.kind) ? { kind: town.kind, income: town.income, resource: town.resource, note: null } : null
 
 /** A nation by name, linked to its page. */
 function NationLink({ nation }: { nation: Pick<NationSummary, 'name' | 'slug' | 'colour'> }) {
@@ -106,13 +117,18 @@ const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' :
 const listed = (names: string[]) =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 
-/** A town abroad: its nation, ruler, residents and claims, its spawn when anyone may use it, and a site's pay. */
+/**
+ * A town abroad: its nation, ruler, residents and claims, its spawn when
+ * anyone may use it, and a site's pay; or one of the server's own places,
+ * in its own panel.
+ */
 export function AbroadTownPanel({
   town,
   nation,
   relation,
   route,
   capital,
+  trading,
 }: {
   town: AbroadFacts
   nation: NationSummary | null
@@ -121,7 +137,10 @@ export function AbroadTownPanel({
   route: SpawnRoute<SpawnTown> | null
   /** Azania's capital, from which its war reaches. */
   capital: HomeCapital
+  /** For one of the server's own places, the trading outposts around it. */
+  trading: TradingAround | null
 }) {
+  if (isServerKind(town.kind)) return <TradingPanel kind={town.kind} place={town} route={route} trading={trading} />
   const fromCapital = capital && town.home ? blocksBetween(capital.home, town.home) : null
   const site = siteOf(town)
   const ring = nation ? nationInk(nation.colour).line : NO_NATION.line
@@ -294,7 +313,7 @@ export function NationPanel({
 }) {
   const towns = members.filter((town) => town.kind === 'town')
   const sites = members
-    .filter((town) => town.kind !== 'town')
+    .filter((town) => isSiteKind(town.kind))
     .sort((a, b) => (b.income ?? 0) - (a.income ?? 0) || a.name.localeCompare(b.name))
   const total = sites.reduce((sum, site) => sum + (site.income ?? 0), 0)
   const ring = nationInk(nation.colour).line

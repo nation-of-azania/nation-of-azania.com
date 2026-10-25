@@ -29,6 +29,7 @@ export const GROUND = {
   roseLight: '#e58fb3',
   lagoon: '#198a98',
   lagoonLight: '#8acbd2',
+  lagoonDeep: '#0d5d69',
 } as const
 
 /**

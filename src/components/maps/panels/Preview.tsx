@@ -73,6 +73,7 @@ export function Preview({ selection }: { selection: MapSelection | null }) {
             relation={relationWith(abroad.nation?.name, data.relations)}
             route={abroad.route}
             town={abroad.town}
+            trading={abroad.trading}
           />
         )
       }

@@ -1,5 +1,5 @@
 import type { Point } from './geo'
-import type { TownKind } from './registry'
+import type { WorldKind } from './world'
 
 /**
  * How a player gets somewhere on Azania Maps. Players have no `/tp`;
@@ -16,8 +16,8 @@ export type SpawnTown = {
   name: string
   home: Point | null
   publicSpawn: boolean | null
-  /** A server site (a quarry, a treasure ship) is nobody's spawn. */
-  kind?: TownKind
+  /** A server site (a quarry, a treasure ship) is nobody's spawn, and nor is a trading outpost or a landmark. */
+  kind?: WorldKind
 }
 
 export type Compass = 'north' | 'north-east' | 'east' | 'south-east' | 'south' | 'south-west' | 'west' | 'north-west'
@@ -73,7 +73,8 @@ export function thenWalk(distance: number, direction: Compass | null): string | 
  * one within reason (twice the distance, or 500 blocks more); when the
  * nearest usable spawn is private all the same, the caller says so. A town
  * whose spawn the map doesn't describe counts as public. Server sites
- * (quarries, treasure ships) have no residents, so no spawn worth giving.
+ * (quarries, treasure ships) have no residents, so no spawn worth giving;
+ * nor do the server's trading outposts and landmarks, which are no towns.
  */
 export function spawnRoute<T extends SpawnTown>(point: Point, towns: T[]): SpawnRoute<T> | null {
   const reach = (town: T & { home: Point }) => Math.hypot(point[0] - town.home[0], point[1] - town.home[1])

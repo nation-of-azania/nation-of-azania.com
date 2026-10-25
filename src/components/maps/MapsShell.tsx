@@ -14,7 +14,7 @@ import {
 } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { abroadOf, abroadTownPage, homeNationOf, nationFit, worldSlug, type Abroad } from '@/maps/abroad'
+import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, worldSlug, type Abroad } from '@/maps/abroad'
 import {
   heartland,
   homeClaimBounds,
@@ -1412,10 +1412,12 @@ function initialOf(target: LookTarget): SceneProps['initial'] | null {
 /**
  * Where a selection's page really is, when the browser can tell: a town
  * named abroad that is Azania's own has a page of its own, and Azania's
- * own nation is the map's front. The server would send the reader on from
- * the other, after a round trip and a blank panel between.
+ * own nation, like the server's old spawn town, is the map's front. The
+ * server would send the reader on from the other, after a round trip and a
+ * blank panel between.
  */
 function settle(selection: MapSelection | null, data: MapData, world: Abroad | null): MapSelection | null {
+  if (selection?.kind === 'abroad' && isOldSpawnTown(selection.slug)) return null
   if (selection?.kind === 'nation') {
     const home = homeNationOf(data.towns)
     return home && worldSlug(home) === selection.slug ? null : selection

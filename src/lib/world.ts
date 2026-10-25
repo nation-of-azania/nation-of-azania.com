@@ -10,7 +10,7 @@ import {
   type WorldTown,
 } from '@/maps/world'
 
-import { readMarkerFile, townsOf, type MarkerFile } from './dynmap'
+import { readMarkerFile, townsOf, type MarkerFile, type Town } from './dynmap'
 
 /**
  * The world around Azania and its wars, read from the Rulercraft map's
@@ -21,11 +21,75 @@ import { readMarkerFile, townsOf, type MarkerFile } from './dynmap'
 
 const rounded = (outline: Outline): Outline => ({ x: outline.x.map(Math.round), z: outline.z.map(Math.round) })
 
-/** Every town and nation on the map. */
-export function worldOf(file: MarkerFile): World {
-  const towns: WorldTown[] = [...townsOf(file).values()].map((town) => {
-    const claims = town.outlines.map(rounded)
+/** Whether a point lies inside an outline (even–odd). */
+function inside([x, z]: Point, outline: Outline): boolean {
+  let within = false
+  for (let i = 0, j = outline.x.length - 1; i < outline.x.length; j = i++) {
+    const [xi, zi, xj, zj] = [outline.x[i], outline.z[i], outline.x[j], outline.z[j]]
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) within = !within
+  }
+  return within
+}
+
+/** The server's own markers (its "Markers" set): its trading posts (icon "trading"), its landmarks, its quarries' signs. */
+const serverMarkers = (file: MarkerFile) =>
+  Object.entries(file.sets?.markers?.markers ?? {}).flatMap(([id, marker]) =>
+    marker.label?.trim() && typeof marker.x === 'number' && typeof marker.z === 'number'
+      ? [{ id, label: plain(marker.label), icon: marker.icon ?? '', at: [marker.x, marker.z] as Point }]
+      : [],
+  )
+
+/**
+ * The server's spawn town (RulerSpawn) is no town: Towny's way of holding
+ * the server's trading outposts, scattered across the world, with its home
+ * block on the one far out in the Pacific. Each of its claims is a place on
+ * its own, named by the server's marker standing in it ("Sahara Trading
+ * Outpost", "Baltic Sea Trading Ship", "Aztec Temple"), its home where that
+ * marker stands. A claim no marker names is a trading outpost all the same.
+ * Null for a town that isn't the spawn town: one of the server's (a bot for
+ * a ruler) whose claims hold its trading posts.
+ */
+function spawnPlaces(town: Town, markers: ReturnType<typeof serverMarkers>): WorldTown[] | null {
+  if (!town.ruler || !/^Ruler\d+$/.test(town.ruler)) return null
+  const claims = town.outlines.map(rounded)
+  const named = claims.map((claim) => markers.find((marker) => inside(marker.at, claim)) ?? null)
+  if (!named.some((marker) => marker?.icon === 'trading')) return null
+  return claims.map((claim, i) => {
+    const marker = named[i]
+    const xs = claim.x
+    const zs = claim.z
+    const middle: Point = [
+      Math.round((Math.min(...xs) + Math.max(...xs)) / 2),
+      Math.round((Math.min(...zs) + Math.max(...zs)) / 2),
+    ]
     return {
+      id: `${town.id ?? town.name}/${marker?.id ?? middle.join(',')}`,
+      name: marker?.label ?? 'Trading outpost',
+      nation: null,
+      kind: !marker || marker.icon === 'trading' ? 'trading' : 'landmark',
+      capital: false,
+      ruler: null,
+      residents: 0,
+      chunks: outlinesChunks([claim]),
+      founded: null,
+      publicSpawn: null,
+      income: null,
+      resource: null,
+      home: marker ? [Math.round(marker.at[0]), Math.round(marker.at[1])] : middle,
+      claims: [claim],
+      colour: town.colour ?? null,
+    }
+  })
+}
+
+/** Every town and nation on the map, the spawn town's places each on its own. */
+export function worldOf(file: MarkerFile): World {
+  const markers = serverMarkers(file)
+  const towns: WorldTown[] = [...townsOf(file).values()].flatMap((town): WorldTown[] => {
+    const places = spawnPlaces(town, markers)
+    if (places) return places
+    const claims = town.outlines.map(rounded)
+    return [{
       id: town.id,
       name: town.name,
       nation: town.nation,
@@ -41,7 +105,7 @@ export function worldOf(file: MarkerFile): World {
       home: town.home ? [Math.round(town.home.x), Math.round(town.home.z)] : null,
       claims,
       colour: town.colour ?? null,
-    }
+    }]
   })
 
   const nations = new Map<string, WorldNation & { colours: Map<string, number> }>()

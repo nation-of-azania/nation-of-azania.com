@@ -22,7 +22,9 @@ import { getWorld } from './world'
  * own towns, so a page neither waits on the Rulercraft map's 5 MB marker
  * file each time nor stops being cached (the read inside doesn't make the
  * page dynamic); the world changes slowly, so a quarter of an hour, as
- * /maps/world.json itself.
+ * /maps/world.json itself. What it keeps outlives a deploy, so its key
+ * changes whenever the shape of a page does: a town's page with the
+ * trading outposts around one of the server's places is the second.
  */
 
 export type { AbroadFacts, HomeCapital, NationSummary } from '@/maps/abroad'
@@ -38,7 +40,7 @@ const readTown = unstable_cache(
     if (!world) return { kind: 'offline' }
     return abroadTownPage(abroadOf(world, own.map((townyId) => ({ townyId }))), slug, home)
   },
-  ['maps-abroad-town'],
+  ['maps-abroad-town-2'],
   { revalidate: WORLD_EVERY_S },
 )
 

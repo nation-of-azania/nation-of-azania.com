@@ -13,6 +13,7 @@ import {
   type MapLayer,
   type PlaceGroup,
 } from '@/maps/registry'
+import { SERVER_INKS } from '@/maps/trading'
 import { DEFAULT_EXTRAS, type ExtraLayer, type Extras } from '@/maps/url'
 import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
@@ -20,6 +21,7 @@ import { useStore, type Store } from '../hooks'
 import { EventMark } from '../layers/EventsLayer'
 import { SiegeMarkGlyph } from '../layers/SiegesLayer'
 import { SiteMark } from '../layers/SiteMark'
+import { TradingMark } from '../layers/TradingMark'
 import type { LiveState } from '../live'
 import type { WorldState } from '../world'
 import { EYEBROW, IconButton, Popover } from './chrome'
@@ -338,6 +340,30 @@ export function Legend() {
               <SiteMark facts={{ kind: 'quarry', resource: 'Iron' }} ring={NATION_SAMPLE.line} scale={0.7} x={24} y={10} />
             </svg>
             <span>A site another nation holds, rimmed in its colour</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <rect
+                fill={SERVER_INKS.trading.edge}
+                fillOpacity={0.06}
+                height={14}
+                stroke={SERVER_INKS.trading.edge}
+                strokeDasharray="0.5 3.5"
+                strokeLinecap="round"
+                strokeWidth={1.75}
+                width={40}
+                x={4}
+                y={3}
+              />
+              <TradingMark kind="trading" scale={0.75} x={24} y={10} />
+            </svg>
+            <span>A trading outpost: trade with the server at its prices. Nobody holds one</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <TradingMark kind="landmark" scale={0.7} x={24} y={10} />
+            </svg>
+            <span>One of the server’s landmarks, nobody’s either</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">

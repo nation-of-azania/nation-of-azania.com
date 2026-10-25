@@ -42,6 +42,14 @@ export const SITE_WORDS: Record<SiteKind, { label: string; plural: string }> = {
 }
 
 /**
+ * Whether a kind is a site's: ground the server runs that a nation holds
+ * and a siege takes. Not a players' town, and not one of the server's own
+ * places abroad, its trading outposts and landmarks (./trading.ts), which
+ * nobody holds.
+ */
+export const isSiteKind = (kind: string): kind is SiteKind => kind in SITE_WORDS
+
+/**
  * The marks, one per kind, drawn like the place icons (src/maps/icons.tsx):
  * the same 24 grid and 2-unit stroke. A quarry's gem is the one filled
  * glyph, so its tint can be the resource's; its facets are the stroke, in

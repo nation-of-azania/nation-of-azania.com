@@ -9,12 +9,14 @@ import { PlaceIcon } from '@/maps/icons'
 import { nationInk, NO_NATION } from '@/maps/palette'
 import { PLACE_CATEGORIES, ROAD_KINDS } from '@/maps/registry'
 import { incomeWords, siteFacts, siteTitle } from '@/maps/sites'
+import { isServerKind, SERVER_SEARCH, serverLine } from '@/maps/trading'
 import type { MapSelection } from '@/maps/url'
 import { formatWhen } from '@/maps/time'
 
 import { abroadSite } from '../layers/AbroadLayer'
 import { placeColour } from '../layers/PlacesLayer'
 import { SiteBadge } from '../layers/SiteMark'
+import { TradingBadge } from '../layers/TradingMark'
 import { Icon } from './icons'
 import { Swatch } from './Swatch'
 
@@ -27,10 +29,12 @@ const normalise = (text: string) =>
  * Finds anything on the map by name: towns and the sites the nation holds
  * (by name or by kind, so "diamond" finds the quarry), places, roads and
  * events, and, once the world has arrived, the other nations and their
- * towns and sites, after Azania's own; a dozen at a time, soonest and
- * nearest-sounding first. Arrow keys walk the list; Enter opens; Escape
- * clears. The list is a listbox the input owns, so a screen reader hears
- * what's offered.
+ * towns and sites, and the server's trading outposts and landmarks (by
+ * name, or by kind: "trading" finds the outposts, and so does "spawn",
+ * after the server's old spawn town), after Azania's own; a dozen at a
+ * time, soonest and nearest-sounding first. Arrow keys walk the list;
+ * Enter opens; Escape clears. The list is a listbox the input owns, so a
+ * screen reader hears what's offered.
  */
 export function Search({
   data,
@@ -139,6 +143,17 @@ export function Search({
       })
     }
     for (const town of world?.towns ?? []) {
+      if (isServerKind(town.kind)) {
+        if (!hit(town.name) && !hit(SERVER_SEARCH[town.kind])) continue
+        found.push({
+          rank: rank(town.name) + 3,
+          selection: { kind: 'abroad', slug: town.slug },
+          title: spoken(town.name),
+          subtitle: serverLine({ kind: town.kind, name: town.name, home: town.home }),
+          icon: <TradingBadge className="h-5 w-5" kind={town.kind} />,
+        })
+        continue
+      }
       const site = abroadSite(town)
       if (!hit(town.name) && !(site && hit(siteTitle(site)))) continue
       const nation = town.nation ? world?.nationByName.get(town.nation) : null

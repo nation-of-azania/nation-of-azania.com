@@ -1,6 +1,8 @@
 import { spoken, type MapTown, type Relation } from './data'
 import type { Bounds, Outline, Point } from './geo'
-import { routeFrom, spawnRoute, type SpawnRoute, type SpawnTown } from './spawn'
+import { compassFrom, routeFrom, spawnRoute, type Compass, type SpawnRoute, type SpawnTown } from './spawn'
+import { isServerKind } from './trading'
+import { mapsHref } from './url'
 import type { World, WorldNation, WorldTown } from './world'
 
 /**
@@ -90,7 +92,7 @@ const HEARTLAND = 4500
  * The world, made ready: Azania's own towns (by Towny id) taken out, the
  * rest given addresses and bounds, and every nation its towns and its
  * heartland. Slugs are unique: Towny's names are, and two that come out
- * the same are told apart by the id.
+ * the same are told apart by the id, or else by the home block.
  */
 export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad {
   const ours = new Set(own.map((town) => town.townyId).filter((id): id is string => Boolean(id)))
@@ -105,6 +107,8 @@ export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad 
     const claimBounds = claims.map(outlineBounds).filter((b): b is Bounds => b !== null)
     let slug = worldSlug(town.name)
     if (townBySlug.has(slug)) slug = `${slug}-${(town.id ?? String(towns.length)).slice(0, 4)}`
+    // Two of the spawn town's places of one name share its id's start: told apart by where they stand.
+    if (townBySlug.has(slug) && town.home) slug = worldSlug(`${town.name} ${town.home[0]} ${town.home[1]}`)
     const abroad: AbroadTown = { ...town, claims, slug, claimBounds, bounds: unite(claimBounds) }
     townBySlug.set(slug, abroad)
     towns.push(abroad)
@@ -224,6 +228,15 @@ export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'tow
 /** Azania's capital, from which its war reaches: its name and home block. */
 export type HomeCapital = { town: string; home: Point } | null
 
+/** Another trading outpost, as seen from one of the server's places: where it is, how far and which way. */
+export type NearTrading = { slug: string; name: string; blocks: number; direction: Compass | null }
+
+/**
+ * The server's trading outposts, as one of its places shows them: how many
+ * there are across the world, and the few nearest it, nearest first.
+ */
+export type TradingAround = { count: number; nearest: NearTrading[] }
+
 export type AbroadTownPage =
   | {
       kind: 'town'
@@ -231,6 +244,8 @@ export type AbroadTownPage =
       nation: NationSummary | null
       route: SpawnRoute<SpawnTown> | null
       capital: HomeCapital
+      /** For a trading outpost or a landmark, the trading outposts around it; null for a town or a site. */
+      trading: TradingAround | null
     }
   /** The town is Azania's own: its page is /maps/town/<slug>. */
   | { kind: 'own'; townyId: string }
@@ -277,8 +292,9 @@ const openSpawns = (towns: WorldTown[]): SpawnTown[] =>
 
 /**
  * The way there: the town's own `/t spawn` when anyone may use it; for a
- * private spawn or a site (nobody's spawn), the nearest spawn anyone may
- * use, anywhere on the server, and the walk from it.
+ * private spawn, a site, a trading outpost or a landmark (nobody's spawn),
+ * the nearest town's spawn anyone may use, anywhere on the server, and the
+ * walk from it.
  */
 function routeTo(town: AbroadTown, all: WorldTown[]): SpawnRoute<SpawnTown> | null {
   if (!town.home) return null
@@ -286,6 +302,40 @@ function routeTo(town: AbroadTown, all: WorldTown[]): SpawnRoute<SpawnTown> | nu
   if (town.kind === 'town' && town.publicSpawn !== false) return routeFrom(own, town.home)
   return spawnRoute(town.home, openSpawns(all.filter((other) => other.id !== town.id)))
 }
+
+/** How many trading outposts the near ones of one of the server's places run to. */
+const NEAREST_TRADING = 3
+
+/** The trading outposts around one of the server's places, itself left out; null for a town or a site. */
+function tradingAround(town: AbroadTown, all: AbroadTown[]): TradingAround | null {
+  if (!isServerKind(town.kind)) return null
+  const trading = all.filter((other) => other.kind === 'trading')
+  const from = town.home
+  const nearest = from
+    ? trading
+        .filter((other) => other.slug !== town.slug && other.home)
+        .map((other) => ({ other, blocks: blocksBetween(from, other.home!) }))
+        .sort((a, b) => a.blocks - b.blocks)
+        .slice(0, NEAREST_TRADING)
+        .map(({ other, blocks }) => ({
+          slug: other.slug,
+          name: other.name,
+          blocks,
+          direction: compassFrom(from, other.home!),
+        }))
+    : []
+  return { count: trading.length, nearest }
+}
+
+/**
+ * The server's spawn town went by RulerSpawn until the world's reading
+ * split it into its trading outposts and landmarks, each with an address
+ * of its own (src/lib/world.ts → spawnPlaces). Its old address has nothing
+ * to show; a link to it lands on the map's front, framed on the whole
+ * world, where its places all are.
+ */
+export const isOldSpawnTown = (slug: string): boolean => slug === 'rulerspawn'
+export const OLD_SPAWN_TOWN_LANDING = mapsHref({ at: { centre: [0, 0], zoom: -7 } })
 
 /** A town abroad by its address, as its page shows it; 'own' for one of Azania's, null for none. `home` is Azania's Towny nation. */
 export function abroadTownPage(abroad: Abroad, slug: string, home: string | null): AbroadTownPage {
@@ -304,6 +354,7 @@ export function abroadTownPage(abroad: Abroad, slug: string, home: string | null
     nation: nation ? summaryOf(nation, abroad.townBySlug) : null,
     route: routeTo(town, world.towns),
     capital: capitalOf(world, home),
+    trading: tradingAround(town, abroad.towns),
   }
 }
 

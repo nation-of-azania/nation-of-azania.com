@@ -640,8 +640,9 @@ carries what's already drawn into place until the fresh render lands.
   reader's own time zone, its place, host and article. A town with claims
   away from the one holding its home block lists them as **outposts**, each
   with *Show on map*; *Fit to town* fits the main claim. `/maps/abroad/<slug>`
-  and `/maps/nation/<slug>` open a town of another nation (or of none) and
-  another nation (see *The world around Azania*). These pages are
+  and `/maps/nation/<slug>` open a town of another nation (or of none), or
+  one of the server's trading outposts and landmarks, and another nation
+  (see *The world around Azania*). These pages are
   rendered on the server and cached for everyone alike, a minute at a time
   (and regenerated at once after someone draws), so links unfurl and search
   engines read them; the visitor's own drawing rights are fetched in the
@@ -665,7 +666,9 @@ carries what's already drawn into place until the fresh render lands.
   shows them.
 - **Tools.** Search across towns, held sites (by name or by kind: "diamond"
   finds the quarry), places, roads and events, and once the world has
-  arrived the other nations and their towns and sites, after Azania's own;
+  arrived the other nations and their towns and sites, and the server's
+  trading outposts and landmarks ("trading" finds the outposts, and so
+  does "spawn"), after Azania's own;
   layer toggles (Azania's own layers, then the world's) and a legend; the
   block under the pointer (the centre, on a phone) with its nearest spawn
   to copy; the nation at a glance on the map's own front — any siege
@@ -746,6 +749,34 @@ which the routes insist on, so every viewer shares one copy.
   pays, since it changes hands by siege. The pointer over a nation
   strengthens its claims. The echoes carry the world like everything else,
   washed.
+- **Trading outposts and landmarks** (with the world). The server's spawn
+  town, RulerSpawn in Towny, is no town: it is how the server holds its
+  places across the world, its home block a ship far out in the Pacific. The
+  world's reading splits it into those places, each a claim of its own named
+  by the server's own marker standing in it (`spawnPlaces` in
+  `src/lib/world.ts`): nearly sixty **trading outposts**, where players
+  trade items with the server at prices the server sets and where new
+  players coming through the portals can choose to arrive (the server's
+  markers call those at sea "… Trading Ship" and those on land "… Trading
+  Outpost"; players call them all trading outposts), and a handful of
+  **landmarks** (a temple, a tomb, a party boat). Nobody holds one and no
+  siege can take it, so they are `WorldKind`s of their own
+  (`src/maps/world.ts`), never `TownKind`s: Azania can't hold one, nor does
+  any nation count one among its towns or holdings. Their words and marks
+  are in `src/maps/trading.ts`. On the map a trading outpost is a rounded
+  square of the lagoon with two arrows passing in whitewash
+  (`layers/TradingMark.tsx`), where a town has its dot and a site its disc;
+  far out, at the scale of the world, it's a pip, so the reader sees where
+  the trade is without a word; its mark comes in with the sites', and its
+  name with theirs, in italic, as an atlas sets what isn't a settlement. Its
+  claim is edged in lagoon dots over the faintest wash. A landmark is the
+  same in a quieter voice: whitewash and grey, with a star, and only from
+  closer in. A click opens the place and frames its own claim. Its page says
+  what it is, plainly: the trade first, then the portals, then that nobody
+  holds it; where it is, and the nearest town's `/t spawn` with the walk,
+  since no `/t spawn` leads there; and the three trading outposts nearest
+  it. An old link to `/maps/abroad/rulerspawn` lands on the map's front,
+  framed on the whole world.
 - **Pages abroad.** `/maps/abroad/<slug>` is a light page for a town of
   another nation or of none: its nation, ruler, residents, claims and
   founding, its `/t spawn` when anyone may use it (otherwise, and for a
@@ -758,7 +789,8 @@ which the routes insist on, so every viewer shares one copy.
   `src/lib/abroad.ts` (`unstable_cache`, so the read doesn't make them
   dynamic), and tell the map where to open before the world arrives. A
   town that has joined Azania redirects to its own page, and Azania's
-  nation to the front.
+  nation to the front. A trading outpost or a landmark has a page of its
+  own at the same address (above).
 - **Diplomacy** (a layer, off by default). Where Azania stands with the
   other nations, set under Settings → Azania Maps → Diplomacy, and public
   on the map: the nations are drawn by stance instead of their own colours,
@@ -891,7 +923,7 @@ something was being fetched.
   - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.
 
   `/maps/sync` reads at most every ten minutes, whoever calls it.
-- **Server sites:** some Towny towns are run by the server itself, and their rulers are bots (`Ruler1`, `Ruler2`, …). Quarries, wastelands and treasure ships pay whichever nation holds them and change hands by siege; there are a few others, such as the server's spawn.
+- **Server sites:** some Towny towns are run by the server itself, and their rulers are bots (`Ruler1`, `Ruler2`, …). Quarries, wastelands and treasure ships pay whichever nation holds them and change hands by siege; there are a few others. The server's spawn town is a bot's too, but it is no site: it holds the server's trading outposts and landmarks, which nobody holds and no siege takes, and the map shows each on its own (see *Trading outposts and landmarks* above).
   - The reading tells them apart by the ruler, and keeps each one's kind, what it pays a day, what a quarry produces, and its terms as the map gives them (Towns → *kind*, *income*, *resource*, *site's terms*).
   - A held site is part of Azania on the map, but it isn't a town: it has no census, isn't counted in the nation's growth, and is nobody's `/t spawn`. The front's figures count players' towns alone.
   - On the map a site reads as ground the nation holds rather than a town it built: its claims are hatched in the treasury's gold with a dashed edge, and at its home block, where a town has its lozenge, it wears a mark — a whitewash disc rimmed in gold with the kind's glyph inside: a gem tinted by what the quarry produces (diamond, emerald, iron, gold, coal), a ship, a bare tree for a wasteland, a banner for any other site. Its name is set in gold ink with a line beneath saying what it gives and pays ("diamonds · $333 a day"), placed by the label plan after the towns' names. The words, tints, glyphs and the terms said kindly are in `src/maps/sites.ts`; the mark in `src/components/maps/layers/SiteMark.tsx`.

@@ -22,13 +22,29 @@ export const CAPITAL_WAR_RADIUS = 12_320
 export const WORLD_EVERY_S = 900
 export const WAR_EVERY_S = 180
 
+/**
+ * What a place in the world is: a Towny town or one of the server's sites
+ * (TownKind), or one of the places the server's spawn town holds across
+ * the world, each shown on its own (src/lib/world.ts → spawnPlaces):
+ *
+ * - a trading outpost ('trading'), where players trade items with the
+ *   server at the prices it sets, and where new players can choose to
+ *   arrive through the portals; the server's own markers call those at sea
+ *   "Trading Ship" and those on land "Trading Outpost", and players call
+ *   them all trading outposts;
+ * - a landmark of the server's ('landmark'): a temple, a tomb, a party boat.
+ *
+ * Neither is a town: nobody holds one, and no siege can take it.
+ */
+export type WorldKind = TownKind | 'trading' | 'landmark'
+
 export type WorldTown = {
-  /** Towny's id for the town; null if the map doesn't say. */
+  /** Towny's id for the town; null if the map doesn't say. For a place of the spawn town's, its own id. */
   id: string | null
   name: string
   /** Its Towny nation; null for a town without one. */
   nation: string | null
-  kind: TownKind
+  kind: WorldKind
   capital: boolean
   ruler: string | null
   residents: number
