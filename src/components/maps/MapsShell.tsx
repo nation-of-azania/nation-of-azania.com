@@ -590,30 +590,40 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // connection with the page and the code it needs, and keep the panel's
   // placeholders up for seconds longer; the map marks it at once instead.
   // A town or a nation abroad opened before the world arrived is looked at once it has.
-  const owedLook = useRef<MapSelection | null>(null)
+  // Unless the reader moved the map themselves while it came: then the map is
+  // where they want it, and it stays there.
+  const movesNow = () => sceneApi.current?.moves() ?? 0
+  // The reader's moves of the map so far, counted when a page was asked for (null: none is coming).
+  const movesAsked = useRef<number | null>(null)
+  const owedLook = useRef<{ selection: MapSelection; moves: number } | null>(null)
   useEffect(() => {
     if (lastSelection.current !== undefined && sameSelection(lastSelection.current, landed)) return
     const first = lastSelection.current === undefined
     lastSelection.current = landed
     owedLook.current = null
+    const since = movesAsked.current ?? movesNow()
+    movesAsked.current = null
     if (first) {
       // The map opened before anything said where a page abroad is: it looks once the world arrives,
       // unless the address named a spot, which is where the reader asked to be.
       const placed = Boolean(decodeAt(new URLSearchParams(window.location.search).get('at')))
-      if (landed && !placed && !arrived.current && !lookFor(data, world, landed)) owedLook.current = landed
+      if (landed && !placed && !arrived.current && !lookFor(data, world, landed)) {
+        owedLook.current = { selection: landed, moves: since }
+      }
       return
     }
-    if (landed) {
+    if (landed && movesNow() <= since) {
       const target = lookFor(data, world, landed)
       if (target) look(target)
-      else owedLook.current = landed
+      else owedLook.current = { selection: landed, moves: since }
     }
   }, [landed, data, world, look])
   useEffect(() => {
     const owed = owedLook.current
-    if (!world || !owed || !sameSelection(owed, landed)) return
+    if (!world || !owed || !sameSelection(owed.selection, landed)) return
     owedLook.current = null
-    const target = lookFor(data, world, owed)
+    if (movesNow() > owed.moves) return
+    const target = lookFor(data, world, owed.selection)
     if (target) look(target)
   }, [world, landed, data, look])
 
@@ -643,6 +653,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       const sent = navigator.onLine
       setHandedOver(false)
       setAsked({ selection: next, href, sent, id: ++askings.current })
+      movesAsked.current = movesNow()
       if (sent) push()
     },
     [router, centreStore, layers, extras, viewing, askedRef, pathRef, data, world],
@@ -672,6 +683,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         traversed: true,
         id: ++askings.current,
       })
+      movesAsked.current = movesNow()
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)

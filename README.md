@@ -688,7 +688,9 @@ carries what's already drawn into place until the fresh render lands.
   frame loop, so nothing else on the map is redrawn for a poll) that
   **glides** from one reading to the next rather than jumping, and jumps
   only for a teleport; Azania's residents, matched against the towns'
-  resident lists, are ringed in saffron. Every head is the player's
+  resident lists, are ringed in saffron. Two heads that overlap stack by
+  where the players stand, the southern one in front, and keep that order
+  through a zoom. Every head is the player's
   monogram, an initial in an ink of its own (picked by name, from the
   house's quieter colours: never saffron, coral or the backdrop's night
   sea), with the face laid over it once the face has arrived; so a Bedrock

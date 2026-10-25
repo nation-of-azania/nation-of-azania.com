@@ -37,6 +37,28 @@ const BOX_PX = 28
 
 const PANE = 'az-players'
 
+/** Room in a head's stacking for the heads that share its block row, by when each arrived. */
+const STACK_SPREAD = 1000
+/** How far a hovered head rises: over every other, wherever it stands. */
+const RISE = 100_000_000
+
+type StackedMarker = L.Marker & { _icon?: HTMLElement | null; arrival: number }
+
+/**
+ * A head's marker, stacked by where its player stands in the world, south
+ * over north as the map draws it, and two in one row by when each arrived.
+ * Leaflet stacks a marker by its pixel on the page instead, rounded afresh
+ * every frame of a zoom, so two heads at nearly one height traded places
+ * frame by frame and flickered.
+ */
+const HeadMarker = L.Marker.extend({
+  _updateZIndex(this: StackedMarker, offset: number) {
+    if (!this._icon) return
+    this._icon.style.zIndex = String(Math.round(this.getLatLng().lat) * STACK_SPREAD + this.arrival + offset)
+  },
+}) as unknown as new (latlng: L.LatLngExpression, options?: L.MarkerOptions) => StackedMarker
+let arrivals = 0
+
 type Entry = {
   marker: L.Marker
   element: HTMLElement
@@ -242,14 +264,16 @@ export function PlayersLayer({
         }
         const town = townOfPlayer(player.name, townsRef.current)
         const { icon, element } = iconFor(player, town)
-        const marker = L.marker(toLatLng(to), {
+        const marker = new HeadMarker(toLatLng(to), {
           icon,
           pane: PANE,
           keyboard: false,
           // A head's click is its own: the map, and a tool wanting clicks, never see it.
           bubblingMouseEvents: false,
           riseOnHover: true,
+          riseOffset: RISE,
         })
+        marker.arrival = arrivals++ % STACK_SPREAD
         marker.on('click', (event: L.LeafletMouseEvent) => {
           L.DomEvent.stop(event.originalEvent)
           setChosen((picked) => (picked === player.name ? null : player.name))

@@ -63,6 +63,13 @@ export type SceneApi = {
   zoomBy: (delta: number) => void
   /** The frame a map view would save just now: its centre and how many blocks it spans. */
   frame: (aspect: ViewAspect) => { centre: Point; span: number } | null
+  /**
+   * How many times the reader has moved the map themselves, by a drag, a
+   * pinch, the wheel, the keys or the zoom buttons; the map's own looks
+   * aren't counted. Compared before and after a wait, it says whether
+   * they moved it meanwhile.
+   */
+  moves: () => number
 }
 
 export type SceneProps = {
@@ -98,6 +105,18 @@ export type SceneProps = {
   onEditor: (update: EditorUpdate, press?: number) => void
 }
 
+/** Sends the map to look at a target: its bounds fitted, a view's span framed, or a spot flown to. */
+function lookAt(map: L.Map, target: LookTarget, inset: number): void {
+  if ('bounds' in target) return fitBounds(map, target.bounds, 48, inset)
+  if ('span' in target) {
+    const size = map.getSize()
+    const frame = frameInViewport({ width: size.x, height: size.y }, target.aspect)
+    return flyTo(map, target.centre, Math.min(MAX_ZOOM, zoomForSpan(target.span, frame.width)))
+  }
+  const zoom = target.zoom == null ? undefined : target.minZoom ? Math.max(target.zoom, map.getZoom()) : target.zoom
+  flyTo(map, target.centre, zoom, inset)
+}
+
 /**
  * The map on /maps: the canvas, the nation's layers drawn on it, an
  * article's highlights when one is being shown, and the editor's own
@@ -113,28 +132,22 @@ export function MapScene(props: SceneProps) {
   // The nation under the pointer: changing as the pointer moves, so kept out of the layers' props.
   const hover = useMemo(() => createStore<string | null>(null), [])
 
+  // Every move a view starts with (Leaflet's movestart) is the reader's, unless the map is looking somewhere itself.
+  const moves = useRef(0)
+  const looking = useRef(false)
+
   const api = useMemo<SceneApi>(
     () => ({
       look: (target, inset = 0) => {
         const map = mapRef.current
         if (!map) return
-        if ('bounds' in target) return fitBounds(map, target.bounds, 48, inset)
-        if ('span' in target) {
-          const size = map.getSize()
-          const frame = frameInViewport({ width: size.x, height: size.y }, target.aspect)
-          return flyTo(
-            map,
-            target.centre,
-            Math.min(MAX_ZOOM, zoomForSpan(target.span, frame.width)),
-          )
+        // A flight starts at once, so the move it begins with is known for the map's own.
+        looking.current = true
+        try {
+          lookAt(map, target, inset)
+        } finally {
+          looking.current = false
         }
-        const zoom =
-          target.zoom == null
-            ? undefined
-            : target.minZoom
-              ? Math.max(target.zoom, map.getZoom())
-              : target.zoom
-        flyTo(map, target.centre, zoom, inset)
       },
       zoomBy: (delta) => {
         const map = mapRef.current
@@ -156,6 +169,7 @@ export function MapScene(props: SceneProps) {
           span: Math.round(frame.width / pixelsPerBlock(map.getZoom())),
         }
       },
+      moves: () => moves.current,
     }),
     [],
   )
@@ -163,6 +177,9 @@ export function MapScene(props: SceneProps) {
   const onReady = useCallback(
     (map: L.Map) => {
       mapRef.current = map
+      map.on('movestart', () => {
+        if (!looking.current) moves.current++
+      })
       const size = map.getSize()
       setViewport({ width: size.x, height: size.y })
       map.on('resize', () => {
