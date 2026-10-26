@@ -447,6 +447,7 @@ export function MapScene(props: SceneProps) {
       cursor={wantsClicks ? 'crosshair' : undefined}
       initial={initial}
       interactive={!penning}
+      names="live"
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onMove={onMove}
@@ -554,11 +555,12 @@ const Layers = memo(function Layers({
   const homeReach = showReach && homeName ? reachOf(homeName, { home: true }) : null
   const openReach = showReach && openNation && openNation !== homeName ? reachOf(openNation, { named: true }) : null
   const hoverReach = (nation: string) => (nation === homeName || nation === openNation ? null : reachOf(nation))
-  // One placer for the real world and its echoes, so no name lands on another across a seam.
+  // One placer for the real world and its echoes, so no name lands on another across a seam; and what lost is
+  // kept in reserve, for the names to be placed again as the map moves (leaflet/placing.ts).
   const placer = new LabelPlacer()
   const labels = planLabels(
     projection,
-    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
+    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war, reserve: true },
     placer,
   )
   const copies = [
@@ -570,7 +572,7 @@ const Layers = memo(function Layers({
         at,
         labels: planLabels(
           at,
-          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war },
+          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war, reserve: true },
           placer,
         ),
       }

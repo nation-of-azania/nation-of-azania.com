@@ -2,7 +2,7 @@ import type { Point } from '@/maps/geo'
 import { INK_COLOURS } from '@/maps/palette'
 import type { Drawing } from '@/maps/registry'
 
-import { halo, LabelPlacer, pathOf, textWidth, upright, type Projection, type Rect } from './projection'
+import { halo, kept, LabelPlacer, pathOf, textWidth, upright, type Projection, type Rect } from './projection'
 
 type Props = {
   projection: Projection
@@ -23,42 +23,59 @@ export function centroid(points: Point[]): Point {
   return [points.reduce((s, [x]) => s + x, 0) / n, points.reduce((s, [, z]) => s + z, 0) / n]
 }
 
+/** The box a highlight's words take about the point they're set at. */
+const words = (text: string, x: number, y: number, anchor: 'middle' | 'start'): Rect => {
+  const width = textWidth(text, FONT) + 8
+  return { x: anchor === 'middle' ? x - width / 2 : x - 4, y: y - FONT, width, height: FONT + 8 }
+}
+
+/** The smallest box about both. */
+const union = (a: Rect, b: Rect): Rect => {
+  const x = Math.min(a.x, b.x)
+  const y = Math.min(a.y, b.y)
+  return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y }
+}
+
+/**
+ * The box a highlight takes, which no name may cover: a line's words at
+ * its end, an area's at its middle, a pin with its words, a note. Null
+ * when it takes none.
+ */
+function drawingRect(projection: Projection, drawing: Drawing): Rect | null {
+  switch (drawing.kind) {
+    case 'line': {
+      if (!drawing.label) return null
+      const [x, y] = projection.project(drawing.points[drawing.points.length - 1])
+      return words(drawing.label, x, y - STROKE_WIDTHS[drawing.weight ?? 2] - 6, 'middle')
+    }
+    case 'area': {
+      if (!drawing.label) return null
+      const [x, y] = projection.project(centroid(drawing.points))
+      return words(drawing.label, x, y + FONT * 0.36, 'middle')
+    }
+    case 'pin': {
+      const [x, y] = projection.project(drawing.at)
+      const pin = { x: x - 10, y: y - 27, width: 20, height: 28 }
+      return drawing.label ? union(pin, words(drawing.label, x + 12, y - 16 + FONT * 0.36, 'start')) : pin
+    }
+    case 'text': {
+      const [x, y] = projection.project(drawing.at)
+      return words(drawing.text, x, y + FONT * 0.36, 'middle')
+    }
+    default:
+      return null
+  }
+}
+
 /**
  * The boxes the highlights' pins and words take, claimed before the map's
  * own labels are placed (./labels.ts): what a writer drew for an article
  * outranks the names the map would put there itself.
  */
 export function reserveDrawings(placer: LabelPlacer, projection: Projection, drawings: Drawing[]): void {
-  const words = (text: string, x: number, y: number, anchor: 'middle' | 'start'): Rect => {
-    const width = textWidth(text, FONT) + 8
-    return { x: anchor === 'middle' ? x - width / 2 : x - 4, y: y - FONT, width, height: FONT + 8 }
-  }
   for (const drawing of drawings) {
-    switch (drawing.kind) {
-      case 'line': {
-        if (!drawing.label) break
-        const [x, y] = projection.project(drawing.points[drawing.points.length - 1])
-        placer.claim(words(drawing.label, x, y - STROKE_WIDTHS[drawing.weight ?? 2] - 6, 'middle'))
-        break
-      }
-      case 'area': {
-        if (!drawing.label) break
-        const [x, y] = projection.project(centroid(drawing.points))
-        placer.claim(words(drawing.label, x, y + FONT * 0.36, 'middle'))
-        break
-      }
-      case 'pin': {
-        const [x, y] = projection.project(drawing.at)
-        placer.claim({ x: x - 10, y: y - 27, width: 20, height: 28 })
-        if (drawing.label) placer.claim(words(drawing.label, x + 12, y - 16 + FONT * 0.36, 'start'))
-        break
-      }
-      case 'text': {
-        const [x, y] = projection.project(drawing.at)
-        placer.claim(words(drawing.text, x, y + FONT * 0.36, 'middle'))
-        break
-      }
-    }
+    const rect = drawingRect(projection, drawing)
+    if (rect) placer.claim(rect)
   }
 }
 
@@ -126,6 +143,9 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
         const hit = interactive
           ? { className: 'az-hit', onClick: () => onSelect!(index), style: { cursor: 'pointer' } }
           : {}
+        // What it claimed in the plan, said on the holder that keeps its size, so the live map keeps the names off it mid-gesture too.
+        const claimed = drawingRect(projection, drawing)
+        const keep = claimed ? kept(projection, claimed) : null
         switch (drawing.kind) {
           case 'line': {
             const width = STROKE_WIDTHS[drawing.weight ?? 2]
@@ -155,7 +175,7 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
                   strokeWidth={width}
                 />
                 {/* The head and the words keep their size about the line's end mid-zoom. */}
-                <g {...upright(lx, ly)}>
+                <g {...upright(lx, ly)} {...keep}>
                   {head ? (
                     <path
                       d={head}
@@ -218,7 +238,7 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
                   strokeDasharray={isSelected ? '4 3' : undefined}
                 />
                 {drawing.label ? (
-                  <g {...upright(cx, cy)}>
+                  <g {...upright(cx, cy)} {...keep}>
                     <text
                       className="font-display"
                       dy={fontSize * 0.36}
@@ -242,7 +262,7 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
             const [x, y] = projection.project(drawing.at)
             return (
               <g key={index} {...hit}>
-                <g {...upright(x, y)}>
+                <g {...upright(x, y)} {...keep}>
                   <HighlightPin
                     fill={ink.fill}
                     halo={ink.halo}
@@ -273,7 +293,7 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
             const [x, y] = projection.project(drawing.at)
             return (
               <g key={index} {...hit}>
-                <g {...upright(x, y)}>
+                <g {...upright(x, y)} {...keep}>
                   <text
                     className="font-display"
                     dy={fontSize * 0.36}

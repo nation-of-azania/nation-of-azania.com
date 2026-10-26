@@ -5,11 +5,16 @@ import { eventPhase, type EventPhase } from '@/maps/time'
 import {
   halo,
   inBounds,
+  kept,
   labelBeside,
   LabelPlacer,
+  LIVE_CLOSE_IN,
+  liveOf,
+  livePlan,
   named,
   textWidth,
   upright,
+  type Live,
   type Projection,
   type Rect,
 } from './projection'
@@ -35,8 +40,8 @@ const NAMED_FROM = -0.5
 /** A mark as it will be drawn: the event, its phase, where and how big, and the event's own point it stands beside. */
 export type PlacedMark = { event: MapEvent; phase: EventPhase; x: number; y: number; scale: number; at: [number, number] }
 
-/** An event's title, placed: the text's anchor and position. */
-export type EventName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number }
+/** An event's title, placed: the text's anchor and position, the box it takes, and how it may move mid-gesture on the live map's own canvas. */
+export type EventName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number; box: Rect; live?: Live }
 
 /**
  * Where the marks go at this zoom: beside the place's own pin, and two at
@@ -95,14 +100,21 @@ export function placeEventNames(
 ): Map<number, EventName> {
   const placed = new Map<number, EventName>()
   if (projection.zoom < NAMED_FROM) return placed
+  const live = livePlan(projection) && LIVE_CLOSE_IN
   const fontSize = 12
   for (const { event, x, y, scale } of marks) {
     const width = textWidth(event.title, fontSize)
     const candidates = (['right', 'left'] as const).map((side) =>
       labelBeside(x, y, width, fontSize, side, R * scale + 4),
     )
-    const spot = placer.tryPlace(candidates) ?? (event.id === selected ? candidates[0] : null)
-    if (spot) placed.set(event.id, { anchor: spot.anchor, tx: spot.tx, ty: spot.ty })
+    const rank = placer.rank()
+    const chosen = event.id === selected
+    const spot = placer.tryPlace(candidates) ?? (chosen ? candidates[0] : null)
+    if (!spot) continue
+    const box = { x: spot.x, y: spot.y, width: spot.width, height: spot.height }
+    // Azania's own (class 1); the chosen event's title is kept whatever the crowd.
+    const facts = live ? liveOf(candidates, candidates.indexOf(spot), rank, [NAMED_FROM, 99], chosen ? 0 : 1, { force: chosen || undefined }) : undefined
+    placed.set(event.id, { anchor: spot.anchor, tx: spot.tx, ty: spot.ty, box, live: facts })
   }
   return placed
 }
@@ -170,7 +182,8 @@ export function EventsLayer({
 
   return (
     <g className="az-events">
-      {marks.map(({ event, phase, x, y, scale, at }) => {
+      {marks.map((mark) => {
+        const { event, phase, x, y, scale, at } = mark
         const isSelected = selected === event.id
         const name = labels?.get(event.id) ?? null
         return (
@@ -182,7 +195,7 @@ export function EventsLayer({
           >
             {!name ? <title>{event.title}</title> : null}
             {/* The mark stands a little off the event's point, and keeps that distance mid-zoom. */}
-            <g {...upright(at[0], at[1])}>
+            <g {...upright(at[0], at[1])} {...kept(projection, markRect(mark))}>
               <EventMark phase={phase} scale={scale} selected={isSelected} x={x} y={y} />
               {name ? (
                 <text
@@ -194,7 +207,7 @@ export function EventsLayer({
                   textAnchor={name.anchor}
                   x={name.tx}
                   y={name.ty}
-                  {...named(projection, 'event', event.id)}
+                  {...named(projection, 'event', event.id, { box: name.box, live: name.live })}
                   {...halo(GROUND.whitewash, 3)}
                 >
                   {event.title}

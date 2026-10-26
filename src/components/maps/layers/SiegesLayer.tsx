@@ -7,11 +7,15 @@ import type { Siege } from '@/maps/world'
 import {
   halo,
   inBounds,
+  kept,
   LabelPlacer,
+  liveOf,
+  livePlan,
   named,
   pathOf,
   textWidth,
   upright,
+  type Live,
   type Projection,
   type Rect,
 } from './projection'
@@ -34,12 +38,14 @@ export type { SiegeOnMap }
 /** A mark placed: the siege, and where and how big. */
 export type SiegeMark = SiegeOnMap & { x: number; y: number; scale: number }
 
-/** A siege's name, placed: its box, the title and the line beneath. */
-export type SiegeName = Rect & { title: string; sub: string | null }
+/** A siege's name, placed: its box, the title and the line beneath; `live`, how it may move mid-gesture on the live map's own canvas. */
+export type SiegeName = Rect & { title: string; sub: string | null; live?: Live }
 
 const R = 11
 /** Others' sieges are named from here in; Azania's at every zoom. */
 const NAMED_FROM = -5
+/** On the live map's own canvas, another's siege is kept in reserve from here, a level before it's named, for a zoom in to bring in. */
+const RESERVED_FROM = -6
 /** The line beneath a name, from here in. */
 const SUB_FROM = -3.5
 
@@ -80,17 +86,23 @@ const subOf = (siege: Siege) =>
  * Finds each siege's name a spot beside its mark; part of the label plan
  * (./labels.ts). `ours` places Azania's sieges, which go before Azania's
  * own towns' names and are kept even when there's no free room; the
- * others are placed after the nation's names, and only where there is.
+ * others are placed after the nation's names, and only where there is,
+ * and on the live map's own canvas are kept in reserve (`reserve`) when
+ * they lost, or from a level further out than they're named.
  */
 export function placeSiegeNames(
   projection: Projection,
   marks: SiegeMark[],
   placer: LabelPlacer,
   ours: boolean,
+  reserve = false,
 ): Map<string, SiegeName> {
   const placed = new Map<string, SiegeName>()
   const { zoom } = projection
-  if (!ours && zoom < NAMED_FROM) return placed
+  const live = livePlan(projection)
+  const named = ours || zoom >= NAMED_FROM
+  const reservable = !ours && reserve && zoom >= RESERVED_FROM
+  if (!named && !reservable) return placed
   for (const mark of marks) {
     if (Boolean(mark.side) !== ours) continue
     const title = siegeTitle(mark.siege)
@@ -106,8 +118,17 @@ export function placeSiegeNames(
       box(mark.x - width / 2, mark.y + gap),
       box(mark.x - width / 2, mark.y - gap - height),
     ]
-    const spot = placer.tryPlace(candidates) ?? (ours ? candidates[0] : null)
-    if (spot) placed.set(mark.siege.townId, spot)
+    const rank = placer.rank()
+    const spot = named ? (placer.tryPlace(candidates) ?? (ours ? candidates[0] : null)) : null
+    if (!live) {
+      if (spot) placed.set(mark.siege.townId, spot)
+      continue
+    }
+    // Azania's siege is kept whatever the crowd (class 0, forced); another's is the world's (class 2), named from NAMED_FROM in.
+    const facts = (at: number, held: boolean): Live =>
+      ours ? liveOf(candidates, at, rank, [-99, 99], 0, { force: true }) : liveOf(candidates, at, rank, [NAMED_FROM, 99], 2, { reserve: held || undefined })
+    if (spot) placed.set(mark.siege.townId, { ...spot, live: facts(candidates.indexOf(spot), false) })
+    else if (reservable) placed.set(mark.siege.townId, { ...candidates[0], live: facts(0, true) })
   }
   return placed
 }
@@ -223,7 +244,8 @@ export function SiegesLayer({
           </g>
         )
       })}
-      {marks.map(({ siege, side, x, y, scale }) => {
+      {marks.map((mark) => {
+        const { siege, side, x, y, scale } = mark
         const name = labels.get(siege.townId)
         return (
           <g
@@ -241,11 +263,11 @@ export function SiegesLayer({
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
             <title>{siegeTitle(siege)}</title>
-            <g {...upright(x, y)}>
+            <g {...upright(x, y)} {...kept(projection, siegeMarkRect(mark))}>
               <SiegeMarkGlyph battle={siege.battle} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
             </g>
             {name ? (
-              <g {...upright(x, y)} {...named(projection, 'siege', siege.townId)}>
+              <g {...upright(x, y)} {...named(projection, 'siege', siege.townId, { box: name, live: name.live })}>
                 <text
                   className="font-body"
                   fill={GROUND.coralDeep}
