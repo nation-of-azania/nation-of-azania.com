@@ -187,8 +187,12 @@ export function LayerMenu({
   )
 }
 
-/** What the marks mean: the road classes, the place groups, a town's claims and a held site's, the event mark. */
-export function Legend() {
+/**
+ * What the marks mean: the road classes, the place groups, a town's claims
+ * and a held site's, the event mark; and the way out to the globe, where
+ * the browser can draw one (`globe`).
+ */
+export function Legend({ globe }: { globe: boolean }) {
   const hatch = `${useId()}-hatch`
   const groups = Object.keys(PLACE_GROUPS) as PlaceGroup[]
   const sample = (group: PlaceGroup) =>
@@ -388,6 +392,12 @@ export function Legend() {
               besiege; it ends at the world’s edge
             </span>
           </li>
+          {globe ? (
+            <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+              <Icon className="mx-3.5 h-5 w-5 shrink-0 text-sea-800" name="globe" />
+              <span>Zoom out past the whole world and the map becomes a globe</span>
+            </li>
+          ) : null}
         </ul>
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>
         <ul className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1">
@@ -407,12 +417,40 @@ export function Legend() {
 const NATION_SAMPLE = nationInk('#00008B')
 const OTHER_SAMPLE = nationInk('#FF0000')
 
-export function ZoomButtons({ onZoom }: { onZoom: (delta: number) => void }) {
+/**
+ * The zoom, and under it the world as a globe and back, since the globe is
+ * the zoom's own last step out (`globe`, where the browser can draw one).
+ * The globe's code is fetched the moment the pointer comes to its button,
+ * or it's focused, so a click opens it at once. The button is a toggle: its
+ * name stays the same and it says whether it's pressed, so a screen reader
+ * hears the globe shown or not, never a name that reads as the other way.
+ */
+export function ZoomButtons({
+  onZoom,
+  globe,
+}: {
+  onZoom: (delta: number) => void
+  globe?: { on: boolean; disabled: boolean; onToggle: () => void; onWarm: () => void } | null
+}) {
   return (
-    <div className="flex flex-col" role="group" aria-label="Zoom">
-      <IconButton icon="plus" label="Zoom in" onClick={() => onZoom(1)} />
-      <IconButton className="-mt-px" icon="minus" label="Zoom out" onClick={() => onZoom(-1)} />
-    </div>
+    <>
+      <div className="flex flex-col" role="group" aria-label="Zoom">
+        <IconButton icon="plus" label="Zoom in" onClick={() => onZoom(1)} />
+        <IconButton className="-mt-px" icon="minus" label="Zoom out" onClick={() => onZoom(-1)} />
+      </div>
+      {globe ? (
+        <IconButton
+          className="az-globe-button relative"
+          disabled={globe.disabled}
+          icon="globe"
+          label="Show the world as a globe"
+          onClick={globe.onToggle}
+          onFocus={globe.onWarm}
+          onPointerEnter={globe.onWarm}
+          pressed={globe.on}
+        />
+      ) : null}
+    </>
   )
 }
 

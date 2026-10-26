@@ -200,6 +200,24 @@ export const blocksBetween = (a: Point, b: Point): number => Math.hypot(a[0] - b
 export const farWords = (blocks: number): string =>
   `${(blocks < 1000 ? Math.round(blocks / 10) * 10 : Math.round(blocks / 100) * 100).toLocaleString('en-GB')} blocks`
 
+/**
+ * How much ground, in chunks, a nation must hold to be named at a zoom, far
+ * out: at the scale of the world only the great ones are. The flat map's
+ * names (src/components/maps/layers/AbroadLayer.tsx) and the globe's
+ * (src/components/maps/globe/labels.ts) go by the same rule.
+ */
+export const namedFrom = (zoom: number): number => (zoom <= -6.5 ? 6000 : zoom <= -5.5 ? 2500 : zoom <= -4.5 ? 600 : 0)
+
+/**
+ * The size a nation's name is set in, in px: by how much ground it holds,
+ * a little smaller far out (from −6), Azania's own (`home`) a size apart.
+ */
+export function nationFontSize(chunks: number, zoom: number, home: boolean): number {
+  const weight = Math.min(1, Math.max(0, (Math.log10(Math.max(chunks, 1)) - 2) / 2.7))
+  const far = zoom <= -6
+  return Math.round(home ? (far ? 14 : 16) : far ? 8.5 + 4 * weight : 9 + 5 * weight)
+}
+
 /** A nation's heartland as bounds to fit, when it has one; else all of it. */
 export const nationFit = (nation: Pick<AbroadNation, 'extent' | 'bounds'>): Bounds | null =>
   nation.extent ?? nation.bounds

@@ -16,8 +16,12 @@ import { createPortal } from 'react-dom'
 
 import { pixelsPerBlock } from '@/maps/palette'
 import { WORLD_LIMIT, type Bounds, type Point } from '@/maps/geo'
+import type { Insets } from '@/maps/globe'
+import { GLOBE } from '@/maps/globe-switches'
 import { inWorld } from '@/maps/source'
+import { FLAT_MIN_ZOOM, PULL, WHEEL } from '@/maps/view'
 
+import type { GlobePull } from '../globe/types'
 import type { Projection } from '../layers/projection'
 
 import { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
@@ -52,7 +56,7 @@ export { MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
  * (./sheet.ts). At −7 the whole world is 1,152 px across; at −7.5 it fits
  * beside the panel on a laptop, with its echoes and seams beyond.
  */
-export const MIN_ZOOM = MIN_NATIVE_ZOOM - 2.5
+export const MIN_ZOOM = FLAT_MIN_ZOOM
 
 export type MapPosition = { centre: Point; zoom: number }
 
@@ -164,8 +168,12 @@ const FADE_FLIGHTS_FROM = 1.5
 /** How far a held drag must have gone, as a share of the map's larger side, for a pause to draw again. */
 const PAUSE_PAN = 0.15
 
-/** How the wheel zooms: pixels of scrolling per level, and the easing's time constant in ms. */
-const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
+/**
+ * A frame longer than this, in ms, held the page up: the wheel's gesture
+ * isn't taken as over on the frame after it, though on the one after that
+ * it may be, so a page that stays slow still lets a zoom settle.
+ */
+const LONG_FRAME_MS = 100
 
 /** Safari's own pinch event: the scale since the fingers came down (1 at the start), and where. */
 type GestureEvent = UIEvent & { scale: number; clientX?: number; clientY?: number }
@@ -192,8 +200,17 @@ type GestureEvent = UIEvent & { scale: number; clientX?: number; clientY?: numbe
  * already. Should a browser ever send one pinch both ways, whichever moves
  * the map first in a gesture keeps it, and from the next gesture on the
  * wheel alone zooms, so a pinch never zooms twice.
+ *
+ * Past the farthest zoom the map goes no further, but the wheel or the
+ * pinch held on is a pull (`onPull`), which curls the map up into the
+ * globe (src/components/maps/globe). A pull counts only from a spell of
+ * stillness at the floor (PULL.quietMs): a trackpad's fling, or a run of
+ * notches that merely reaches the floor, belongs to the zoom that got it
+ * there and never curls. What it has asked for past the floor is said as
+ * it goes, a zoom back in taking from it first, and once more as the
+ * gesture ends.
  */
-function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
+function installWheelZoom(map: L.Map, container: HTMLElement, onPull?: (pull: GlobePull) => void): () => void {
   const internals = map as MapInternals
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
   let target = 0
@@ -203,10 +220,16 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
   let frame = 0
   let last = 0
   let lastWheel = 0
+  // Whether the last frame was a long one that the gesture waited out (LONG_FRAME_MS).
+  let waited = false
+  // A pull past the floor: the zoom asked for, unheld by the floor, and whether it has yet gone past.
+  let pull: { raw: number; past: number; pulled: boolean } | null = null
 
   const finish = () => {
     cancelAnimationFrame(frame)
     frame = 0
+    if (pull?.pulled) onPull?.(pullOf(pull.past, 'end', false))
+    pull = null
     if (!begun) return
     begun = false
     // Tiles for the level arrived at, then the map settles.
@@ -228,7 +251,8 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
       internals._moveStart(true, false)
       last = now
     }
-    const dt = Math.min(64, now - last)
+    const gap = now - last
+    const dt = Math.min(64, gap)
     last = now
     current += (target - current) * (reduced() ? 1 : 1 - Math.exp(-dt / WHEEL.ease))
     if (Math.abs(target - current) < 0.002) current = target
@@ -238,19 +262,44 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
     const shift = anchor.subtract(half).multiplyBy(1 - 1 / scale)
     const centre = map.containerPointToLatLng(half.add(shift))
     internals._move(centre, current, { pinch: true, round: false })
-    if (current === target && now - lastWheel > 120) finish()
+    // Done once the wheel has rested a moment (a pull, as long as the stillness that arms one, so notches
+    // in quick succession are one pull); not on the frame after a long one, when a notch sent meanwhile
+    // may still be on its way in, but on the next, long or not, so a page that stays slow still settles.
+    const wait = gap >= LONG_FRAME_MS && !waited
+    waited = wait
+    if (current === target && now - lastWheel > (pull ? PULL.quietMs : 120) && !wait) finish()
   }
 
-  /** Moves the target zoom by `dz` levels about `at`, a point in the container; the frames ease the map after it. */
-  const nudge = (dz: number, at: L.Point) => {
+  /**
+   * Moves the target zoom by `dz` levels about `at`, a point in the container; the frames ease the map after it.
+   * Pulling past the floor, a click-wheel's notch out (`notch`) counts as one notch however far the mouse says it
+   * turned, as mice and screens scaled up say it turned further: one never opens the globe, and two always do.
+   */
+  const nudge = (dz: number, at: L.Point, notch = false) => {
+    const now = performance.now()
     if (!frame) {
       target = map.getZoom()
       current = target
-      last = performance.now()
+      last = now
     }
-    target = internals._limitZoom(target + dz)
+    const floor = map.getMinZoom()
+    // At the floor after a spell of stillness, a fresh gesture: from here on, it may pull. A gesture still
+    // easing (`frame`) is the one that came to the floor, however long the page held it up meanwhile: a
+    // stall in a fling looks like stillness by the clock, but the fling's own frames are still running.
+    if (onPull && !pull && !frame && now - lastWheel >= PULL.quietMs && target <= floor + 0.02)
+      pull = { raw: target, past: 0, pulled: false }
+    if (pull) {
+      pull.raw = Math.min(map.getMaxZoom(), pull.raw + (notch && dz < 0 ? -WHEEL.notchLevels : dz))
+      target = internals._limitZoom(pull.raw)
+      const past = Math.max(0, floor - pull.raw)
+      if (past > 0 || pull.past > 0) {
+        pull.past = past
+        pull.pulled = true
+        onPull?.(pullOf(past, 'move', false))
+      }
+    } else target = internals._limitZoom(target + dz)
     anchor = at
-    lastWheel = performance.now()
+    lastWheel = now
     if (!frame) frame = requestAnimationFrame(step)
   }
 
@@ -278,7 +327,7 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
       : notch
         ? -Math.sign(dy) * WHEEL.notchLevels * Math.min(2, Math.max(1, Math.abs(dy) / 100))
         : -dy / WHEEL.scrollPxPerLevel
-    nudge(dz, map.mouseEventToContainerPoint(event))
+    nudge(dz, map.mouseEventToContainerPoint(event), notch)
   }
 
   // Safari's pinch: only where the browser has gesture events at all.
@@ -359,6 +408,92 @@ function installWheelZoom(map: L.Map, container: HTMLElement): () => void {
   }
 }
 
+/**
+ * Whether the reader is at the keyboard, said on the map's root as
+ * `.az-keyed`: the map, and the globe over it, are ringed in saffron when
+ * focused only then. Leaflet focuses the map from a script as it's
+ * pressed, which the browser takes for the keyboard's doing, so the
+ * browser's own :focus-visible would ring it for a mouse or a finger too.
+ * A key pressed (a shortcut or a modifier alone aside) says the reader is
+ * at the keyboard; a press of the pointer, that they aren't.
+ */
+function trackKeyboard(root: Element): () => void {
+  const onKey = (event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || /^(Shift|Control|Alt|Meta)$/.test(event.key)) return
+    if (!root.classList.contains('az-keyed')) root.classList.add('az-keyed')
+  }
+  const onPointer = () => {
+    if (root.classList.contains('az-keyed')) root.classList.remove('az-keyed')
+  }
+  document.addEventListener('keydown', onKey, true)
+  document.addEventListener('pointerdown', onPointer, true)
+  return () => {
+    document.removeEventListener('keydown', onKey, true)
+    document.removeEventListener('pointerdown', onPointer, true)
+  }
+}
+
+/**
+ * A pull as the globe is told of it: far enough to open it once let go
+ * (a pinch needs a little less), or at once if pulled on further still.
+ */
+function pullOf(levels: number, phase: GlobePull['phase'], touch: boolean): GlobePull {
+  const opens = levels >= (phase === 'move' ? PULL.auto : touch ? PULL.commitTouch : PULL.commit)
+  return { levels, phase, touch, opens, at: performance.now() }
+}
+
+/** Leaflet's pinch on a touchscreen, and whether it's under way. */
+type TouchZoomInternals = L.Handler & { _zooming?: boolean }
+
+/**
+ * The other ways of pulling the map past its farthest zoom (the wheel's
+ * are in installWheelZoom). Two fingers that come down at the floor and
+ * pinch on: Leaflet lets the map give a little past it, and springs it
+ * back once they lift, and how far it gave is the pull, ending as they
+ * lift (this listener runs before Leaflet's own, so the map hasn't yet
+ * sprung back). And a fresh press of the minus key at the floor, which
+ * asks for the globe outright; held down from further in, it stops at the
+ * floor, as the wheel does.
+ */
+function installPull(map: L.Map, container: HTMLElement, onPull: (pull: GlobePull) => void): () => void {
+  const pinch = map.touchZoom as TouchZoomInternals
+  const atFloor = () => map.getZoom() <= map.getMinZoom() + 0.02
+  let touch: { past: number; pulled: boolean } | null = null
+  const onTouchStart = (event: TouchEvent) => {
+    if (event.touches.length === 2) touch = atFloor() ? { past: 0, pulled: false } : null
+  }
+  const onZoom = (event: L.LeafletEvent) => {
+    if (!touch || !(event as L.LeafletEvent & { pinch?: boolean }).pinch || !pinch._zooming) return
+    const past = Math.max(0, map.getMinZoom() - map.getZoom())
+    if (past <= 0 && touch.past <= 0) return
+    touch.past = past
+    touch.pulled = true
+    onPull(pullOf(past, 'move', true))
+  }
+  const onTouchEnd = (event: TouchEvent) => {
+    if (!touch || event.touches.length >= 2) return
+    if (touch.pulled) onPull(pullOf(touch.past, 'end', true))
+    touch = null
+  }
+  const onKey = (event: KeyboardEvent) => {
+    if (event.target !== container || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+    if ((event.key === '-' || event.key === '_') && atFloor())
+      onPull(pullOf(Infinity, 'end', false))
+  }
+  container.addEventListener('touchstart', onTouchStart, { passive: true })
+  container.addEventListener('touchend', onTouchEnd, { passive: true })
+  container.addEventListener('touchcancel', onTouchEnd, { passive: true })
+  container.addEventListener('keydown', onKey)
+  map.on('zoom', onZoom)
+  return () => {
+    container.removeEventListener('touchstart', onTouchStart)
+    container.removeEventListener('touchend', onTouchEnd)
+    container.removeEventListener('touchcancel', onTouchEnd)
+    container.removeEventListener('keydown', onKey)
+    map.off('zoom', onZoom)
+  }
+}
+
 /** How far east or west the map may be panned when the world wraps, in blocks: a hundred-odd worlds, which is forever. */
 const WRAP_REACH = WORLD_LIMIT * 100
 
@@ -383,6 +518,13 @@ type CanvasProps = {
   onPointer?: (point: Point | null) => void
   onClick?: (point: Point, event: L.LeafletMouseEvent) => void
   onDoubleClick?: (point: Point, event: L.LeafletMouseEvent) => void
+  /**
+   * The map pulled out past its farthest zoom, by the wheel, a pinch or the
+   * minus key: the live map's way into the globe. Only a map that wraps and
+   * zooms by hand is ever pulled, and only while the globe may curl up out
+   * of it (src/maps/globe-switches.ts → GLOBE).
+   */
+  onPull?: (pull: GlobePull) => void
   /** Rendered into the SVG overlay, in layer coordinates (useProjection). */
   children?: ReactNode
   /** Rendered over the map as ordinary DOM, inside the container (controls, frames). */
@@ -416,6 +558,7 @@ export function MapCanvas({
   onPointer,
   onClick,
   onDoubleClick,
+  onPull,
   children,
   chrome,
 }: CanvasProps) {
@@ -431,9 +574,9 @@ export function MapCanvas({
   const layer = useRef<Layer | null>(null)
   const groundLayer = useRef<Layer | null>(null)
   const handover = useRef<Handover | null>(null)
-  const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick })
+  const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick, onPull })
   useEffect(() => {
-    handlers.current = { onMove, onPointer, onClick, onDoubleClick }
+    handlers.current = { onMove, onPointer, onClick, onDoubleClick, onPull }
   })
 
   useLayoutEffect(() => {
@@ -724,12 +867,26 @@ export function MapCanvas({
     toggle(map.keyboard, interactive)
   }, [interactive])
 
+  // Whether the reader is at the keyboard, for the map's ring and the globe's (../maps.css → .az-keyed).
+  useEffect(() => {
+    const root = containerRef.current?.closest('.az-maps')
+    return root ? trackKeyboard(root) : undefined
+  }, [])
+
+  // A pull is passed on only while it's wanted (the shell offers no globe while drawing, say): asked of the handlers when it comes.
+  const pulls = Boolean(onPull)
   useEffect(() => {
     const map = mapRef.current
     const container = containerRef.current
     if (!map || !container || !interactive || !wheel) return
-    return installWheelZoom(map, container)
-  }, [interactive, wheel])
+    const pull = wrap && pulls && GLOBE.curl ? (next: GlobePull) => handlers.current.onPull?.(next) : undefined
+    const unzoom = installWheelZoom(map, container, pull)
+    const unpull = pull ? installPull(map, container, pull) : null
+    return () => {
+      unzoom()
+      unpull?.()
+    }
+  }, [interactive, wheel, wrap, pulls])
 
   return (
     <div
@@ -758,16 +915,21 @@ function flightTime(map: L.Map, zoom: number): number {
   return Math.min(1.4, Math.max(0.6, 0.4 + 0.25 * Math.abs(zoom - map.getZoom())))
 }
 
+/** Nothing covering the map's head or foot. */
+const UNCOVERED: Insets = { top: 0, bottom: 0 }
+
 /**
  * Fly the map somewhere, settling without animation for readers who ask
- * for less motion. `inset` is how much of the foot of the map a sheet
- * covers on a phone: the spot lands in the middle of what's left.
+ * for less motion. `cover` is how much of the map's head and foot is
+ * covered, on a phone by its floating search and its sheet: the spot lands
+ * in the middle of what's left.
  */
-export function flyTo(map: L.Map, centre: Point, zoom?: number, inset = 0): void {
+export function flyTo(map: L.Map, centre: Point, zoom?: number, cover: Insets = UNCOVERED): void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const z = zoom ?? map.getZoom()
-  const target = inset
-    ? map.unproject(map.project(toLatLng(centre), z).add([0, inset / 2]), z)
+  const shift = (cover.bottom - cover.top) / 2
+  const target = shift
+    ? map.unproject(map.project(toLatLng(centre), z).add([0, shift]), z)
     : toLatLng(centre)
   if (reduced) map.setView(target, z, { animate: false })
   else map.flyTo(target, z, { duration: flightTime(map, z) })
@@ -779,11 +941,11 @@ export function flyTo(map: L.Map, centre: Point, zoom?: number, inset = 0): void
  * town is often further in than that from a view of the whole nation, so
  * a click on one on a laptop cut straight to it.
  */
-export function fitBounds(map: L.Map, bounds: Bounds, padding = 48, inset = 0): void {
+export function fitBounds(map: L.Map, bounds: Bounds, padding = 48, cover: Insets = UNCOVERED): void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const target = toLatLngBounds(bounds)
-  const paddingTopLeft = L.point(padding, padding)
-  const paddingBottomRight = L.point(padding, padding + inset)
+  const paddingTopLeft = L.point(padding, padding + cover.top)
+  const paddingBottomRight = L.point(padding, padding + cover.bottom)
   if (reduced) {
     map.fitBounds(target, { paddingTopLeft, paddingBottomRight, animate: false })
     return

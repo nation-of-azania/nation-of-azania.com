@@ -8,9 +8,9 @@ import type { Media } from '@/payload-types'
 import { cn } from '../shared'
 
 /**
- * The three.js scene (and the .litematic parser it pulls in) is loaded lazily
- * and only in the browser. All three/@react-three imports live in ./Scene —
- * this module must never import them directly.
+ * The WebGL scene (DeepSlate's renderer, and the .litematic parser it pulls
+ * in) is loaded lazily and only in the browser. All of it lives in ./Scene —
+ * this module must never import it directly.
  */
 const Scene = dynamic(() => import('./Scene'), {
   loading: () => <ExhibitPlaceholder message={'Preparing build…'} />,

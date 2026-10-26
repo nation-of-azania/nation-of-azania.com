@@ -23,6 +23,8 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  *                               its default when absent
  *   &view=<id>                  an article's map view, framed with its highlights
  *   &draw=view                  the view editor, open: a new view, or the one named by &view=
+ *   &globe=1                    the world as a globe, facing at's spot (its zoom −8 to −5);
+ *                               a view or the editor in the address outranks it
  *
  * Old links carried `&map=biomes` for the biome map, which is no longer
  * drawn; the parameter is ignored, so they still open.
@@ -155,6 +157,7 @@ export function mapsQuery({
   extras,
   view,
   draw,
+  globe,
 }: {
   at?: MapPosition | null
   /** Accepted for the callers that still name a base map; there is only the one, so it isn't written. */
@@ -164,6 +167,8 @@ export function mapsQuery({
   extras?: Extras
   view?: number | null
   draw?: MapDraw | null
+  /** The world shown as a globe. */
+  globe?: boolean
 }): string {
   const query = new URLSearchParams()
   if (at) query.set('at', encodeAt(at))
@@ -172,6 +177,7 @@ export function mapsQuery({
     const on = (Object.keys(EXTRA_LAYERS) as ExtraLayer[]).filter((layer) => shown[layer])
     query.set('layers', [...layers, ...on].join(','))
   }
+  if (globe) query.set('globe', '1')
   if (view) query.set('view', String(view))
   if (draw) query.set('draw', draw)
   const text = query.toString()
@@ -179,6 +185,9 @@ export function mapsQuery({
 }
 
 export const decodeDraw = (value: string | null | undefined): MapDraw | null => (value === 'view' ? value : null)
+
+/** Whether the address asks for the globe. */
+export const decodeGlobe = (value: string | null | undefined): boolean => value === '1'
 
 /** A link into Azania Maps at a spot, as the Map block's mark gives it. */
 export const mapsHref = (options: Parameters<typeof mapsQuery>[0], path = MAPS_PATH): string =>

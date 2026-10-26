@@ -8,6 +8,28 @@ import { VIEW_ASPECTS, type ViewAspect } from './registry'
  * live map, draws the block's picture, and turns a span into a zoom.
  */
 
+/** The flat map's farthest zoom (src/maps/source.ts), said here too with the rest of the map's framing. */
+export { FLAT_MIN_ZOOM } from './source'
+
+/**
+ * How the wheel zooms, on the flat map and the globe alike: pixels of
+ * scrolling per level, pixels of a trackpad's pinch per level, a
+ * click-wheel's notch in levels, and the easing's time constant in ms.
+ */
+export const WHEEL = { scrollPxPerLevel: 180, pinchPxPerLevel: 70, notchLevels: 0.5, ease: 90 } as const
+
+/**
+ * Pulling the flat map past its farthest zoom curls it up into the globe
+ * (src/components/maps/leaflet/canvas.tsx reports the pull). A pull counts
+ * only when its gesture starts at the floor after `quietMs` of stillness,
+ * so a fling that merely reaches the floor never curls; it commits on
+ * release at `commit` levels past the floor (`commitTouch` for a pinch),
+ * or at once at `auto`; while it lasts, the sheet curls with resistance,
+ * t = scrubMax·(1 − e^(−levels/scrubScale)); one that falls short springs
+ * back over `springMs`.
+ */
+export const PULL = { quietMs: 250, commit: 0.6, auto: 1.25, commitTouch: 0.5, scrubMax: 0.6, scrubScale: 0.45, springMs: 220 } as const
+
 /** The frame's extent in blocks around its centre. */
 export function frameBounds(centre: Point, span: number, aspect: ViewAspect): Bounds {
   const tall = span / VIEW_ASPECTS[aspect].ratio

@@ -489,7 +489,8 @@ beside the panel: down to −6 the level-5 tiles are drawn smaller, and past
 that the world is one picture, the level-5 tiles drawn once into a canvas
 and laid over the map in their place (`leaflet/sheet.ts`), since seven
 hundred tiles on screen made a pan stutter. The map's JavaScript loads only
-on `/maps` and in an interactive Map block, never with any other page.
+on `/maps` and in an interactive Map block, never with any other page, and
+three.js loads only when someone means to open the globe (*The world as a globe*, below).
 
 That picture also lies **under the tiles at every zoom**, so whatever they
 haven't covered yet (the ground a pinch out opens around the view just
@@ -501,7 +502,7 @@ world's own colours rather than dark lines. Past −6 it is the map, so a
 pinch back in from the whole world keeps it until the tiles arrive, where
 the map used to go dark the moment it crossed −6. The
 server makes the picture from the 684 level-5 tiles, half size, as one WebP
-of some 170 KB (`/maps/sheet`, kept at the CDN six hours and served stale
+of some 170 KB (`/maps/sheet.webp`, kept at the CDN six hours and served stale
 for a month while the Rulercraft map is down): one request where the browser
 used to fetch the tiles themselves, 2.5 MB in 684 requests, three quarters
 of all a visit to the map downloaded. It's fetched once: on the live map as
@@ -840,6 +841,109 @@ which the routes insist on, so every viewer shares one copy.
   one path and a small town a dot, one click and one hover handler serve
   every town, and a hover restyles by a rule of its own, never mid-drag.
 
+**The world as a globe.** The Rulercraft world is a map of the Earth, two
+blocks wide for every one tall, so it wraps round a ball as the Earth's own
+maps do: zoom out past the whole world, or press the globe button under the
+zoom, and the world is a globe, the flat map's own picture of it on a
+sphere, every nation edged and washed in its colour as the flat map draws
+it, Azania in saffron and glowing, the great nations named, the server's
+trading outposts, the sieges and the players online as dots, a faint
+graticule every 30° and a soft light on it so it reads as round, and a
+lagoon light about its limb. Drag it to turn it, north always up and tipped
+no further than 75° towards a pole, a spot on the ice faced from there (let
+go while moving and it spins on); the wheel, a trackpad or two fingers zoom
+it about where they point. The pointer over a dot is told what it is
+("Trading outpost · a ship at sea", as the search says it, "Siege · a battle
+on", a player "Online now"), over a nation its name, and once the hand lets
+go and the globe is still, what is under it then; a siege with a battle on sends out a coral ring, again and
+again, while it faces the reader; with the war reach on, Azania's ring lies
+on the ball as the flat map draws it; and when Azania is round the back, a
+small saffron arrow and *Azania* wait on the limb, the short way round (slid
+round the limb to where there's room beside the globe, on a phone's narrow
+sides), and turn the globe back to it. A click lands on the flat map there and opens what was
+clicked: a nation, a trading outpost, a siege's card, Azania's front, or
+open ground, close in (a finger is given room about a dot over the sea and
+open ground, but over a nation must come as near it as a pointer, so a tap
+on a nation beside a dot opens the nation). The search stays on the globe: what it finds, the
+globe turns to, its panel opens beside it and its nation is lifted. With the
+globe focused, the arrows turn it (Shift for further), plus and minus zoom,
+Enter opens the flat map at the middle, Home turns to Azania and Escape goes
+back; at the keyboard, a small saffron ring marks the middle and a chip
+beside it names what Enter would open there, and a screen reader is told
+what faces it. `&globe=1` in the address opens
+the globe, facing `at`'s spot at its zoom (−8 to −5; within a quarter of its
+resting zoom, which the address can only come near, at that); back and
+forward never open or close it, and a page opened from it carries none.
+
+- **Curling up, and back.** The globe is the flat map, curled. Pulled out
+  past its farthest zoom (the wheel or a trackpad held on, two fingers
+  pinching on, or a fresh press of the minus key), the flat map is drawn
+  over itself as its own twin, the same to the pixel, echoes, seams and
+  all, and the original veiled beneath; the twin then rolls round a ball
+  that tightens as the pull goes on, its edges rolling back first and its
+  poles gathering, and let go far enough it closes into the globe, which
+  eases to the middle of the page as the deep comes up behind it. The ball
+  rolls up upright and tips to the reader's latitude only as it closes, so
+  its open poles and the gap still open at its back never show. Let go
+  short of it and the map springs back flat and says to keep zooming out:
+  a mouse's wheel needs two notches, one springing back however far the
+  mouse says it turned. A pull counts only from a moment's stillness at the
+  farthest zoom, so a fling that merely reaches it never curls (`PULL` in
+  `src/maps/view.ts`). The button curls the map up too, from far
+  enough out; from closer in, where the curl would start from a sliver of
+  the world, the globe fades in. Every way back (Escape, the button, a
+  click, Enter, zooming in close) unrolls the globe into the flat map where
+  the reader was looking: the flat map is stood beneath it first, the same
+  spot under the same pixels at the same scale (zoomed in close, the spot
+  under the pointer, which the ball turns to face as it unrolls), and
+  whatever the flat map then flies to (a nation's framing, a spot at sea
+  close in) it flies to from there, landing in the same room the globe
+  rested in: on a phone, between the search and the sheet. Escape, the
+  button or the zoom in pressed while the globe is still on its way up
+  turns it back the way it came. The globe
+  rests a little above the middle of a wide map, clear of its foot, and
+  curls up about that point, so the spot there is the one it faces and the
+  one it hands back; and a globe looked at and left without being turned or
+  zoomed goes back to the flat map's own zoom, or as near it as the globe
+  comes (−5 at the closest), so a look at the globe and back from far out
+  leaves the flat map as it was. The zoom buttons pressed as it hands
+  back are the flat map's, once the globe has gone. Each
+  frame of the unrolling meets the flat map as it then stands, so a zoom
+  carried on past the hand-back carries on zooming the flat map about the
+  same spot. However the globe came, the flat map stays veiled beneath it
+  until the ball lies flat, so the reader never sees two maps. The sheet is rolled round a
+  sphere of radius R/t, one formula for the flat map at t = 0 and the globe
+  at t = 1 (`curlSpot` in `src/maps/globe.ts`, and its twin in the shader).
+  For a reader who asks for less motion, the globe fades in and out instead,
+  and nothing spins on.
+- **Light to carry.** It is drawn with plain three.js by shaders of the
+  map's own (`src/components/maps/globe`, the arithmetic in
+  `src/maps/globe.ts`), and fetched only when someone means to open it (the
+  pointer coming to its button, its focus, or the first pull past the
+  farthest zoom), so the map's first load carries none of it; asked for
+  while its code is still on its way, its button wears a turning saffron
+  ring. The world's picture comes with the code, from the browser's cache,
+  decoded off the main thread (`src/components/maps/globe/sheet.ts`), where
+  taking up the flat map's own would decode it all again on it as the first
+  frame is drawn. It draws a frame only when something has changed, nothing at all
+  while closed, out of sight or under a phone's sheet, and a minute after
+  closing it gives its memory back. The borders are read from a picture of
+  numbers, one per nation, painted from the claims in the browser's idle
+  moments (`src/maps/raster.ts`), which also says what was clicked, so what
+  is drawn and what is picked never disagree. Where the browser can't draw
+  it at all (no WebGL 2, or a shader refused) the button goes for the
+  session, a note under the controls says why, and the flat map, which
+  stays underneath all along, carries on. A context lost and not given back
+  in a moment, or lost twice in a minute while the page is in sight, hands
+  back to the flat map with a note, the button staying for another try; a
+  tab put away, which may lose its context as a matter of course, is waited
+  for until the reader is back. A context lost in sight while the map curls
+  up or unrolls isn't waited for, and the flat map is unveiled at once,
+  while one lost as the globe lingers closed is let go of quietly, to be
+  made afresh when it's next wanted. Should the globe's code not come (the
+  connection dropped, a deploy replaced it), a note says so to the reader
+  who asked, the button stays, and a reload brings it.
+
 **Drawing on the map.** Sign in (the panel's *Sign in* comes back to the map)
 and, with rights, the pencil in the map's corner offers what you may do;
 everyone else only looks. Beside your name the panel says what you may do
@@ -935,7 +1039,7 @@ something was being fetched.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
-- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5) are kept 6 hours at the CDN and an hour in the browser, as is `/maps/sheet`, the whole world as one picture made from level 5. While the map errors, the CDN keeps serving the last good tile for a month.
+- **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5) are kept 6 hours at the CDN and an hour in the browser, as is `/maps/sheet.webp`, the whole world as one picture made from level 5. While the map errors, the CDN keeps serving the last good tile for a month.
   - New building shows on Azania Maps about 15 minutes after the Rulercraft map draws it; the Rulercraft map itself often lags behind the game.
   - Ground the map hasn't drawn comes back as an empty, cached tile.
   - `/maps/status` says whether the map is answering.
@@ -1254,7 +1358,7 @@ src/
 ├─ components/
 │  ├─ RichText.tsx      # Lexical → React converter map (register new blocks here)
 │  ├─ designs/          # each design's views: gazette/, times/, international/
-│  ├─ maps/             # Azania Maps: the shell and scene, layers/ (plain SVG), leaflet/, panels/, editor/, still/ and embed/ (for the Map block)
+│  ├─ maps/             # Azania Maps: the shell and scene, layers/ (plain SVG), leaflet/, globe/ (three.js, loaded when opened), panels/, editor/, still/ and embed/ (for the Map block)
 │  ├─ og/               # link-preview cards, one per design, drawn with Satori
 │  ├─ site/             # Gazette chrome (header, footer, crest, cards, …)
 │  ├─ times/            # Times chrome (masthead, footer, story cards)

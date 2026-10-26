@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   useTransition,
+  type ComponentType,
   type ReactNode,
 } from 'react'
 
@@ -32,16 +33,18 @@ import {
   type MapViewData,
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
+import type { Insets } from '@/maps/globe'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
 import { azaniaSide, bySiegeWeight, siegeHeadline, siegeTitle } from '@/maps/sieges'
 import { settlements, siteFacts, siteTitle } from '@/maps/sites'
-import { inWorld, wrapPoint } from '@/maps/source'
+import { FLAT_MIN_ZOOM, inWorld, wrapPoint } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
   decodeAt,
   decodeDraw,
   decodeExtras,
+  decodeGlobe,
   decodeLayers,
   DEFAULT_EXTRAS,
   MAPS_PATH,
@@ -58,6 +61,9 @@ import {
 import { api, ApiError, messageOf } from './api'
 import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
 import { EditorPanel } from './editor/EditorPanel'
+import type { GlobeHostProps, HostApi } from './globe/GlobeHost'
+import { loadGlobe, useGlobeSupport, warmGlobe } from './globe/support'
+import type { GlobeEntry, GlobePull, LeaveRequest } from './globe/types'
 import { createStore, useHydrated, useLatest, useMediaQuery, useSearch, useStore } from './hooks'
 import { abroadTownTarget } from './layers/AbroadLayer'
 import { useLivePlayers } from './live'
@@ -352,10 +358,46 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The players online are polled only while their layer is on and the tab is seen.
   const live = extras.players
   const liveStore = useLivePlayers(live)
-  // The rest of the world: asked for once the map has settled, at once when the page is a town or a nation abroad.
+  const [editor, setEditorState] = useState<Editor | null>(null)
+
+  // The world as a globe (./globe): offered where the browser can draw it,
+  // asked for by the address on arrival (unless it names a view or the
+  // editor, which outrank it) and from then on by the reader alone, so back
+  // and forward never open or close it. Its state lives here; its drawing
+  // and its gestures in the globe itself, fetched only when it's wanted.
+  const globeSupport = useGlobeSupport()
+  const [chosenGlobe, setChosenGlobe] = useState<boolean | null>(null)
+  // Mounted from the moment it's first wanted: how, and on arrival by the address, where it faces.
+  const [globeSeen, setGlobeSeen] = useState<Pick<GlobeHostProps, 'entry' | 'arrival'> | null>(null)
+  if (hydrated && chosenGlobe === null) {
+    const asked = decodeGlobe(query.get('globe')) && !query.get('draw') && !query.get('view')
+    setChosenGlobe(asked)
+    if (asked && globeSupport)
+      setGlobeSeen({ entry: 'fade', arrival: { at: decodeAt(query.get('at')) } })
+  }
+  const globe = globeSupport && !editor && Boolean(chosenGlobe)
+  // The globe's keeper (./globe), and three.js with it: fetched only once someone means to open the globe
+  // (./globe/support.ts → warmGlobe), so the map's own first load carries none of it. Should it not come (the
+  // connection dropped, a deploy replaced it), the flat map carries on, the button stays for another try, and a
+  // reader who asked for the globe, by hand or by the address, is told.
+  const [GlobeHost, setGlobeHost] = useState<ComponentType<GlobeHostProps> | null>(null)
+  const [globeUnfetched, setGlobeUnfetched] = useState(false)
+  // The globe covers the flat map: the flat map is inert, and the address and the readout follow the globe.
+  const [globeCover, setGlobeCover] = useState(false)
+  const globeStore = useMemo(() => createStore<MapPosition | null>(null), [])
+  // A pull on the flat map past its farthest zoom, which the globe follows as it curls the map up (onPull, below).
+  const pullStore = useMemo(() => createStore<GlobePull | null>(null), [])
+  const globeHost = useRef<HostApi | null>(null)
+  // What a page opened just now carries in its address: set first thing on the way in or out, ahead of the state.
+  const globeFlag = useRef(false)
+  useEffect(() => {
+    globeFlag.current = globe
+  }, [globe])
+
+  // The rest of the world: asked for once the map has settled, at once when the page is a town or a nation abroad, or for the globe, whose borders it is.
   const [mapReady, setMapReady] = useState(false)
   const foreign = selection?.kind === 'abroad' || selection?.kind === 'nation'
-  const worldState = useWorld(mapReady, foreign)
+  const worldState = useWorld(mapReady || globe, foreign || globe)
   const world = useMemo(
     () => (worldState.world ? abroadOf(worldState.world, data.towns) : null),
     [worldState.world, data.towns],
@@ -376,7 +418,6 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [viewProblem, setViewProblem] = useState<string | null>(null)
   const [viewAttempt, setViewAttempt] = useState(0)
-  const [editor, setEditorState] = useState<Editor | null>(null)
   const [status, setStatus] = useState<MapStatus | null>(null)
 
   // Every change to the editor goes through here, so the step it takes can
@@ -450,16 +491,20 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const [sheet, setSheet] = useState<SheetState>(selection ? 'half' : 'peek')
   // Where the map is and what's under the pointer: changing with every move, kept out of React state.
   const centreStore = useMemo(() => createStore<MapPosition | null>(null), [])
+  // Where the map is, as the address and the readout say it: the globe's while it covers the flat map.
+  const shownStore = globeCover ? globeStore : centreStore
   const pointerStore = useMemo(() => createStore<Point | null>(null), [])
   const sceneApi = useRef<SceneApi | null>(null)
   const pendingLook = useRef<LookTarget | null>(null)
   const lastSelection = useRef<MapSelection | null | undefined>(undefined)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // On a phone the sheet covers the foot of the map; what's looked at lands above it.
-  const look = useCallback(
-    (target: LookTarget) => {
-      const inset = wide ? 0 : window.innerHeight * 0.5
+  // On a phone the sheet covers the foot of the map; what's looked at lands above it. Handing back to the flat
+  // map, the globe says what covered the map as it rested (a phone's search and its sheet, as far up as it is,
+  // or a wide map's foot: ./globe/GlobeHost.tsx), so what it hands over lands where the globe let go of it.
+  const flatLook = useCallback(
+    (target: LookTarget, cover?: Insets) => {
+      const inset = cover ?? (wide ? 0 : window.innerHeight * 0.5)
       if (sceneApi.current) {
         pendingLook.current = null
         sceneApi.current.look(target, inset)
@@ -468,7 +513,36 @@ export function MapsShell({ data: served, children }: ShellProps) {
     [wide],
   )
 
-  const onApi = useCallback((scene: SceneApi) => {
+  /** Back to the flat map, by any way: the globe hands back, and the flat map then looks at `request.to`. */
+  const leaveGlobe = useCallback(
+    (request?: LeaveRequest) => {
+      globeFlag.current = false
+      setChosenGlobe(false)
+      if (globeHost.current) return globeHost.current.leave(request)
+      // Its code still on its way: there is nothing to hand back from.
+      setGlobeSeen(null)
+      setGlobeCover(false)
+      if (request?.to) flatLook(request.to)
+    },
+    [flatLook],
+  )
+
+  /**
+   * Somewhere to look. On the flat map, it flies there. On the globe, a
+   * page that has just arrived (`stay`: the reader opened it from the
+   * search, or by the address) turns the globe towards it, and anything
+   * else asked of the map hands back to the flat map, which then looks; a
+   * look asked for while the globe hands back waits for it, the latest
+   * winning.
+   */
+  const look = useCallback(
+    (target: LookTarget, how?: { stay?: boolean }) => {
+      if (!globeHost.current?.look(target, Boolean(how?.stay))) flatLook(target)
+    },
+    [flatLook],
+  )
+
+  const onSceneApi = useCallback((scene: SceneApi) => {
     // Kept, not cleared: a scene that mounts again (development's double mount) must look at the same place.
     sceneApi.current = scene
     if (pendingLook.current) scene.look(pendingLook.current)
@@ -554,26 +628,28 @@ export function MapsShell({ data: served, children }: ShellProps) {
     }
   }, [])
 
-  // The map's spot in the address, so it can be shared, written quietly after each move.
+  // The map's spot in the address, so it can be shared, written quietly after each move: the globe's while it covers the map.
+  // Written again after each page opened too (`pathname`): the router may put back the address the map was first
+  // opened at, which by then says where the map no longer is, and that the globe was asked for when it no longer is.
   useEffect(() => {
     let handle: number | undefined
     const write = () => {
-      const position = centreStore.get()
+      const position = shownStore.get()
       if (!position) return
       window.clearTimeout(handle)
       handle = window.setTimeout(() => {
-        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, extras, view: viewing?.id ?? null })}`
+        const next = `${window.location.pathname}${mapsQuery({ at: realPosition(position), layers, extras, view: viewing?.id ?? null, globe })}`
         if (next !== `${window.location.pathname}${window.location.search}`)
           window.history.replaceState(window.history.state, '', next)
       }, 300)
     }
     write()
-    const unsubscribe = centreStore.subscribe(write)
+    const unsubscribe = shownStore.subscribe(write)
     return () => {
       unsubscribe()
       window.clearTimeout(handle)
     }
-  }, [centreStore, layers, extras, viewing])
+  }, [shownStore, layers, extras, viewing, globe, pathname])
 
   // Opening something draws the sheet up on a phone, and starts the panel at its top, at once.
   const [sheetFor, setSheetFor] = useState(selection)
@@ -592,7 +668,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // A town or a nation abroad opened before the world arrived is looked at once it has.
   // Unless the reader moved the map themselves while it came: then the map is
   // where they want it, and it stays there.
-  const movesNow = () => sceneApi.current?.moves() ?? 0
+  // On the flat map or the globe: a turn of the globe is a move of the map as much as a drag of the flat one.
+  const globeMoves = useRef(0)
+  const countGlobeMove = useCallback(() => {
+    globeMoves.current++
+  }, [])
+  const movesNow = () => (sceneApi.current?.moves() ?? 0) + globeMoves.current
   // The reader's moves of the map so far, counted when a page was asked for (null: none is coming).
   const movesAsked = useRef<number | null>(null)
   const owedLook = useRef<{ selection: MapSelection; moves: number } | null>(null)
@@ -614,7 +695,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
     }
     if (landed && movesNow() <= since) {
       const target = lookFor(data, world, landed)
-      if (target) look(target)
+      // A page arriving is looked at, on the globe as on the flat map; staying, it never hands the globe back.
+      if (target) look(target, { stay: true })
       else owedLook.current = { selection: landed, moves: since }
     }
   }, [landed, data, world, look])
@@ -624,7 +706,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     owedLook.current = null
     if (movesNow() > owed.moves) return
     const target = lookFor(data, world, owed.selection)
-    if (target) look(target)
+    if (target) look(target, { stay: true })
   }, [world, landed, data, look])
 
   const askedRef = useLatest(asked)
@@ -642,7 +724,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
       const next = settle(chosen, data, world)
       const waiting = askedRef.current
       if (waiting && sameSelection(waiting.selection, next)) return
-      const href = `${selectionHref(next)}${mapsQuery({ at: realPosition(centreStore.get()), layers, extras, view: viewing?.id ?? null })}`
+      // While the globe covers the map, the spot is the globe's; once it hands back, the flat map already stands where it lands.
+      const at = realPosition(shownStore.get() ?? centreStore.get())
+      const href = `${selectionHref(next)}${mapsQuery({ at, layers, extras, view: viewing?.id ?? null, globe: globeFlag.current })}`
       const push = () => startTransition(() => router.push(href, { scroll: false }))
       const here = next ? sameSelection(next, selectionOf(pathRef.current)) : pathRef.current === MAPS_PATH
       if (here) {
@@ -656,7 +740,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       movesAsked.current = movesNow()
       if (sent) push()
     },
-    [router, centreStore, layers, extras, viewing, askedRef, pathRef, data, world],
+    [router, centreStore, shownStore, layers, extras, viewing, askedRef, pathRef, data, world],
   )
 
   const select = useCallback(
@@ -755,13 +839,15 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const openEditor = useCallback(
     (next: Editor) => {
       setEditor(next)
-      if (window.innerWidth >= 1024) return
+      const phone = window.innerWidth < 1024
       // On a phone the sheet comes up over the foot of the map: what's being edited lands above it.
-      setSheet('half')
-      const target = editorTarget(next)
-      if (target) look(target)
+      if (phone) setSheet('half')
+      const target = phone ? editorTarget(next) : null
+      // Drawing is done on the flat map: a globe that's up, or on its way, fades away first, and the map looks once it has.
+      if (globeFlag.current) leaveGlobe({ fade: true, to: target })
+      else if (target) flatLook(target)
     },
-    [setEditor, look],
+    [setEditor, flatLook, leaveGlobe],
   )
 
   const choose = (choice: DrawChoice) => {
@@ -910,6 +996,68 @@ export function MapsShell({ data: served, children }: ShellProps) {
     [setEditor, look],
   )
 
+  /**
+   * The world as a globe, opened: by its button, the zoom out at the flat
+   * map's farthest, or the map pulled out past it (`entry` says which, and
+   * whether the map curls up or the globe fades in is the globe's to
+   * decide). Whatever was on the flat map stays open in the
+   * panel; a siege's card, which belongs to a spot on the flat map,
+   * closes, and a phone's sheet folds to its peek, so the globe has the
+   * screen.
+   */
+  const enterGlobe = useCallback(
+    (entry: GlobeEntry) => {
+      if (!globeSupport || editor) return
+      globeFlag.current = true
+      setChosenGlobe(true)
+      setSiegeOpen(null)
+      if (!wide) setSheet('peek')
+      if (globeHost.current) globeHost.current.enter(entry)
+      else setGlobeSeen((seen) => seen ?? { entry })
+    },
+    [globeSupport, editor, wide],
+  )
+  /**
+   * The flat map pulled out past its farthest zoom: the globe's code is
+   * fetched, and the globe follows the pull, curling the map a little, and
+   * opens once it's pulled far enough, or let go far enough; short of that
+   * it springs back (./globe/Globe.tsx).
+   */
+  const onPull = useCallback(
+    (pull: GlobePull) => {
+      pullStore.set(pull)
+      // Mounting the globe fetches its code; mounted already, it follows the pull itself. Pulled on, or let
+      // go, once it's opening, the pull has nothing more to open.
+      setGlobeSeen((seen) => seen ?? { entry: 'pull' })
+      if (pull.opens && !globeFlag.current) enterGlobe('pull')
+    },
+    [pullStore, enterGlobe],
+  )
+  // Fetched as the globe is first wanted. A fetch that fails answers every ask waiting on it alike, so whichever
+  // ask it was, the globe is no longer wanted; the note stays a few seconds, as the globe's own do.
+  useEffect(() => {
+    if (!globeSeen || GlobeHost) return
+    loadGlobe().then(
+      (module) => setGlobeHost(() => module.GlobeHost),
+      () => {
+        if (globeFlag.current && globeSeen.entry !== 'pull') {
+          setGlobeUnfetched(true)
+          window.setTimeout(() => setGlobeUnfetched(false), 4000)
+        }
+        leaveGlobe()
+      },
+    )
+  }, [globeSeen, GlobeHost, leaveGlobe])
+  const onGlobeHost = useCallback((api: HostApi) => {
+    globeHost.current = api
+  }, [])
+  const onGlobeZoom = (delta: number) => {
+    if (globeHost.current?.zoomBy(delta)) return
+    // Zooming out from the flat map's farthest: the world becomes a globe (where it may; else nothing, as at any floor).
+    if (delta < 0 && (centreStore.get()?.zoom ?? 0) <= FLAT_MIN_ZOOM + 0.01) return enterGlobe('curl')
+    sceneApi.current?.zoomBy(delta)
+  }
+
   const actions = useMemo<MapsActions>(
     () => ({
       data,
@@ -1012,13 +1160,20 @@ export function MapsShell({ data: served, children }: ShellProps) {
         return
       }
       if (event.key !== 'Escape') return
+      // The globe first: Escape hands back to the flat map, or, asked for but not yet up (its code still on its
+      // way), it isn't to come after all; only the next one goes on to the selection.
+      if (globeHost.current?.escape()) return event.preventDefault()
+      if (globeFlag.current) {
+        event.preventDefault()
+        return leaveGlobe()
+      }
       if (editor) return // the editor handles its own steps
       if (viewing) setViewing(null)
       else if (selection) select(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editor, selection, viewing, select, undo, redo])
+  }, [editor, selection, viewing, select, undo, redo, leaveGlobe])
 
   const described = describe(data, world, selection)
   const canDraw = rights.anywhere || rights.towns.length > 0
@@ -1125,7 +1280,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         showPast={showPast}
         worldStatus={worldState.status}
       />
-      <Legend />
+      <Legend globe={globeSupport} />
       {canDraw || rights.views ? (
         <DrawMenu
           active={Boolean(editor)}
@@ -1176,15 +1331,27 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </Link>
     )
 
-  /** The sheet's own line: at a peek, what it holds; drawn up, just the pill, since the page's head is right below. */
+  /**
+   * The sheet's own line: at a peek, what it holds; drawn up, just the pill, since the page's head is right below.
+   * With the globe asked for, it says to tap the globe only once the globe covers the flat map; until then, while
+   * its code comes and it opens, a tap is still the flat map's, and the line says the globe is on its way.
+   */
+  const peek =
+    described ??
+    (globe
+      ? {
+          kind: 'The world as a globe',
+          title: globeCover ? 'Tap a spot to open the map there' : 'Opening the globe…',
+        }
+      : null)
   const handle =
-    sheet !== 'peek' ? null : described ? (
+    sheet !== 'peek' ? null : peek ? (
       <span className="min-w-0 flex-1">
         <span className="block font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
-          {described.kind}
+          {peek.kind}
         </span>
         <span className="block truncate font-display text-lg leading-tight text-sea-950">
-          {described.title}
+          {peek.title}
         </span>
       </span>
     ) : editor ? (
@@ -1254,33 +1421,55 @@ export function MapsShell({ data: served, children }: ShellProps) {
 
         {/* The map. */}
         <div className="relative min-w-0 flex-1">
-          {opening ? (
-            <MapScene
-              data={data}
-              diplomacy={extras.diplomacy}
-              editor={editor}
-              initial={opening}
-              layers={sceneLayers}
-              live={live}
+          {/* Under the globe, the flat map is out of the keyboard's and the screen reader's way. */}
+          <div aria-hidden={globeCover || undefined} inert={globeCover || undefined}>
+            {opening ? (
+              <MapScene
+                data={data}
+                diplomacy={extras.diplomacy}
+                editor={editor}
+                initial={opening}
+                layers={sceneLayers}
+                live={live && !globeCover}
+                liveStore={liveStore}
+                now={now}
+                onApi={onSceneApi}
+                onEditor={setEditor}
+                onMove={centreStore.set}
+                onPointer={pointerStore.set}
+                onSelect={select}
+                rights={rights}
+                selection={selection}
+                showPast={showPast}
+                showWorld={extras.world}
+                siegeOpen={siegeOpen}
+                sieges={war.sieges}
+                onSiege={setSiegeOpen}
+                onPull={globeSupport && !editor ? onPull : undefined}
+                capitals={war.capitals}
+                radius={war.radius}
+                showReach={extras.reach}
+                viewing={viewing}
+                world={world}
+              />
+            ) : null}
+          </div>
+          {globeSeen && GlobeHost ? (
+            <GlobeHost
+              {...globeSeen}
+              flat={sceneApi}
+              leave={leaveGlobe}
               liveStore={liveStore}
-              now={now}
-              onApi={onApi}
-              onEditor={setEditor}
-              onMove={centreStore.set}
+              look={flatLook}
+              onApi={onGlobeHost}
+              onCover={setGlobeCover}
               onPointer={pointerStore.set}
-              onSelect={select}
-              rights={rights}
-              selection={selection}
-              showPast={showPast}
-              showWorld={extras.world}
-              siegeOpen={siegeOpen}
-              sieges={war.sieges}
-              onSiege={setSiegeOpen}
-              capitals={war.capitals}
-              radius={war.radius}
-              showReach={extras.reach}
-              viewing={viewing}
-              world={world}
+              onSettle={globeStore.set}
+              onGesture={countGlobeMove}
+              pull={pullStore}
+              wanted={globe}
+              sheet={sheet}
+              wide={wide}
             />
           ) : null}
 
@@ -1339,14 +1528,35 @@ export function MapsShell({ data: served, children }: ShellProps) {
             </div>
           ) : null}
 
+          {/* The controls, and hanging under them the globe's notes, that it couldn't be loaded or drawn (./globe/GlobeHost.tsx), moving none of them. */}
           <div
             className={cn(
               'absolute right-3 z-10 flex flex-col items-end gap-2',
               wide ? 'top-3' : 'top-16',
             )}
           >
+            {/* Kept on the page, empty, from the first, so a note put in it is read out as it comes. */}
+            <div data-globe-notes="" role="status">
+              {globeUnfetched ? (
+                <Notice live={false}>
+                  The globe couldn’t be loaded; reloading the page should bring it.
+                </Notice>
+              ) : null}
+            </div>
             <div className="flex items-start gap-2">{controls}</div>
-            <ZoomButtons onZoom={(delta) => sceneApi.current?.zoomBy(delta)} />
+            <ZoomButtons
+              globe={
+                globeSupport
+                  ? {
+                      on: globe,
+                      disabled: Boolean(editor),
+                      onToggle: () => (globe ? leaveGlobe() : enterGlobe('curl')),
+                      onWarm: warmGlobe,
+                    }
+                  : null
+              }
+              onZoom={onGlobeZoom}
+            />
           </div>
 
           {/*
@@ -1357,12 +1567,19 @@ export function MapsShell({ data: served, children }: ShellProps) {
             the command, and the strip's rows scroll within it. On a narrower map the two stack,
             the strip beneath the readout, full width.
           */}
-          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex flex-col items-start gap-2 @container">
+          <div
+            className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex flex-col items-start gap-2 @container"
+            data-globe-foot=""
+          >
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
               <div className="flex w-full flex-col items-start gap-2 @4xl:flex-row @4xl:items-end @4xl:justify-between @4xl:gap-3">
                 <div className="flex min-w-0 max-w-full items-center gap-2 @4xl:flex-1">
-                  <PointerReadout centre={centreStore} pointer={pointerStore} towns={data.towns} />
+                  <PointerReadout
+                    centre={shownStore}
+                    pointer={pointerStore}
+                    towns={data.towns}
+                  />
                   <LiveCount className="pointer-events-auto shrink-0" store={liveStore} />
                 </div>
                 <WhatsOnStrip
@@ -1384,7 +1601,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
               {selection && !editor ? back : null}
               <div className="min-w-0 flex-1">
-                <PointerReadout bare centre={centreStore} pointer={pointerStore} towns={data.towns} />
+                <PointerReadout
+                  bare
+                  centre={shownStore}
+                  pointer={pointerStore}
+                  towns={data.towns}
+                />
               </div>
               <LiveCount className="shrink-0 border-0 bg-transparent px-0" store={liveStore} />
               {account}

@@ -1,10 +1,12 @@
 'use client'
 
 /**
- * The only module in the codebase that may import three.js or @react-three/*.
- * It is reached exclusively via `next/dynamic(..., { ssr: false })` in
- * ./Client.tsx, so nothing here ever runs on the server or is bundled into
- * pages that do not contain a model3d block.
+ * One of two modules in the codebase that may import three.js, and the only
+ * one that may import @react-three/*; the other is the map's globe,
+ * src/components/maps/globe/engine.ts. It is reached exclusively via
+ * `next/dynamic(..., { ssr: false })` in ./Client.tsx, so nothing here ever
+ * runs on the server or is bundled into pages that do not contain a model3d
+ * block.
  */
 import { Bounds, Center, OrbitControls, useGLTF } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'

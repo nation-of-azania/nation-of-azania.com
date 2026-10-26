@@ -1,7 +1,7 @@
 import { spoken } from '@/maps/data'
-import type { Outline, Point } from '@/maps/geo'
+import type { Point } from '@/maps/geo'
 import { GROUND } from '@/maps/palette'
-import { siegeTitle, type SiegeSide } from '@/maps/sieges'
+import { siegeTitle, type SiegeOnMap, type SiegeSide } from '@/maps/sieges'
 import type { Siege } from '@/maps/world'
 
 import {
@@ -28,8 +28,8 @@ import {
  * Azania's own towns' and kept at every zoom. A click opens its card.
  */
 
-/** A siege as the map draws it: the siege, Azania's side in it, and its town's claims and home when known. */
-export type SiegeOnMap = { siege: Siege; side: SiegeSide; town: { claims: Outline[]; home: Point | null } | null }
+/** A siege as the map draws it (src/maps/sieges.ts), said here too for the layers that draw it. */
+export type { SiegeOnMap }
 
 /** A mark placed: the siege, and where and how big. */
 export type SiegeMark = SiegeOnMap & { x: number; y: number; scale: number }

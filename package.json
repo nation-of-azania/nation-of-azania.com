@@ -22,7 +22,8 @@
     "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run src/seed/index.ts",
     "test:litematic": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-litematic.ts",
     "test:discord": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-discord-markdown.tsx",
-    "test:uvlock": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-uvlock.ts"
+    "test:uvlock": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-uvlock.ts",
+    "test:globe": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-globe.ts"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.85.2",

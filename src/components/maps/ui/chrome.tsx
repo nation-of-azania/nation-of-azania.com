@@ -94,8 +94,11 @@ export function Popover({
     const onDown = (event: PointerEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
     }
+    // Escape closes the popover and nothing else: the map's own Escape (the globe, the selection) waits for the next.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setOpen(false)
     }
     document.addEventListener('pointerdown', onDown)
     document.addEventListener('keydown', onKey)
@@ -168,13 +171,20 @@ export function Field({
   )
 }
 
-/** A line of status: a note, a warning in the seal's coral, or a success in the sea. */
+/**
+ * A line of status: a note, a warning in the seal's coral, or a success in
+ * the sea. Put into a region already on the page that's read out as it
+ * changes, it's no region of its own (`live={false}`): one that arrives
+ * with its words already in it may never be read out at all.
+ */
 export function Notice({
   tone = 'note',
+  live = true,
   children,
   className,
 }: {
   tone?: 'note' | 'warning' | 'success'
+  live?: boolean
   children: ReactNode
   className?: string
 }) {
@@ -186,7 +196,7 @@ export function Notice({
   return (
     <p
       className={cn('border px-3 py-2 text-[13px] leading-relaxed', tones[tone], className)}
-      role={tone === 'warning' ? 'alert' : 'status'}
+      role={!live ? undefined : tone === 'warning' ? 'alert' : 'status'}
     >
       {children}
     </p>

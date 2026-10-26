@@ -1,5 +1,6 @@
 import { sameNation } from './abroad'
 import { spoken, type MapTown } from './data'
+import type { Outline, Point } from './geo'
 import type { Siege } from './world'
 
 /**
@@ -27,6 +28,9 @@ export function azaniaSide(siege: Siege, home: HomeSide): SiegeSide {
   if (isOurs(siege.attacker, home)) return 'attacking'
   return null
 }
+
+/** A siege as the maps draw it: the siege, Azania's side in it, and its town's claims and home when known. */
+export type SiegeOnMap = { siege: Siege; side: SiegeSide; town: { claims: Outline[]; home: Point | null } | null }
 
 /** "Cape Agulhas", or "a town" when SiegeWar didn't say. */
 const townWords = (siege: Siege) => (siege.town ? spoken(siege.town) : 'a town')

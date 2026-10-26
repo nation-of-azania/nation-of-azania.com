@@ -53,6 +53,14 @@ export const MAPS = {
 } as const
 export type MapName = keyof typeof MAPS
 
+/**
+ * The flat map's farthest zoom: two and a half levels further out than its
+ * coarsest tiles, where the whole world fits beside the panel on a laptop
+ * (src/components/maps/leaflet/canvas.tsx). Past it, the globe takes over
+ * (src/maps/globe.ts).
+ */
+export const FLAT_MIN_ZOOM = -MAPS.flat.maxLevel - 2.5
+
 export const isMapName = (value: unknown): value is MapName => typeof value === 'string' && value in MAPS
 
 /**

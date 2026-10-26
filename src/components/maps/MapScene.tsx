@@ -5,6 +5,8 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
 import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
+import type { Insets } from '@/maps/globe'
+import { siegesOnMap } from '@/maps/besieged'
 import { azaniaSide } from '@/maps/sieges'
 import { GROUND, nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
 import type { MapLayer, ViewAspect } from '@/maps/registry'
@@ -18,6 +20,7 @@ import type { EditorUpdate } from './context'
 
 import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
+import type { GlobePull } from './globe/types'
 import { createStore, useLatest, type Store } from './hooks'
 import { AbroadClaims, AbroadMarks, HomeGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { DrawingsLayer } from './layers/DrawingsLayer'
@@ -31,7 +34,7 @@ import type { LiveState } from './live'
 import { WarReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { SiegeCard } from './layers/SiegeCard'
-import { SiegesLayer, type SiegeOnMap } from './layers/SiegesLayer'
+import { SiegesLayer } from './layers/SiegesLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
 import {
@@ -40,6 +43,7 @@ import {
   L,
   MapCanvas,
   MAX_ZOOM,
+  MIN_ZOOM,
   OnTop,
   toLatLng,
   toPoint,
@@ -58,19 +62,45 @@ export type LookTarget =
   | { centre: Point; span: number; aspect: ViewAspect }
 
 export type SceneApi = {
-  /** Look somewhere; `inset` is the height of a sheet covering the map's foot, so the spot stays in view. */
-  look: (target: LookTarget, inset?: number) => void
+  /**
+   * Look somewhere; `cover` is the height of a sheet covering the map's foot, or how much of its head and foot is
+   * covered (a phone's search and sheet), so the spot stays in view.
+   */
+  look: (target: LookTarget, cover?: number | Insets) => void
   zoomBy: (delta: number) => void
   /** The frame a map view would save just now: its centre and how many blocks it spans. */
   frame: (aspect: ViewAspect) => { centre: Point; span: number } | null
   /**
    * How many times the reader has moved the map themselves, by a drag, a
-   * pinch, the wheel, the keys or the zoom buttons; the map's own looks
-   * aren't counted. Compared before and after a wait, it says whether
-   * they moved it meanwhile.
+   * pinch, the wheel, the keys or the zoom buttons; the map's own looks and
+   * placings aren't counted. Compared before and after a wait, it says
+   * whether they moved it meanwhile.
    */
   moves: () => number
+  /**
+   * The map as it stands this moment, mid-gesture too (mid-way through an
+   * animated zoom, where it's going): its centre as Leaflet has it (in an
+   * echo, past the world's edge), its zoom and its size. What the globe
+   * hands over to and from (../globe).
+   */
+  view: () => { centre: Point; zoom: number; width: number; height: number } | null
+  /** Stand the map at a spot at once, without a flight, the spot landing at a point of the container (the middle, unless `at` says). */
+  place: (position: MapPosition, at?: [number, number]) => void
+  /** The world as one picture, as the map holds it (leaflet/sheet.ts): the server's, else the one made from the tiles so far; null before either. */
+  picture: () => HTMLImageElement | HTMLCanvasElement | null
+  /** Gives the map the keyboard's focus. */
+  focus: () => void
+  /**
+   * Veils the map's own picture of the world and what's drawn over it, or
+   * lifts the veil: while the globe draws the flat map's twin and curls it
+   * up, the original stands aside beneath, so the reader sees one map, not
+   * two (maps.css → .az-veiled).
+   */
+  veil: (on: boolean) => void
 }
+
+/** Leaflet's own record of an animated zoom under way. */
+type AnimatingMap = { _animatingZoom?: boolean; _animateToCenter?: L.LatLng; _animateToZoom?: number }
 
 export type SceneProps = {
   data: MapData
@@ -103,18 +133,21 @@ export type SceneProps = {
   onSelect: (selection: MapSelection) => void
   /** A change to the editor; `press` numbers the drag it belongs to, so undo takes the drag as one step. */
   onEditor: (update: EditorUpdate, press?: number) => void
+  /** The map pulled out past its farthest zoom, to curl it up into the globe (leaflet/canvas.tsx); none while it may not be. */
+  onPull?: (pull: GlobePull) => void
 }
 
-/** Sends the map to look at a target: its bounds fitted, a view's span framed, or a spot flown to. */
-function lookAt(map: L.Map, target: LookTarget, inset: number): void {
-  if ('bounds' in target) return fitBounds(map, target.bounds, 48, inset)
+/** Sends the map to look at a target: its bounds fitted, a view's span framed, or a spot flown to, clear of what covers the map. */
+function lookAt(map: L.Map, target: LookTarget, inset?: number | Insets): void {
+  const cover = typeof inset === 'number' ? { top: 0, bottom: inset } : inset
+  if ('bounds' in target) return fitBounds(map, target.bounds, 48, cover)
   if ('span' in target) {
     const size = map.getSize()
     const frame = frameInViewport({ width: size.x, height: size.y }, target.aspect)
     return flyTo(map, target.centre, Math.min(MAX_ZOOM, zoomForSpan(target.span, frame.width)))
   }
   const zoom = target.zoom == null ? undefined : target.minZoom ? Math.max(target.zoom, map.getZoom()) : target.zoom
-  flyTo(map, target.centre, zoom, inset)
+  flyTo(map, target.centre, zoom, cover)
 }
 
 /**
@@ -132,22 +165,26 @@ export function MapScene(props: SceneProps) {
   // The nation under the pointer: changing as the pointer moves, so kept out of the layers' props.
   const hover = useMemo(() => createStore<string | null>(null), [])
 
-  // Every move a view starts with (Leaflet's movestart) is the reader's, unless the map is looking somewhere itself.
+  // Every move a view starts with (Leaflet's movestart) is the reader's, unless the map is looking somewhere, or placed by the globe, itself.
   const moves = useRef(0)
-  const looking = useRef(false)
+  const owning = useRef(false)
+  /** Moves the map on the map's own account, so the move it starts with isn't counted as the reader's. */
+  const own = (move: () => void) => {
+    owning.current = true
+    try {
+      move()
+    } finally {
+      owning.current = false
+    }
+  }
 
   const api = useMemo<SceneApi>(
     () => ({
-      look: (target, inset = 0) => {
+      look: (target, inset) => {
         const map = mapRef.current
         if (!map) return
         // A flight starts at once, so the move it begins with is known for the map's own.
-        looking.current = true
-        try {
-          lookAt(map, target, inset)
-        } finally {
-          looking.current = false
-        }
+        own(() => lookAt(map, target, inset))
       },
       zoomBy: (delta) => {
         const map = mapRef.current
@@ -170,6 +207,34 @@ export function MapScene(props: SceneProps) {
         }
       },
       moves: () => moves.current,
+      view: () => {
+        const map = mapRef.current as (L.Map & AnimatingMap) | null
+        if (!map) return null
+        const size = map.getSize()
+        // Mid-way through an animated zoom (a pinch let go past the farthest springs back by one), where it's going.
+        if (map._animatingZoom && map._animateToCenter && map._animateToZoom != null)
+          return { centre: toPoint(map._animateToCenter), zoom: map._animateToZoom, width: size.x, height: size.y }
+        return { centre: toPoint(map.getCenter()), zoom: map.getZoom(), width: size.x, height: size.y }
+      },
+      place: (position, at) => {
+        const map = mapRef.current
+        if (!map) return
+        const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, position.zoom))
+        const half = map.getSize().divideBy(2)
+        const anchor = at ? L.point(at[0], at[1]) : half
+        // The spot's pixel at that zoom, less its offset from the middle: the centre that puts it at `at`.
+        const centre = map.project(toLatLng(position.centre), zoom).subtract(anchor).add(half)
+        own(() => map.setView(map.unproject(centre, zoom), zoom, { animate: false }))
+      },
+      picture: () => {
+        const container = mapRef.current?.getContainer()
+        if (!container) return null
+        const image = container.querySelector<HTMLImageElement>('img.az-sheet')
+        if (image?.complete && image.naturalWidth) return image
+        return container.querySelector<HTMLCanvasElement>('canvas.az-sheet')
+      },
+      focus: () => mapRef.current?.getContainer().focus({ preventScroll: true }),
+      veil: (on) => mapRef.current?.getContainer().classList.toggle('az-veiled', on),
     }),
     [],
   )
@@ -178,7 +243,7 @@ export function MapScene(props: SceneProps) {
     (map: L.Map) => {
       mapRef.current = map
       map.on('movestart', () => {
-        if (!looking.current) moves.current++
+        if (!owning.current) moves.current++
       })
       const size = map.getSize()
       setViewport({ width: size.x, height: size.y })
@@ -386,6 +451,7 @@ export function MapScene(props: SceneProps) {
       onDoubleClick={onDoubleClick}
       onMove={onMove}
       onPointer={onPointer}
+      onPull={props.onPull}
       onReady={onReady}
       wrap
     >
@@ -479,7 +545,8 @@ const Layers = memo(function Layers({
     nation: selection?.kind === 'nation' ? selection.slug : null,
   }
   const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
-  const war = useSiegesOnMap(sieges, data, abroad)
+  const towns = data.towns
+  const war = useMemo(() => siegesOnMap(sieges, { towns }, abroad), [sieges, towns, abroad])
   // The reach of the wars: Azania's always (with its layer on), and another nation's while it's open or hovered.
   const reachOf = useReaches(capitals, abroad, styleOf)
   const homeName = home?.name ?? null
@@ -689,22 +756,6 @@ function useNationStyles(abroad: Abroad | null, relations: Relation[] | null): (
       : { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
     return (nation) => (nation ? (styles.get(nation) ?? styleOf(nation, null)) : none)
   }, [abroad, relations])
-}
-
-/**
- * The sieges as the layers draw them: each with Azania's side in it, and
- * its town's claims and home, from Azania's own towns or the world's.
- */
-function useSiegesOnMap(sieges: Siege[], data: MapData, abroad: Abroad | null): SiegeOnMap[] {
-  return useMemo(() => {
-    const home = { nation: homeNationOf(data.towns), towns: data.towns }
-    return sieges.map((siege) => {
-      const own = data.towns.find((town) => town.townyId === siege.townId)
-      const other = own ? null : abroad?.byId.get(siege.townId)
-      const town = own ?? other
-      return { siege, side: azaniaSide(siege, home), town: town ? { claims: town.claims, home: town.home } : null }
-    })
-  }, [sieges, data.towns, abroad])
 }
 
 /**

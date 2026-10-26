@@ -1,6 +1,14 @@
 import type { MouseEvent, PointerEvent } from 'react'
 
-import { abroadCentre, abroadHomeBounds, type Abroad, type AbroadNation, type AbroadTown } from '@/maps/abroad'
+import {
+  abroadCentre,
+  abroadHomeBounds,
+  namedFrom,
+  nationFontSize,
+  type Abroad,
+  type AbroadNation,
+  type AbroadTown,
+} from '@/maps/abroad'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
 import { GROUND, STANCE_COLOURS } from '@/maps/palette'
@@ -376,9 +384,6 @@ const homeMark = (zoom: number, town: AbroadTown): { r: number; ring: number } |
 
 const siteScale = (zoom: number) => (zoom <= -4.5 ? 0.55 : zoom <= -3 ? 0.7 : 0.85)
 
-/** How much ground a nation must hold to be named at this zoom: far out, only the great ones are. */
-const namedFrom = (zoom: number) => (zoom <= -6.5 ? 6000 : zoom <= -5.5 ? 2500 : zoom <= -4.5 ? 600 : 0)
-
 /**
  * A nation's name: sized by how much ground it holds, spaced out across its
  * heartland where there's room, as an atlas sets a country's name, and
@@ -394,9 +399,7 @@ function nationName(
 ): NationName[] {
   const { zoom, ppb } = projection
   const text = spoken(name).toUpperCase()
-  const weight = Math.min(1, Math.max(0, (Math.log10(Math.max(chunks, 1)) - 2) / 2.7))
-  const far = zoom <= -6
-  const fontSize = Math.round(home ? (far ? 14 : 16) : far ? 8.5 + 4 * weight : 9 + 5 * weight)
+  const fontSize = nationFontSize(chunks, zoom, home)
   const across = extent ? (extent.maxX - extent.minX) * ppb : 0
   const bare = textWidth(text, fontSize)
   // Never tighter than a little air, nor looser than a letter's width apart.

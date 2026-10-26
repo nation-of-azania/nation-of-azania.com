@@ -15,9 +15,33 @@
   outline: none;
 }
 
-.az-maps .leaflet-container:focus-visible {
-  outline: 2px solid var(--color-saffron-500);
-  outline-offset: -2px;
+/*
+ * Focused from the keyboard, the map is ringed in saffron, the ring drawn
+ * over everything the map holds: an outline of its own would lie under its
+ * panes and never show. Only from the keyboard (`.az-keyed`, kept by
+ * leaflet/canvas.tsx): Leaflet focuses the map from a script as it's
+ * pressed, which the browser takes for the keyboard's doing, and a mouse or
+ * a finger would ring it too.
+ */
+.az-maps.az-keyed .leaflet-container:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  box-shadow: inset 0 0 0 2px var(--color-saffron-500);
+  pointer-events: none;
+}
+/*
+ * Where the reader's own colours are forced (Windows' high contrast), shadows
+ * are dropped, and the ring with them: there it's an outline instead, in the
+ * colour of the reader's text. The globe's ring (below) is drawn the same way.
+ */
+@media (forced-colors: active) {
+  .az-maps.az-keyed .leaflet-container:focus-visible::after,
+  .az-maps.az-keyed .az-globe:focus-visible::after {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
 }
 
 /* The overlay can take focus by accident (see canvas.tsx); it never shows a ring. */
@@ -412,6 +436,229 @@
 @media (prefers-reduced-motion: reduce) {
   .az-player,
   .az-player-head {
+    transition: none;
+  }
+}
+
+/*
+ * The world as a globe (globe/Globe.tsx), over the flat map. It takes every
+ * gesture itself, so the page under it neither scrolls, zooms nor selects,
+ * and a long press opens no menu; the hand over it is open, ready to turn it.
+ */
+.az-maps .az-globe {
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  outline: none;
+}
+/* Focused from the keyboard, it's ringed as the flat map is, over its deep, its canvas and its names. */
+.az-maps.az-keyed .az-globe:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  box-shadow: inset 0 0 0 2px var(--color-saffron-500);
+  pointer-events: none;
+}
+/*
+ * And its middle is marked, a small saffron ring with a whitewash halo: the
+ * spot Enter opens the flat map at, which the chip beside it names once the
+ * keys have turned the globe there.
+ */
+.az-maps.az-keyed .az-globe[data-phase='open']:focus-visible::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: var(--az-globe-cx, 50%);
+  top: var(--az-globe-cy, 50%);
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--color-saffron-500);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1.5px #fbf8f1,
+    inset 0 0 0 1.5px #fbf8f1;
+  pointer-events: none;
+}
+/* Closed, it lingers a while unseen, drawing nothing and taking nothing from the page. */
+.az-globe[data-phase='closed'] {
+  visibility: hidden;
+}
+/*
+ * Handing back, it's already out of the way: the flat map under it takes
+ * the pointer as the globe unrolls or fades, so a zoom carried on zooms the
+ * flat map. Following a pull, likewise: the pull is the flat map's.
+ */
+.az-globe:is([data-phase='leaving'], [data-phase='pulling']) {
+  pointer-events: none;
+}
+/* Over something a click opens, a pointing hand; holding the globe, a closed one. */
+.az-globe[data-over] {
+  cursor: pointer;
+}
+.az-globe[data-grabbing] {
+  cursor: grabbing;
+}
+/* The nations' names wear the flat map's whitewash halo, painted under the letters. */
+.az-globe-names text {
+  paint-order: stroke;
+  stroke: #fbf8f1;
+  stroke-linejoin: round;
+}
+/* The deep the globe hangs in: lightest about the globe, falling to the night sea in the corners. */
+.az-globe-deep {
+  background: radial-gradient(
+    circle farthest-corner at var(--az-globe-cx, 50%) var(--az-globe-cy, 50%),
+    #14334b 0,
+    #0f2638 55%,
+    #0a1b2a 100%
+  );
+}
+/* The chip naming the nation under the pointer comes and goes in a moment. */
+.az-globe-chip {
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity 120ms ease-out;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-globe-chip {
+    transition: none;
+  }
+}
+
+/*
+ * The flat map veiled beneath its twin while the globe curls up out of it
+ * or unrolls back into it, and while the globe covers it (globe/Globe.tsx,
+ * MapScene.tsx → veil): its own picture of the world goes at once, the twin
+ * over it being the same to the pixel, and what's drawn over it bows out
+ * quickly as the globe's borders and marks come in, then is put away, so
+ * the page paints none of it while it can't be seen.
+ */
+.az-veiled .az-sheet,
+.az-veiled .az-tile {
+  visibility: hidden;
+}
+.az-veiled :is(.az-ground-svg, .az-marks-svg, .leaflet-marker-pane, .leaflet-az-players-pane) {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 140ms ease-out,
+    visibility 0s linear 140ms;
+}
+/* Nothing breathes under the veil (a battle's ring, an event on now): unseen, it would only keep the page painting. */
+.az-veiled .az-pulse {
+  animation-play-state: paused;
+}
+/* Unveiled, they come back at once, and fade in as the ground's shapes do after a long flight. */
+.az-marks-svg,
+.leaflet-marker-pane,
+.leaflet-az-players-pane {
+  transition: opacity 240ms ease-in;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-veiled :is(.az-ground-svg, .az-marks-svg, .leaflet-marker-pane, .leaflet-az-players-pane),
+  .az-marks-svg,
+  .leaflet-marker-pane,
+  .leaflet-az-players-pane {
+    transition: none;
+  }
+}
+
+/*
+ * The globe asked for while its code is still on its way, so not yet on the
+ * page: a saffron ring runs round its button until it comes.
+ */
+.az-maps:not(:has(.az-globe)) .az-globe-button[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 2px solid #d8962c;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: az-globe-busy 900ms linear infinite;
+}
+@keyframes az-globe-busy {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-maps:not(:has(.az-globe)) .az-globe-button[aria-pressed='true']::after {
+    animation: none;
+    border-right-color: #d8962c;
+    opacity: 0.7;
+  }
+}
+
+/*
+ * The globe's notes, that it couldn't be loaded or drawn (MapsShell.tsx,
+ * globe/GlobeHost.tsx): under the map's controls, hanging from their
+ * column, so none of them moves, in a region kept on the page for them
+ * (a status, so read out politely), and each lifted off the map by a shadow.
+ */
+.az-maps [data-globe-notes] {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 16rem;
+  max-width: calc(100vw - 1.5rem);
+  pointer-events: none;
+}
+.az-maps [data-globe-notes] > * {
+  box-shadow: 0 2px 8px rgba(22, 25, 31, 0.12);
+}
+
+/*
+ * Azania's compass on the globe's limb, for when Azania is round the back
+ * (globe/Globe.tsx): it comes and goes with a fade, takes a click only
+ * while it shows, and stands out from the deep by a shadow of it, its
+ * arrow as much as its name.
+ */
+.az-globe-compass {
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  text-shadow: 0 0 6px rgba(10, 27, 42, 0.9);
+  transition:
+    opacity 200ms ease-out,
+    color 120ms ease-out;
+  will-change: transform;
+}
+.az-globe-compass[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.az-globe-compass svg {
+  filter: drop-shadow(0 0 3px rgba(10, 27, 42, 0.9));
+}
+.az-globe-compass:hover {
+  color: var(--color-saffron-200);
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-globe-compass {
+    transition: none;
+  }
+}
+
+/* The hint over the map that a pull fell short of the globe (globe/GlobeHost.tsx) comes and goes in a moment. */
+.az-globe-hint {
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+.az-globe-hint[data-shown] {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-globe-hint {
     transition: none;
   }
 }
