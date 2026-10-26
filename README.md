@@ -849,7 +849,24 @@ sphere, every nation edged and washed in its colour as the flat map draws
 it, Azania in saffron and glowing, the great nations named, the server's
 trading outposts, the sieges and the players online as dots, a faint
 graticule every 30° and a soft light on it so it reads as round, and a
-lagoon light about its limb. Drag it to turn it, north always up and tipped
+lagoon light about its limb. Where two names would meet, the greater keeps
+its place (Azania's first, then the open nation's, then by the ground each
+holds) and the lesser fades out, with a clear gap kept between any two; a
+name keeps off the outposts and Azania's towns where it can (where it
+can't, it takes the place covering the fewest, and a lesser name gives way
+rather than sit over more than one), lies whole on the page and never
+under the map's controls or notes, even ones that come while the globe is
+still; and while the globe turns, the names already shown keep their
+places, so none flickers as they pass one another, and one made to move
+glides only where its way is clear and there's room to spare, so none
+passes over another and none is sent on again at once, rank having its way
+again once it rests (`src/components/maps/globe/labels.ts`). The Arctic,
+sea and patchy ice that would otherwise pinch into a starburst about the
+pole, is read along its circles of latitude and, over its last few degrees,
+across ever more of them, fading into each circle's own colour, so the sea
+and the ice gather into a soft haze with no point where everything meets,
+as the pole closes and never on the flat map (`POLE` in
+`src/maps/globe.ts`). Drag it to turn it, north always up and tipped
 no further than 75° towards a pole, a spot on the ice faced from there (let
 go while moving and it spins on); the wheel, a trackpad or two fingers zoom
 it about where they point. The pointer over a dot is told what it is
@@ -860,7 +877,9 @@ again, while it faces the reader; with the war reach on, Azania's ring lies
 on the ball as the flat map draws it; and when Azania is round the back, a
 small saffron arrow and *Azania* wait on the limb, the short way round (slid
 round the limb to where there's room beside the globe, on a phone's narrow
-sides), and turn the globe back to it. A click lands on the flat map there and opens what was
+sides), and turn the globe back to it; they wait there too, the arrow
+pointing back in, while Azania is in sight but its name has no room, so
+Azania is always named or pointed to. A click lands on the flat map there and opens what was
 clicked: a nation, a trading outpost, a siege's card, Azania's front, or
 open ground, close in (a finger is given room about a dot over the sea and
 open ground, but over a nation must come as near it as a pointer, so a tap

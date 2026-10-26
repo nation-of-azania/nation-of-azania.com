@@ -38,10 +38,11 @@ import { boundsCentre, FLAT_MIN_ZOOM, WHEEL } from '@/maps/view'
 
 import { useMaps, type MapsActions } from '../context'
 import { useLatest } from '../hooks'
+import type { Rect } from '../layers/projection'
 import type { LookTarget } from '../MapScene'
 import { attachControls, type Controls } from './controls'
 import { createEngine, type Engine, type Look, type Picture } from './engine'
-import { createNames, type Names } from './labels'
+import { createNames, type NameMarks, type Names } from './labels'
 import { buildMarks, buildPlayers, NO_MARKS, playerHits, type MarkHit, type PlayerHit } from './marks'
 import { reachRing } from './reach'
 import { createMotion, ease, lessMotion, mix, smoothstep } from './motion'
@@ -235,6 +236,8 @@ const PULSE_MS = 1600
 const PULSE_FRAME_MS = 33
 /** Turning to Azania from its compass on the limb. */
 const COMPASS_TURN_MS = 900
+/** The compass shows while Azania's heart faces the reader less than this (its name is faint at best until then), or while its name finds no room. */
+const COMPASS_FACING = 0.2
 /** While the flat map's own picture is a canvas still filling with tiles, it's taken up again this often, for at most this long. */
 const PICTURE_REFRESH_MS = 1000
 const PICTURE_REFRESH_FOR_MS = 20_000
@@ -420,14 +423,17 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
   /**
    * Azania's way home, when it's round the back: on the limb, the short
    * way round to it, an arrow pointing on and its name; a click turns
-   * the globe to it. Only while the globe is open and Azania faces away.
+   * the globe to it. Only while the globe is open and Azania faces away,
+   * or faces the reader but its name finds no room (crowded out, or cut
+   * by the limb or the page), when the arrow points back in at it: Azania
+   * is always named or pointed to while any of it is in sight.
    */
   let homeHeart: LonLat | null = null
   let compassShown = false
   const [compassArrow, compassName] = compass.children as unknown as [SVGSVGElement, HTMLSpanElement]
   const placeCompass = () => {
     const spot = homeHeart && phase === 'open' ? curlPoint(homeHeart, view) : null
-    const shown = Boolean(spot && spot.facing < 0.15)
+    const shown = Boolean(spot && (spot.facing < COMPASS_FACING || names.wanting()))
     if (shown !== compassShown) {
       compassShown = shown
       compass.toggleAttribute('data-shown', shown)
@@ -460,7 +466,9 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     const x = view.cx + at.ux * reach - w / 2
     const y = view.cy + at.uy * reach - h / 2
     compass.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
-    compassArrow.style.transform = `rotate(${((towards * 180) / Math.PI).toFixed(1)}deg)`
+    // On round the back; back in, at Azania in sight.
+    const pointing = spot.facing < 0 ? towards : towards + Math.PI
+    compassArrow.style.transform = `rotate(${((pointing * 180) / Math.PI).toFixed(1)}deg)`
   }
   const onCompassDown = (event: PointerEvent) => event.stopPropagation()
   const onCompass = () => {
@@ -587,7 +595,8 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     const swelling = phase === 'open' && battles.length > 0 && !lessMotion() && battles.some((spot) => curlPoint(spot, view).facing > 0.2)
     look.pulse = swelling ? Math.max(0.001, (now % PULSE_MS) / PULSE_MS) : 0
     gl.draw(view, look)
-    names.place(view, takenBySieges(), namesShown, showWorld)
+    const lifted = selection?.kind === 'nation' ? selection.slug : null
+    const namesNext = names.place(view, marksForNames(), namesShown, showWorld, lifted, now)
     placeCompass()
     placeBackdrop()
     fadeTo(deepElement, deep)
@@ -624,10 +633,27 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
       lastStep = 0
       slowFrames = []
       settle()
+      // Names placed afresh though the globe is still (settled by rank, or come back) may now lie under the pointer, or the
+      // middle the keys aim at, or no longer: where the name there isn't the one last asked about, what's there is asked
+      // again, so the chip and the lift say what a click or Enter would open.
+      const point = hoverAt ?? (aimed ? ([view.cx, view.cy] as const) : null)
+      if (phase === 'open' && point && !hoverFrame && names.at(point[0], point[1]) !== hoverNamed) hoverFrame = requestAnimationFrame(hover)
+      // The names, with more to do, are drawn on though the globe is still: at once while one fades or glides, and a frame
+      // later on for one kept waiting, or to settle them by rank once the globe has come to rest.
+      if (namesNext <= 0) invalidate()
+      else if (Number.isFinite(namesNext)) wakeIn(namesNext)
     }
   }
   function invalidate() {
     if (!raf && !disposed) raf = requestAnimationFrame(draw)
+  }
+  let wakeTimer = 0
+  const wakeIn = (ms: number) => {
+    window.clearTimeout(wakeTimer)
+    wakeTimer = window.setTimeout(() => {
+      wakeTimer = 0
+      invalidate()
+    }, ms + 1)
   }
 
   /** Come to rest: the shell is told where, as the flat map would say it. */
@@ -635,6 +661,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     if (phase !== 'open') return
     if (settled && settled.lon === view.lon && settled.lat === view.lat && settled.zoom === view.zoom) return
     settled = { ...view }
+    measureFloating()
     props().onSettle({ centre: toBlock({ lon: view.lon, lat: view.lat }), zoom: Math.max(-8, view.zoom) })
     // Turned under a pointer at rest (by the keys, home, to a page from the search), or by the keys alone,
     // what lies under the pointer, or at the middle, is asked again now the globe is still.
@@ -848,6 +875,46 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     invalidate()
   }
 
+  // The map's own controls and notes floating over the globe (its buttons, top right, and the notes of Azania's sieges and
+  // its diplomacy, top left), as boxes on it: no name goes under them. Read off the page as the globe comes to rest and as
+  // the page changes, never while it moves.
+  let floating: Rect[] = []
+  // The map's box, which the columns hang in; the notes' column is there only while it has a note to hold.
+  const mapBox = document.querySelector('[data-globe-notes]')?.parentElement?.parentElement ?? null
+  const floatingColumns = () => [
+    (mapBox ?? document).querySelector('[data-globe-notes]')?.parentElement ?? null,
+    (mapBox ?? document).querySelector('.az-siege-alert, [role="note"]')?.parentElement ?? null,
+  ]
+  const measureFloating = () => {
+    const box = root.getBoundingClientRect()
+    const next = floatingColumns()
+      .flatMap((column) => (column ? [...column.children] : []))
+      .map((each) => each.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({ x: rect.left - box.left, y: rect.top - box.top, width: rect.width, height: rect.height }))
+    if (JSON.stringify(next) === JSON.stringify(floating)) return
+    floating = next
+    invalidate()
+  }
+  // The notes come and go while the globe is still too (the diplomacy layer switched on, a siege beginning), and their
+  // column with them: the map's box is watched for the columns, and the columns for their notes, and the names are given
+  // the boxes afresh, in a frame of their own, as they change.
+  let watchedColumns: (Element | null)[] = []
+  const notesWatch = new MutationObserver(() => {
+    if (phase === 'open') measureFloating()
+  })
+  const watchFloating = () => {
+    const columns = floatingColumns()
+    if (columns.every((column, i) => column === watchedColumns[i])) return
+    watchedColumns = columns
+    notesWatch.disconnect()
+    for (const column of columns) if (column) notesWatch.observe(column, { childList: true, subtree: true, characterData: true })
+    if (phase === 'open') measureFloating()
+  }
+  const boxWatch = new MutationObserver(watchFloating)
+  if (mapBox) boxWatch.observe(mapBox, { childList: true })
+  watchFloating()
+
   // The marks and what's open.
   let hits: MarkHit[] = []
   let battles: LonLat[] = []
@@ -856,12 +923,25 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
   let selection: MapSelection | null = null
   let players = false
   let unsubscribePlayers: (() => void) | null = null
-  const takenBySieges = () =>
-    hits
-      .filter((hit) => hit.pick.kind === 'siege')
-      .map((hit) => curlPoint(hit.spot, view))
-      .filter((spot) => spot.facing > 0.2)
-      .map((spot) => ({ x: spot.x - 9, y: spot.y - 9, width: 18, height: 18 }))
+  // What the names keep off, as boxes on the page: the sieges' marks and the map's controls without fail, the server's
+  // places and Azania's towns where they can; and the page the reader sees the globe in, clear of its bars and sheet,
+  // within which each lies whole.
+  const marksForNames = (): NameMarks => {
+    const page = { x: 4, y: insets.top + 4, width: size.width - 8, height: size.height - insets.top - insets.bottom - 8 }
+    const marks: NameMarks = { sieges: [], places: [], towns: [], controls: floating, page }
+    for (const hit of hits) {
+      const spot = curlPoint(hit.spot, view)
+      if (spot.facing <= 0.2) continue
+      if (hit.pick.kind === 'siege') marks.sieges.push({ x: spot.x - 9, y: spot.y - 9, width: 18, height: 18 })
+      else {
+        const reach = hit.radius + 1
+        const box = { x: spot.x - reach, y: spot.y - reach, width: 2 * reach, height: 2 * reach }
+        if (hit.pick.kind === 'town') marks.towns.push(box)
+        else marks.places.push(box)
+      }
+    }
+    return marks
+  }
   const selectedNumber = () => {
     if (selection?.kind !== 'nation') return -1
     const slug = selection.slug
@@ -957,6 +1037,8 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
   let hoverAt: [number, number] | null = null
   let hoverFrame = 0
   let aimed = false
+  // The name that lay under the pointer, or the middle, when it was last asked: its address, 'home', or null.
+  let hoverNamed: string | null = null
   /** Nothing named or lifted for now; the pointer may still be over the globe, to be asked again. */
   const unlift = () => {
     chip.style.opacity = '0'
@@ -979,6 +1061,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     props().onPointer(block)
     const mark = nearestMark(x, y, false)
     const named = names.at(x, y)
+    hoverNamed = named
     const number = block ? shownNumber(numberAt(numbers, block)) : NUMBER.none
     const nation = number >= NUMBER.first && number < NUMBER.past ? numbering.nations[number] : null
     const lifted = named === 'home' ? NUMBER.azania : named ? numbering.nations.findIndex((each) => each?.slug === named) : nation || number === NUMBER.azania ? number : -1
@@ -1645,6 +1728,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     size = next
     gl.resize(size.width, size.height)
     fit(false)
+    if (phase === 'open') measureFloating()
   })
   resizer.observe(root)
   gl.resize(size.width, size.height)
@@ -1714,6 +1798,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
       if (next.top === insets.top && next.bottom === insets.bottom) return
       insets = next
       fit(true)
+      if (phase === 'open') measureFloating()
     },
     setHidden: (next) => {
       hidden = next
@@ -1727,6 +1812,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
       unsubscribePull()
       window.clearTimeout(pullLost)
       window.clearTimeout(pulseTimer)
+      window.clearTimeout(wakeTimer)
       compass.removeEventListener('pointerdown', onCompassDown)
       compass.removeEventListener('click', onCompass)
       cancelAnimationFrame(raf)
@@ -1741,6 +1827,8 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
       root.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
       resizer.disconnect()
+      boxWatch.disconnect()
+      notesWatch.disconnect()
       controls?.detach()
       names.dispose()
       gl.dispose()

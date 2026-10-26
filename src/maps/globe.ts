@@ -15,8 +15,9 @@ import { WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, WORLD_WIDTH, worldCop
  * per block make R pixels a radian. The globe's zoom is therefore the flat
  * map's own: a globe that hands back at zoom −5 lands on a flat map at −5,
  * the spot that faced the reader under the same pixels. The poles pinch,
- * as the corners of any flat map wrapped round a ball must; on this world
- * they are plain ice.
+ * as the corners of any flat map wrapped round a ball must: Antarctica is
+ * plain ice to the pole, where a pinch can't be seen, but the Arctic is sea
+ * and patchy ice, so the globe softens its last few degrees (POLE, below).
  *
  * Pure, and free of Leaflet and three.js. Only the globe itself imports
  * it, so it loads with the globe; the switches the shell needs sooner are
@@ -165,6 +166,48 @@ export function curlSpot(a: number, phi: number, view: GlobeView): { x: number; 
 /** Where a spot on the globe is drawn, as curlSpot, its longitude taken the short way round from the facing spot. */
 export const curlPoint = (ll: LonLat, view: GlobeView): { x: number; y: number; facing: number } =>
   curlSpot(wrapAngle(ll.lon - view.lon), ll.lat, view)
+
+/**
+ * The North Pole, softened. The world's last few degrees northwards are sea
+ * and patchy ice, each row of the picture there wrapped round a small
+ * circle about the pole, so turned north the ball would draw the patches
+ * out into a starburst, with the dark sea of the topmost rows at its heart.
+ * Instead, from POLE.read northwards, where a pixel spans many times more
+ * of its circle of latitude than of its meridian, the picture is read along
+ * the circle, so its ice keeps its shape rather than being smeared into
+ * rays; and from POLE.fade the ground is drawn ever nearer its own circle's
+ * colour, the picture's row averaged round the world, and wholly so two
+ * degrees short of the pole, the picture meanwhile read along the circle
+ * across ever more ground, POLE.grain of it at the last, about the size of
+ * its patches of ice, so that none is drawn narrower than it is tall: the
+ * sea and the ice gather into a soft haze about the pole, each circle its
+ * own tone, as the far north of a globe does, with no point where
+ * everything meets and no disc of one colour. How far any of it goes is
+ * decided by how tightly the ground is gathered round the pole, cos(t·lat),
+ * the share of its own width a row keeps on a sheet curled `t` of the way,
+ * so the flat map (t = 0, nothing gathered) is left exactly as it is, and
+ * the softening comes in only late in the curl, as the pole closes.
+ * Antarctica, plain ice to the pole, needs none. The ground's shader
+ * (src/components/maps/globe/shaders.ts → poleShare) is poleShare, line for
+ * line, and nothing else changes: the borders, the marks and a click are
+ * where they were.
+ */
+export const POLE = {
+  read: { from: (76 * Math.PI) / 180, to: (80 * Math.PI) / 180 },
+  fade: { from: (82 * Math.PI) / 180, to: (88 * Math.PI) / 180 },
+  grain: (0.94 * Math.PI) / 180,
+} as const
+
+/**
+ * How far a sheet curled `t` of the way has gathered the ground at latitude
+ * `lat` round the North Pole, between two of the globe's latitudes: 0 short
+ * of `from`, 1 from `to` on, eased between; 0 everywhere in the south.
+ */
+export function poleShare(lat: number, t: number, { from, to }: { from: number; to: number }): number {
+  if (lat <= 0) return 0
+  const k = clamp((Math.cos(t * lat) - Math.cos(to)) / (Math.cos(from) - Math.cos(to)), 0, 1)
+  return 1 - k * k * (3 - 2 * k)
+}
 
 /** The spot on the globe (t = 1) under a point of the container; null off the sphere. */
 export function pickLonLat(sx: number, sy: number, view: GlobeView): LonLat | null {

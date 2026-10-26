@@ -36,6 +36,7 @@ import { BufferAttribute } from 'three/src/core/BufferAttribute.js'
 import { BufferGeometry } from 'three/src/core/BufferGeometry.js'
 import { ShaderMaterial } from 'three/src/materials/ShaderMaterial.js'
 import { Vector2 } from 'three/src/math/Vector2.js'
+import { Vector4 } from 'three/src/math/Vector4.js'
 import { Mesh } from 'three/src/objects/Mesh.js'
 import { Points } from 'three/src/objects/Points.js'
 import { WebGLRenderer } from 'three/src/renderers/WebGLRenderer.js'
@@ -43,7 +44,7 @@ import { Scene } from 'three/src/scenes/Scene.js'
 import { DataTexture } from 'three/src/textures/DataTexture.js'
 import { Texture } from 'three/src/textures/Texture.js'
 
-import { radiusAt, type GlobeView } from '@/maps/globe'
+import { POLE, radiusAt, type GlobeView } from '@/maps/globe'
 import type { Numbers } from '@/maps/raster'
 
 import type { MarkBuffers } from './marks'
@@ -351,6 +352,11 @@ export function createEngine(canvas: HTMLCanvasElement, events: Events): Engine 
     uHover: { value: -1 },
     uFlatX0: { value: 0 },
     uSkirt: { value: 1 },
+    uPole: {
+      value: new Vector4(Math.cos(POLE.read.from), Math.cos(POLE.read.to), Math.cos(POLE.fade.from), Math.cos(POLE.fade.to)),
+    },
+    uPoleGrain: { value: POLE.grain },
+    uPoleLevel: { value: 4 },
   }
   const material = (options: ConstructorParameters<typeof ShaderMaterial>[0]) =>
     new ShaderMaterial({
@@ -489,6 +495,10 @@ export function createEngine(canvas: HTMLCanvasElement, events: Events): Engine 
       picture = next
       hasSheet = Boolean(next)
       if (!next) return
+      // The mipmap whose rows are two and a half degrees each, 72 from pole to pole: the circles of latitude about the
+      // North Pole take their own colours from it.
+      const tall = next instanceof HTMLImageElement ? next.naturalHeight : next.height
+      groundUniforms.uPoleLevel.value = Math.max(0, Math.log2(tall / 72))
       sheet.image = next
       sheet.needsUpdate = true
     },

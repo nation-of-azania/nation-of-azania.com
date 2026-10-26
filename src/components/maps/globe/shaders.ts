@@ -100,6 +100,9 @@ uniform float uSelected;      // the open nation's number, else −1
 uniform float uHover;         // the nation under the pointer's, else −1
 uniform float uFlatX0;        // the facing spot's x as the flat map has it, unwrapped
 uniform float uSkirt;         // an echo's fade as the sheet curls; 1 for the sheet itself
+uniform vec4 uPole;           // the cosines of the latitudes the North Pole's reading along its circles begins at and is whole by, then its fade's
+uniform float uPoleGrain;     // the ground, in radians, the picture is read across along its circle where the fade is whole
+uniform float uPoleLevel;     // the picture's mipmap whose rows are two and a half degrees each
 in vec2 vUv;
 in float vFacing;
 in float vLat;
@@ -127,6 +130,34 @@ float differing(int id, vec2 uv, vec2 ox, vec2 oy) {
 vec2 reach(vec2 step, float px, float least) {
   float cells = length(step * uNumbersSize) * px;
   return step * px * max(1.0, least / max(cells, 1e-5));
+}
+
+// How far the curl has gathered the ground at latitude \`lat\` round the North Pole, between two latitudes of the
+// globe's, given by their cosines (src/maps/globe.ts → poleShare): never on the flat map, nor in the south.
+float poleShare(float lat, float fromCos, float toCos) {
+  if (lat <= 0.0) return 0.0;
+  return 1.0 - smoothstep(toCos, fromCos, cos(uCurl * lat));
+}
+
+// The picture as the far north needs it read. A pixel there spans far more of its circle of latitude than of its
+// meridian, and the GPU, reading the picture as coarsely as the pixel is wide (or at best four times finer), smears
+// each patch of ice along the meridian into a ray towards the pole. Read instead with sixteen taps of its own along
+// the circle, across \`span\` texels of it, each only as coarse as the pixel is tall (or as the taps are spaced, where
+// the span outruns them), the ice keeps its shape.
+vec4 alongLatitude(vec2 uv, float span, float tall, vec2 size) {
+  float lod = log2(max(max(tall, span / 16.0), 1e-3));
+  vec4 sum = vec4(0.0);
+  for (int i = 0; i < 16; i++) sum += textureLod(uSheet, uv + vec2(((float(i) + 0.5) / 16.0 - 0.5) * span / size.x, 0.0), lod);
+  return sum / 16.0;
+}
+
+// A circle of latitude's own colour: the picture's row, averaged from its mipmap at sixteen fixed longitudes, so
+// that every pixel on the circle is given the same whichever way the globe is turned, and each circle blends into
+// the next.
+vec4 ringColour(float v) {
+  vec4 sum = vec4(0.0);
+  for (int i = 0; i < 16; i++) sum += textureLod(uSheet, vec2((float(i) + 0.5) / 16.0, v), uPoleLevel);
+  return sum / 16.0;
 }
 
 void main() {
@@ -162,6 +193,23 @@ void main() {
   gy.x -= floor(gy.x + 0.5);
 
   vec4 sheet = textureGrad(uSheet, uv, gx, gy);
+  // The Arctic, which would pinch into a starburst about the pole (src/maps/globe.ts → POLE): read along its circles of
+  // latitude as the curl gathers it, and in its last few degrees faded into each circle's own colour, the picture read
+  // across ever more of the circle as it goes.
+  if (lat > 0.0 && uHasSheet > 0.0) {
+    float along = poleShare(lat, uPole.x, uPole.y);
+    if (along > 0.0) {
+      float fade = poleShare(lat, uPole.z, uPole.w);
+      vec2 size = vec2(textureSize(uSheet, 0));
+      float wide = length(vec2(gx.x, gy.x)) * size.x;
+      float tall = length(vec2(gx.y, gy.y)) * size.y;
+      // Across the pixel's own width at the least, and, as the fade comes in, across up to the grain of ground, which is
+      // as many more texels of the row as the curl has gathered it.
+      float span = max(wide, uPoleGrain * size.x / TAU * fade / max(cos(uCurl * lat), 1e-3));
+      sheet = mix(sheet, alongLatitude(uv, span, tall, size), along);
+      if (fade > 0.0) sheet = mix(sheet, ringColour(uv.y), fade);
+    }
+  }
   vec3 colour = mix(SEA, sheet.rgb, sheet.a * uHasSheet);
 
   // Flat, the sheet is the flat map's twin, echoes and all: past the real world's edges, as the flat

@@ -2,8 +2,9 @@
  * The globe's arithmetic, checked without a browser: the radius and zoom
  * agree, blocks and spots on the globe round-trip, the curl is the flat map
  * at its start and the globe at its end, a click on the globe finds the
- * block drawn there, the rest frames come out as planned, the nation
- * numbers paint what they should, and the address carries the globe.
+ * block drawn there, the North Pole is softened only where and when it
+ * should be, the rest frames come out as planned, the nation numbers paint
+ * what they should, and the address carries the globe.
  *
  *   pnpm test:globe
  *
@@ -18,6 +19,8 @@ import {
   curlSpot,
   faceable,
   pickAt,
+  POLE,
+  poleShare,
   radiusAt,
   restFrame,
   TILT,
@@ -31,6 +34,7 @@ import {
 import { rgbOf } from '../src/components/maps/globe/palette'
 import { pixelsPerBlock } from '../src/maps/palette'
 import { azaniaMask, cellAt, nationNumbering, NUMBER, numberAt, paintAzania, paintWorld, rasterise } from '../src/maps/raster'
+import { SHEET_WIDTH } from '../src/maps/sheet'
 import { WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, WORLD_WIDTH } from '../src/maps/source'
 import { decodeAt, decodeGlobe, mapsQuery } from '../src/maps/url'
 import type { World, WorldTown } from '../src/maps/world'
@@ -152,6 +156,29 @@ check(
     worst = Math.max(worst, Math.hypot(spot.x - 700, spot.y - 380))
   }
   check(worst < 0.25, `zooming about the pointer keeps its block under it, within ${worst.toFixed(3)} px`)
+}
+
+// The North Pole, softened only as the curl gathers it, and never anywhere else.
+{
+  const lats = Array.from({ length: 1801 }, (_, i) => ((i - 900) / 900) * (Math.PI / 2))
+  for (const [what, band] of [
+    ['read along its circles', POLE.read],
+    ['faded into its circles’ colours', POLE.fade],
+  ] as const) {
+    const share = (lat: number, t: number) => poleShare(lat, t, band)
+    check(lats.every((lat) => share(lat, 0) === 0), `flat, nothing is ${what}, the pole included`)
+    check([0, 0.5, 0.9, 1].every((t) => lats.every((lat) => lat > 0 || share(lat, t) === 0)), `the south, Antarctica and all, is never ${what}`)
+    check(lats.every((lat) => lat > band.from || share(lat, 1) === 0), `curled, nothing short of ${degrees(band.from)}° is ${what}`)
+    check(share(band.to, 1) === 1 && share(Math.PI / 2, 1) === 1, `curled, the ground from ${degrees(band.to)}° to the pole is wholly ${what}`)
+    let rising = true
+    for (let i = 1; i < lats.length; i++) if (share(lats[i], 1) < share(lats[i - 1], 1)) rising = false
+    check(rising, `curled, the ground is ${what} only the more towards the pole`)
+    const first = [...Array(1001).keys()].map((i) => i / 1000).find((t) => share(Math.PI / 2, t) > 0) ?? 1
+    check(first > 0.8, `the pole is ${what} only as it closes, from t = ${first.toFixed(3)}`)
+  }
+  check(POLE.read.to <= POLE.fade.from, 'the ground is read along its circles before it fades')
+  const grain = (POLE.grain * SHEET_WIDTH) / (2 * Math.PI)
+  check(grain >= 3 && grain <= 12, `the picture is read across ${grain.toFixed(1)} texels of ground at the last, about the size of its patches of ice`)
 }
 
 // The rest frames.
