@@ -1,4 +1,4 @@
-import { namedFrom, nationFontSize, type Abroad } from '@/maps/abroad'
+import { namedFrom, nationFontSize, sameNation, type Abroad } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import { BLOCKS_PER_RADIAN, curlPoint, radiusAt, toLonLat, type GlobeView, type LonLat } from '@/maps/globe'
@@ -371,6 +371,8 @@ export function createNames(svg: SVGSVGElement): Names {
       const least = namedFrom(-5)
       for (const nation of [...(world?.nations ?? [])].sort((a, b) => b.chunks - a.chunks)) {
         if (nation.chunks < least || !nation.heart || !nation.extent) continue
+        // Towns of Azania's Towny nation that the map doesn't hold as its own stay abroad, under Azania's name: never named twice.
+        if (home && sameNation(nation.name, home.name)) continue
         next.push(
           take({
             slug: nation.slug,
