@@ -1,18 +1,18 @@
 'use client'
 
-import L from 'leaflet'
+import type L from 'leaflet'
 
 import { createSteady } from './steady'
 
 /*
  * The overlay's own motion: how what's drawn for one view is moved into
- * place for another, frame by frame, and how the names hand over from one
- * drawing to the next. The overlay is drawn by React only when the map
- * settles (./canvas.tsx); between drawings its group is moved as a whole
- * — a scale and a shift, the projection being linear in the zoom's scale
- * — while the marks and names in it are scaled back and the lines keep
- * their width (./steady.ts), so mid-zoom the ground grows and shrinks and
- * what has a size on the page keeps it.
+ * place for another, frame by frame. The overlay is drawn by React only
+ * when the map settles (./canvas.tsx); between drawings its group is moved
+ * as a whole — a scale and a shift, the projection being linear in the
+ * zoom's scale — while the marks and names in it are only shifted, never
+ * scaled, and the lines keep their width (./steady.ts), so mid-zoom the
+ * ground grows and shrinks and what has a size on the page keeps it. How
+ * the names hand over from one drawing to the next lives in ./names.ts.
  */
 
 /** A view as the overlay knows it: its zoom, and the map's pixel origin there. */
@@ -160,208 +160,6 @@ export function createZoomEase({
     remove: () => {
       stop()
       clock.remove()
-    },
-  }
-}
-
-const SVG = 'http://www.w3.org/2000/svg'
-
-/** The hand-over's own animations, told apart from a layer's (a pulse, a fade of its own). */
-const OURS = 'az-handover'
-
-/** How the names move when the view settles: quick, and calm. */
-const HANDOVER = {
-  /** A name that stays glides to its new spot, easing in to land. */
-  glide: { duration: 260, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-  /** One that goes fades where it stood. */
-  leave: { duration: 160, easing: 'ease-out' },
-  /** One that comes fades in once those going have mostly gone. */
-  arrive: { duration: 220, delay: 70, easing: 'ease-out' },
-  /** Further than this, in px, a name doesn't glide but goes and comes again: a glide that far reads as a fling. */
-  farthest: 140,
-} as const
-
-/** A name as it stood when the view settled: the element, its middle in the layer's pixels, and what it drew with. */
-type Spot = {
-  element: SVGElement
-  x: number
-  y: number
-  /** The point a group around it was held upright about (its data-az-at), when the name isn't held itself. */
-  upright: string | null
-  /** Whether it stood in an echo of the world, which is washed. */
-  echo: boolean
-}
-
-export type Handover = {
-  /** Notes where every name stands, just before the overlay is drawn again; `drawn` is the frame it stands drawn for. */
-  note: (drawn: Frame) => void
-  /** Forgets what was noted: the next drawing simply replaces this one (a re-basing, where every name stays where it is). */
-  drop: () => void
-  /** The overlay has been drawn again: the names glide, go and come. */
-  play: () => void
-  /** The map is shown somewhere new: the names still fading where they stood move with it. */
-  show: (shown: Shown) => void
-}
-
-/**
- * The hand-over from one plan of names to the next. Which names fit is
- * decided once per view (layers/labels.ts), so when the view settles some
- * names stay, some take a better spot, some go and some come; swapped all
- * at once, the page jumps. So just before the overlay is drawn again,
- * where each name stands on the page is noted, and once the new drawing is
- * in, a name still there glides from where it stood to its new spot, one
- * gone fades out where it was (the very element React let go of, in a
- * group of its own beside the overlay), and one new fades in. A name is
- * an element a layer marks with `data-az-name` (layers/projection.ts →
- * named), keyed by what it names, so a town's name is known as itself
- * across two drawings. Readers who ask for less motion get the swap.
- *
- * Positions are compared in the layer's pixels, which stand still under a
- * pan; if the map zoomed between the noting and the drawing (a gesture
- * begun meanwhile), nothing glides, and names only go and come.
- */
-export function createHandover({
-  map,
-  container,
-  group,
-  leaving,
-  shown,
-}: {
-  map: L.Map
-  container: HTMLElement
-  /** The overlay's group, which React draws into. */
-  group: SVGGElement
-  /** A layer beside it, for the names going: moved like the overlay, from the frame they were drawn for. */
-  leaving: Layer
-  /** Where the map is shown just now. */
-  shown: () => Shown
-}): Handover {
-  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  let noted: { names: Map<string, Spot>; frame: Frame; drawn: Frame } | null = null
-  // The frame the names fading out were drawn for.
-  let leavingFrame: Frame | null = null
-
-  const frameNow = (): Frame => ({ zoom: map.getZoom(), origin: map.getPixelOrigin() })
-  const animating = () => Boolean((map as L.Map & { _animatingZoom?: boolean })._animatingZoom)
-
-  /** Where an element's middle stands, in the layer's pixels: the page's, less the map's box and the pane's offset. */
-  const measure = () => {
-    const box = container.getBoundingClientRect()
-    const offset = L.DomUtil.getPosition(map.getPane('mapPane')!)
-    return (element: Element) => {
-      const r = element.getBoundingClientRect()
-      return {
-        x: r.left + r.width / 2 - box.left - offset.x,
-        y: r.top + r.height / 2 - box.top - offset.y,
-      }
-    }
-  }
-
-  const names = () => group.querySelectorAll<SVGElement>('[data-az-name]')
-
-  const clearLeaving = () => {
-    for (const animation of leaving.element.getAnimations({ subtree: true })) animation.cancel()
-    leaving.element.replaceChildren()
-    leavingFrame = null
-  }
-
-  /** A name gone from the drawing: the element React let go of, faded out where it stood. */
-  const leave = (spot: Spot) => {
-    const { element } = spot
-    if (element.isConnected) return
-    const wrap = document.createElementNS(SVG, 'g')
-    if (spot.upright) wrap.setAttribute('data-az-at', spot.upright)
-    wrap.appendChild(element)
-    leaving.element.appendChild(wrap)
-    const fade = wrap.animate([{ opacity: spot.echo ? 0.55 : 1 }, { opacity: 0 }], {
-      ...HANDOVER.leave,
-      fill: 'forwards',
-      id: OURS,
-    })
-    fade.onfinish = () => wrap.remove()
-  }
-
-  const arrive = (element: SVGElement) => {
-    element.animate([{ opacity: 0 }, { opacity: 1 }], {
-      ...HANDOVER.arrive,
-      fill: 'backwards',
-      id: OURS,
-    })
-  }
-
-  const glide = (element: SVGElement, dx: number, dy: number) => {
-    element.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], {
-      ...HANDOVER.glide,
-      id: OURS,
-    })
-  }
-
-  return {
-    note: (drawn) => {
-      clearLeaving()
-      noted = null
-      if (reduced()) return
-      const at = measure()
-      const spots = new Map<string, Spot>()
-      for (const element of names()) {
-        const holder = element.closest('[data-az-at]')
-        spots.set(element.getAttribute('data-az-name')!, {
-          element,
-          ...at(element),
-          upright: holder && holder !== element ? holder.getAttribute('data-az-at') : null,
-          echo: Boolean(element.closest('[data-echo]')),
-        })
-      }
-      noted = { names: spots, frame: frameNow(), drawn }
-    },
-    drop: () => {
-      noted = null
-    },
-    play: () => {
-      const before = noted
-      noted = null
-      if (!before || !before.names.size) return
-      const frame = frameNow()
-      const steady =
-        frame.zoom === before.frame.zoom && frame.origin.equals(before.frame.origin) && !animating()
-      const at = measure()
-      const seen = new Set<string>()
-      for (const element of names()) {
-        const key = element.getAttribute('data-az-name')!
-        seen.add(key)
-        const was = before.names.get(key)
-        // A glide or a fade from the last hand-over still under way gives way to this one.
-        for (const animation of element.getAnimations())
-          if (animation.id === OURS) animation.cancel()
-        if (!was) {
-          arrive(element)
-          continue
-        }
-        if (!steady) {
-          if (was.element !== element) leave(was)
-          continue
-        }
-        const now = at(element)
-        const dx = was.x - now.x
-        const dy = was.y - now.y
-        const far = Math.hypot(dx, dy)
-        if (far < 0.75) continue
-        if (far <= HANDOVER.farthest) glide(element, dx, dy)
-        else {
-          arrive(element)
-          if (was.element !== element) leave(was)
-        }
-      }
-      for (const [key, was] of before.names) if (!seen.has(key)) leave(was)
-      if (leaving.element.childNodes.length) {
-        leavingFrame = before.drawn
-        leaving.place(placementOf(before.drawn, shown()))
-      }
-    },
-    show: (shown) => {
-      if (!leavingFrame) return
-      if (!leaving.element.childNodes.length) leavingFrame = null
-      else leaving.place(placementOf(leavingFrame, shown))
     },
   }
 }

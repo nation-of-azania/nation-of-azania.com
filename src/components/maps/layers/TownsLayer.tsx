@@ -6,12 +6,17 @@ import { siteFacts, siteLine } from '@/maps/sites'
 import {
   boundsTouch,
   halo,
+  kept,
   LabelPlacer,
+  LIVE_CLOSE_IN,
+  liveOf,
+  livePlan,
   named,
   pathOf,
   steadyHatch,
   textWidth,
   upright,
+  type Live,
   type Projection,
   type Rect,
 } from './projection'
@@ -27,6 +32,8 @@ export type TownLabel = Rect & {
   at: 'home' | 'edge'
   /** A held site's second line, under the name: "diamonds · $333 a day". None for a town, or far out. */
   sub: string | null
+  /** How it may move mid-gesture, on the live map's own canvas (./projection.ts → Live). */
+  live?: Live
 }
 
 type Props = {
@@ -136,14 +143,19 @@ function nameCandidates(projection: Projection, town: MapTown): TownLabel[] {
 /**
  * Finds each town's name a spot, the biggest towns first; part of the label
  * plan (./labels.ts). The sites' marks take their room before any name is
- * placed, as the pins do, so no name lands on a gem.
+ * placed, as the pins do, so no name lands on a gem. On the live map's
+ * own canvas each name says how it may move mid-gesture, and a name at
+ * the home that lost is kept in reserve (`reserve`), hidden, for the map
+ * to bring in when a zoom makes room.
  */
 export function placeTownNames(
   projection: Projection,
   towns: MapTown[],
   placer: LabelPlacer,
+  reserve = false,
 ): Map<number, TownLabel> {
   const placed = new Map<number, TownLabel>()
+  const live = livePlan(projection)
   for (const town of towns) {
     if (!town.home || !isSite(town) || !onPage(projection, town)) continue
     const [x, y] = projection.project(town.home)
@@ -151,8 +163,16 @@ export function placeTownNames(
   }
   for (const town of byWeight(towns)) {
     if (!onPage(projection, town)) continue
-    const spot = placer.tryPlace(nameCandidates(projection, town))
-    if (spot) placed.set(town.id, spot)
+    const candidates = nameCandidates(projection, town)
+    if (candidates.length === 0) continue
+    const rank = placer.rank()
+    const spot = placer.tryPlace(candidates)
+    const home = candidates[0].at === 'home'
+    // At the home, the name is Azania's own (class 1) until the reader is inside the town; along the claim's
+    // edge it has the one spot, and only fades.
+    const zooms: [number, number] = home ? [-99, INSIDE] : [INSIDE, TOO_CLOSE]
+    if (spot) placed.set(town.id, live && (home || LIVE_CLOSE_IN) ? { ...spot, live: liveOf(candidates, candidates.indexOf(spot), rank, zooms, 1) } : spot)
+    else if (reserve && home) placed.set(town.id, { ...candidates[0], live: liveOf(candidates, 0, rank, zooms, 1, { reserve: true }) })
   }
   return placed
 }
@@ -280,7 +300,7 @@ export function TownLabels({
             onClick={onSelect ? () => onSelect(town) : undefined}
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
-            <g {...upright(hx, hy)}>
+            <g {...upright(hx, hy)} {...(site ? kept(projection, siteMarkRect(hx, hy, scale)) : null)}>
               {site ? (
                 <SiteMark facts={site} scale={scale} selected={isSelected} x={hx} y={hy}>
                   <title>{spoken(town.name)}</title>
@@ -300,7 +320,7 @@ export function TownLabels({
               // At the home, the name keeps its distance from the mark; along the claim's edge, its own spot there.
               <g
                 {...(label.at === 'home' ? upright(hx, hy) : upright(label.x + label.width / 2, label.y))}
-                {...named(projection, 'town', town.id)}
+                {...named(projection, 'town', town.id, { box: label, live: label.live })}
               >
                 <text
                   className="font-label"

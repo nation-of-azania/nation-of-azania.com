@@ -6,12 +6,17 @@ import { PLACE_CATEGORIES } from '@/maps/registry'
 import {
   halo,
   inBounds,
+  kept,
   labelBeside,
   LabelPlacer,
+  LIVE_CLOSE_IN,
+  liveOf,
+  livePlan,
   named,
   pathOf,
   textWidth,
   upright,
+  type Live,
   type Projection,
   type Rect,
 } from './projection'
@@ -47,8 +52,8 @@ export type PlacedPin = {
   group: MapPlace[]
 }
 
-/** A place's name, placed: the text's anchor and position. */
-export type PlaceName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number }
+/** A place's name, placed: the text's anchor and position, the box it takes, and how it may move mid-gesture on the live map's own canvas. */
+export type PlaceName = { anchor: 'start' | 'middle' | 'end'; tx: number; ty: number; box: Rect; live?: Live }
 
 /**
  * Where the pins go at this zoom, before anything is drawn: from afar,
@@ -122,14 +127,21 @@ export function placePlaceNames(
 ): Map<number, PlaceName> {
   const placed = new Map<number, PlaceName>()
   if (projection.zoom < NAMED_FROM) return placed
+  const live = livePlan(projection) && LIVE_CLOSE_IN
   const fontSize = 12
   for (const { place, x, y, scale } of pins) {
     const width = textWidth(place.name, fontSize)
     const candidates = (['right', 'left', 'below', 'above'] as const).map((side) =>
       labelBeside(x, y, width, fontSize, side, PIN * scale + 4),
     )
-    const spot = placer.tryPlace(candidates) ?? (place.id === selected ? candidates[0] : null)
-    if (spot) placed.set(place.id, { anchor: spot.anchor, tx: spot.tx, ty: spot.ty })
+    const rank = placer.rank()
+    const chosen = place.id === selected
+    const spot = placer.tryPlace(candidates) ?? (chosen ? candidates[0] : null)
+    if (!spot) continue
+    const box = { x: spot.x, y: spot.y, width: spot.width, height: spot.height }
+    // Azania's own (class 1); the chosen place's name is kept whatever the crowd.
+    const facts = live ? liveOf(candidates, candidates.indexOf(spot), rank, [NAMED_FROM, 99], chosen ? 0 : 1, { force: chosen || undefined }) : undefined
+    placed.set(place.id, { anchor: spot.anchor, tx: spot.tx, ty: spot.ty, box, live: facts })
   }
   return placed
 }
@@ -183,29 +195,29 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
   if (pins.clustered) {
     return (
       <g className="az-places">
-        {pins.items.map(({ place, x, y, scale, group }) =>
-          group.length === 1 ? (
+        {pins.items.map((pin) =>
+          pin.group.length === 1 ? (
             <g
-              key={place.id}
+              key={pin.place.id}
               className={interactive ? 'az-hit' : undefined}
-              onClick={onSelect ? () => onSelect(place) : undefined}
+              onClick={onSelect ? () => onSelect(pin.place) : undefined}
               style={interactive ? { cursor: 'pointer' } : undefined}
             >
-              <title>{place.name}</title>
-              <g {...upright(x, y)}>
-                <PlacePin place={place} scale={scale} selected={selected === place.id} x={x} y={y} />
+              <title>{pin.place.name}</title>
+              <g {...upright(pin.x, pin.y)} {...kept(projection, pinRect(pin))}>
+                <PlacePin place={pin.place} scale={pin.scale} selected={selected === pin.place.id} x={pin.x} y={pin.y} />
               </g>
             </g>
           ) : (
             <g
-              key={`cluster-${place.id}`}
+              key={`cluster-${pin.place.id}`}
               className={interactive ? 'az-hit' : undefined}
-              onClick={onSelect ? () => onSelect(place) : undefined}
+              onClick={onSelect ? () => onSelect(pin.place) : undefined}
               style={interactive ? { cursor: 'pointer' } : undefined}
             >
-              <title>{group.map((member) => member.name).join(', ')}</title>
-              <g {...upright(x, y)}>
-                <g transform={`translate(${x} ${y})`}>
+              <title>{pin.group.map((member) => member.name).join(', ')}</title>
+              <g {...upright(pin.x, pin.y)} {...kept(projection, pinRect(pin))}>
+                <g transform={`translate(${pin.x} ${pin.y})`}>
                   <circle fill={GROUND.sea800} r={12} stroke={GROUND.whitewash} strokeWidth={2} />
                   <text
                     className="font-label"
@@ -215,7 +227,7 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
                     fontWeight={700}
                     textAnchor="middle"
                   >
-                    {group.length}
+                    {pin.group.length}
                   </text>
                 </g>
               </g>
@@ -246,7 +258,8 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
             ) : null,
           )
         : null}
-      {pins.items.map(({ place, x, y, scale }) => {
+      {pins.items.map((pin) => {
+        const { place, x, y, scale } = pin
         const isSelected = selected === place.id
         const name = labels?.get(place.id) ?? null
         return (
@@ -258,7 +271,7 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
             {!name ? <title>{place.name}</title> : null}
-            <g {...upright(x, y)}>
+            <g {...upright(x, y)} {...kept(projection, pinRect(pin))}>
               <PlacePin place={place} scale={scale} selected={isSelected} x={x} y={y} />
               {/* Keyed apart, so a name the plan places is mounted afresh and one it drops is let go of. */}
               <text
@@ -272,7 +285,7 @@ export function PlacesLayer({ projection, places, labels, selected, onSelect }: 
                 textAnchor={name?.anchor ?? 'start'}
                 x={name?.tx ?? x + PIN * scale + 6}
                 y={name?.ty ?? y}
-                {...(name ? named(projection, 'place', place.id) : null)}
+                {...(name ? named(projection, 'place', place.id, { box: name.box, live: name.live }) : null)}
                 {...halo(GROUND.whitewash, 3)}
               >
                 {place.name}

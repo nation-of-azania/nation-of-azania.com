@@ -21,11 +21,16 @@ import {
   boundsTouch,
   halo,
   inBounds,
+  kept,
   LabelPlacer,
+  LIVE_CLOSE_IN,
+  liveOf,
+  livePlan,
   named,
   steadyHatch,
   textWidth,
   upright,
+  type Live,
   type Projection,
   type Rect,
 } from './projection'
@@ -102,6 +107,17 @@ const LANDMARKS_FROM = -4.5
 const NAME_FROM: Record<ServerKind, number> = { trading: SITE_NAMES_FROM, landmark: NAMES_FROM }
 /** A town drawn smaller than this, in px, is a dot. */
 const DOT_BELOW = 3
+/**
+ * For the live map mid-gesture (leaflet/placing.ts): the nations' names,
+ * and Azania's own, are kept in reserve while the drawn zoom is at or
+ * beyond this, so a zoom out from where none is named brings them in; the
+ * world's towns' names are kept in reserve this many to a copy of the
+ * world, the best first, and a town is kept whose name would be set this
+ * much further in.
+ */
+const NATION_RESERVES_UNTIL = -2.25
+const TOWN_RESERVES = 40
+const TOWN_RESERVE_REACH = 0.5
 
 /** The projection as the scale and shift it is: Leaflet's is affine, so thirty thousand corners needn't each go through it. */
 type Affine = { ax: number; bx: number; ay: number; by: number }
@@ -363,10 +379,10 @@ export function AbroadClaims({
 }
 
 /** A town's name abroad, where the plan found room: as it's set, and for one of the server's places, which. */
-export type AbroadName = Rect & { fontSize: number; tracking: number; text: string; sub: string | null; server: ServerKind | null }
+export type AbroadName = Rect & { fontSize: number; tracking: number; text: string; sub: string | null; server: ServerKind | null; live?: Live }
 
-/** A nation's name across its heartland, where the plan found room. */
-export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number }
+/** A nation's name across its heartland, where the plan found room; `live`, how it may move mid-gesture on the live map's own canvas. */
+export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number; live?: Live }
 
 export type AbroadPlan = { towns: Map<string, AbroadName>; nations: Map<string, NationName> }
 
@@ -418,24 +434,52 @@ function nationName(
   return [box(y), box(y - height * 1.1), box(y + height * 1.1)]
 }
 
-/** Azania's own name among the nations far out: placed before its towns' names at the scale of the world, after them nearer. */
-export function placeHomeName(projection: Projection, home: HomeNation, placer: LabelPlacer): NationName | null {
-  if (projection.zoom > NATION_NAMES_UNTIL) return null
-  return placer.tryPlace(nationName(projection, home.name, home.heart, home.extent, 0, true))
+/** The zoom from which a nation holding so much ground is named: the live zooms its name may show in run from here up to NATION_NAMES_UNTIL. */
+const nationTier = (chunks: number): number => (chunks >= 6000 ? -99 : chunks >= 2500 ? -6.5 : chunks >= 600 ? -5.5 : -4.5)
+
+/**
+ * Azania's own name among the nations far out: placed before its towns'
+ * names at the scale of the world, after them nearer; on the live map's
+ * own canvas, kept in reserve when it lost, or nearer in than it's named,
+ * for a zoom out to bring in.
+ */
+export function placeHomeName(projection: Projection, home: HomeNation, placer: LabelPlacer, reserve = false): NationName | null {
+  const { zoom } = projection
+  const placeable = zoom <= NATION_NAMES_UNTIL
+  const reservable = reserve && zoom <= NATION_RESERVES_UNTIL
+  if (!placeable && !reservable) return null
+  const candidates = nationName(projection, home.name, home.heart, home.extent, 0, true)
+  const rank = placer.rank()
+  const spot = placeable ? placer.tryPlace(candidates) : null
+  if (!livePlan(projection)) return spot
+  // It leads every name of Azania's at the scale of the world (class 0 up to HOME_NAME_FIRST), and is kept on the page about its heart.
+  const live = (at: number, held: boolean) =>
+    liveOf(candidates, at, rank, [-99, NATION_NAMES_UNTIL], 1, { lead: HOME_NAME_FIRST, clamp: projection.project(home.heart), reserve: held || undefined })
+  if (spot) return { ...spot, live: live(candidates.indexOf(spot), false) }
+  return reservable ? { ...candidates[0], live: live(0, true) } : null
 }
 
 /** From here out, Azania's name outranks its own towns' names, which crowd at the scale of the world. */
 export const HOME_NAME_FIRST = -5.5
+
+/** The zoom from which a town abroad is named: a capital's from further out than a town's, a site's and the server's places' as their marks ask. */
+const nameFrom = (town: AbroadTown): number =>
+  isServerKind(town.kind) ? NAME_FROM[town.kind] : town.kind !== 'town' ? SITE_NAMES_FROM : town.capital ? CAPITAL_NAMES_FROM : NAMES_FROM
 
 /**
  * Finds the world's names a spot, after Azania's own have had theirs; part
  * of the label plan (./labels.ts). The sites' marks and the server's places'
  * take their room first, then the nations' names far out, the greatest
  * first, then the capitals', then every town's, biggest first; the sites'
- * and the server's places', having nobody living there, come last.
+ * and the server's places', having nobody living there, come last. On the
+ * live map's own canvas each name says how it may move mid-gesture, and
+ * what lost is kept in reserve (`reserve`), hidden: every nation on the
+ * page that a zoom in of a level would name, while the drawn zoom isn't
+ * too near, and the names close in, a few dozen of the world's towns.
  */
-export function placeAbroadNames(projection: Projection, abroad: Abroad, placer: LabelPlacer): AbroadPlan {
+export function placeAbroadNames(projection: Projection, abroad: Abroad, placer: LabelPlacer, reserve = false): AbroadPlan {
   const { zoom } = projection
+  const live = livePlan(projection)
   const towns = new Map<string, AbroadName>()
   const nations = new Map<string, NationName>()
   const visible = abroad.towns.filter((town) => onPage(projection, town))
@@ -452,27 +496,36 @@ export function placeAbroadNames(projection: Projection, abroad: Abroad, placer:
       }
     }
   }
-  if (zoom <= NATION_NAMES_UNTIL) {
+  const nationsPlaceable = zoom <= NATION_NAMES_UNTIL
+  const nationsReservable = reserve && zoom <= NATION_RESERVES_UNTIL
+  if (nationsPlaceable || nationsReservable) {
     const least = namedFrom(zoom)
+    const nearer = namedFrom(zoom + 1)
     const great = [...abroad.nations].sort((a, b) => b.chunks - a.chunks)
     for (const nation of great) {
-      if (nation.chunks < least || !nation.heart || !nation.extent || !boundsTouch(nation.extent, projection.bounds)) continue
-      const spot = placer.tryPlace(nationName(projection, nation.name, nation.heart, nation.extent, nation.chunks, false))
-      if (spot) nations.set(nation.slug, spot)
+      if (!nation.heart || !nation.extent || !boundsTouch(nation.extent, projection.bounds)) continue
+      const placeable = nationsPlaceable && nation.chunks >= least
+      const reservable = nationsReservable && nation.chunks >= nearer
+      if (!placeable && !reservable) continue
+      const candidates = nationName(projection, nation.name, nation.heart, nation.extent, nation.chunks, false)
+      const rank = placer.rank()
+      const spot = placeable ? placer.tryPlace(candidates) : null
+      if (!live) {
+        if (spot) nations.set(nation.slug, spot)
+        continue
+      }
+      const facts = (at: number, held: boolean) =>
+        liveOf(candidates, at, rank, [nationTier(nation.chunks), NATION_NAMES_UNTIL], 2, { clamp: projection.project(nation.heart!), reserve: held || undefined })
+      if (spot) nations.set(nation.slug, { ...spot, live: facts(candidates.indexOf(spot), false) })
+      else if (reservable) nations.set(nation.slug, { ...candidates[0], live: facts(0, true) })
     }
   }
 
-  const named = (town: AbroadTown) =>
-    isServerKind(town.kind)
-      ? zoom >= NAME_FROM[town.kind]
-      : town.kind !== 'town'
-        ? zoom >= SITE_NAMES_FROM
-        : town.capital
-          ? zoom >= CAPITAL_NAMES_FROM
-          : zoom >= NAMES_FROM
+  const townsReservable = reserve && LIVE_CLOSE_IN
   const order = visible
-    .filter((town) => town.home && named(town))
+    .filter((town) => town.home && zoom + (townsReservable ? TOWN_RESERVE_REACH : 0) >= nameFrom(town))
     .sort((a, b) => Number(b.capital) - Number(a.capital) || b.residents - a.residents || b.chunks - a.chunks)
+  let reserves = 0
   for (const town of order) {
     const site = abroadSite(town)
     const server = isServerKind(town.kind) ? town.kind : null
@@ -498,13 +551,23 @@ export function placeAbroadNames(projection: Projection, abroad: Abroad, placer:
         ? TRADING_R * (serverScale(zoom, server) ?? siteScale(zoom)) + 5
         : (homeMark(zoom, town)?.ring || 3) + 4
     const box = (cx: number, top: number): AbroadName => ({ x: cx - width / 2, y: top, width, height, fontSize, tracking, text, sub, server })
-    const spot = placer.tryPlace([
+    const candidates = [
       box(x, y - clear - height),
       box(x, y + clear),
       box(x + clear + width / 2, y - height / 2),
       box(x - clear - width / 2, y - height / 2),
-    ])
-    if (spot) towns.set(town.slug, spot)
+    ]
+    const rank = placer.rank()
+    const spot = zoom >= nameFrom(town) ? placer.tryPlace(candidates) : null
+    if (!live) {
+      if (spot) towns.set(town.slug, spot)
+      continue
+    }
+    if (spot) towns.set(town.slug, { ...spot, live: liveOf(candidates, candidates.indexOf(spot), rank, [nameFrom(town), 99], 2) })
+    else if (townsReservable && reserves < TOWN_RESERVES) {
+      reserves++
+      towns.set(town.slug, { ...candidates[0], live: liveOf(candidates, 0, rank, [nameFrom(town), 99], 2, { reserve: true }) })
+    }
   }
   return { towns, nations }
 }
@@ -554,6 +617,8 @@ export function AbroadMarks({
         const [hx, hy] = projection.project(town.home!)
         const isSelected = selected.town === town.slug
         const title = server ? `${spoken(town.name)} · ${SERVER_WORDS[server].label}` : null
+        // The marks the plan keeps the names off (placeAbroadNames), said on their holders for the live map mid-gesture.
+        const keep = server && serverAt ? tradingMarkRect(hx, hy, serverAt) : site && zoom >= SITES_FROM ? siteMarkRect(hx, hy, scale) : null
         return (
           <g
             className={hit}
@@ -561,7 +626,7 @@ export function AbroadMarks({
             onClick={onSelect ? () => onSelect({ kind: 'abroad', slug: town.slug }) : undefined}
             style={cursor}
           >
-            <g {...upright(hx, hy)}>
+            <g {...upright(hx, hy)} {...(keep ? kept(projection, keep) : null)}>
               {server && serverAt ? (
                 <TradingMark kind={server} scale={serverAt} selected={isSelected} x={hx} y={hy}>
                   <title>{title}</title>
@@ -591,7 +656,7 @@ export function AbroadMarks({
               ) : null}
             </g>
             {label ? (
-              <g {...upright(hx, hy)} {...named(projection, 'abroad', town.slug)}>
+              <g {...upright(hx, hy)} {...named(projection, 'abroad', town.slug, { box: label, live: label.live })}>
                 <text
                   className={label.server ? 'font-display' : 'font-label'}
                   fill={ink}
@@ -637,7 +702,7 @@ export function AbroadMarks({
           <g
             key={slug || 'home'}
             {...upright(label.x + label.width / 2, label.y + label.height / 2)}
-            {...named(projection, 'nation', slug || 'home')}
+            {...named(projection, 'nation', slug || 'home', { box: label, live: label.live })}
           >
             <text
               className={cnHit(hit, 'font-display')}

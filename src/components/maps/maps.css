@@ -80,19 +80,25 @@
   pointer-events: none;
 }
 /*
- * The marks mid-zoom (leaflet/overlay.ts): their group is scaled with the
- * ground, the marks and names scaled back about their points
- * (leaflet/steady.ts), and every other line in it keeps its width on the
- * page, dashes and all; a road drawn there (the editor's) is set to its own
- * width each frame. Inside a mark held upright the two scales cancel, and
- * the mark's own (a glyph drawn small) is meant; a pattern's hatching is
- * the pattern's affair.
+ * The marks mid-zoom (leaflet/overlay.ts, leaflet/steady.ts): a mark or a
+ * name is only shifted to where its point has gone, never scaled, so it
+ * keeps its size and its lines their width of their own accord. What else
+ * is drawn there (a siege's line, the seams, the editor's lines) is scaled
+ * and shifted with the ground, and this rule keeps those lines their width
+ * on the page, dashes and all; a road drawn there (the editor's) is set to
+ * its own width each frame instead. Inside a mark held upright, the mark's
+ * own stroke (a glyph drawn small) is meant; a pattern's hatching is the
+ * pattern's affair.
  */
 .az-marks :is(path, circle, ellipse, line, polyline, polygon, rect):not([data-az-at] *, pattern *) {
   vector-effect: non-scaling-stroke;
 }
-/* The names going as the view settles, fading where they stood (leaflet/overlay.ts): never in a click's way. */
+/* The names going as the drawing changes, fading where they stood (leaflet/names.ts): never in a click's way. */
 .az-leaving {
+  pointer-events: none;
+}
+/* A name held in reserve, drawn hidden for the map to bring in mid-gesture (leaflet/placing.ts): nothing to a pointer. */
+.az-marks [data-az-reserve] {
   pointer-events: none;
 }
 /* The hidden element a zoom's animation is read back from, eased by Leaflet's own rule. */

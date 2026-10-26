@@ -20,6 +20,12 @@ export type Projection = {
   view?: Bounds
   /** Prefixes element ids (text paths, masks), so two maps on one page don't collide. */
   id: string
+  /**
+   * How the names animate from one drawing to the next (leaflet/names.ts):
+   * set only by the live map's canvas, absent in a still, where nothing
+   * moves and the names carry no box.
+   */
+  names?: 'settle' | 'live'
 }
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -36,6 +42,17 @@ const overlaps = (a: Rect, b: Rect) =>
  */
 export class LabelPlacer {
   private taken: Rect[] = []
+  private tried = 0
+
+  /**
+   * Numbers the names in the order the plan tries them, placed or not,
+   * for the live map to go by mid-gesture (leaflet/placing.ts): the plan's
+   * order is its pecking order. Shared across the real world and its
+   * echoes, so an echo's names rank after the real world's.
+   */
+  rank(): number {
+    return this.tried++
+  }
 
   fits(rect: Rect): boolean {
     return !this.taken.some((other) => overlaps(other, rect))
@@ -114,15 +131,111 @@ export const upright = (x: number, y: number) => ({
 })
 
 /**
+ * How a name at a point may move while the map does (leaflet/placing.ts),
+ * which the plan says of each name it tries when the live map asks
+ * (`reserve` in ./labels.ts): its rank in the plan's order; every spot
+ * the plan would have tried for it, and which it drew; the live zooms it
+ * may show in (after the first, up to the second, ±99 for no limit);
+ * its class, Azania's names (1) before the world's (2) and what's kept
+ * whatever the crowd (0, `force`); for the home name, the zoom up to
+ * which it leads (`lead`); for a nation's name, its heart in the
+ * drawing's px, about which it's kept on the page (`clamp`); and whether
+ * it's drawn in reserve, hidden, for the map to bring in mid-gesture
+ * when there's room.
+ */
+export type Live = {
+  rank: number
+  spots: Rect[]
+  spot: number
+  zooms: [number, number]
+  klass: 0 | 1 | 2
+  lead?: number
+  force?: boolean
+  clamp?: [number, number]
+  reserve?: boolean
+}
+
+/**
+ * Whether the names close in are placed every frame mid-gesture too — the
+ * places' and the events', a town's name along its claim's edge, and the
+ * world's towns in reserve — or only the names far out, where the
+ * nations' jump most and the names are few. The close-in names are many,
+ * and a phone's frames are dear.
+ */
+export const LIVE_CLOSE_IN = false
+
+/** The live facts of a name placed at `spot` among `candidates` (`reserve`: held at the first, hidden). */
+export const liveOf = (
+  candidates: Rect[],
+  spot: number,
+  rank: number,
+  zooms: [number, number],
+  klass: Live['klass'],
+  more: Pick<Live, 'lead' | 'force' | 'clamp' | 'reserve'> = {},
+): Live => ({ rank, spots: candidates, spot, zooms, klass, ...more })
+
+/** Whether the plan is asked how each name may move mid-gesture: only by the live map's own canvas. */
+export const livePlan = (projection: Projection): boolean => projection.names === 'live'
+
+/**
+ * What the live map is told of a name besides its key: for a name at a
+ * point, the box the plan drew it in, in the drawing's px, and how it may
+ * move mid-gesture (`live`); for text set along a path, where along it
+ * the text sits (`along`, in whatever terms the layer likes), which says
+ * the name moved when the path is cut anew.
+ */
+export type NameInfo = { box?: Rect; along?: string; live?: Live }
+
+/**
  * Marks an element as a name in the plan, keyed by what it names on this
  * projection, so the live map knows the same town's name across two
- * drawings and can hand one over to the next (leaflet/overlay.ts): a name
+ * drawings and can hand one over to the next (leaflet/names.ts): a name
  * that stays glides to its new spot, one that goes fades out, one that
- * comes fades in. The element carries no opacity of its own, since the
- * fades set it; it is mounted only while the name is placed.
+ * comes fades in. On the live map the element also says the box it was
+ * drawn in, from which where it stands is computed rather than measured,
+ * or, for text along a path, where along it the text sits; and on the
+ * map's own canvas, how it may move mid-gesture, when the names at a
+ * point are placed every frame (leaflet/placing.ts). The named element
+ * carries no React style prop, and no opacity of its own: names.ts alone
+ * writes its inline translate, opacity and visibility, so React never
+ * fights it. It is mounted while the name is placed, or held in reserve.
  */
-export const named = (projection: Projection, kind: string, id: string | number) => ({
-  'data-az-name': `${projection.id}/${kind}/${id}`,
+export const named = (projection: Projection, kind: string, id: string | number, info?: NameInfo) => {
+  const box = projection.names ? info?.box : undefined
+  const live = projection.names === 'live' && box ? info?.live : undefined
+  return {
+    'data-az-name': `${projection.id}/${kind}/${id}`,
+    'data-az-box': box ? `${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.width.toFixed(1)} ${box.height.toFixed(1)}` : undefined,
+    'data-az-along': projection.names && info?.along ? info.along : undefined,
+    // Mid-gesture, the live map places the names at a point every frame (leaflet/placing.ts), by these.
+    ...(live && box
+      ? {
+          'data-az-rank': String(live.rank),
+          'data-az-spots': live.spots.map((spot) => `${(spot.x - box.x).toFixed(1)} ${(spot.y - box.y).toFixed(1)}`).join(' '),
+          'data-az-spot': String(live.spot),
+          'data-az-zooms': `${live.zooms[0].toFixed(2)} ${live.zooms[1].toFixed(2)}`,
+          'data-az-class': String(live.klass),
+          'data-az-lead': live.lead?.toFixed(2),
+          'data-az-force': live.force ? '' : undefined,
+          'data-az-clamp': live.clamp ? `${live.clamp[0].toFixed(1)} ${live.clamp[1].toFixed(1)}` : undefined,
+          // A name in reserve is drawn hidden, and is nothing to a reader or a pointer until the map brings it in.
+          'data-az-reserve': live.reserve ? '' : undefined,
+          visibility: live.reserve ? ('hidden' as const) : undefined,
+          'aria-hidden': live.reserve ? true : undefined,
+        }
+      : null),
+  }
+}
+
+/**
+ * Marks the element held upright about a pin, a mark or a highlight as
+ * something the names keep off, with the box the plan claimed for it, so
+ * the live map keeps the names off it mid-gesture too (leaflet/placing.ts).
+ * Nothing anywhere else.
+ */
+export const kept = (projection: Projection, rect: Rect) => ({
+  'data-az-keep':
+    projection.names === 'live' ? `${rect.x.toFixed(1)} ${rect.y.toFixed(1)} ${rect.width.toFixed(1)} ${rect.height.toFixed(1)}` : undefined,
 })
 
 /** Keeps the type of text set along a path its size, which can't be scaled back as a whole: its size, tracking and halo, in px. */

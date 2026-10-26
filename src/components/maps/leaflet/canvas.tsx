@@ -3,6 +3,7 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
+  Component,
   createContext,
   useContext,
   useEffect,
@@ -26,17 +27,8 @@ import type { Projection } from '../layers/projection'
 
 import { AzaniaCRS, AzaniaWrappingCRS, toLatLng, toLatLngBounds, toPoint } from './crs'
 import { createHome } from './home'
-import {
-  createHandover,
-  createLayer,
-  createZoomEase,
-  placementOf,
-  shownAt,
-  type Frame,
-  type Handover,
-  type Layer,
-  type Shown,
-} from './overlay'
+import { createNames, type Names, type NamesMode } from './names'
+import { createLayer, createZoomEase, placementOf, shownAt, type Frame, type Layer, type Shown } from './overlay'
 import { attachSheets } from './sheet'
 import { AzaniaTileLayer, MAX_ZOOM, MIN_NATIVE_ZOOM } from './tiles'
 
@@ -95,6 +87,10 @@ type MapContextValue = {
   world: number
   /** The group over the ground that OnTop draws into: what keeps its size on the page mid-zoom. */
   marks: SVGGElement | null
+  /** The names' hand-over from one drawing of the marks to the next (./names.ts); null when the names don't animate. */
+  names: Names | null
+  /** How the names animate, which the projection passes on to the layers. */
+  mode: NamesMode
 }
 
 const MapContext = createContext<MapContextValue | null>(null)
@@ -110,16 +106,49 @@ export function useLeaflet(): MapContextValue {
  * Draws its children over the map's ground, in the overlay's second SVG
  * (see MapCanvas): names, pins, marks, anything that keeps its size on the
  * page mid-zoom. Outside a live map (a still, rendered on the server) it
- * draws them where it stands.
+ * draws them where it stands. There is exactly one OnTop in each MapCanvas
+ * (the map scene's and the embed's each have theirs): it is the boundary
+ * at which the names hand over, and two would note and play twice.
  */
 export function OnTop({ children }: { children: ReactNode }) {
-  const marks = useContext(MapContext)?.marks
-  return marks ? createPortal(children, marks) : <>{children}</>
+  const context = useContext(MapContext)
+  if (!context?.marks) return <>{children}</>
+  return createPortal(
+    <NamesBoundary drawn={context.view} names={context.names}>
+      {children}
+    </NamesBoundary>,
+    context.marks,
+  )
+}
+
+/**
+ * Where the names' hand-over is told of every commit of the marks. React
+ * calls getSnapshotBeforeUpdate just before it changes the DOM, which no
+ * hook can see, so that is where each name is noted as it stands; the
+ * drawing just committed is then played in componentDidUpdate, before
+ * anything is painted. Every commit comes through here: a settle, a pause
+ * mid-gesture, a selection, a layer toggled, the world arriving, the
+ * clock's tick. `drawn` is the frame the children are drawn for.
+ */
+class NamesBoundary extends Component<{ names: Names | null; drawn: Frame; children: ReactNode }> {
+  getSnapshotBeforeUpdate(): null {
+    this.props.names?.note()
+    return null
+  }
+  componentDidMount(): void {
+    this.props.names?.play(this.props.drawn)
+  }
+  componentDidUpdate(): void {
+    this.props.names?.play(this.props.drawn)
+  }
+  render(): ReactNode {
+    return this.props.children
+  }
 }
 
 /** The projection for the overlay at the settled view; recomputed when the view settles. */
 export function useProjection(id = 'map'): Projection {
-  const { map, view } = useLeaflet()
+  const { map, view, mode } = useLeaflet()
   return useMemo(() => {
     const toBounds = (b: L.LatLngBounds): Bounds => ({
       minX: b.getWest(),
@@ -137,8 +166,9 @@ export function useProjection(id = 'map'): Projection {
       bounds: toBounds(view.bounds.pad(OVERLAY_PADDING)),
       view: toBounds(view.bounds),
       id,
+      names: mode === 'off' ? undefined : mode,
     }
-  }, [map, view, id])
+  }, [map, view, id, mode])
 }
 
 /** Leaflet's own workings that a continuous zoom needs; what its pinch handler uses. */
@@ -525,6 +555,13 @@ type CanvasProps = {
    * of it (src/maps/globe-switches.ts → GLOBE).
    */
   onPull?: (pull: GlobePull) => void
+  /**
+   * How the names animate (./names.ts): handed over from one drawing of
+   * the marks to the next as the drawing settles; placed again every frame
+   * mid-gesture besides (`live`, the map's own canvas); or not at all, a
+   * plain swap. Fixed when the map is made.
+   */
+  names?: NamesMode
   /** Rendered into the SVG overlay, in layer coordinates (useProjection). */
   children?: ReactNode
   /** Rendered over the map as ordinary DOM, inside the container (controls, frames). */
@@ -559,6 +596,7 @@ export function MapCanvas({
   onClick,
   onDoubleClick,
   onPull,
+  names: mode = 'settle',
   children,
   chrome,
 }: CanvasProps) {
@@ -570,10 +608,9 @@ export function MapCanvas({
   const drawn = useRef<View | null>(null)
   const settled = useRef<View | null>(null)
   const shown = useRef<Shown | null>(null)
-  // The overlay's groups as they're moved (./overlay.ts): the marks' and the ground's; and the names' hand-over.
+  // The overlay's groups as they're moved (./overlay.ts): the marks' and the ground's.
   const layer = useRef<Layer | null>(null)
   const groundLayer = useRef<Layer | null>(null)
-  const handover = useRef<Handover | null>(null)
   const handlers = useRef({ onMove, onPointer, onClick, onDoubleClick, onPull })
   useEffect(() => {
     handlers.current = { onMove, onPointer, onClick, onDoubleClick, onPull }
@@ -667,7 +704,7 @@ export function MapCanvas({
       ground.svg._update()
       top.svg._update()
     }
-    // Beside the marks, the names going as the view settles, fading where they stood (./overlay.ts).
+    // Beside the marks, the names going as the drawing changes, fading where they stood (./names.ts).
     const gone = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     gone.setAttribute('class', 'az-leaving')
     gone.setAttribute('aria-hidden', 'true')
@@ -679,8 +716,11 @@ export function MapCanvas({
     const leaving = createLayer(gone)
     layer.current = drawing
     groundLayer.current = groundDrawing
-    const names = createHandover({ map, container, group: top.group, leaving, shown: shownNow })
-    handover.current = names
+    // The names' hand-over, told of every commit of the marks by OnTop's boundary; none, and the drawing simply swaps.
+    const names =
+      mode === 'off'
+        ? null
+        : createNames({ map, container, group: top.group, leaving, drawn: () => drawn.current, shown: shownNow, mode })
     // Mid-zoom the ground's SVG is held as the picture it was when the zoom set out, scaled by the
     // compositor rather than painted afresh at each new scale; it's painted sharp again as it settles.
     map.on('zoomstart', () => container.classList.add('az-zooming'))
@@ -698,7 +738,7 @@ export function MapCanvas({
     const show = (at: Shown) => {
       shown.current = at
       if (drawn.current) drawing.place(placementOf(drawn.current, at))
-      names.show(at)
+      names?.show(at)
     }
     const ease = createZoomEase({ map, shown: shownNow, show })
     const follow = (at: Frame) => {
@@ -731,6 +771,7 @@ export function MapCanvas({
         // origin, it stays put. (In the drawn view's own pixels.)
         const scale = 2 ** (map.getZoom() - drawn.current.zoom)
         drawn.current = { ...drawn.current, origin: drawn.current.origin.add(rebase.shift.divideBy(scale)) }
+        names?.rebase(rebase.shift, map.getZoom())
         // The viewreset left the overlay's box a fraction of a pixel off, as Leaflet's does; its own update sets it exactly.
         fit()
       }
@@ -752,10 +793,8 @@ export function MapCanvas({
         view.origin.equals(last.origin) &&
         view.bounds.equals(last.bounds)
       if (same && !rebase) return
-      // Where the names stand, to hand over from once the new drawing is in; a re-basing moves nothing on the page.
-      if (rebase) names.drop()
-      else if (drawn.current) names.note(drawn.current)
-      setContext({ map, version: ++version, view, world: home?.world() ?? 0, marks: top.group })
+      // The names are noted as they stand and handed over once the new drawing is in, at OnTop's boundary.
+      setContext({ map, version: ++version, view, world: home?.world() ?? 0, marks: top.group, names, mode })
     }
     // In an echo the pointer is over nothing real, and a click lands nowhere.
     const real = (point: Point) => !wrap || inWorld(point)
@@ -825,6 +864,7 @@ export function MapCanvas({
     return () => {
       window.clearTimeout(pause)
       ease.remove()
+      names?.dispose()
       drawing.dispose()
       groundDrawing.dispose()
       leaving.dispose()
@@ -837,7 +877,6 @@ export function MapCanvas({
       shown.current = null
       layer.current = null
       groundLayer.current = null
-      handover.current = null
       setOverlay(null)
       setContext(null)
     }
@@ -846,15 +885,15 @@ export function MapCanvas({
   }, [])
 
   // The children have just been drawn for the settled view: they stand in
-  // place of their own accord, unless the map has moved on meanwhile. The
-  // names then hand over from the last drawing to this one.
+  // place of their own accord, unless the map has moved on meanwhile. (The
+  // names have handed over already, at OnTop's boundary, which runs first:
+  // a child's layout effects come before its parent's.)
   useLayoutEffect(() => {
     if (!context || !overlay) return
     drawn.current = context.view
     layer.current?.place(placementOf(context.view, shown.current ?? shownAt(context.view)))
     // The ground's SVG stands as Leaflet last fitted it, for the view the map last settled at.
     groundLayer.current?.place(placementOf(context.view, shownAt(settled.current ?? context.view)))
-    handover.current?.play()
   }, [context, overlay])
 
   useEffect(() => {

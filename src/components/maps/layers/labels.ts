@@ -45,7 +45,10 @@ export type LabelPlan = {
  * only the live map draws, is named last of all: Azania's names outrank
  * every other nation's. A siege outranks nearly everything: its mark takes
  * its room with the pins, and a siege Azania is in is named before
- * Azania's own towns; any other, after them.
+ * Azania's own towns; any other, after them. The live map's own canvas
+ * asks, besides, that each name say how it may move mid-gesture and
+ * that what lost be kept in reserve (`reserve`), for the names to be
+ * placed again every frame as the map moves (leaflet/placing.ts).
  */
 export function planLabels(
   projection: Projection,
@@ -61,6 +64,7 @@ export function planLabels(
     selectedEvent = null,
     abroad = null,
     sieges = [],
+    reserve = false,
   }: {
     towns?: MapTown[]
     roads?: MapRoad[]
@@ -75,6 +79,14 @@ export function planLabels(
     abroad?: { world: Abroad; home: HomeNation | null } | null
     /** The sieges on the server, each with Azania's side in it. */
     sieges?: SiegeOnMap[]
+    /**
+     * Whether names that lost, or would be named a little further in, are
+     * kept in reserve, drawn hidden, for the live map to bring in as the
+     * map moves (leaflet/placing.ts). Only the map's own canvas asks;
+     * without it the plan is as it always was, so an article's still and
+     * its embedded map draw exactly what they drew.
+     */
+    reserve?: boolean
   },
   placer = new LabelPlacer(),
 ): LabelPlan {
@@ -88,18 +100,18 @@ export function planLabels(
   const ours = placeSiegeNames(projection, war, placer, true)
   // Azania's own name far out: before its towns' at the scale of the world, where they crowd; after them nearer.
   const home = abroad?.home ?? null
-  const early = home && projection.zoom <= HOME_NAME_FIRST ? placeHomeName(projection, home, placer) : null
+  const early = home && projection.zoom <= HOME_NAME_FIRST ? placeHomeName(projection, home, placer, reserve) : null
   const plan = {
-    towns: placeTownNames(projection, towns, placer),
+    towns: placeTownNames(projection, towns, placer, reserve),
     roads: placeRoadNames(projection, roads, placer),
     places: pins && !pins.clustered ? placePlaceNames(projection, pins.items, placer, selectedPlace) : new Map(),
     events: placeEventNames(projection, marks, placer, selectedEvent),
   }
-  const late = home && projection.zoom > HOME_NAME_FIRST ? placeHomeName(projection, home, placer) : null
-  const others = placeSiegeNames(projection, war, placer, false)
+  const late = home && projection.zoom > HOME_NAME_FIRST ? placeHomeName(projection, home, placer, reserve) : null
+  const others = placeSiegeNames(projection, war, placer, false, reserve)
   const besieged = { marks: war, names: new Map([...ours, ...others]) }
   if (!abroad) return { ...plan, abroad: EMPTY_ABROAD_PLAN, sieges: besieged }
-  const world = placeAbroadNames(projection, abroad.world, placer)
+  const world = placeAbroadNames(projection, abroad.world, placer, reserve)
   const homeName = early ?? late
   if (homeName) world.nations.set('', homeName)
   return { ...plan, abroad: world, sieges: besieged }

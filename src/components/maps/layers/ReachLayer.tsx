@@ -93,9 +93,17 @@ const pathThrough = (projection: Projection, points: Point[]) =>
     })
     .join('')
 
+/** The ring's name set along it: the arc's path, and where about the ring it sits, for the live map's names. */
+type LabelArc = { d: string; along: string }
+
 /**
  * Where the ring's name goes: along its arc nearest the top of the page,
- * just inside it, when enough of the arc is on the page to carry it.
+ * just inside it, when enough of the arc is on the page to carry it. With
+ * the path it says where about the ring the name sits, the same at every
+ * zoom while the name stays put, so the live map (leaflet/names.ts) can
+ * tell a ring cut anew for a view that moved, where the name must cross-
+ * fade to its new stretch, from one merely drawn again: exactly the top
+ * when the whole ring is on the page, else the angle to the nearest 0.05.
  */
 function labelArc(
   projection: Projection,
@@ -103,7 +111,7 @@ function labelArc(
   radius: number,
   runs: Point[][],
   width: number,
-): string | null {
+): LabelArc | null {
   const view = projection.view ?? projection.bounds
   const all = runs.flat()
   const seen = all.filter((point) => inside(view, point))
@@ -112,11 +120,10 @@ function labelArc(
   // middle of the longest stretch on the page, well clear of the page's edges.
   const stretches = runs.map((run) => run.filter((point) => inside(view, point)))
   const longest = stretches.reduce((best, stretch) => (stretch.length > best.length ? stretch : best))
-  const at =
-    seen.length > all.length * 0.9
-      ? seen.reduce((best, point) => (point[1] < best[1] ? point : best))
-      : longest[Math.floor(longest.length / 2)]
+  const whole = seen.length > all.length * 0.9
+  const at = whole ? seen.reduce((best, point) => (point[1] < best[1] ? point : best)) : longest[Math.floor(longest.length / 2)]
   const angle = Math.atan2(at[1] - centre[1], at[0] - centre[0])
+  const along = whole ? 'top' : (Math.round(angle / 0.05) * 0.05).toFixed(2)
   // On the ring's lower half the name runs the other way round, so it reads upright; either way it sits just inside.
   const lower = Math.sin(angle) > 0
   const rpx = radius * projection.ppb
@@ -132,7 +139,7 @@ function labelArc(
   const [fx, fy] = projection.project(from)
   const [tx, ty] = projection.project(to)
   const rr = (rpx - inset).toFixed(1)
-  return `M${fx.toFixed(1)} ${fy.toFixed(1)}A${rr} ${rr} 0 0 ${lower ? 0 : 1} ${tx.toFixed(1)} ${ty.toFixed(1)}`
+  return { d: `M${fx.toFixed(1)} ${fy.toFixed(1)}A${rr} ${rr} 0 0 ${lower ? 0 : 1} ${tx.toFixed(1)} ${ty.toFixed(1)}`, along }
 }
 
 /** A capital and the ring about it, and how to draw it. */
@@ -199,9 +206,9 @@ export function WarReach({
       )}
       {arc && part !== 'ring' ? (
         // Along the ring itself, so it can't be scaled back as a whole mid-zoom: its type is, instead.
-        <g {...named(projection, 'reach', reach.nation)}>
+        <g {...named(projection, 'reach', reach.nation, { along: arc.along })}>
           <defs>
-            <path d={arc} id={id} />
+            <path d={arc.d} id={id} />
           </defs>
           <text
             className="font-label"

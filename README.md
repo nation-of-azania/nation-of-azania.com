@@ -558,10 +558,41 @@ below. The few other shapes there (a siege's line, the seams) are scaled
 with the ground. Only those few things are painted again each frame:
 drawn as one SVG, a pinch repainted every claim and road each frame. A button or key zoom
 follows the tiles' own CSS transition exactly. A gesture held still for
-150 ms draws the overlay again for the view as it stands, and when the view
-settles the names glide to their new spots, fade out or fade in rather
-than swap (a plain swap for readers who ask for less motion). Sizes that
-step with the zoom (a name's 11, 12 or 13 px) still change when it settles.
+150 ms draws the overlay again for the view as it stands. Whenever the
+marks are drawn again — the view settled or held still, a layer toggled, a
+place chosen, the world arriving — the names hand over rather than swap
+(`leaflet/names.ts`): a name still there glides to its new spot, one gone
+fades out where it stood, one new fades in, and a fade cut short by a quick
+second settle finishes from where it got to. Where a name stands is
+computed from its point and its box, never measured, so the first frame
+after a redraw shows every name exactly where the last one did. Nothing
+cuts across the seam: a re-basing re-keys every name but keeps its
+element, and the names stay put. Text set along a road never glides, which
+would lift it off the road; a road's name that moves along its road fades
+out and in instead, and so does a war reach's, when its ring is cut anew
+for a view that moved and the name takes another stretch of it. Sizes
+that step with the zoom (a name's 11, 12 or 13 px) still change when the
+view settles. Readers who ask for less motion get the plain swap, and so
+does the map under the globe's veil.
+
+Far out, where a zoom carries the nations' names together and apart, the
+names at a point are placed again every frame of a gesture as well
+(`leaflet/placing.ts`), by the plan's own pecking order and with a little
+hysteresis, so that nothing twitches: a name blocked for a while steps
+aside to another of its spots or gives way, one whose zoom has come comes
+in, Azania's names before the world's, and a better name may send a worse
+one away, which fades out as the better fades in; a name the plan found no
+room for is kept in reserve, drawn hidden, so a zoom out from where no
+nation is named still brings them in on the way. Every change waits a
+moment after the last, and a name must have been free of its neighbours a
+while before it comes in. The passes run while the view is at or beyond
+−5.75, the scale of the world, where only the greatest nations are named
+and their names jump most; nearer in (where a phone's pinch ran a third
+slower with them), and for the places, the events and text along a road
+or a reach's ring, the names wait for the settle. When the view settles the plan's word is final,
+and each name hands over from exactly where the pass left it. A pass that
+runs long twice stops until the next settle, and readers who ask for less
+motion see each name switch to its new state, with the same waits.
 
 The live map repeats the world east and west, so a pan never runs out of
 map (`src/maps/source.ts` holds the sheet's extent: x from −36,864 to
