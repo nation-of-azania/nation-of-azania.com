@@ -111,7 +111,7 @@ export function planLabels(
   const others = placeSiegeNames(projection, war, placer, false, reserve)
   const besieged = { marks: war, names: new Map([...ours, ...others]) }
   if (!abroad) return { ...plan, abroad: EMPTY_ABROAD_PLAN, sieges: besieged }
-  const world = placeAbroadNames(projection, abroad.world, placer, reserve)
+  const world = placeAbroadNames(projection, abroad.world, home?.name ?? null, placer, reserve)
   const homeName = early ?? late
   if (homeName) world.nations.set('', homeName)
   return { ...plan, abroad: world, sieges: besieged }

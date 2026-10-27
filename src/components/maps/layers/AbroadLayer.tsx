@@ -5,6 +5,7 @@ import {
   abroadHomeBounds,
   namedFrom,
   nationFontSize,
+  sameNation,
   type Abroad,
   type AbroadNation,
   type AbroadTown,
@@ -471,13 +472,20 @@ const nameFrom = (town: AbroadTown): number =>
  * of the label plan (./labels.ts). The sites' marks and the server's places'
  * take their room first, then the nations' names far out, the greatest
  * first, then the capitals', then every town's, biggest first; the sites'
- * and the server's places', having nobody living there, come last. On the
- * live map's own canvas each name says how it may move mid-gesture, and
- * what lost is kept in reserve (`reserve`), hidden: every nation on the
+ * and the server's places', having nobody living there, come last. Azania's
+ * Towny nation (`home`) is never named among them: its own name says it.
+ * On the live map's own canvas each name says how it may move mid-gesture,
+ * and what lost is kept in reserve (`reserve`), hidden: every nation on the
  * page that a zoom in of a level would name, while the drawn zoom isn't
  * too near, and the names close in, a few dozen of the world's towns.
  */
-export function placeAbroadNames(projection: Projection, abroad: Abroad, placer: LabelPlacer, reserve = false): AbroadPlan {
+export function placeAbroadNames(
+  projection: Projection,
+  abroad: Abroad,
+  home: string | null,
+  placer: LabelPlacer,
+  reserve = false,
+): AbroadPlan {
   const { zoom } = projection
   const live = livePlan(projection)
   const towns = new Map<string, AbroadName>()
@@ -504,6 +512,8 @@ export function placeAbroadNames(projection: Projection, abroad: Abroad, placer:
     const great = [...abroad.nations].sort((a, b) => b.chunks - a.chunks)
     for (const nation of great) {
       if (!nation.heart || !nation.extent || !boundsTouch(nation.extent, projection.bounds)) continue
+      // Towns of Azania's Towny nation that the map doesn't hold as its own stay abroad, under Azania's name: never named twice.
+      if (sameNation(nation.name, home)) continue
       const placeable = nationsPlaceable && nation.chunks >= least
       const reservable = nationsReservable && nation.chunks >= nearer
       if (!placeable && !reservable) continue

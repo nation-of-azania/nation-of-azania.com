@@ -52,7 +52,11 @@ export type Abroad = {
   /** When the Rulercraft map last wrote its markers. */
   at: number
   towns: AbroadTown[]
-  /** Nations with towns abroad, the most populous first; Azania's own is never among them. */
+  /**
+   * Nations with towns abroad, the most populous first. Azania's own Towny
+   * nation is among them only while it has a town the map doesn't hold yet;
+   * the maps never name it twice.
+   */
   nations: AbroadNation[]
   /** Every town on the map by Towny id, Azania's among them: what a siege names. */
   byId: Map<string, WorldTown>
