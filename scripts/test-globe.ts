@@ -280,6 +280,7 @@ const count = (ids: Uint8Array, value: number) => ids.reduce((n, id) => n + (id 
     resource: null,
     home: [claims[0].x[0], claims[0].z[0]],
     claims,
+    outposts: [],
     colour: '#ff0000',
   })
   const world: World = {

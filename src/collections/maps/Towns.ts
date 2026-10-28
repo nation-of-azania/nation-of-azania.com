@@ -212,6 +212,15 @@ export const Towns: CollectionConfig = {
           access: { update: synced },
           admin: { readOnly: true, description: 'Claim outlines in blocks: [{ x: [...], z: [...] }, ...].' },
         },
+        {
+          name: 'outposts',
+          type: 'json',
+          access: { update: synced },
+          admin: {
+            readOnly: true,
+            description: 'The outposts’ spawns, as the map marks them: [{ at: [x, z], name }, ...]; name is null when Towny’s number is all it has.',
+          },
+        },
       ],
     },
   ],

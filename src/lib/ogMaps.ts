@@ -3,7 +3,7 @@ import { MAP_PICTURE } from '@/components/og/tokens'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import {
   heartland,
-  homeClaimBounds,
+  townFit,
   isSite,
   spoken,
   townCentre,
@@ -303,7 +303,7 @@ async function nation(data: MapData, pictures: Pictures): Promise<Loaded> {
  */
 async function siteCard(data: MapData, town: MapTown, facts: SiteFacts, pictures: Pictures): Promise<Loaded> {
   const centre = townCentre(town) ?? ([0, 0] as Point)
-  const around = homeClaimBounds(town) ?? extent(centre, MIN_SPAN.town)
+  const around = townFit(town) ?? extent(centre, MIN_SPAN.town)
   const span = fitSpan(around, MARGIN.town, MIN_SPAN.town)
   const bounds = extent(centre, span)
   const shown = await picture(
@@ -356,7 +356,7 @@ async function siteCard(data: MapData, town: MapTown, facts: SiteFacts, pictures
 /** A town: its claims outlined around its home, the ruler's head, and Towny's figures. */
 async function townCard(data: MapData, town: MapTown, pictures: Pictures): Promise<Loaded> {
   const centre = townCentre(town) ?? ([0, 0] as Point)
-  const around = homeClaimBounds(town) ?? extent(centre, MIN_SPAN.town)
+  const around = townFit(town) ?? extent(centre, MIN_SPAN.town)
   const span = fitSpan(around, MARGIN.town, MIN_SPAN.town)
   const bounds = extent(centre, span)
   const [shown, ruler] = await Promise.all([

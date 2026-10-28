@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react'
 
 import type { Abroad } from '@/maps/abroad'
 import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData } from '@/maps/data'
+import type { Bounds } from '@/maps/geo'
 import type { MapLayer } from '@/maps/registry'
 import type { ExtraLayer, Extras, MapSelection } from '@/maps/url'
 
@@ -40,7 +41,8 @@ export type MapsActions = {
   layers: MapLayer[]
   /** The clock the events are judged by, ticking once a minute. */
   now: number
-  select: (selection: MapSelection | null) => void
+  /** Opens a page; `focus`, where to look once it lands instead of at it: a town's outpost, or its detached claims, clicked. */
+  select: (selection: MapSelection | null, focus?: Bounds) => void
   look: (target: LookTarget) => void
   edit: (editor: Editor) => void
   closeEditor: () => void

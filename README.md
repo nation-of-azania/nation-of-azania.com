@@ -669,9 +669,9 @@ carries what's already drawn into place until the fresh render lands.
   head, residents or growth, since its ruler is a bot and nobody lives
   there; a place's category,
   description and events; a road's class and length; an event's time in the
-  reader's own time zone, its place, host and article. A town with claims
-  away from the one holding its home block lists them as **outposts**, each
-  with *Show on map*; *Fit to town* fits the main claim. `/maps/abroad/<slug>`
+  reader's own time zone, its place, host and article. A town's panel
+  lists its **outposts** and any **detached** claims (see *Outposts* below),
+  each with *Show on map*; *Fit to town* fits the town itself. `/maps/abroad/<slug>`
   and `/maps/nation/<slug>` open a town of another nation (or of none), or
   one of the server's trading outposts and landmarks, and another nation
   (see *The world around Azania*). These pages are
@@ -689,6 +689,25 @@ carries what's already drawn into place until the fresh render lands.
   link-preview card, a clipping of the map with the thing on it (see
   [Link previews](#link-previews)); the pages abroad have the site's plain
   card for now.
+- **Outposts.** Towny keeps a town to one piece of connected chunks about
+  its home block, with, usually, one outpost: claims anywhere, with a spawn
+  of their own for the town's residents (`/t outpost`). The Rulercraft map
+  draws each connected piece of a town as a claim of its own and marks the
+  outposts' spawns ("Noswyn outpost Calais", or a number), and
+  `src/maps/claims.ts` tells a town's claims apart from that: **the town
+  itself** is the claim holding its home block and every claim within
+  512 blocks of it, or of another of its claims (islands off its shore);
+  an **outpost** is the claim holding an outpost's spawn and what lies
+  within reach of it, an outpost in the town itself changing nothing; and
+  what reaches neither is **detached**, shown as the map sees it, with no
+  guess at why. Every look at a town (*Fit to town*, a search, its link
+  preview) frames the town itself; a click on an outpost or on detached
+  claims looks at what was clicked instead of flying to the home block;
+  search finds outposts by the names their towns gave them; and only the
+  towns themselves count where a nation's name is set, so an outpost
+  across the world never stretches it. Azania's own towns keep their
+  outposts' spawns in the database (`towns.outposts`), the rest come with
+  the world's reading.
 - **Getting there.** Players have no `/tp`, so what's offered to copy is
   what they can type: `/t spawn <Town>` for a town, and for anything else
   the nearest town's spawn with the walk from its home block ("then 40

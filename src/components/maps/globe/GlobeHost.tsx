@@ -235,7 +235,7 @@ export function GlobeHost({
     (pick: GlobePick) => {
       if (pick.siege) return openSiege(pick.siege)
       leave({ to: pick.target })
-      if (pick.selection !== undefined) select(pick.selection)
+      if (pick.selection !== undefined) select(pick.selection, pick.focus)
     },
     [openSiege, leave, select],
   )

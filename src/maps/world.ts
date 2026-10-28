@@ -1,3 +1,4 @@
+import type { OutpostSpawn } from './claims'
 import type { Outline, Point } from './geo'
 import type { TownKind } from './registry'
 
@@ -56,6 +57,11 @@ export type WorldTown = {
   resource: string | null
   home: Point | null
   claims: Outline[]
+  /**
+   * Its outposts' spawns (src/maps/claims.ts), usually one, often none.
+   * A reading the CDN kept from before they were read has none.
+   */
+  outposts: OutpostSpawn[]
   /** Its nation's colour as the Rulercraft map draws it. */
   colour: string | null
 }
@@ -114,6 +120,7 @@ export const unpackWorld = (world: PackedWorld): World => ({
   towns: world.towns.map((town) => ({
     ...town,
     claims: town.claims.map(([x, z]) => ({ x: corners(x), z: corners(z) })),
+    outposts: town.outposts ?? [],
   })),
 })
 

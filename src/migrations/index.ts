@@ -15,6 +15,7 @@ import * as migration_20261020_140712_map_polish from './20261020_140712_map_pol
 import * as migration_20261021_043939_server_sites from './20261021_043939_server_sites';
 import * as migration_20261023_030000_azania_nation from './20261023_030000_azania_nation';
 import * as migration_20261023_063403_diplomacy from './20261023_063403_diplomacy';
+import * as migration_20261028_054308_outposts from './20261028_054308_outposts';
 
 export const migrations = [
   {
@@ -100,6 +101,11 @@ export const migrations = [
   {
     up: migration_20261023_063403_diplomacy.up,
     down: migration_20261023_063403_diplomacy.down,
-    name: '20261023_063403_diplomacy'
+    name: '20261023_063403_diplomacy',
+  },
+  {
+    up: migration_20261028_054308_outposts.up,
+    down: migration_20261028_054308_outposts.down,
+    name: '20261028_054308_outposts'
   },
 ];

@@ -130,7 +130,8 @@ export type SceneProps = {
   onApi: (api: SceneApi) => void
   onMove: (position: MapPosition) => void
   onPointer: (point: Point | null) => void
-  onSelect: (selection: MapSelection) => void
+  /** Something clicked to open; `focus`, where to look instead of at it: the outpost of a town, or its detached claims, clicked. */
+  onSelect: (selection: MapSelection, focus?: Bounds) => void
   /** A change to the editor; `press` numbers the drag it belongs to, so undo takes the drag as one step. */
   onEditor: (update: EditorUpdate, press?: number) => void
   /** The map pulled out past its farthest zoom, to curl it up into the globe (leaflet/canvas.tsx); none while it may not be. */
@@ -496,9 +497,9 @@ const Layers = memo(function Layers({
   const { map, world } = useLeaflet()
   // A drag that began on a pin ends on it too, since the pin moves with the
   // map, and the browser then calls that a click; Leaflet knows better.
-  const onSelect = (selection: MapSelection) => {
+  const onSelect = (selection: MapSelection, focus?: Bounds) => {
     const dragging = map.dragging as L.Handler & { moved?: () => boolean }
-    if (!dragging.moved?.()) open(selection)
+    if (!dragging.moved?.()) open(selection, focus)
   }
   const phases: EventPhase[] = showPast ? ['upcoming', 'now', 'past'] : ['upcoming', 'now']
   const selectedTown =
@@ -512,7 +513,7 @@ const Layers = memo(function Layers({
   const viewLayers = viewing?.layers
   const show = (layer: MapLayer) =>
     layers.includes(layer) && (!viewLayers || viewLayers.includes(layer))
-  const selectTown = (town: MapTown) => onSelect({ kind: 'town', slug: town.slug })
+  const selectTown = (town: MapTown, focus?: Bounds) => onSelect({ kind: 'town', slug: town.slug }, focus)
   // What's being edited is drawn by the tools, not by its layer.
   const places =
     editor?.kind === 'place' && editor.id

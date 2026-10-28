@@ -4,7 +4,9 @@ import { useId, useMemo, useRef, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import type { Abroad } from '@/maps/abroad'
+import type { ClaimPart } from '@/maps/claims'
 import { spoken, type MapData } from '@/maps/data'
+import type { Bounds } from '@/maps/geo'
 import { PlaceIcon } from '@/maps/icons'
 import { nationInk, NO_NATION } from '@/maps/palette'
 import { PLACE_CATEGORIES, ROAD_KINDS } from '@/maps/registry'
@@ -20,7 +22,20 @@ import { TradingBadge } from '../layers/TradingMark'
 import { Icon } from './icons'
 import { Swatch } from './Swatch'
 
-type Result = { selection: MapSelection; title: string; subtitle: string; icon: React.ReactNode }
+type Result = {
+  selection: MapSelection
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  /** For an outpost, found by the name its town gave it: where to look, rather than at the town. */
+  focus?: Bounds
+}
+
+/** A town's outposts that have names of their own ("Calais"), each with what to look at. */
+const namedOutposts = (parts: ClaimPart[]) =>
+  parts.flatMap((part) =>
+    part.role === 'outpost' ? part.spawns.flatMap((spawn) => (spawn.name ? [{ name: spawn.name, bounds: part.bounds }] : [])) : [],
+  )
 
 const normalise = (text: string) =>
   text.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/_/g, ' ')
@@ -31,7 +46,9 @@ const normalise = (text: string) =>
  * events, and, once the world has arrived, the other nations and their
  * towns and sites, and the server's trading outposts and landmarks (by
  * name, or by kind: "trading" finds the outposts, and so does "spawn",
- * after the server's old spawn town), after Azania's own; a dozen at a
+ * after the server's old spawn town), after Azania's own; and any town's
+ * outposts by the names their towns gave them, which open the town and
+ * look at the outpost; a dozen at a
  * time, soonest and nearest-sounding first. Arrow keys walk the list;
  * Enter opens; Escape clears. The list is a listbox the input owns, so a
  * screen reader hears what's offered.
@@ -45,7 +62,8 @@ export function Search({
 }: {
   data: MapData
   world?: Abroad | null
-  onPick: (selection: MapSelection) => void
+  /** Something found; `focus`, for an outpost found by its name, where to look rather than at its town. */
+  onPick: (selection: MapSelection, focus?: Bounds) => void
   className?: string
   autoFocus?: boolean
 }) {
@@ -88,6 +106,17 @@ export function Search({
           ) : (
             <Icon className="h-4 w-4 text-sea-800" name="town" />
           ),
+        })
+      }
+      for (const outpost of namedOutposts(town.parts)) {
+        if (!hit(outpost.name)) continue
+        found.push({
+          rank: rank(outpost.name) + 1,
+          selection: { kind: 'town', slug: town.slug },
+          title: outpost.name,
+          subtitle: `Outpost of ${spoken(town.name)}`,
+          icon: <Icon className="h-4 w-4 text-sea-800" name="town" />,
+          focus: outpost.bounds,
         })
       }
     }
@@ -155,8 +184,19 @@ export function Search({
         continue
       }
       const site = abroadSite(town)
-      if (!hit(town.name) && !(site && hit(siteTitle(site)))) continue
       const nation = town.nation ? world?.nationByName.get(town.nation) : null
+      for (const outpost of namedOutposts(town.parts)) {
+        if (!hit(outpost.name)) continue
+        found.push({
+          rank: rank(outpost.name) + 3,
+          selection: { kind: 'abroad', slug: town.slug },
+          title: outpost.name,
+          subtitle: `Outpost of ${spoken(town.name)}${town.nation ? ` · ${spoken(town.nation)}` : ''}`,
+          icon: <Swatch colour={nation?.colour ?? null} round />,
+          focus: outpost.bounds,
+        })
+      }
+      if (!hit(town.name) && !(site && hit(siteTitle(site)))) continue
       const holder = town.nation ? spoken(town.nation) : site ? 'unheld' : 'no nation'
       found.push({
         rank: rank(town.name) + 3,
@@ -176,7 +216,7 @@ export function Search({
   }, [query, data, world])
 
   const pick = (result: Result) => {
-    onPick(result.selection)
+    onPick(result.selection, result.focus)
     setQuery('')
     setOpen(false)
     inputRef.current?.blur()

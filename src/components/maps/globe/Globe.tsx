@@ -3,7 +3,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 import { abroadHomeBounds, homeNationOf, nationFit, sameNation, type Abroad, type AbroadTown } from '@/maps/abroad'
-import { heartland, homeClaimBounds, spoken, type MapTown } from '@/maps/data'
+import { partAt } from '@/maps/claims'
+import { heartland, spoken, townFit, type MapTown } from '@/maps/data'
 import { inOutlines, type Point } from '@/maps/geo'
 import {
   between,
@@ -1015,7 +1016,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     } else if (mark && what?.kind === 'town') {
       const slug = what.slug
       const town = towns.find((each) => each.slug === slug)
-      const bounds = town ? homeClaimBounds(town) : null
+      const bounds = town ? townFit(town) : null
       if (town) return { selection: { kind: 'town', slug }, target: bounds ? { bounds } : { centre: town.home ?? toBlock(mark.spot), zoom: 0 } }
     }
     if (!block) return null
@@ -1025,8 +1026,11 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     if (nation && fit) return { selection: { kind: 'nation', slug: nation.slug }, target: { bounds: fit } }
     if (number !== NUMBER.none) {
       const town = townAt(block, number === NUMBER.stateless ? 'stateless' : 'any')
-      const target = town ? townTarget(town) : null
-      if (town && target) return { selection: { kind: 'abroad', slug: town.slug }, target }
+      // An outpost of the town, or claims detached from it: what was clicked is looked at, not the town.
+      const part = town ? partAt(town.parts, town.claims, block) : null
+      const focus = part && part.role !== 'main' ? part.bounds : undefined
+      const target = focus ? { bounds: focus } : town ? townTarget(town) : null
+      if (town && target) return { selection: { kind: 'abroad', slug: town.slug }, target, focus }
     }
     return { target: { centre: block, zoom: -4 } }
   }

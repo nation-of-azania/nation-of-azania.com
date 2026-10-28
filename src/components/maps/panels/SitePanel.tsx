@@ -1,10 +1,12 @@
-import { homeClaimBounds, outpostsOf, spoken, type MapData, type MapTown } from '@/maps/data'
+import { awayOf } from '@/maps/abroad'
+import { spoken, townFit, type MapData, type MapTown } from '@/maps/data'
 import { incomeWords, resourceWords, siteTerms, siteTitle, type SiteFacts } from '@/maps/sites'
 import type { Article } from '@/payload-types'
 
 import { SiteBadge } from '../layers/SiteMark'
 import { ComingClippings, ComingText, type Coming } from './coming'
-import { AboutActions, AddHere, EventsList, Look, Survey } from './islands'
+import { AboutActions, AddHere, EventsList, Survey } from './islands'
+import { AwayParts, partsWords } from './parts'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
 import { TownSiege } from './sieges'
 
@@ -35,8 +37,8 @@ export function SitePanel({
     .filter((place) => place.town === town.id)
     .sort((a, b) => a.name.localeCompare(b.name))
   const events = data.events.filter((event) => event.town === town.id)
-  const outposts = outpostsOf(town)
-  const main = homeClaimBounds(town)
+  const away = awayOf(town.parts)
+  const main = townFit(town)
   const title = siteTitle(facts)
   const pays = incomeWords(facts.income)
   const produces = facts.kind === 'quarry' ? resourceWords(facts.resource) : null
@@ -95,7 +97,7 @@ export function SitePanel({
             },
             {
               label: 'Extent',
-              value: `${town.chunks.toLocaleString('en-GB')} chunks${outposts.length ? ` · ${outposts.length} outpost${outposts.length === 1 ? '' : 's'}` : ''}`,
+              value: `${town.chunks.toLocaleString('en-GB')} chunks${partsWords(away)}`,
             },
           ]}
         />
@@ -114,36 +116,7 @@ export function SitePanel({
         ) : null}
       </PanelSection>
 
-      {outposts.length ? (
-        <PanelSection title={`Outposts · ${outposts.length}`}>
-          <p className="text-[13px] leading-relaxed text-ink-500">
-            Claims away from the site itself; the map fits the site to the claim that holds its
-            home block.
-          </p>
-          <ul className="mt-2 divide-y divide-sand-300/70">
-            {outposts.map((outpost, index) => (
-              <li
-                className="flex items-baseline justify-between gap-3 py-2 text-sm"
-                key={`${outpost.centre[0]},${outpost.centre[1]}`}
-              >
-                <span className="min-w-0">
-                  <span className="font-semibold text-ink-900">Outpost {index + 1}</span>
-                  <span className="block font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
-                    {outpost.chunks.toLocaleString('en-GB')} chunk{outpost.chunks === 1 ? '' : 's'}{' '}
-                    · X {Math.round(outpost.centre[0])} Z {Math.round(outpost.centre[1])}
-                  </span>
-                </span>
-                <Look
-                  className="shrink-0 text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
-                  target={{ bounds: outpost.bounds }}
-                >
-                  Show on map
-                </Look>
-              </li>
-            ))}
-          </ul>
-        </PanelSection>
-      ) : null}
+      <AwayParts away={away} of="site" />
 
       {/* Staff and cartographers may write a few lines: how it was taken, what's built there. */}
       <PanelSection

@@ -77,6 +77,7 @@ function spawnPlaces(town: Town, markers: ReturnType<typeof serverMarkers>): Wor
       resource: null,
       home: marker ? [Math.round(marker.at[0]), Math.round(marker.at[1])] : middle,
       claims: [claim],
+      outposts: [],
       colour: town.colour ?? null,
     }
   })
@@ -104,6 +105,7 @@ export function worldOf(file: MarkerFile): World {
       resource: town.resource,
       home: town.home ? [Math.round(town.home.x), Math.round(town.home.z)] : null,
       claims,
+      outposts: town.outposts,
       colour: town.colour ?? null,
     }]
   })

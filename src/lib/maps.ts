@@ -18,6 +18,7 @@ import {
   type MapTown,
   type MapViewData,
 } from '@/maps/data'
+import { spawnsFrom } from '@/maps/claims'
 import type { Outline } from '@/maps/geo'
 import { isStance, isTownKind, type Stance } from '@/maps/registry'
 import type { Article, Town as TownDoc } from '@/payload-types'
@@ -184,6 +185,7 @@ const townOf = (doc: TownDoc): Town => ({
       ? { x: doc.home.x, y: doc.home.y ?? 64, z: doc.home.z }
       : null,
   outlines: Array.isArray(doc.claims) ? (doc.claims as Outline[]) : [],
+  outposts: spawnsFrom(doc.outposts),
   ruler: doc.ruler ?? null,
   residents: Array.isArray(doc.residents)
     ? doc.residents.filter((name): name is string => typeof name === 'string')

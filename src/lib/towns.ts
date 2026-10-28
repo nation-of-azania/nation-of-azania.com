@@ -68,6 +68,7 @@ function townData(town: Town, azanian: boolean, at: string) {
     chunks: outlinesChunks(town.outlines),
     home: town.home ? { x: town.home.x, y: town.home.y, z: town.home.z } : { x: null, y: null, z: null },
     claims: town.outlines,
+    outposts: town.outposts,
     syncedAt: at,
   }
 }

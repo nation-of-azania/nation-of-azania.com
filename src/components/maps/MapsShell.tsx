@@ -18,7 +18,7 @@ import { cn } from '@/blocks/components/shared'
 import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, worldSlug, type Abroad } from '@/maps/abroad'
 import {
   heartland,
-  homeClaimBounds,
+  townFit,
   isSite,
   mapRightsOf,
   NO_RIGHTS,
@@ -677,6 +677,19 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The reader's moves of the map so far, counted when a page was asked for (null: none is coming).
   const movesAsked = useRef<number | null>(null)
   const owedLook = useRef<{ selection: MapSelection; moves: number } | null>(null)
+  /**
+   * Where to look once a page opened by a click on part of a town lands:
+   * the outpost clicked, or the claims detached from it, rather than the
+   * town (lookFor). Set by `select`.
+   */
+  const focusFor = useRef<{ selection: MapSelection; target: LookTarget } | null>(null)
+  /** The look a click on part of a town asked for (focusFor), if it's for this page; asked once. */
+  const focusedLook = (page: MapSelection): LookTarget | null => {
+    const focus = focusFor.current
+    if (!focus || !sameSelection(focus.selection, page)) return null
+    focusFor.current = null
+    return focus.target
+  }
   useEffect(() => {
     if (lastSelection.current !== undefined && sameSelection(lastSelection.current, landed)) return
     const first = lastSelection.current === undefined
@@ -694,7 +707,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       return
     }
     if (landed && movesNow() <= since) {
-      const target = lookFor(data, world, landed)
+      const target = focusedLook(landed) ?? lookFor(data, world, landed)
       // A page arriving is looked at, on the globe as on the flat map; staying, it never hands the globe back.
       if (target) look(target, { stay: true })
       else owedLook.current = { selection: landed, moves: since }
@@ -743,12 +756,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
     [router, centreStore, shownStore, layers, extras, viewing, askedRef, pathRef, data, world],
   )
 
+  // A click on part of a town: where to look once its page lands (focusFor), or, for the town already open, at once.
   const select = useCallback(
-    (next: MapSelection | null) => {
+    (next: MapSelection | null, focus?: Bounds) => {
       setEditor(null)
+      const settled = settle(next, data, world)
+      const open = Boolean(settled && sameSelection(settled, selectionOf(pathRef.current)) && !askedRef.current)
+      focusFor.current = settled && focus && !open ? { selection: settled, target: { bounds: focus } } : null
+      if (focus && open) look({ bounds: focus })
       go(next)
     },
-    [go, setEditor],
+    [go, setEditor, data, world, pathRef, askedRef, look],
   )
 
   // Back and forward: the page the browser goes to is drawn at once too,
@@ -1678,7 +1696,7 @@ function lookFor(data: MapData, world: Abroad | null, selection: MapSelection): 
     }
     case 'town': {
       const town = data.towns.find((candidate) => candidate.slug === selection.slug)
-      const bounds = town ? homeClaimBounds(town) : null
+      const bounds = town ? townFit(town) : null
       return bounds ? { bounds } : town?.home ? { centre: town.home, zoom: 0 } : null
     }
     case 'place': {

@@ -1,3 +1,4 @@
+import { claimParts, mainBounds, type ClaimPart } from './claims'
 import { spoken, type MapTown, type Relation } from './data'
 import type { Bounds, Outline, Point } from './geo'
 import { compassFrom, routeFrom, spawnRoute, type Compass, type SpawnRoute, type SpawnTown } from './spawn'
@@ -30,6 +31,8 @@ export type AbroadTown = WorldTown & {
   bounds: Bounds | null
   /** Each claim's own, in the same order: an outpost far off is culled on its own. */
   claimBounds: Bounds[]
+  /** Its claims told apart: the town itself, then its outposts, then any detached (src/maps/claims.ts). */
+  parts: ClaimPart[]
 }
 
 export type AbroadNation = WorldNation & {
@@ -40,7 +43,8 @@ export type AbroadNation = WorldNation & {
    * Where its name is set far out: the middle of its heartland, the towns
    * close around its capital (else its biggest town), so a nation with a
    * colony across the sea is named at home. `extent` is that heartland's
-   * bounds.
+   * bounds. Only the towns themselves count: an outpost or a detached
+   * claim, however far, never stretches a nation's name.
    */
   heart: Point | null
   extent: Bounds | null
@@ -113,7 +117,8 @@ export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad 
     if (townBySlug.has(slug)) slug = `${slug}-${(town.id ?? String(towns.length)).slice(0, 4)}`
     // Two of the spawn town's places of one name share its id's start: told apart by where they stand.
     if (townBySlug.has(slug) && town.home) slug = worldSlug(`${town.name} ${town.home[0]} ${town.home[1]}`)
-    const abroad: AbroadTown = { ...town, claims, slug, claimBounds, bounds: unite(claimBounds) }
+    const parts = claimParts(claims, town.home, town.outposts ?? [])
+    const abroad: AbroadTown = { ...town, claims, slug, claimBounds, bounds: unite(claimBounds), parts }
     townBySlug.set(slug, abroad)
     towns.push(abroad)
   }
@@ -127,18 +132,20 @@ export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad 
     if (members.length === 0) continue
     // Its heartland is about its capital, else its biggest town.
     const anchor =
-      nation.capital?.home ?? [...members].sort((a, b) => b.chunks - a.chunks).find((town) => town.home)?.home ?? null
+      nation.capital?.home ??
+      [...members].sort((a, b) => townChunks(b) - townChunks(a)).find((town) => town.home)?.home ??
+      null
     const near = anchor
       ? members.filter((town) => town.home && Math.hypot(town.home[0] - anchor[0], town.home[1] - anchor[1]) <= HEARTLAND)
       : []
-    // Each town by the claim holding its home: an outpost across the world isn't the heartland.
+    // Each town by itself: an outpost across the world, or a claim detached from it, isn't the heartland.
     const extent = unite(near.map(abroadHomeBounds).filter((b): b is Bounds => b !== null))
-    // The heartland's middle by the ground each town holds, so the name sits on the land, not the sea between.
-    const weight = near.reduce((sum, town) => sum + Math.max(1, town.chunks), 0)
+    // The heartland's middle by the ground each town itself holds, so the name sits on the land, not the sea between.
+    const weight = near.reduce((sum, town) => sum + Math.max(1, townChunks(town)), 0)
     const heart: Point | null = near.length
       ? [
-          near.reduce((sum, town) => sum + town.home![0] * Math.max(1, town.chunks), 0) / weight,
-          near.reduce((sum, town) => sum + town.home![1] * Math.max(1, town.chunks), 0) / weight,
+          near.reduce((sum, town) => sum + town.home![0] * Math.max(1, townChunks(town)), 0) / weight,
+          near.reduce((sum, town) => sum + town.home![1] * Math.max(1, townChunks(town)), 0) / weight,
         ]
       : anchor
     nations.push({
@@ -190,12 +197,17 @@ export const abroadCentre = (town: Pick<AbroadTown, 'home' | 'bounds'>): Point |
   town.home ??
   (town.bounds ? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2] : null)
 
-/** The claim holding a town's home block: the town itself, as against its outposts; all of it when none does. */
-export function abroadHomeBounds(town: Pick<AbroadTown, 'home' | 'bounds' | 'claimBounds'>): Bounds | null {
-  if (!town.home) return town.bounds
-  const [x, z] = town.home
-  return town.claimBounds.find((b) => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) ?? town.bounds
-}
+/**
+ * The town itself, as against its outposts and any claims detached from
+ * it: its main part's bounds (src/maps/claims.ts); all of it when it has
+ * no parts.
+ */
+export const abroadHomeBounds = (town: Pick<AbroadTown, 'parts' | 'bounds'>): Bounds | null =>
+  mainBounds(town.parts) ?? town.bounds
+
+/** The ground a town itself holds, in chunks, its outposts and anything detached left out. */
+const townChunks = (town: Pick<AbroadTown, 'parts' | 'chunks'>): number =>
+  town.parts.find((part) => part.role === 'main')?.chunks ?? town.chunks
 
 /** Blocks between two points, as the crow flies: the world doesn't wrap in the game, so neither does this. */
 export const blocksBetween = (a: Point, b: Point): number => Math.hypot(a[0] - b[0], a[1] - b[1])
@@ -235,11 +247,15 @@ export const nationFit = (nation: Pick<AbroadNation, 'extent' | 'bounds'>): Boun
  * itself is on its way.
  */
 
+/** A part of a town away from the town itself, as its panel lists it: an outpost, by its name when it has one, or detached claims. */
+export type AwayPart = Pick<ClaimPart, 'role' | 'chunks' | 'centre' | 'bounds'> & { name: string | null }
+
 /** A town abroad as its panel shows it: the facts, without the claims. */
-export type AbroadFacts = Omit<AbroadTown, 'claims' | 'claimBounds' | 'bounds'> & {
-  /** The claim holding its home, for "Fit to town". */
+export type AbroadFacts = Omit<AbroadTown, 'claims' | 'claimBounds' | 'bounds' | 'parts'> & {
+  /** The town itself, for "Fit to town". */
   fit: Bounds | null
-  outposts: number
+  /** Its outposts, then any claims detached from it. */
+  away: AwayPart[]
 }
 
 /** A nation as a line: what a town's panel says of it, and a nation's of itself. */
@@ -281,10 +297,16 @@ export type AbroadNationPage = {
   capital: HomeCapital
 } | null
 
+/** A town's parts away from it, for its panel. */
+export const awayOf = (parts: ClaimPart[]): AwayPart[] =>
+  parts
+    .filter((part) => part.role !== 'main')
+    .map(({ role, chunks, centre, bounds, spawns }) => ({ role, chunks, centre, bounds, name: spawns[0]?.name ?? null }))
+
 const factsOf = (town: AbroadTown): AbroadFacts => {
-  // The claims stay out of the page: its panel only says how many there are.
-  const { claims: _claims, claimBounds, bounds: _bounds, ...facts } = town
-  return { ...facts, fit: abroadHomeBounds(town), outposts: Math.max(0, claimBounds.length - 1) }
+  // The claims stay out of the page: its panel only lists the town's parts.
+  const { claims: _claims, claimBounds: _claimBounds, bounds: _bounds, parts, ...facts } = town
+  return { ...facts, fit: abroadHomeBounds(town), away: awayOf(parts) }
 }
 
 const summaryOf = (nation: AbroadNation, towns: Map<string, AbroadTown>): NationSummary => {

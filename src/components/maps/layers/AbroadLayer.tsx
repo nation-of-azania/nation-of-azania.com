@@ -10,6 +10,7 @@ import {
   type AbroadNation,
   type AbroadTown,
 } from '@/maps/abroad'
+import type { PartRole } from '@/maps/claims'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
 import { GROUND, STANCE_COLOURS } from '@/maps/palette'
@@ -149,10 +150,10 @@ function ringPath(outline: Outline, f: Affine, min: number): string {
   return n >= 3 ? `${d}Z` : ''
 }
 
-/** A town's claims on the page, each left out when it's off the page or under a pixel across. */
-function claimsPath(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): string {
+/** A town's claims on the page, or only some of them (`only`, by index), each left out when it's off the page or under a pixel across. */
+function claimsPath(town: AbroadTown, f: Affine, cull: Bounds, ppb: number, only?: number[]): string {
   let d = ''
-  for (let i = 0; i < town.claims.length; i++) {
+  for (const i of only ?? town.claims.map((_, index) => index)) {
     const b = town.claimBounds[i]
     if (!b || !boundsTouch(b, cull)) continue
     if (Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * ppb < 1) continue
@@ -195,12 +196,31 @@ const edgeOf = (town: AbroadTown, styleOf: (nation: string | null) => NationStyl
 /** Whose a site is, in a word or two: its holder, or the server's own when nobody holds it. */
 const holderWords = (town: Pick<AbroadTown, 'nation'>): string => (town.nation ? spoken(town.nation) : 'the server’s')
 
-/** Which element of the layer an event fell on: a town's claims, a dot among a nation's, or nothing of ours. */
-function hitOf(event: MouseEvent | PointerEvent): { town: string | null; nation: string | null } | null {
+/** Which element of the layer an event fell on: a town's claims (and which part of them), a dot among a nation's, or nothing of ours. */
+function hitOf(event: MouseEvent | PointerEvent): { town: string | null; part: number | null; nation: string | null } | null {
   const target = event.target as Element | null
   const group = target?.closest?.('[data-nation]')
   if (!group) return null
-  return { town: target?.closest?.('[data-town]')?.getAttribute('data-town') ?? null, nation: group.getAttribute('data-nation') }
+  const part = Number(target?.closest?.('[data-part]')?.getAttribute('data-part') ?? Number.NaN)
+  return {
+    town: target?.closest?.('[data-town]')?.getAttribute('data-town') ?? null,
+    part: Number.isInteger(part) ? part : null,
+    nation: group.getAttribute('data-nation'),
+  }
+}
+
+/** A town's claims on the page part by part (src/maps/claims.ts), each path saying which part it is; parts not drawn left out. */
+type PartPath = { index: number; role: PartRole; d: string }
+
+function partPaths(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): PartPath[] {
+  if (!town.parts.length) {
+    const d = claimsPath(town, f, cull, ppb)
+    return d ? [{ index: 0, role: 'main', d }] : []
+  }
+  return town.parts.flatMap((part, index) => {
+    const d = claimsPath(town, f, cull, ppb, part.claims)
+    return d ? [{ index, role: part.role, d }] : []
+  })
 }
 
 /**
@@ -226,7 +246,8 @@ export function AbroadClaims({
   abroad: Abroad
   styleOf: (nation: string | null) => NationStyle
   selected: { town: string | null; nation: string | null }
-  onSelect?: (selection: MapSelection) => void
+  /** A nation or a town clicked; `focus`, the bounds of the part of a town clicked when that's an outpost or detached, to look at instead of the town. */
+  onSelect?: (selection: MapSelection, focus?: Bounds) => void
   /** The nation under the pointer, by name, for whatever shows it. */
   hover?: Store<string | null>
 }) {
@@ -234,9 +255,9 @@ export function AbroadClaims({
   const f = affineOf(projection)
   const cull = projection.bounds
   const merged = zoom < NATIONS_BELOW
-  const groups = new Map<string, { paths: { town: AbroadTown; d: string }[]; all: string; dots: string }>()
+  const groups = new Map<string, { paths: { town: AbroadTown; parts: PartPath[] }[]; all: string; dots: string }>()
   const server: { town: AbroadTown; kind: ServerKind; d: string }[] = []
-  let picked: { town: AbroadTown; d: string } | null = null
+  let picked: { town: AbroadTown; parts: PartPath[] } | null = null
   for (const town of abroad.towns) {
     if (!onPage(projection, town)) continue
     if (isServerKind(town.kind)) {
@@ -244,7 +265,7 @@ export function AbroadClaims({
       const d = drawn ? claimsPath(town, f, cull, ppb) : ''
       if (!d) continue
       server.push({ town, kind: town.kind, d })
-      if (town.slug === selected.town) picked = { town, d }
+      if (town.slug === selected.town) picked = { town, parts: [{ index: 0, role: 'main', d }] }
       continue
     }
     const key = town.nation ?? ''
@@ -255,11 +276,14 @@ export function AbroadClaims({
       if (centre) group.dots += dot(at(f, centre))
       continue
     }
-    const d = claimsPath(town, f, cull, ppb)
-    if (!d) continue
-    if (merged) group.all += d
-    else group.paths.push({ town, d })
-    if (town.slug === selected.town) picked = { town, d }
+    if (merged) {
+      group.all += claimsPath(town, f, cull, ppb)
+      continue
+    }
+    const parts = partPaths(town, f, cull, ppb)
+    if (!parts.length) continue
+    group.paths.push({ town, parts })
+    if (town.slug === selected.town) picked = { town, parts }
   }
   const width = zoom >= -2 ? 1.25 : 1
   const pickedNation = selected.nation ? abroad.nationBySlug.get(selected.nation)?.name : null
@@ -271,7 +295,11 @@ export function AbroadClaims({
     const nation = hit.nation ? abroad.nationByName.get(hit.nation) : null
     // Far out, the nations; closer in, the towns; a town of no nation is always itself.
     if (nation && (zoom < NATIONS_BELOW || !town)) onSelect({ kind: 'nation', slug: nation.slug })
-    else if (town) onSelect({ kind: 'abroad', slug: town.slug })
+    else if (town) {
+      // A click on an outpost, or on claims detached from the town, looks at what was clicked rather than the town.
+      const part = hit.part !== null ? town.parts[hit.part] : undefined
+      onSelect({ kind: 'abroad', slug: town.slug }, part && part.role !== 'main' ? part.bounds : undefined)
+    }
   }
   // Mid-drag the map slides under a still pointer: the nations passing beneath it aren't hovered, and nothing restyles.
   const over = (event: PointerEvent) => {
@@ -326,8 +354,12 @@ export function AbroadClaims({
             strokeWidth={strong ? width + 0.75 : width}
           >
             {group.all ? <path d={group.all} /> : null}
-            {group.paths.map(({ town, d }) => (
-              <path d={d} data-town={town.slug} key={town.slug} />
+            {group.paths.map(({ town, parts }) => (
+              <g data-town={town.slug} key={town.slug}>
+                {parts.map(({ index, role, d }) => (
+                  <path d={d} data-part={index} data-role={role} key={index} />
+                ))}
+              </g>
             ))}
             {group.dots ? (
               <path
@@ -364,15 +396,24 @@ export function AbroadClaims({
       {/* The open town, lifted off the page: its edge in its colour over a whitewash casing, whatever that colour is; one of the server's places washed lighter, being nobody's. */}
       {picked ? (
         <g data-nation={picked.town.nation ?? ''} strokeLinejoin="round">
-          <path d={picked.d} fill="none" stroke={GROUND.whitewash} strokeOpacity={0.9} strokeWidth={width + 3.5} />
           <path
-            d={picked.d}
+            d={picked.parts.map(({ d }) => d).join('')}
+            fill="none"
+            stroke={GROUND.whitewash}
+            strokeOpacity={0.9}
+            strokeWidth={width + 3.5}
+          />
+          <g
             data-town={picked.town.slug}
             fill={edgeOf(picked.town, styleOf)}
             fillOpacity={isServerKind(picked.town.kind) ? 0.1 : 0.22}
             stroke={edgeOf(picked.town, styleOf)}
             strokeWidth={width + 1}
-          />
+          >
+            {picked.parts.map(({ index, role, d }) => (
+              <path d={d} data-part={index} data-role={role} key={index} />
+            ))}
+          </g>
         </g>
       ) : null}
     </g>

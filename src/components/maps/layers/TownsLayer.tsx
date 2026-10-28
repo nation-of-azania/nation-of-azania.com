@@ -1,5 +1,6 @@
+import type { ClaimPart } from '@/maps/claims'
 import { homeClaimBounds, isSite, spoken, type MapTown } from '@/maps/data'
-import { outlineToRing } from '@/maps/geo'
+import { outlineToRing, type Bounds } from '@/maps/geo'
 import { GROUND } from '@/maps/palette'
 import { siteFacts, siteLine } from '@/maps/sites'
 
@@ -42,7 +43,23 @@ type Props = {
   selected?: number | null
   /** Towns to set apart, in gold: a mayor's own, while they draw. Everything else fades. */
   emphasised?: number[]
-  onSelect?: (town: MapTown) => void
+  /** A town clicked; `focus`, the bounds of the part of it clicked when that's an outpost or detached, to look at instead of the town. */
+  onSelect?: (town: MapTown, focus?: Bounds) => void
+}
+
+/** A town's parts as drawn (src/maps/claims.ts): all of its claims as one, for a town whose parts aren't known. */
+const partsOf = (town: MapTown): Pick<ClaimPart, 'role' | 'claims'>[] =>
+  town.parts.length ? town.parts : [{ role: 'main', claims: town.claims.map((_, i) => i) }]
+
+/**
+ * The part of a town a click fell on, by the `data-part` of the path under
+ * it: its bounds when it's an outpost or detached, which the map looks at
+ * rather than the town; nothing for the town itself.
+ */
+export function clickedPart(event: { target: EventTarget | null }, parts: ClaimPart[]): Bounds | undefined {
+  const index = Number((event.target as Element | null)?.closest?.('[data-part]')?.getAttribute('data-part'))
+  const part = Number.isInteger(index) ? parts[index] : undefined
+  return part && part.role !== 'main' ? part.bounds : undefined
 }
 
 const far = (zoom: number) => zoom <= -3
@@ -216,42 +233,50 @@ export function TownsLayer({ projection, towns, selected, emphasised, onSelect }
         const dimmed = emphasis ? !emphasis.has(town.id) : false
         const highlighted = emphasis ? emphasis.has(town.id) : false
         const site = isSite(town)
-        const d = town.claims
-          .map((claim) => pathOf(projection, outlineToRing(claim), true))
-          .join('')
+        // Part by part, each path saying which (data-part), so a click on an outpost can say it was one.
+        const parts = partsOf(town).map((part, index) => ({
+          index,
+          role: part.role,
+          d: part.claims.map((claim) => pathOf(projection, outlineToRing(town.claims[claim]), true)).join(''),
+        }))
         return (
           <g
             key={town.id}
             className={interactive ? 'az-hit' : undefined}
             data-town={town.id}
-            onClick={onSelect ? () => onSelect(town) : undefined}
+            onClick={onSelect ? (event) => onSelect(town, clickedPart(event, town.parts)) : undefined}
             opacity={dimmed ? 0.35 : 1}
             style={interactive ? { cursor: 'pointer' } : undefined}
           >
-            {site ? (
-              <>
-                {/* A wash under the hatching, deeper once the site is open in the panel. */}
-                <path d={d} fill={GROUND.saffron} fillOpacity={isSelected ? 0.16 : 0.06} stroke="none" />
+            {parts.map(({ index, role, d }) =>
+              site ? (
+                <g data-part={index} data-role={role} key={index}>
+                  {/* A wash under the hatching, deeper once the site is open in the panel. */}
+                  <path d={d} fill={GROUND.saffron} fillOpacity={isSelected ? 0.16 : 0.06} stroke="none" />
+                  <path
+                    d={d}
+                    fill={`url(#${hatch})`}
+                    stroke={GROUND.saffronDeep}
+                    strokeDasharray={far(zoom) ? '3 2' : '5 3'}
+                    strokeLinejoin="round"
+                    strokeOpacity={isSelected ? 1 : 0.85}
+                    strokeWidth={isSelected ? strokeWidth + 1 : strokeWidth}
+                  />
+                </g>
+              ) : (
                 <path
                   d={d}
-                  fill={`url(#${hatch})`}
-                  stroke={GROUND.saffronDeep}
-                  strokeDasharray={far(zoom) ? '3 2' : '5 3'}
+                  data-part={index}
+                  data-role={role}
+                  fill={highlighted ? GROUND.saffron : GROUND.sea700}
+                  fillOpacity={isSelected ? 0.2 : highlighted ? 0.16 : 0.09}
+                  key={index}
+                  stroke={highlighted ? GROUND.saffronDeep : GROUND.sea700}
                   strokeLinejoin="round"
-                  strokeOpacity={isSelected ? 1 : 0.85}
-                  strokeWidth={isSelected ? strokeWidth + 1 : strokeWidth}
+                  strokeOpacity={isSelected || highlighted ? 1 : 0.8}
+                  strokeWidth={isSelected || highlighted ? strokeWidth + 1 : strokeWidth}
                 />
-              </>
-            ) : (
-              <path
-                d={d}
-                fill={highlighted ? GROUND.saffron : GROUND.sea700}
-                fillOpacity={isSelected ? 0.2 : highlighted ? 0.16 : 0.09}
-                stroke={highlighted ? GROUND.saffronDeep : GROUND.sea700}
-                strokeLinejoin="round"
-                strokeOpacity={isSelected || highlighted ? 1 : 0.8}
-                strokeWidth={isSelected || highlighted ? strokeWidth + 1 : strokeWidth}
-              />
+              ),
             )}
           </g>
         )

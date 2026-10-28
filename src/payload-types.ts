@@ -505,6 +505,18 @@ export interface Town {
     | number
     | boolean
     | null;
+  /**
+   * The outposts’ spawns, as the map marks them: [{ at: [x, z], name }, ...]; name is null when Towny’s number is all it has.
+   */
+  outposts?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1130,6 +1142,7 @@ export interface TownsSelect<T extends boolean = true> {
         z?: T;
       };
   claims?: T;
+  outposts?: T;
   updatedAt?: T;
   createdAt?: T;
 }

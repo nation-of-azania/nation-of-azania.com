@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 
-import type { Point } from '@/maps/geo'
+import type { Bounds, Point } from '@/maps/geo'
 import type { Insets } from '@/maps/globe'
 import type { MapPosition, MapSelection } from '@/maps/url'
 
@@ -41,7 +41,13 @@ export type LeaveRequest = { to?: LookTarget | null; at?: [number, number]; zoom
  * it, a siege's card by its town's Towny id or a page (null for the map's
  * front; left out, the page open stays as it is).
  */
-export type GlobePick = { selection?: MapSelection | null; siege?: string; target: LookTarget }
+export type GlobePick = {
+  selection?: MapSelection | null
+  siege?: string
+  target: LookTarget
+  /** For a click on a town's outpost, or on claims detached from it: their bounds, looked at rather than the town once its page lands. */
+  focus?: Bounds
+}
 
 /**
  * A pull on the flat map past its farthest zoom (src/components/maps/leaflet/canvas.tsx):

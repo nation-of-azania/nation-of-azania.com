@@ -1,5 +1,6 @@
 import sharp from 'sharp'
 
+import type { OutpostSpawn } from '../maps/claims'
 import type { Point } from '../maps/geo'
 import type { TownKind } from '../maps/registry'
 import type { RoadStyle } from '../maps/palette'
@@ -345,6 +346,12 @@ export type Town = {
   founded: string | null
   /** Whether anyone may `/t spawn` to the town (Towny's "Public Teleport"); null if the map doesn't say. */
   publicSpawn: boolean | null
+  /**
+   * Its outposts' spawns (`/t outpost`), in Towny's order: where each
+   * stands, and its name when the town gave it one ("Calais"; null for
+   * Towny's own "1", "2"). Usually one, never many.
+   */
+  outposts: OutpostSpawn[]
 }
 
 const TOWNY_TTL_MS = 60 * 60 * 1000
@@ -483,19 +490,38 @@ export function townsOf(file: MarkerFile): Map<string, Town> {
       outlines: [],
       capital: false,
       colour: area.color ?? null,
+      outposts: [],
       ...townFacts(name, area.desc ?? ''),
     }
     town.outlines.push({ x: area.x, z: area.z })
     towns.set(key, town)
   }
+  const order = new Map<OutpostSpawn, number>()
   for (const [id, marker] of Object.entries(set?.markers ?? {})) {
-    if (!id.endsWith('__home')) continue
-    const town = towns.get((marker.label ?? '').trim().toLowerCase())
-    if (town && marker.x != null && marker.z != null) {
+    if (marker.x == null || marker.z == null) continue
+    if (id.endsWith('__home')) {
+      const town = towns.get((marker.label ?? '').trim().toLowerCase())
+      if (!town) continue
       town.home = { x: marker.x, y: marker.y ?? 64, z: marker.z }
       town.capital = marker.icon === 'ruler'
+      continue
     }
+    // An outpost's spawn: "<Town>_Outpost_<n>", labelled "<Town> outpost <its name, or n>".
+    const outpost = /^(.+)_Outpost_(\d+)$/.exec(id)
+    const town = outpost ? towns.get(outpost[1].toLowerCase()) : null
+    if (!town) continue
+    const label = (marker.label ?? '').trim()
+    const named = label.toLowerCase().startsWith(`${town.name.toLowerCase()} outpost `)
+      ? label.slice(town.name.length + ' outpost '.length).trim()
+      : ''
+    const spawn: OutpostSpawn = {
+      at: [Math.round(marker.x), Math.round(marker.z)],
+      name: named && !/^\d+$/.test(named) ? named : null,
+    }
+    order.set(spawn, Number(outpost![2]))
+    town.outposts.push(spawn)
   }
+  for (const town of towns.values()) if (town.outposts.length > 1) town.outposts.sort((a, b) => order.get(a)! - order.get(b)!)
   return towns
 }
 

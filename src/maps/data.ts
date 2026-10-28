@@ -4,7 +4,6 @@ import {
   boundsOf,
   isPoint,
   outlineToRing,
-  outlinesChunks,
   pathLength,
   roadCourse,
   type Bounds,
@@ -12,6 +11,7 @@ import {
   type Point,
   type RoadShape,
 } from './geo'
+import { claimParts, mainBounds, spawnsFrom, type ClaimPart, type OutpostSpawn } from './claims'
 import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
@@ -56,7 +56,11 @@ export type MapTown = {
   site: { note: string | null; income: number | null; resource: string | null } | null
   home: Point | null
   claims: Outline[]
-  /** Of the claims, for culling and fitting. */
+  /** Its outposts' spawns, as the map marks them; none until the map's next reading says. */
+  outposts: OutpostSpawn[]
+  /** Its claims told apart: the town itself, then its outposts, then any detached (src/maps/claims.ts). */
+  parts: ClaimPart[]
+  /** Of the claims, for culling. */
   bounds: Bounds | null
   /** When the record last changed; versions its link-preview card. Absent on a draft. */
   updatedAt?: string
@@ -190,6 +194,7 @@ export function mapTown(town: Town): MapTown {
   const home = isPoint([town.home?.x, town.home?.z])
     ? ([town.home!.x!, town.home!.z!] as Point)
     : null
+  const outposts = spawnsFrom(town.outposts)
   return {
     id: town.id,
     name: town.name,
@@ -213,6 +218,8 @@ export function mapTown(town: Town): MapTown {
         : { note: town.siteNote ?? null, income: town.income ?? null, resource: town.resource ?? null },
     home,
     claims,
+    outposts,
+    parts: claimParts(claims, home, outposts),
     bounds: boundsOf(claims.flatMap(outlineToRing)),
     updatedAt: town.updatedAt,
   }
@@ -300,12 +307,19 @@ export function mapView(view: MapView): MapViewData | null {
 /** "Cape_Agulhas" as Towny spells it, "Cape Agulhas" as a reader says it. */
 export const spoken = (name: string): string => name.replace(/_/g, ' ')
 
-/** A town's centre: its home block, else the middle of its claims. */
-export const townCentre = (town: MapTown): Point | null =>
-  town.home ??
-  (town.bounds
-    ? [(town.bounds.minX + town.bounds.maxX) / 2, (town.bounds.minZ + town.bounds.maxZ) / 2]
-    : null)
+/** A town's centre: its home block, else the middle of the town itself, its outposts and what's detached left out. */
+export const townCentre = (town: MapTown): Point | null => {
+  if (town.home) return town.home
+  const fit = townFit(town)
+  return fit ? [(fit.minX + fit.maxX) / 2, (fit.minZ + fit.maxZ) / 2] : null
+}
+
+/**
+ * The town itself, as against its outposts and any claims detached from
+ * it: its main part's bounds (src/maps/claims.ts), what "fit to town" and
+ * a look at the town frame; the whole town when it has no parts.
+ */
+export const townFit = (town: Pick<MapTown, 'parts' | 'bounds'>): Bounds | null => mainBounds(town.parts) ?? town.bounds
 
 /** The claim of a town that holds its home block, if one does. */
 export function homeClaim(town: MapTown): Outline | null {
@@ -320,39 +334,18 @@ export function homeClaim(town: MapTown): Outline | null {
 }
 
 /**
- * The claim of a town that holds its home: the main settlement, as against
- * far-flung outposts. The whole town, when the home lies in none.
+ * The one claim of a town that holds its home block, where its name runs
+ * along the edge from inside; the town itself (townFit) when the home
+ * lies in none.
  */
 export function homeClaimBounds(town: MapTown): Bounds | null {
   const holding = homeClaim(town)
-  return holding ? boundsOf(outlineToRing(holding)) : town.bounds
-}
-
-export type Outpost = { bounds: Bounds; chunks: number; centre: Point }
-
-/**
- * A town's outposts: Towny claims away from the one holding the home block
- * (Patown's main claim is near (-15368, 2008), its outposts elsewhere),
- * largest first. Empty for a town in one piece.
- */
-export function outpostsOf(town: MapTown): Outpost[] {
-  const main = homeClaim(town)
-  if (!main) return []
-  return town.claims
-    .filter((claim) => claim !== main)
-    .map((claim) => {
-      const bounds = boundsOf(outlineToRing(claim))!
-      return {
-        bounds,
-        chunks: outlinesChunks([claim]),
-        centre: [(bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2] as Point,
-      }
-    })
-    .sort((a, b) => b.chunks - a.chunks)
+  return holding ? boundsOf(outlineToRing(holding)) : townFit(town)
 }
 
 /**
- * Where the map opens: around the towns' homes, ignoring outposts. Towns
+ * Where the map opens: around the towns' homes, their outposts and
+ * anything detached left out. Towns
  * far from the rest (a colony across the sea) are left out so the opening
  * view is the heartland rather than an ocean between two specks.
  */

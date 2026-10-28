@@ -26,6 +26,7 @@ import { StanceSwatch } from '../ui/Diplomacy'
 import { Swatch } from '../ui/Swatch'
 import { Arrival, Look, Survey } from './islands'
 import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
+import { AwayParts, partsWords } from './parts'
 import { NationSieges, TownSiege } from './sieges'
 import { TradingPanel } from './TradingPanel'
 
@@ -230,14 +231,14 @@ export function AbroadTownPanel({
                   { label: 'What it is', value: siteTitle(site) },
                   ...(produces ? [{ label: 'Produces', value: produces.adjective }] : []),
                   { label: 'Held by', value: nation ? <NationLink nation={nation} /> : 'Nobody: the server’s own' },
-                  { label: 'Extent', value: plural(town.chunks, 'chunk') },
+                  { label: 'Extent', value: `${plural(town.chunks, 'chunk')}${partsWords(town.away)}` },
                 ]
               : [
                   { label: 'Nation', value: nation ? <NationLink nation={nation} /> : 'None' },
                   { label: town.residents === 1 ? 'Resident' : 'Residents', value: town.residents.toLocaleString('en-GB') },
                   {
                     label: 'Claimed chunks',
-                    value: `${town.chunks.toLocaleString('en-GB')}${town.outposts ? ` · ${plural(town.outposts, 'outpost')}` : ''}`,
+                    value: `${town.chunks.toLocaleString('en-GB')}${partsWords(town.away)}`,
                   },
                   { label: 'Founded', value: foundedOn(town.founded) ?? 'Not recorded' },
                 ]
@@ -256,6 +257,8 @@ export function AbroadTownPanel({
           </p>
         </PanelSection>
       ) : null}
+
+      <AwayParts away={town.away} of={site ? 'site' : 'town'} />
 
       {fromCapital != null && capital ? (
         <PanelSection title="War reach">
