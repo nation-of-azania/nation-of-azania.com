@@ -25,13 +25,13 @@ import { Facts, PanelHead, PanelSection } from './shared'
 function whatItIs(kind: ServerKind, name: string): string {
   if (kind === 'landmark') return 'A landmark of the server’s'
   const setting = tradingSetting(name)
-  return setting === 'sea' ? 'A ship at sea' : setting === 'land' ? 'An outpost on land' : 'A trading outpost'
+  return setting === 'sea' ? 'A ship at sea' : setting === 'land' ? 'A trading outpost on land' : 'A trading outpost'
 }
 
-/** What "fit" fits: the ship, the outpost, the landmark. */
+/** What "fit" fits: the ship, the trading outpost (said in full, since a town's outpost is another thing), the landmark. */
 function fitWords(kind: ServerKind, name: string): string {
   if (kind === 'landmark') return 'Fit to the landmark'
-  return tradingSetting(name) === 'sea' ? 'Fit to the ship' : 'Fit to the outpost'
+  return tradingSetting(name) === 'sea' ? 'Fit to the ship' : 'Fit to the trading outpost'
 }
 
 const whereTo = (fit: Bounds | null, home: AbroadFacts['home']) =>

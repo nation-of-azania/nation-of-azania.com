@@ -109,6 +109,7 @@ export function FrameLayers({
       {show('towns') ? (
         <TownLabels
           labels={labels.towns}
+          outposts={labels.outposts}
           projection={projection}
           selected={frame.town ?? null}
           towns={data.towns}

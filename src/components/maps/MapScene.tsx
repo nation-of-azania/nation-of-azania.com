@@ -657,6 +657,7 @@ const Layers = memo(function Layers({
         <TownLabels
           labels={plan.towns}
           onSelect={selectTown}
+          outposts={plan.outposts}
           projection={at}
           selected={selectedTown}
           towns={data.towns}

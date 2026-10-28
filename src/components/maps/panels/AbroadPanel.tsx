@@ -258,7 +258,7 @@ export function AbroadTownPanel({
         </PanelSection>
       ) : null}
 
-      <AwayParts away={town.away} of={site ? 'site' : 'town'} />
+      <AwayParts away={town.away} from={town.home} of={site ? 'site' : 'town'} town={town.name} />
 
       {fromCapital != null && capital ? (
         <PanelSection title="War reach">

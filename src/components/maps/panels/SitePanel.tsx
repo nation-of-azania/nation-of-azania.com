@@ -116,7 +116,7 @@ export function SitePanel({
         ) : null}
       </PanelSection>
 
-      <AwayParts away={away} of="site" />
+      <AwayParts away={away} from={town.home} of="site" town={town.name} />
 
       {/* Staff and cartographers may write a few lines: how it was taken, what's built there. */}
       <PanelSection

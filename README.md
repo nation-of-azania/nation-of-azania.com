@@ -700,9 +700,19 @@ carries what's already drawn into place until the fresh render lands.
   an **outpost** is the claim holding an outpost's spawn and what lies
   within reach of it, an outpost in the town itself changing nothing; and
   what reaches neither is **detached**, shown as the map sees it, with no
-  guess at why. Every look at a town (*Fit to town*, a search, its link
-  preview) frames the town itself; a click on an outpost or on detached
-  claims looks at what was clicked instead of flying to the home block;
+  guess at why. Every part keeps its owner's colour and only its edge says
+  which it is: the town's whole and strong, an outpost's striped (its dash
+  over a whitewash casing; a dash alone is a town of no nation's), and
+  detached claims' thinner and fainter. From the scale of the nation in,
+  an outpost is marked at its spawn (a hollow lozenge for Azania's, a
+  hollow dot abroad) and named after every town, as its town named it
+  ("CALAIS", with "Outpost of Noswyn" beneath from closer in) or by the
+  town's name and "outpost"; far out, a nation's claims are one shape,
+  outposts and all. The legend shows both, and keeps them apart from the
+  server's trading outposts, which are no town's. Every look at a town
+  (*Fit to town*, a search, its link preview) frames the town itself; a
+  click on an outpost or on detached claims, or on an outpost's mark or
+  name, looks at what was clicked instead of flying to the home block;
   search finds outposts by the names their towns gave them; and only the
   towns themselves count where a nation's name is set, so an outpost
   across the world never stretches it. Azania's own towns keep their

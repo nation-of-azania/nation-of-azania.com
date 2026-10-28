@@ -107,7 +107,7 @@ export function TownPanel({
         />
       </div>
 
-      <AwayParts away={away} />
+      <AwayParts away={away} from={town.home} town={town.name} />
 
       <PanelSection
         action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />}

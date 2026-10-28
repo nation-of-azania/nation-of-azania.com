@@ -17,11 +17,13 @@ import { pinRect, placePins, placePlaceNames, type PlaceName } from './PlacesLay
 import { LabelPlacer, type Projection } from './projection'
 import { placeRoadNames, type RoadName } from './RoadsLayer'
 import { placeSiegeNames, siegeMarkRect, siegeMarks, type SiegeMark, type SiegeName, type SiegeOnMap } from './SiegesLayer'
-import { placeTownNames, type TownLabel } from './TownsLayer'
+import { placeTownNames, type OutpostLabel, type TownLabel } from './TownsLayer'
 
 /** Where every name on the map goes, decided once per view, before anything is drawn. */
 export type LabelPlan = {
   towns: Map<number, TownLabel>
+  /** The towns' outposts' names, by town and part (TownsLayer → TownNames). */
+  outposts: Map<string, OutpostLabel>
   roads: Map<number, RoadName>
   places: Map<number, PlaceName>
   events: Map<number, EventName>
@@ -35,9 +37,10 @@ export type LabelPlan = {
  * The map's labels have a pecking order, and this settles it in one pass:
  * what a writer drew on a map view outranks the map's own names, no name
  * ever covers a pin or a mark, and then the names are placed in turn —
- * towns, roads, places, events — each taking a free spot or stepping
- * aside. One pure pass rather than claims made while drawing, so a layer
- * rendered twice (as React does to check) decides the same. Hosts (the
+ * towns (their outposts after every town), roads, places, events — each
+ * taking a free spot or stepping aside. One pure pass rather than claims
+ * made while drawing, so a layer rendered twice (as React does to check)
+ * decides the same. Hosts (the
  * live map, an article's still, an embedded map) plan here, so all three
  * agree; a layer left out of the plan draws no names. The live map plans
  * the world's echoes after the real world, on the same placer, so a name
@@ -101,8 +104,10 @@ export function planLabels(
   // Azania's own name far out: before its towns' at the scale of the world, where they crowd; after them nearer.
   const home = abroad?.home ?? null
   const early = home && projection.zoom <= HOME_NAME_FIRST ? placeHomeName(projection, home, placer, reserve) : null
+  const named = placeTownNames(projection, towns, placer, reserve)
   const plan = {
-    towns: placeTownNames(projection, towns, placer, reserve),
+    towns: named.towns,
+    outposts: named.outposts,
     roads: placeRoadNames(projection, roads, placer),
     places: pins && !pins.clustered ? placePlaceNames(projection, pins.items, placer, selectedPlace) : new Map(),
     events: placeEventNames(projection, marks, placer, selectedEvent),

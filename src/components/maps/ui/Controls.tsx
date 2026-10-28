@@ -21,6 +21,7 @@ import { useStore, type Store } from '../hooks'
 import { EventMark } from '../layers/EventsLayer'
 import { SiegeMarkGlyph } from '../layers/SiegesLayer'
 import { SiteMark } from '../layers/SiteMark'
+import { PartSample } from '../layers/TownsLayer'
 import { TradingMark } from '../layers/TradingMark'
 import type { LiveState } from '../live'
 import type { WorldState } from '../world'
@@ -281,6 +282,18 @@ export function Legend({ globe }: { globe: boolean }) {
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <PartSample role="outpost" />
+            </svg>
+            <span>A town’s outpost: claims apart from the town, with a spawn of their own (/t outpost), striped in its nation’s colour</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <PartSample role="detached" />
+            </svg>
+            <span>Claims detached from a town: joined to neither the town nor an outpost</span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <defs>
                 <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
                   <line stroke={GROUND.saffronDeep} strokeOpacity={0.55} strokeWidth={1.2} x1={0} x2={0} y1={0} y2={6} />
@@ -361,7 +374,7 @@ export function Legend({ globe }: { globe: boolean }) {
               />
               <TradingMark kind="trading" scale={0.75} x={24} y={10} />
             </svg>
-            <span>A trading outpost: trade with the server at its prices. Nobody holds one</span>
+            <span>A trading outpost, the server’s own: trade with it at its prices. Nobody holds one, and it’s no town’s outpost</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">

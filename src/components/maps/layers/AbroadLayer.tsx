@@ -10,7 +10,7 @@ import {
   type AbroadNation,
   type AbroadTown,
 } from '@/maps/abroad'
-import type { PartRole } from '@/maps/claims'
+import type { ClaimPart, PartRole } from '@/maps/claims'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
 import { GROUND, STANCE_COLOURS } from '@/maps/palette'
@@ -37,6 +37,7 @@ import {
   type Rect,
 } from './projection'
 import { SITE_R, SiteMark, siteMarkRect } from './SiteMark'
+import { outpostName, outpostOf } from './TownsLayer'
 import { TRADING_R, TradingMark, tradingMarkRect, TradingPip } from './TradingMark'
 
 /**
@@ -51,9 +52,14 @@ import { TRADING_R, TradingMark, tradingMarkRect, TradingPip } from './TradingMa
  * heartlands in spaced capitals, a town too small to draw is a dot, and a
  * click opens the nation. Coming in, the capitals' names appear, then
  * every town's, smaller and quieter than Azania's and placed after them;
- * a click opens the town. A server site another nation holds wears the
- * site's mark rimmed in its holder's colour, with what it pays, since it
- * changes hands by siege. The server's own places, which nobody holds
+ * a click opens the town. A town's outposts and any claims detached from
+ * it (src/maps/claims.ts) are edged as Azania's own are (./TownsLayer.tsx
+ * → partEdge), an outpost striped and detached claims faint, in the
+ * nation's colour either way; an outpost is marked at its spawn with a
+ * hollow dot where a town has its dot, and named after every town, as its
+ * town named it or by the town's name and "outpost". A server site
+ * another nation holds wears the site's mark rimmed in its holder's
+ * colour, with what it pays, since it changes hands by siege. The server's own places, which nobody holds
  * (src/maps/trading.ts), are drawn apart from every nation: a trading
  * outpost is a pip of the lagoon far out, then its own square mark, then
  * its name in italic, as an atlas sets what isn't a settlement; its claim
@@ -212,6 +218,36 @@ function hitOf(event: MouseEvent | PointerEvent): { town: string | null; part: n
 /** A town's claims on the page part by part (src/maps/claims.ts), each path saying which part it is; parts not drawn left out. */
 type PartPath = { index: number; role: PartRole; d: string }
 
+/** The dash an outpost's edge is drawn with, over its casing: shorter far out, where the lines are hairlines. */
+const outpostDash = (zoom: number) => (zoom <= -3 ? '3 2' : '5 3')
+
+/**
+ * One part of a town's claims as drawn, edged as Azania's own parts are
+ * (./TownsLayer.tsx → partEdge): the town itself a plain path; an
+ * outpost's dashed over a casing of whitewash, so its edge reads striped,
+ * whole still and in its nation's colour, and plainly not the town's own
+ * (a dash alone is a town of no nation's, which keeps its dash on its
+ * outposts); detached claims quieter, the same colour, the line thinner
+ * than the town's (never under a hairline) and fainter, on their own.
+ * The colour and the width (`width`, with the group's stroke opacity,
+ * `opacity`) come from the group above, so a nation hovered or open
+ * restyles its outposts with the rest. Each path says which part it is,
+ * so a click on an outpost can say it was one.
+ */
+function PartShape({ part, width, opacity, dash, zoom }: { part: PartPath; width: number; opacity: number; dash?: string; zoom: number }) {
+  const { index, role, d } = part
+  if (role === 'outpost')
+    return (
+      <g data-part={index} data-role={role}>
+        <path d={d} fill="none" stroke={GROUND.whitewash} strokeDasharray="none" strokeOpacity={0.9} />
+        <path d={d} strokeDasharray={dash ?? outpostDash(zoom)} />
+      </g>
+    )
+  if (role === 'detached')
+    return <path d={d} data-part={index} data-role={role} strokeOpacity={opacity * 0.65} strokeWidth={Math.max(1, width * 0.75)} />
+  return <path d={d} data-part={index} data-role={role} />
+}
+
 function partPaths(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): PartPath[] {
   if (!town.parts.length) {
     const d = claimsPath(town, f, cull, ppb)
@@ -225,9 +261,12 @@ function partPaths(town: AbroadTown, f: Affine, cull: Bounds, ppb: number): Part
 
 /**
  * The claims abroad, a group per nation (its colour set once on the group)
- * and a path per town, with the towns too small to draw as dots, a path
- * per nation for all of them. Far out, where a click opens the nation
- * anyway, all a nation's claims are one path. The server's own places are
+ * and a path per part of each town (PartShape), with the towns too small
+ * to draw as dots, a path per nation for all of them. Far out, where a
+ * click opens the nation anyway, all a nation's claims are one path, its
+ * outposts among them: at the scale of the world the nation is the unit,
+ * and an atlas colours a country's exclaves as the country, with nothing
+ * more said until the reader comes in. The server's own places are
  * a group of their own, in no nation's colour: a claim each, edged in dots
  * of their ink over the faintest wash, since nobody holds them, and only
  * from where their marks appear; further out, or too small to draw, a
@@ -356,8 +395,8 @@ export function AbroadClaims({
             {group.all ? <path d={group.all} /> : null}
             {group.paths.map(({ town, parts }) => (
               <g data-town={town.slug} key={town.slug}>
-                {parts.map(({ index, role, d }) => (
-                  <path d={d} data-part={index} data-role={role} key={index} />
+                {parts.map((part) => (
+                  <PartShape dash={style.dash} key={part.index} opacity={strong ? 1 : 0.75} part={part} width={strong ? width + 0.75 : width} zoom={zoom} />
                 ))}
               </g>
             ))}
@@ -410,8 +449,8 @@ export function AbroadClaims({
             stroke={edgeOf(picked.town, styleOf)}
             strokeWidth={width + 1}
           >
-            {picked.parts.map(({ index, role, d }) => (
-              <path d={d} data-part={index} data-role={role} key={index} />
+            {picked.parts.map((part) => (
+              <PartShape key={part.index} opacity={1} part={part} width={width + 1} zoom={zoom} />
             ))}
           </g>
         </g>
@@ -426,9 +465,10 @@ export type AbroadName = Rect & { fontSize: number; tracking: number; text: stri
 /** A nation's name across its heartland, where the plan found room; `live`, how it may move mid-gesture on the live map's own canvas. */
 export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number; live?: Live }
 
-export type AbroadPlan = { towns: Map<string, AbroadName>; nations: Map<string, NationName> }
+/** The world's names: its towns' by address, its towns' outposts' by address and part (`${slug}/${part}`), and far out the nations'. */
+export type AbroadPlan = { towns: Map<string, AbroadName>; outposts: Map<string, AbroadName>; nations: Map<string, NationName> }
 
-export const EMPTY_ABROAD_PLAN: AbroadPlan = { towns: new Map(), nations: new Map() }
+export const EMPTY_ABROAD_PLAN: AbroadPlan = { towns: new Map(), outposts: new Map(), nations: new Map() }
 
 /** Azania itself among the nations far out: its name, and where to set it. */
 export type HomeNation = { name: string; heart: Point; extent: Bounds | null }
@@ -440,7 +480,26 @@ const homeMark = (zoom: number, town: AbroadTown): { r: number; ring: number } |
   return zoom >= HOMES_FROM ? { r: zoom >= -2 ? 2.75 : 2.25, ring: 0 } : null
 }
 
+/** The mark at an outpost's spawn, its radius: a hollow dot, a touch bigger than a town's dot since it's only an edge, and well under a capital's ring; null further out than the homes are marked. */
+const outpostRing = (zoom: number): number | null => (zoom >= HOMES_FROM ? (zoom >= -2 ? 3 : 2.5) : null)
+
+/** A town's outposts on the page, each with its index among the town's parts (its key in the plan). */
+const outpostsOn = (projection: Projection, town: AbroadTown): { part: ClaimPart; index: number }[] =>
+  isServerKind(town.kind)
+    ? []
+    : town.parts.flatMap((part, index) =>
+        part.role === 'outpost' && inBounds(projection.bounds, part.centre) ? [{ part, index }] : [],
+      )
+
 const siteScale = (zoom: number) => (zoom <= -4.5 ? 0.55 : zoom <= -3 ? 0.7 : 0.85)
+
+/** The spots a name may take about the point (x, y), best first: above it, below, to its right, to its left, `clear` of the mark there. */
+const spotsAbout = (x: number, y: number, width: number, height: number, clear: number, box: (cx: number, top: number) => AbroadName): AbroadName[] => [
+  box(x, y - clear - height),
+  box(x, y + clear),
+  box(x + clear + width / 2, y - height / 2),
+  box(x - clear - width / 2, y - height / 2),
+]
 
 /**
  * A nation's name: sized by how much ground it holds, spaced out across its
@@ -513,8 +572,9 @@ const nameFrom = (town: AbroadTown): number =>
  * of the label plan (./labels.ts). The sites' marks and the server's places'
  * take their room first, then the nations' names far out, the greatest
  * first, then the capitals', then every town's, biggest first; the sites'
- * and the server's places', having nobody living there, come last. Azania's
- * Towny nation (`home`) is never named among them: its own name says it.
+ * and the server's places', having nobody living there, come last, and
+ * after every town its outposts, at their spawns. Azania's Towny nation
+ * (`home`) is never named among them: its own name says it.
  * On the live map's own canvas each name says how it may move mid-gesture,
  * and what lost is kept in reserve (`reserve`), hidden: every nation on the
  * page that a zoom in of a level would name, while the drawn zoom isn't
@@ -530,6 +590,7 @@ export function placeAbroadNames(
   const { zoom } = projection
   const live = livePlan(projection)
   const towns = new Map<string, AbroadName>()
+  const outposts = new Map<string, AbroadName>()
   const nations = new Map<string, NationName>()
   const visible = abroad.towns.filter((town) => onPage(projection, town))
 
@@ -602,12 +663,7 @@ export function placeAbroadNames(
         ? TRADING_R * (serverScale(zoom, server) ?? siteScale(zoom)) + 5
         : (homeMark(zoom, town)?.ring || 3) + 4
     const box = (cx: number, top: number): AbroadName => ({ x: cx - width / 2, y: top, width, height, fontSize, tracking, text, sub, server })
-    const candidates = [
-      box(x, y - clear - height),
-      box(x, y + clear),
-      box(x + clear + width / 2, y - height / 2),
-      box(x - clear - width / 2, y - height / 2),
-    ]
+    const candidates = spotsAbout(x, y, width, height, clear, box)
     const rank = placer.rank()
     const spot = zoom >= nameFrom(town) ? placer.tryPlace(candidates) : null
     if (!live) {
@@ -620,17 +676,40 @@ export function placeAbroadNames(
       towns.set(town.slug, { ...candidates[0], live: liveOf(candidates, 0, rank, [nameFrom(town), 99], 2, { reserve: true }) })
     }
   }
-  return { towns, nations }
+
+  // The towns' outposts, after every town, from where every town is named: each as its town called it, with whose it
+  // is beneath from close-ish in, else by the town's name and "outpost"; a size under a town's, about its hollow dot.
+  const ring = outpostRing(zoom)
+  if (zoom >= NAMES_FROM && ring !== null)
+    for (const town of order)
+      for (const { part, index } of outpostsOn(projection, town)) {
+        const given = part.spawns[0]?.name ?? null
+        const text = outpostName(town.name, given).toUpperCase()
+        const sub = given && zoom >= SUB_FROM ? outpostOf(town.name) : null
+        const fontSize = 9.5
+        const tracking = fontSize * 0.12
+        const height = fontSize + 6 + (sub ? 12 : 0)
+        const width = Math.max(textWidth(text, fontSize, tracking), sub ? textWidth(sub, SUB_SIZE) : 0) + 6
+        const [x, y] = projection.project(part.centre)
+        const box = (cx: number, top: number): AbroadName => ({ x: cx - width / 2, y: top, width, height, fontSize, tracking, text, sub, server: null })
+        const candidates = spotsAbout(x, y, width, height, ring + 4, box)
+        const rank = placer.rank()
+        const spot = placer.tryPlace(candidates)
+        if (spot) outposts.set(`${town.slug}/${index}`, live ? { ...spot, live: liveOf(candidates, candidates.indexOf(spot), rank, [NAMES_FROM, 99], 2) } : spot)
+      }
+  return { towns, outposts, nations }
 }
 
 /**
  * The world's marks and names, over the nation's own layers and under
  * nothing but the sieges: each town's home as a dot in its nation's colour
- * (a capital's ringed, as an atlas marks one), the sites' marks rimmed in
- * their holders' colours, the server's places' squares where its markers
- * stand, the towns' names in a dark shade of their nation's, the server's
- * places' in their own ink, and far out the nations' names, Azania's in
- * the deep sea.
+ * (a capital's ringed, as an atlas marks one), each outpost's spawn as a
+ * hollow dot in the same, the sites' marks rimmed in their holders'
+ * colours, the server's places' squares where its markers stand, the
+ * towns' names in a dark shade of their nation's, their outposts' a size
+ * smaller, the server's places' in their own ink, and far out the nations'
+ * names, Azania's in the deep sea. A click on an outpost's mark or name
+ * opens its town and looks at the outpost.
  */
 export function AbroadMarks({
   projection,
@@ -645,7 +724,8 @@ export function AbroadMarks({
   styleOf: (nation: string | null) => NationStyle
   labels: AbroadPlan
   selected: { town: string | null; nation: string | null }
-  onSelect?: (selection: MapSelection) => void
+  /** A town clicked; `focus`, an outpost's bounds when it was the outpost's mark or name, to look at instead of the town. */
+  onSelect?: (selection: MapSelection, focus?: Bounds) => void
 }) {
   const { zoom } = projection
   const interactive = Boolean(onSelect)
@@ -653,6 +733,7 @@ export function AbroadMarks({
   const hit = interactive ? 'az-hit' : undefined
   const cursor = interactive ? { cursor: 'pointer' } : undefined
   const visible = abroad.towns.filter((town) => town.home && onPage(projection, town))
+  const ring = outpostRing(zoom)
   return (
     <g className="az-abroad-marks">
       {visible.map((town) => {
@@ -743,6 +824,59 @@ export function AbroadMarks({
           </g>
         )
       })}
+      {ring !== null
+        ? visible.map((town) =>
+            outpostsOn(projection, town).map(({ part, index }) => {
+              const key = `${town.slug}/${index}`
+              const label = labels.outposts.get(key)
+              const style = styleOf(town.nation)
+              const [x, y] = projection.project(part.centre)
+              const isSelected = selected.town === town.slug
+              return (
+                <g className={hit} key={key} onClick={onSelect ? () => onSelect({ kind: 'abroad', slug: town.slug }, part.bounds) : undefined} style={cursor}>
+                  <g {...upright(x, y)}>
+                    <circle cx={x} cy={y} fill={GROUND.whitewash} r={ring} stroke={isSelected ? GROUND.ink : style.line} strokeWidth={1.25}>
+                      <title>{outpostName(town.name, part.spawns[0]?.name ?? null)}</title>
+                    </circle>
+                  </g>
+                  {label ? (
+                    <g {...upright(x, y)} {...named(projection, 'outpost', key, { box: label, live: label.live })}>
+                      <text
+                        className="font-label"
+                        fill={style.text}
+                        fontSize={label.fontSize}
+                        fontWeight={600}
+                        letterSpacing={label.tracking}
+                        opacity={isSelected ? 0.95 : 0.8}
+                        textAnchor="middle"
+                        x={label.x + label.width / 2 + label.tracking / 2}
+                        y={label.y + label.fontSize + 2}
+                        {...halo(GROUND.whitewash, 3)}
+                      >
+                        {label.text}
+                      </text>
+                      {label.sub ? (
+                        <text
+                          className="font-body"
+                          fill={style.text}
+                          fontSize={SUB_SIZE}
+                          fontWeight={600}
+                          opacity={0.8}
+                          textAnchor="middle"
+                          x={label.x + label.width / 2}
+                          y={label.y + label.fontSize + 2 + 12}
+                          {...halo(GROUND.whitewash, 3)}
+                        >
+                          {label.sub}
+                        </text>
+                      ) : null}
+                    </g>
+                  ) : null}
+                </g>
+              )
+            }),
+          )
+        : null}
       {[...labels.nations].map(([slug, label]) => {
         const nation: AbroadNation | undefined = slug ? abroad.nationBySlug.get(slug) : undefined
         const home = !slug
