@@ -1,0 +1,25 @@
+# Every five minutes, asks the site to watch the Rulercraft map (src/lib/watch.ts):
+# Azania's towns kept up to date, and the siege alerts told in Discord. All the work
+# is the site's; this only knocks. It needs no secrets and no access to the repo.
+# The site answers 200 while the Rulercraft map is down too, so a run fails only
+# when the site itself does.
+name: Watch the Rulercraft map
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Watch
+        run: curl --fail-with-body --silent --show-error --max-time 90 --retry 2 --retry-delay 10 https://nation-of-azania.vercel.app/maps/watch
