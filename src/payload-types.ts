@@ -1284,7 +1284,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
- * Newly published articles are announced in Discord. Each channel takes the articles of a context and everything below it; the most specific channel wins.
+ * Newly published articles are announced in Discord, each channel taking the articles of a context and everything below it (the most specific channel wins); and sieges on the Rulercraft map can be posted to a channel of their own.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "discord".
@@ -1292,7 +1292,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 export interface Discord {
   id: number;
   /**
-   * Off: nothing is posted anywhere, whatever is set below.
+   * Off: no article is announced anywhere, whatever channels are set below. Siege alerts have a switch of their own.
    */
   enabled?: boolean | null;
   channels?:
@@ -1308,6 +1308,35 @@ export interface Discord {
         id?: string | null;
       }[]
     | null;
+  /**
+   * A post in a channel when a siege is laid against one of Azania’s towns, as SiegeWar marks it on the Rulercraft map. The map is checked every five minutes, so an alert comes a few minutes after the banner is placed. Off until a webhook is set; saving a new webhook or role posts a short note to the channel, so you can see it works.
+   */
+  sieges?: {
+    /**
+     * Off: nothing is posted, and the webhook below is kept for later.
+     */
+    enabled?: boolean | null;
+    /**
+     * In Discord: the channel’s settings → Integrations → Webhooks → New Webhook → Copy Webhook URL. Its name and avatar there are what the alerts are posted as.
+     */
+    webhookUrl?: string | null;
+    /**
+     * Optional: pinged for each new siege against Azania, and for each battle at one if those are posted. In Discord, with Developer Mode on (User Settings → Advanced): Server Settings → Roles → ⋯ next to the role → Copy Role ID.
+     */
+    role?: string | null;
+    /**
+     * When fighting starts at the banner of a siege against Azania, during a battle session.
+     */
+    battles?: boolean | null;
+    /**
+     * When the siege is gone from the map, with how it stood when it was last seen.
+     */
+    ended?: boolean | null;
+    /**
+     * Also post the sieges Azania lays against other towns. Never pings.
+     */
+    laidByAzania?: boolean | null;
+  };
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -1353,6 +1382,15 @@ export interface AzaniaMap {
     | null;
   syncedAt?: string | null;
   syncNote?: string | null;
+  siegeWatch?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -1368,6 +1406,16 @@ export interface DiscordSelect<T extends boolean = true> {
         context?: T;
         webhookUrl?: T;
         id?: T;
+      };
+  sieges?:
+    | T
+    | {
+        enabled?: T;
+        webhookUrl?: T;
+        role?: T;
+        battles?: T;
+        ended?: T;
+        laidByAzania?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1400,6 +1448,7 @@ export interface AzaniaMapsSelect<T extends boolean = true> {
       };
   syncedAt?: T;
   syncNote?: T;
+  siegeWatch?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

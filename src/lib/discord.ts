@@ -70,17 +70,26 @@ export async function webhookFor(payload: Payload, chain: Pick<Context, 'id' | '
 }
 
 /** The public origin, for links and images in the embed. */
-function siteUrl(): string {
+export function siteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SERVER_URL
   if (configured) return configured.replace(/\/$/, '')
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
   return vercel ? `https://${vercel}` : 'http://localhost:3000'
 }
 
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
+export const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
 
 const idOf = (value: unknown): number | undefined =>
   typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id
+
+/** Posts a message to a webhook, waiting for Discord to take it; throws when it can't be reached. */
+export const postWebhook = (url: string, body: unknown): Promise<Response> =>
+  fetch(`${url}${url.includes('?') ? '&' : '?'}wait=true`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
 
 /**
  * Posts the article to its top-level context's webhook. Resolves to whether a
@@ -146,12 +155,7 @@ export async function announceArticle(payload: Payload, article: Article): Promi
       ],
     }
 
-    const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}wait=true`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    })
+    const response = await postWebhook(url, body)
     if (!response.ok) {
       payload.logger.warn(`[discord] "${article.title}" was not announced: Discord answered ${response.status}`)
       return false

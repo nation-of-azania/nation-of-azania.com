@@ -1283,6 +1283,14 @@ read the settings. As a fallback, the environment variables
 `DISCORD_WEBHOOK_<SLUG>` (e.g. `DISCORD_WEBHOOK_TIMES`) and
 `DISCORD_WEBHOOK_URL` work too.
 
+**Siege alerts** go to a channel of their own, set under *Siege alerts* on
+the same page: a webhook, optionally a role to ping (its ID, with Discord's
+Developer Mode on: *Server Settings → Roles → ⋯ → Copy Role ID*), and what
+besides a new siege against Azania to post: a battle beginning at one, one
+ending, and the sieges Azania lays. A new webhook is checked with Discord
+before it's saved, and saving a webhook or role posts a short note to the
+channel, so you see at once that it works (`src/lib/siegeAlerts.ts`).
+
 ### Custom domain, rollbacks and production commands
 
 - **Custom domain:** add it under Settings → Domains. Links pick it up on

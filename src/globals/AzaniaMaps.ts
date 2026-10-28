@@ -114,5 +114,11 @@ export const AzaniaMaps: GlobalConfig = {
         },
       ],
     },
+    {
+      // The sieges on the map as the siege alerts last saw them, and when (src/lib/siegeAlerts.ts).
+      name: 'siegeWatch',
+      type: 'json',
+      admin: { hidden: true },
+    },
   ],
 }
