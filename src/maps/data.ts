@@ -50,6 +50,9 @@ export type MapTown = {
   founded: string | null
   /** Towny's "Public Teleport": whether any player may `/t spawn` here; null when the map doesn't say. */
   publicSpawn: boolean | null
+  /** The culture and religion its mayor chose in game; null when none is, and for a site. */
+  culture: string | null
+  religion: string | null
   /** A players' town, or a site the server runs and Azania holds (a quarry, a treasure ship): see isSite. */
   kind: TownKind
   /** A server site's terms as the map gives them; what it pays a day, in $; what a quarry produces. */
@@ -188,6 +191,9 @@ const outlinesOf = (value: unknown): Outline[] =>
 /** Whether a town is a site the server runs (a quarry, a treasure ship), not a players' town. */
 export const isSite = (town: Pick<MapTown, 'kind'>): boolean => town.kind !== 'town'
 
+/** A culture or religion as a choice: some letters, not the map's crown for none. */
+const chosen = (value: string | null | undefined): string | null => (value && /\p{L}/u.test(value) ? value.trim() : null)
+
 export function mapTown(town: Town): MapTown {
   const claims = outlinesOf(town.claims)
   const kind = isTownKind(town.kind) ? town.kind : 'town'
@@ -211,6 +217,9 @@ export function mapTown(town: Town): MapTown {
     chunks: town.chunks ?? 0,
     founded: town.founded ?? null,
     publicSpawn: typeof town.publicSpawn === 'boolean' ? town.publicSpawn : null,
+    // Stored before a site was known to have neither, or as the map's placeholders: only a players' town's choice counts.
+    culture: kind === 'town' ? chosen(town.culture) : null,
+    religion: kind === 'town' ? chosen(town.religion) : null,
     kind,
     site:
       kind === 'town'

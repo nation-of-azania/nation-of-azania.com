@@ -52,6 +52,9 @@ export type WorldTown = {
   chunks: number
   founded: string | null
   publicSpawn: boolean | null
+  /** The culture and religion its mayor chose; null when none is, and for anything but a players' town. A reading the CDN kept from before they were read has none. */
+  culture: string | null
+  religion: string | null
   /** A server site's pay a day, in $; what a quarry produces. */
   income: number | null
   resource: string | null
@@ -121,6 +124,8 @@ export const unpackWorld = (world: PackedWorld): World => ({
     ...town,
     claims: town.claims.map(([x, z]) => ({ x: corners(x), z: corners(z) })),
     outposts: town.outposts ?? [],
+    culture: town.culture ?? null,
+    religion: town.religion ?? null,
   })),
 })
 

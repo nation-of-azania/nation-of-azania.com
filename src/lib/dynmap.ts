@@ -342,7 +342,12 @@ export type Town = {
   ruler: string | null
   residents: string[]
   nation: string | null
+  /**
+   * The culture and religion its mayor chose (`/cultures`, `/religion`);
+   * null when none is chosen, and for a server site, which has neither.
+   */
   culture: string | null
+  religion: string | null
   founded: string | null
   /** Whether anyone may `/t spawn` to the town (Towny's "Public Teleport"); null if the map doesn't say. */
   publicSpawn: boolean | null
@@ -428,17 +433,25 @@ function townFacts(name: string, desc: string) {
           .map((name) => name.trim())
           .filter((name) => /^\.?\w{3,16}$/.test(name))
       : []
-  const culture = cells.find((cell) => /Culture -/.test(cell))?.split('Culture -')[1]?.trim() || null
   const id = cells.map((cell) => /^ID\s+([0-9a-f-]{36})$/i.exec(cell)?.[1]).find(Boolean) ?? null
   const teleport = after(/Public Teleport:/)
   const ruler = after(/Ruler:/)
+  const site = siteOf(name, cells, ruler)
+  // "Town Religion - Catholic", "Culture - Norse". A town that hasn't chosen shows Rulercraft's prompt
+  // in place of its religion and a crown for its culture; a site's culture reads "War", and its
+  // religion's line carries its terms: none of them is a choice.
+  const chosen = (label: string) => {
+    const value = cells.find((cell) => cell.includes(`${label} -`))?.split(`${label} -`)[1]?.trim()
+    return site.kind === 'town' && value && /\p{L}/u.test(value) ? value : null
+  }
   return {
     id,
-    ...siteOf(name, cells, ruler),
+    ...site,
     ruler,
     residents,
     nation: nation && !/^No Nation$/i.test(nation) ? nation : null,
-    culture,
+    culture: chosen('Culture'),
+    religion: chosen('Town Religion'),
     founded: after(/Founded:/),
     publicSpawn: teleport == null ? null : /^enabled$/i.test(teleport),
   }

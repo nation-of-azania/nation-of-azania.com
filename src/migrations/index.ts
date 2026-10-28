@@ -19,6 +19,7 @@ import * as migration_20261028_054308_outposts from './20261028_054308_outposts'
 import * as migration_20261028_134537_siege_alerts from './20261028_134537_siege_alerts';
 import * as migration_20261028_141151_siege_sessions from './20261028_141151_siege_sessions';
 import * as migration_20261028_143909_siege_sessions_utc from './20261028_143909_siege_sessions_utc';
+import * as migration_20261028_235257_town_religion from './20261028_235257_town_religion';
 
 export const migrations = [
   {
@@ -124,6 +125,11 @@ export const migrations = [
   {
     up: migration_20261028_143909_siege_sessions_utc.up,
     down: migration_20261028_143909_siege_sessions_utc.down,
-    name: '20261028_143909_siege_sessions_utc'
+    name: '20261028_143909_siege_sessions_utc',
+  },
+  {
+    up: migration_20261028_235257_town_religion.up,
+    down: migration_20261028_235257_town_religion.down,
+    name: '20261028_235257_town_religion'
   },
 ];

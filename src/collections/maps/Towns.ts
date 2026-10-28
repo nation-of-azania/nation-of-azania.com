@@ -168,20 +168,21 @@ export const Towns: CollectionConfig = {
         {
           type: 'row',
           fields: [
-            { name: 'culture', type: 'text', access: { update: synced }, admin: { readOnly: true, width: '33%' } },
+            { name: 'culture', type: 'text', access: { update: synced }, admin: { readOnly: true, width: '25%' } },
+            { name: 'religion', type: 'text', access: { update: synced }, admin: { readOnly: true, width: '25%' } },
             {
               name: 'residentCount',
               type: 'number',
               label: 'Residents',
               access: { update: synced },
-              admin: { readOnly: true, width: '33%' },
+              admin: { readOnly: true, width: '25%' },
             },
             {
               name: 'chunks',
               type: 'number',
               label: 'Claimed chunks',
               access: { update: synced },
-              admin: { readOnly: true, width: '33%' },
+              admin: { readOnly: true, width: '25%' },
             },
           ],
         },

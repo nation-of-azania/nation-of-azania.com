@@ -471,6 +471,7 @@ export interface Town {
    */
   publicSpawn?: boolean | null;
   culture?: string | null;
+  religion?: string | null;
   residentCount?: number | null;
   chunks?: number | null;
   /**
@@ -1131,6 +1132,7 @@ export interface TownsSelect<T extends boolean = true> {
   founded?: T;
   publicSpawn?: T;
   culture?: T;
+  religion?: T;
   residentCount?: T;
   chunks?: T;
   residents?: T;

@@ -26,6 +26,7 @@
     "test:globe": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-globe.ts",
     "test:claims": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-claims.ts",
     "test:sieges": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-sieges.ts",
+    "test:beliefs": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-beliefs.ts",
     "test:names": "cross-env NODE_OPTIONS=\"--no-deprecation --expose-gc\" tsx scripts/test-names.ts"
   },
   "dependencies": {

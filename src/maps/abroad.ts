@@ -1,3 +1,4 @@
+import { beliefsOf, type Beliefs } from './beliefs'
 import { claimParts, mainBounds, type ClaimPart } from './claims'
 import { spoken, type MapTown, type Relation } from './data'
 import type { Bounds, Outline, Point } from './geo'
@@ -261,6 +262,8 @@ export type AbroadFacts = Omit<AbroadTown, 'claims' | 'claimBounds' | 'bounds' |
 /** A nation as a line: what a town's panel says of it, and a nation's of itself. */
 export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'towns' | 'residents' | 'chunks'> & {
   capital: { name: string; slug: string; home: Point } | null
+  /** Its people's cultures and religions, by its towns (src/maps/beliefs.ts). */
+  beliefs: Beliefs
 }
 
 /** Azania's capital, from which its war reaches: its name and home block. */
@@ -321,6 +324,7 @@ const summaryOf = (nation: AbroadNation, towns: Map<string, AbroadTown>): Nation
     capital: nation.capital
       ? { name: nation.capital.town, slug: capital?.slug ?? worldSlug(nation.capital.town), home: nation.capital.home }
       : null,
+    beliefs: beliefsOf(nation.members),
   }
 }
 

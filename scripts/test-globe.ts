@@ -276,6 +276,8 @@ const count = (ids: Uint8Array, value: number) => ids.reduce((n, id) => n + (id 
     chunks: 10,
     founded: null,
     publicSpawn: true,
+    culture: null,
+    religion: null,
     income: null,
     resource: null,
     home: [claims[0].x[0], claims[0].z[0]],

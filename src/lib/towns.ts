@@ -66,6 +66,7 @@ function townData(town: Town, azanian: boolean, at: string) {
     income: town.income,
     resource: town.resource,
     culture: town.culture,
+    religion: town.religion,
     residentCount: town.residents.length,
     residents: town.residents,
     chunks: outlinesChunks(town.outlines),

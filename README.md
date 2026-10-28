@@ -816,6 +816,20 @@ which the routes insist on, so every viewer shares one copy.
   pays, since it changes hands by siege. The pointer over a nation
   strengthens its claims. The echoes carry the world like everything else,
   washed.
+- **Cultures and religions.** Each town's mayor chooses a culture
+  (`/cultures`) and a religion (`/religion`) in game, and the Rulercraft
+  map says them in the town's details ("Town Religion - Catholic",
+  "Culture - Norse"); the reading keeps both, for Azania's towns
+  (Towns → *culture*, *religion*) and for the world's
+  (`src/lib/dynmap.ts`). A town that hasn't chosen shows Rulercraft's
+  prompt for its religion and a crown for its culture: both are read as
+  none chosen. A server site has neither (its culture reads "War", and
+  its religion's line carries its terms). A nation's shares, Azania's
+  included, are its people's: each players' town's residents count
+  towards its choices, and the towns that haven't chosen make a share of
+  their own, always last (`beliefsOf` in `src/maps/beliefs.ts`;
+  `pnpm test:beliefs`, which also reads a copy of the live map's marker
+  file when given one).
 - **Trading outposts and landmarks** (with the world). The server's spawn
   town, RulerSpawn in Towny, is no town: it is how the server holds its
   places across the world, its home block a ship far out in the Pacific. The
@@ -1473,6 +1487,7 @@ import map. Without that handler, the production admin panel renders blank.
 | `pnpm test:litematic`     | Litematica parser tests.                                    |
 | `pnpm test:uvlock`        | Litematica texture UV-lock tests.                           |
 | `pnpm test:sieges`        | Siege alert tests: what's told, once, and to whom.          |
+| `pnpm test:beliefs`       | Towns' cultures and religions, and a nation's shares.       |
 
 ## Project layout
 
