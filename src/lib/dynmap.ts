@@ -526,16 +526,23 @@ export function townsOf(file: MarkerFile): Map<string, Town> {
 }
 
 /**
+ * A reading of the marker file this young is as fresh as the map: Dynmap
+ * rewrites it about once a minute. So the siege watch and the town sync it
+ * runs share one download (src/lib/siegeAlerts.ts).
+ */
+export const FRESH_MS = 60 * 1000
+
+/**
  * Every Towny town on the map, by lower-cased name; cached for an hour
- * (`fresh` reads the map regardless). Null when the map can't be read and
- * there is no cached copy to answer from, so a caller can tell "no such
- * town" from "the map is down".
+ * (`fresh` reads the map unless it was read under FRESH_MS ago). Null when
+ * the map can't be read and there is no cached copy to answer from, so a
+ * caller can tell "no such town" from "the map is down".
  */
 export async function getTowns({ fresh = false }: { fresh?: boolean } = {}): Promise<Map<string, Town> | null> {
   if (!fresh && townyCache && Date.now() - townyCache.at < TOWNY_TTL_MS) return townyCache.towns
   let towns: Map<string, Town>
   try {
-    towns = townsOf(await readMarkerFile(fresh ? 0 : TOWNY_TTL_MS))
+    towns = townsOf(await readMarkerFile(fresh ? FRESH_MS : TOWNY_TTL_MS))
     townyCache = { at: Date.now(), towns }
   } catch {
     // Keep serving the last good copy if the map is down, unless asked for a fresh one.

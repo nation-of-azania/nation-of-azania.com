@@ -25,6 +25,8 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  *   &draw=view                  the view editor, open: a new view, or the one named by &view=
  *   &globe=1                    the world as a globe, facing at's spot (its zoom −8 to −5);
  *                               a view or the editor in the address outranks it
+ *   &siege=<Towny id>           the siege of that town, its card opened at the banner on
+ *                               arrival (a siege alert's link); read once, then dropped
  *
  * Old links carried `&map=biomes` for the biome map, which is no longer
  * drawn; the parameter is ignored, so they still open.

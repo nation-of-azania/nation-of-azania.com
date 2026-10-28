@@ -1309,7 +1309,7 @@ export interface Discord {
       }[]
     | null;
   /**
-   * A post in a channel when a siege is laid against one of Azania’s towns, as SiegeWar marks it on the Rulercraft map. The map is checked every five minutes, so an alert comes a few minutes after the banner is placed. Off until a webhook is set; saving a new webhook or role posts a short note to the channel, so you can see it works.
+   * A post in a channel as soon as a siege against one of Azania’s towns shows on the Rulercraft map: its flame, from the moment the banner is placed, long before any fighting. The map is checked every five minutes, so the alert comes within minutes, and says when its battle sessions are, in each reader’s own time. Off until a webhook is set; saving these settings posts a short note to the channel, so you can see it works and check the session times.
    */
   sieges?: {
     /**
@@ -1325,7 +1325,7 @@ export interface Discord {
      */
     role?: string | null;
     /**
-     * When fighting starts at the banner of a siege against Azania, during a battle session.
+     * A second post, each battle session, when the siege’s flame turns to crossed swords: fighting has begun at the banner. The first post doesn’t wait for this.
      */
     battles?: boolean | null;
     /**
@@ -1336,12 +1336,24 @@ export interface Discord {
      * Also post the sieges Azania lays against other towns. Never pings.
      */
     laidByAzania?: boolean | null;
+    /**
+     * Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.
+     */
+    sessionTimes?: string | null;
+    /**
+     * The server’s, by its tz name: Europe/Berlin is Central European Time, summer time and all; UTC never changes.
+     */
+    sessionZone?: string | null;
+    /**
+     * The last battle session seen running on the map, and whether the times agree. Filled in by the watch.
+     */
+    sessionsSeen?: string | null;
   };
   updatedAt?: string | null;
   createdAt?: string | null;
 }
 /**
- * Which towns on the Rulercraft map are Azania’s. The map is read every quarter of an hour or so while people use Azania Maps, and once a day for the census.
+ * Which towns on the Rulercraft map are Azania’s. The map is read every ten minutes or so, and once a day for the census.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "azania-maps".
@@ -1416,6 +1428,9 @@ export interface DiscordSelect<T extends boolean = true> {
         battles?: T;
         ended?: T;
         laidByAzania?: T;
+        sessionTimes?: T;
+        sessionZone?: T;
+        sessionsSeen?: T;
       };
   updatedAt?: T;
   createdAt?: T;

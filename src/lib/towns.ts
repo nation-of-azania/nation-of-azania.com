@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache'
 import type { Payload } from 'payload'
 
 import { outlinesChunks } from '../maps/geo'
@@ -32,6 +33,8 @@ export const STALE_AFTER_MS = 15 * 60 * 1000
 export type SyncResult = {
   status: 'synced' | 'skipped' | 'offline'
   note: string
+  /** Whether the reading changed anything the pages show (and so refreshed them). */
+  changed?: boolean
 }
 
 export const townSlug = (name: string): string =>
@@ -118,6 +121,30 @@ function followRenames(named: string[], rows: StoredTown[], towns: Map<string, T
  * map at once both create the same new town or census entry, and the second
  * to arrive loses. The first one's row stands, so the loser just moves on.
  */
+/** What a town's row says, but when it was read: the reading changed the town when this did. */
+const shownOf = (row: Record<string, unknown>): string => {
+  const { syncedAt: _read, ...shown } = row
+  return JSON.stringify(shown, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value ?? null,
+  )
+}
+
+/**
+ * Azania Maps' cached pages are rebuilt on their next visit, rather than a
+ * minute after it: a reading that changed a town shows at once. Outside a
+ * request Next can refresh from (a page's after(), a script), they catch
+ * up when next regenerated, as ever.
+ */
+function refreshMaps(): void {
+  try {
+    revalidatePath('/(frontend)/maps', 'layout')
+  } catch {
+    // Nothing to refresh from here.
+  }
+}
+
 const alreadyTaken = (error: unknown) =>
   (error as { data?: { errors?: { message?: string }[] } })?.data?.errors?.some((e) =>
     /unique/i.test(e.message ?? ''),
@@ -163,6 +190,7 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   let azanianCount = 0
   let siteCount = 0
   let created = 0
+  let changed = renames.size > 0
 
   for (const town of towns.values()) {
     const azanian = Boolean(
@@ -178,8 +206,11 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
     const slug = row && (row.name === town.name || taken) ? row.slug : taken ? `${wanted}-${data.townyId.slice(0, 4)}` : wanted
     let id: number
     if (row) {
+      const before = Object.fromEntries(Object.keys(data).map((key) => [key, (row as unknown as Record<string, unknown>)[key]]))
+      if (shownOf({ ...before, slug: row.slug }) !== shownOf({ ...data, slug })) changed = true
       id = (await payload.update({ collection: 'towns', id: row.id, data: { ...data, slug }, depth: 0 })).id
     } else {
+      changed = true
       try {
         id = (await payload.create({ collection: 'towns', data: { ...data, slug }, depth: 0 })).id
         created++
@@ -217,12 +248,15 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
   for (const row of rows) {
     if (seen.has(row.townyId) || (!row.present && !row.azanian)) continue
     await payload.update({ collection: 'towns', id: row.id, data: { present: false, azanian: false, syncedAt: at }, depth: 0 })
+    changed = true
   }
+  if (changed) refreshMaps()
 
   const newTowns = created ? `, ${created} new` : ''
   const sites = siteCount ? ` and ${siteCount} held site${siteCount === 1 ? '' : 's'}` : ''
   const renamed = [...renames].map(([from, to]) => ` Towny renamed the nation ${from} to ${to}; the settings follow.`).join('')
-  return note({ status: 'synced', note: `${azanianCount} Azanian towns${sites}${newTowns}.${renamed}` })
+  const news = changed ? '' : ' Nothing changed.'
+  return note({ status: 'synced', note: `${azanianCount} Azanian towns${sites}${newTowns}.${renamed}${news}`, changed })
 }
 
 /**

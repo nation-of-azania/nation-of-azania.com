@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+import { nextSessions, scheduleOf } from '../maps/sessions'
 import { clip, postWebhook, siteUrl } from './discord'
 
 /**
@@ -19,6 +20,11 @@ export type SiegeAlertSettings = {
   battles?: boolean | null
   ended?: boolean | null
   laidByAzania?: boolean | null
+  /** When battle sessions start ("13:00, 19:00, 01:00"), in `sessionZone`. */
+  sessionTimes?: string | null
+  sessionZone?: string | null
+  /** The last battle session the watch saw running, in words. */
+  sessionsSeen?: string | null
 }
 
 /** The side colour of a siege alert: cinnabar, the colour of the war. */
@@ -54,8 +60,8 @@ export async function webhookProblem(url: string): Promise<string | null> {
 /** What a channel is told it will hear, as a sentence. */
 function promised(settings: SiegeAlertSettings): string {
   const when = [
-    'when a siege is laid against one of Azania’s towns',
-    settings.battles ? 'when a battle begins at one' : null,
+    'as soon as a siege against one of Azania’s towns shows on the map',
+    settings.battles ? 'when fighting starts at one' : null,
     settings.ended ? 'when one ends' : null,
   ].filter((clause): clause is string => clause !== null)
   const list = when.length > 1 ? `${when.slice(0, -1).join(', ')} and ${when.at(-1)}` : when[0]
@@ -73,8 +79,14 @@ export async function greetSiegeChannel(payload: Payload, settings: SiegeAlertSe
   if (!url) return false
   const role = roleId(settings.role)
   const pings = role
-    ? `<@&${role}> will be pinged for each new siege against Azania${settings.battles ? ' and each battle at one' : ''}.`
+    ? `<@&${role}> will be pinged for each new siege against Azania${settings.battles ? ' and when fighting starts at one' : ''}.`
     : 'No role will be pinged.'
+  const schedule = scheduleOf(settings.sessionTimes, settings.sessionZone)
+  const sessions = schedule
+    ? `Battle sessions, as set, in your own time: ${nextSessions(Date.now(), schedule, schedule.times.length)
+        .map((start) => `<t:${Math.round(start / 1000)}:t>`)
+        .join(' · ')}. If that’s wrong, fix the times or the time zone in the settings.`
+    : 'No battle session times are set, so the alerts can’t say when to fight.'
   try {
     const response = await postWebhook(url, {
       allowed_mentions: { parse: [] },
@@ -82,7 +94,7 @@ export async function greetSiegeChannel(payload: Payload, settings: SiegeAlertSe
         {
           title: 'Siege alerts',
           url: `${siteUrl()}/maps`,
-          description: clip(`${promised(settings)}\n\n${pings}`, 4000),
+          description: clip(`${promised(settings)}\n\n${pings}\n\n${sessions}`, 4000),
           color: SIEGE_COLOUR,
           footer: { text: 'Read off the Rulercraft map every five minutes' },
         },

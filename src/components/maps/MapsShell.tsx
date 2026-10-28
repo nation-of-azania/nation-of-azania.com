@@ -1004,6 +1004,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
     },
     [war.sieges, setEditor, look],
   )
+  // Sent from a siege alert in Discord (src/lib/siegeAlerts.ts, `?siege=<the besieged town's Towny id>`): the
+  // siege's card opens on arrival, once the war has come, and once only. Kept on arrival, since the map soon
+  // writes its own address; a siege over by then opens nothing, and the page beneath still shows its town.
+  const siegeParam = query.get('siege')
+  const siegeAsked = useRef<{ townId: string; opened: boolean } | null>(null)
+  useEffect(() => {
+    if (siegeParam && !siegeAsked.current) siegeAsked.current = { townId: siegeParam, opened: false }
+    const asked = siegeAsked.current
+    if (!asked || asked.opened || war.status === 'asking') return
+    asked.opened = true
+    openSiege(asked.townId)
+  }, [siegeParam, war.status, openSiege])
   const showView = useCallback(
     (view: MapViewData) => {
       setEditor(null)

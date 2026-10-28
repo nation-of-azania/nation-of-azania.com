@@ -1108,10 +1108,11 @@ something was being fetched.
   - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
 - **Diplomacy:** also under Settings → Azania Maps, a nation (spelt as the map has it; case, spaces and underscores don't matter), a stance (allied, friendly, tense, hostile, at war) and a line for readers. Every nation not named is neutral. It is public: the map's diplomacy layer, the front and the nations' pages show it to anyone.
 - **When the map is read:**
-  - after a page of Azania Maps finds the last reading a quarter of an hour old, so while people use the map it is at most about fifteen minutes behind Towny's own markers;
-  - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.
+  - every five minutes, by the **watch** (`/maps/watch`, `src/lib/watch.ts`): a GitHub schedule (`.github/workflows/watch.yml`) asks for it, and it reads the marker file once, brings the towns up to date when the last reading is ten minutes old, and tells the **siege alerts** (see *Discord announcements* below). So Azania's towns are some ten to fifteen minutes behind Towny's own markers, visitors or none;
+  - after a page of Azania Maps finds the last reading a quarter of an hour old, should the schedule stall;
+  - once a day by Vercel's scheduler (`vercel.json` → `/maps/sync`; the free plan allows no more), which also writes the day's **census** (residents and claimed chunks per town) for growth charts.
 
-  `/maps/sync` reads at most every ten minutes, whoever calls it.
+  A reading that changed anything a page shows refreshes Azania Maps' cached pages, so the next visit has it (`refreshMaps` in `src/lib/towns.ts`). `/maps/sync` reads at most every ten minutes and `/maps/watch` runs at most every four, whoever calls them; with `CRON_SECRET` set, a call bearing it as `Authorization: Bearer …` always runs. The GitHub schedule is free because the repository is public (a private one would spend its free Actions minutes within a week: move the schedule to cron-job.org or the like, calling the same address). GitHub starts scheduled runs a few minutes late at times, now and then skips one, and pauses the schedule after 60 days without a commit; *Actions → Watch the Rulercraft map → Run workflow* runs it at once, and re-enables it.
 - **Server sites:** some Towny towns are run by the server itself, and their rulers are bots (`Ruler1`, `Ruler2`, …). Quarries, wastelands and treasure ships pay whichever nation holds them and change hands by siege; there are a few others. The server's spawn town is a bot's too, but it is no site: it holds the server's trading outposts and landmarks, which nobody holds and no siege takes, and the map shows each on its own (see *Trading outposts and landmarks* above).
   - The reading tells them apart by the ruler, and keeps each one's kind, what it pays a day, what a quarry produces, and its terms as the map gives them (Towns → *kind*, *income*, *resource*, *site's terms*).
   - A held site is part of Azania on the map, but it isn't a town: it has no census, isn't counted in the nation's growth, and is nobody's `/t spawn`. The front's figures count players' towns alone.
@@ -1285,11 +1286,49 @@ read the settings. As a fallback, the environment variables
 
 **Siege alerts** go to a channel of their own, set under *Siege alerts* on
 the same page: a webhook, optionally a role to ping (its ID, with Discord's
-Developer Mode on: *Server Settings → Roles → ⋯ → Copy Role ID*), and what
-besides a new siege against Azania to post: a battle beginning at one, one
-ending, and the sieges Azania lays. A new webhook is checked with Discord
+Developer Mode on: *Server Settings → Roles → ⋯ → Copy Role ID*), what
+besides a new siege against Azania to post (fighting starting at one, one
+ending, the sieges Azania lays), and when the battle sessions are. A new webhook is checked with Discord
 before it's saved, and saving a webhook or role posts a short note to the
 channel, so you see at once that it works (`src/lib/siegeAlerts.ts`).
+
+The watch (every five minutes, see *When the map is read*) holds the sieges
+SiegeWar marks on the Rulercraft map against the last run's, recorded in
+Azania Maps' settings, and tells each thing **once** (`src/lib/siegeWatch.ts`):
+
+- **a siege laid** against one of Azania's towns (Azania's side as the map
+  judges it: its town besieged, or Azania the defender), as soon as it shows
+  on the map — its fire, from the moment the banner is placed, before any
+  fighting — with the role pinged; and, if chosen, one Azania lays, pinging
+  nobody;
+- **fighting started** at one, if chosen: SiegeWar's crossed swords in place
+  of the fire, once each battle session, the role pinged;
+- **its end**, if chosen: its mark gone from the map in two readings minutes
+  apart (the map restarting clears SiegeWar's marks for a moment, and ends
+  nothing). SiegeWar marks a siege only while it's in progress and says
+  nothing of how it ended, so the alert gives the siege as it stood when
+  last seen.
+
+Each alert says **when to fight**, as Discord timestamps, which every
+reader sees in their own time zone: the next battle session and the ones
+after it the siege still has, or the one on now and until when (a siege's
+mark says how long a running session has left). SiegeWar's session times
+aren't on the map, so they're a setting, *Battle sessions start at* and
+*In the time zone*: by default 13:00, 19:00 and 01:00 in Europe/Berlin, as
+Rulercraft's rules give them (12:00, 18:00 and 00:00 UTC in winter, an
+hour earlier in summer). Whenever the map shows a session running, the
+watch checks the times against it and says so under *Seen on the map*;
+and the note saving the settings posts lists the sessions in the reader's
+own time, for a quick look (`src/maps/sessions.ts`).
+
+Each alert says the siege as the map's card does (sides, kind, sessions
+fought, balance, banner, war chest, where the banner stands) and links to
+the besieged town's page on Azania Maps with `?siege=…`, which opens the
+siege's card at its banner. A siege is its town and its attacker; every
+one is recorded even while the alerts are off, so switching them on never
+tells old sieges as new, and the first run of all only learns what's
+there. What Discord doesn't take is tried again on the next runs, for an
+hour. `pnpm test:sieges` covers all of it without Discord.
 
 ### Custom domain, rollbacks and production commands
 
@@ -1429,6 +1468,7 @@ import map. Without that handler, the production admin panel renders blank.
 | `pnpm test:discord`       | Discord markdown parser tests.                              |
 | `pnpm test:litematic`     | Litematica parser tests.                                    |
 | `pnpm test:uvlock`        | Litematica texture UV-lock tests.                           |
+| `pnpm test:sieges`        | Siege alert tests: what's told, once, and to whom.          |
 
 ## Project layout
 

@@ -35,7 +35,7 @@ export const AzaniaMaps: GlobalConfig = {
   admin: {
     group: 'Settings',
     description:
-      'Which towns on the Rulercraft map are Azania’s. The map is read every quarter of an hour or so while people use Azania Maps, and once a day for the census.',
+      'Which towns on the Rulercraft map are Azania’s. The map is read every ten minutes or so, and once a day for the census.',
   },
   access: {
     read: isAdmin,

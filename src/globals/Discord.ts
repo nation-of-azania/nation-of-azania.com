@@ -3,6 +3,7 @@ import { ValidationError, type GlobalAfterChangeHook, type GlobalBeforeChangeHoo
 import { isAdmin } from '../access'
 import { isWebhookUrl } from '../lib/discord'
 import { greetSiegeChannel, roleId, webhookProblem, type SiegeAlertSettings } from '../lib/siegeAlerts'
+import { isTimeZone, sessionTimes } from '../maps/sessions'
 
 /**
  * Where Discord hears from the site (src/lib/discord.ts): newly published
@@ -34,8 +35,9 @@ const checkSiegeWebhook: GlobalBeforeChangeHook = async ({ data, originalDoc, re
 }
 
 /**
- * The channel hears at once that the alerts will come to it: whenever an
- * admin sets the webhook or the role, or switches the alerts back on.
+ * The channel hears at once that the alerts will come to it, and when the
+ * battle sessions are, in each reader's own time: whenever an admin
+ * changes the alerts' settings (the watch's own notes aside).
  */
 const greetSiegeChannelOnChange: GlobalAfterChangeHook = async ({ doc, previousDoc, req }) => {
   const now = sieges(doc)
@@ -47,7 +49,9 @@ const greetSiegeChannelOnChange: GlobalAfterChangeHook = async ({ doc, previousD
     before.enabled !== false &&
     Boolean(now.battles) === Boolean(before.battles) &&
     Boolean(now.ended) === Boolean(before.ended) &&
-    Boolean(now.laidByAzania) === Boolean(before.laidByAzania)
+    Boolean(now.laidByAzania) === Boolean(before.laidByAzania) &&
+    (now.sessionTimes ?? null) === (before.sessionTimes ?? null) &&
+    (now.sessionZone ?? null) === (before.sessionZone ?? null)
   if (!same) await greetSiegeChannel(req.payload, now)
   return doc
 }
@@ -115,7 +119,7 @@ export const Discord: GlobalConfig = {
       label: 'Siege alerts',
       admin: {
         description:
-          'A post in a channel when a siege is laid against one of Azania’s towns, as SiegeWar marks it on the Rulercraft map. The map is checked every five minutes, so an alert comes a few minutes after the banner is placed. Off until a webhook is set; saving a new webhook or role posts a short note to the channel, so you can see it works.',
+          'A post in a channel as soon as a siege against one of Azania’s towns shows on the Rulercraft map: its flame, from the moment the banner is placed, long before any fighting. The map is checked every five minutes, so the alert comes within minutes, and says when its battle sessions are, in each reader’s own time. Off until a webhook is set; saving these settings posts a short note to the channel, so you can see it works and check the session times.',
       },
       fields: [
         {
@@ -162,11 +166,12 @@ export const Discord: GlobalConfig = {
             {
               name: 'battles',
               type: 'checkbox',
-              label: 'When a battle begins at one',
+              label: 'Also when fighting starts',
               defaultValue: false,
               admin: {
                 width: '33%',
-                description: 'When fighting starts at the banner of a siege against Azania, during a battle session.',
+                description:
+                  'A second post, each battle session, when the siege’s flame turns to crossed swords: fighting has begun at the banner. The first post doesn’t wait for this.',
               },
             },
             {
@@ -182,6 +187,46 @@ export const Discord: GlobalConfig = {
               label: 'Sieges Azania lays',
               defaultValue: false,
               admin: { width: '34%', description: 'Also post the sieges Azania lays against other towns. Never pings.' },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'sessionTimes',
+              type: 'text',
+              label: 'Battle sessions start at',
+              defaultValue: '13:00, 19:00, 01:00',
+              admin: {
+                width: '40%',
+                description:
+                  'Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.',
+              },
+              validate: (value: string | null | undefined) =>
+                !value?.trim() || sessionTimes(value) !== null || 'Times of day, separated by commas, such as 13:00, 19:00, 01:00.',
+            },
+            {
+              name: 'sessionZone',
+              type: 'text',
+              label: 'In the time zone',
+              defaultValue: 'Europe/Berlin',
+              admin: {
+                width: '25%',
+                description: 'The server’s, by its tz name: Europe/Berlin is Central European Time, summer time and all; UTC never changes.',
+              },
+              validate: (value: string | null | undefined) =>
+                !value?.trim() || isTimeZone(value) || 'A time zone by its tz name, such as Europe/Berlin, Europe/London or UTC.',
+            },
+            {
+              name: 'sessionsSeen',
+              type: 'text',
+              label: 'Seen on the map',
+              admin: {
+                width: '35%',
+                readOnly: true,
+                description: 'The last battle session seen running on the map, and whether the times agree. Filled in by the watch.',
+              },
             },
           ],
         },
