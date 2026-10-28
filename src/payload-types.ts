@@ -1337,11 +1337,11 @@ export interface Discord {
      */
     laidByAzania?: boolean | null;
     /**
-     * Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.
+     * Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside: 12:00, 18:00 and 00:00 UTC (19:00, 01:00 and 07:00 in Thai time), all year. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.
      */
     sessionTimes?: string | null;
     /**
-     * The server’s, by its tz name: Europe/Berlin is Central European Time, summer time and all; UTC never changes.
+     * By its tz name. The server keeps UTC: its sessions stayed put when Europe’s clocks went back in October 2026. A zone with summer time (Europe/Berlin) would move them an hour.
      */
     sessionZone?: string | null;
     /**

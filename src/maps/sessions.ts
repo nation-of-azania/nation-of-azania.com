@@ -16,7 +16,7 @@ export type SessionSchedule = {
   zone: string
 }
 
-/** "13:00, 19:00, 01:00" as minutes after midnight; null when any part isn't a time. */
+/** "12:00, 18:00, 00:00" as minutes after midnight; null when any part isn't a time. */
 export function sessionTimes(text: string | null | undefined): number[] | null {
   const parts = (text ?? '').split(/[,;\s]+/).filter(Boolean)
   if (!parts.length) return null

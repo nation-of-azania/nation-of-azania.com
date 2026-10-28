@@ -20,7 +20,7 @@ export type SiegeAlertSettings = {
   battles?: boolean | null
   ended?: boolean | null
   laidByAzania?: boolean | null
-  /** When battle sessions start ("13:00, 19:00, 01:00"), in `sessionZone`. */
+  /** When battle sessions start ("12:00, 18:00, 00:00"), in `sessionZone`. */
   sessionTimes?: string | null
   sessionZone?: string | null
   /** The last battle session the watch saw running, in words. */

@@ -1314,9 +1314,13 @@ reader sees in their own time zone: the next battle session and the ones
 after it the siege still has, or the one on now and until when (a siege's
 mark says how long a running session has left). SiegeWar's session times
 aren't on the map, so they're a setting, *Battle sessions start at* and
-*In the time zone*: by default 13:00, 19:00 and 01:00 in Europe/Berlin, as
-Rulercraft's rules give them (12:00, 18:00 and 00:00 UTC in winter, an
-hour earlier in summer). Whenever the map shows a session running, the
+*In the time zone*: by default 12:00, 18:00 and 00:00 UTC, all year (19:00,
+01:00 and 07:00 in Thai time). Rulercraft's #sieges channel bears it out:
+each siege's result is posted the moment its last session ends, always on
+the hour at 13:00, 19:00 or 01:00 UTC, before Europe's clocks went back on
+25 October 2026 and after, so the server keeps UTC, not European time
+(`scripts/test-sieges.ts` holds those results). Whenever the map shows a
+session running, the
 watch checks the times against it and says so under *Seen on the map*;
 and the note saving the settings posts lists the sessions in the reader's
 own time, for a quick look (`src/maps/sessions.ts`).

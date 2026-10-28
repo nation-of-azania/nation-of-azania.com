@@ -222,7 +222,31 @@ let watch: SiegeWatch
   check(none.content === '**Cape Town is under siege**', 'no role, no ping')
 }
 
-// When battle sessions are: Rulercraft's 13:00, 19:00 and 01:00, Central European time.
+// Rulercraft's battle sessions, as its #sieges channel bears them out (Thai time, UTC+7, all
+// year): each siege's result is posted the moment its last session ends, and its start
+// before a session or within that session's first ten minutes, when a banner may be placed.
+{
+  const thai = (day: string, time: string) => Date.parse(`2026-10-${day}T${time}:00+07:00`)
+  const results = [
+    thai('23', '02:00'), thai('24', '08:00'), thai('24', '20:00'), thai('25', '02:00'), thai('25', '08:00'),
+    thai('25', '20:00'), thai('26', '02:00'), thai('26', '20:00'), thai('28', '02:00'),
+  ]
+  const begun = [
+    thai('23', '19:08'), thai('24', '00:38'), thai('24', '06:53'), thai('24', '12:59'), thai('25', '00:56'),
+    thai('25', '06:54'), thai('26', '01:07'), thai('27', '07:09'), thai('27', '18:58'), thai('28', '01:06'),
+  ]
+  const utc = scheduleOf('12:00, 18:00, 00:00', 'UTC')!
+  const missed = (schedule: NonNullable<ReturnType<typeof scheduleOf>>) => results.filter((end) => nearestEnd(end, schedule).off !== 0).length
+  check(missed(utc) === 0, `every result in #sieges falls as a session ends, at 12:00, 18:00 and 00:00 UTC (${missed(utc)} not)`)
+  check(missed(scheduleOf('13:00, 19:00, 01:00', 'Europe/Berlin')!) > 0, 'which European time, moving with summer time, would miss before the clocks went back')
+  const placed = begun.every((at) => {
+    const start = nextSessions(at - 86_400_000, utc, 12).filter((candidate) => candidate <= at).at(-1)!
+    return at - start < 10 * 60_000 || at - start >= 60 * 60_000
+  })
+  check(placed, 'and every siege begun before a session or in its first ten minutes')
+}
+
+// Session times in a zone with summer time move in UTC; checked across the change.
 {
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16)
   const schedule = scheduleOf('13:00, 19:00, 01:00', 'Europe/Berlin')!

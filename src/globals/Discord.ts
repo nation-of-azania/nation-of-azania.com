@@ -197,26 +197,27 @@ export const Discord: GlobalConfig = {
               name: 'sessionTimes',
               type: 'text',
               label: 'Battle sessions start at',
-              defaultValue: '13:00, 19:00, 01:00',
+              defaultValue: '12:00, 18:00, 00:00',
               admin: {
                 width: '40%',
                 description:
-                  'Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.',
+                  'Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside: 12:00, 18:00 and 00:00 UTC (19:00, 01:00 and 07:00 in Thai time), all year. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.',
               },
               validate: (value: string | null | undefined) =>
-                !value?.trim() || sessionTimes(value) !== null || 'Times of day, separated by commas, such as 13:00, 19:00, 01:00.',
+                !value?.trim() || sessionTimes(value) !== null || 'Times of day, separated by commas, such as 12:00, 18:00, 00:00.',
             },
             {
               name: 'sessionZone',
               type: 'text',
               label: 'In the time zone',
-              defaultValue: 'Europe/Berlin',
+              defaultValue: 'UTC',
               admin: {
                 width: '25%',
-                description: 'The server’s, by its tz name: Europe/Berlin is Central European Time, summer time and all; UTC never changes.',
+                description:
+                  'By its tz name. The server keeps UTC: its sessions stayed put when Europe’s clocks went back in October 2026. A zone with summer time (Europe/Berlin) would move them an hour.',
               },
               validate: (value: string | null | undefined) =>
-                !value?.trim() || isTimeZone(value) || 'A time zone by its tz name, such as Europe/Berlin, Europe/London or UTC.',
+                !value?.trim() || isTimeZone(value) || 'A time zone by its tz name, such as UTC, Europe/Berlin or Asia/Bangkok.',
             },
             {
               name: 'sessionsSeen',
