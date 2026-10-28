@@ -700,7 +700,11 @@ carries what's already drawn into place until the fresh render lands.
   an **outpost** is the claim holding an outpost's spawn and what lies
   within reach of it, an outpost in the town itself changing nothing; and
   what reaches neither is **detached**, shown as the map sees it, with no
-  guess at why. Every part keeps its owner's colour and only its edge says
+  guess at why. A site the server runs (a quarry, a wasteland, a treasure
+  ship) is no players' town and Towny's rule isn't its: its claims are all
+  the site itself, in pieces where the server laid them apart, never
+  detached; the piece holding its mark is the one fitted, and a click on
+  another looks at that one. Every part keeps its owner's colour and only its edge says
   which it is: the town's whole and strong, an outpost's striped (its dash
   over a whitewash casing; a dash alone is a town of no nation's), and
   detached claims' thinner and fainter. From the scale of the nation in,

@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { worldOf } from '../src/lib/world'
 import type { MarkerFile } from '../src/lib/dynmap'
 import { abroadOf } from '../src/maps/abroad'
-import { CLAIM_REACH, claimParts, mainBounds, partAt, type OutpostSpawn } from '../src/maps/claims'
+import { CLAIM_REACH, claimParts, mainBounds, partAt, partFocus, type OutpostSpawn } from '../src/maps/claims'
 import { mapTown, townFit } from '../src/maps/data'
 import type { Outline, Point } from '../src/maps/geo'
 import { packWorld, unpackWorld } from '../src/maps/world'
@@ -112,6 +112,18 @@ const roles = (parts: ReturnType<typeof claimParts>) => parts.map((part) => `${p
   check(roles(parts) === 'main:1 detached:0', `without a home, the biggest claim is the town (${roles(parts)})`)
 }
 
+// A site the server runs is no players' town: what's apart from its mark is more of it, never detached.
+{
+  const claims = [chunks(0, 0), chunks(-200, 100, 16, 16), chunks(-210, 100), chunks(1000, 0, 3, 3)]
+  const parts = claimParts(claims, [8, 8], [spawn([16008, 8])], { site: true })
+  check(roles(parts) === 'main:0 main:1+2 outpost:3', `a quarry's far piece is the quarry's own, its outpost an outpost (${roles(parts)})`)
+  check(
+    mainBounds(parts)?.maxX === 16 && parts[1].centre[0] === (parts[1].bounds.minX + parts[1].bounds.maxX) / 2,
+    'the piece holding its mark is the one fitted; another is centred on itself',
+  )
+  check(partFocus(parts, 0) === undefined && partFocus(parts, 1)?.minX === -210 * 16, 'a click on the far piece looks at it, one on the mark’s piece at the site')
+}
+
 // Which part a block is in.
 {
   const claims = [chunks(0, 0, 4, 4), chunks(1000, 0)]
@@ -199,7 +211,12 @@ if (live) {
   const counts = { main: 0, outpost: 0, detached: 0 }
   for (const town of world.towns) for (const part of town.parts) counts[part.role]++
   console.log(`     the live map: ${JSON.stringify(counts)} in ${Math.round(ms)} ms`)
-  check(world.towns.every((town) => town.parts.filter((part) => part.role === 'main').length === 1), 'every town on the live map has itself, once')
+  check(world.towns.every((town) => town.parts[0]?.role === 'main'), 'every town on the live map has itself first')
+  check(
+    world.towns.every((town) => town.kind !== 'town' || town.parts.filter((part) => part.role === 'main').length === 1),
+    'a players’ town, once',
+  )
+  check(world.towns.every((town) => town.kind === 'town' || town.parts.every((part) => part.role !== 'detached')), 'and no site has anything detached')
   check(world.towns.every((town) => town.parts.reduce((sum, part) => sum + part.claims.length, 0) === town.claims.length), 'and every claim is in one part')
 }
 

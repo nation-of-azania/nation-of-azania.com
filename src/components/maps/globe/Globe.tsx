@@ -3,7 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 import { abroadHomeBounds, homeNationOf, nationFit, sameNation, type Abroad, type AbroadTown } from '@/maps/abroad'
-import { partAt } from '@/maps/claims'
+import { partAt, partFocus } from '@/maps/claims'
 import { heartland, spoken, townFit, type MapTown } from '@/maps/data'
 import { inOutlines, type Point } from '@/maps/geo'
 import {
@@ -1026,9 +1026,9 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     if (nation && fit) return { selection: { kind: 'nation', slug: nation.slug }, target: { bounds: fit } }
     if (number !== NUMBER.none) {
       const town = townAt(block, number === NUMBER.stateless ? 'stateless' : 'any')
-      // An outpost of the town, or claims detached from it: what was clicked is looked at, not the town.
+      // An outpost of the town, claims detached from it or a site's piece apart from its mark: what was clicked is looked at.
       const part = town ? partAt(town.parts, town.claims, block) : null
-      const focus = part && part.role !== 'main' ? part.bounds : undefined
+      const focus = town && part ? partFocus(town.parts, town.parts.indexOf(part)) : undefined
       const target = focus ? { bounds: focus } : town ? townTarget(town) : null
       if (town && target) return { selection: { kind: 'abroad', slug: town.slug }, target, focus }
     }

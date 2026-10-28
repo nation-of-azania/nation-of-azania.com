@@ -10,7 +10,7 @@ import {
   type AbroadNation,
   type AbroadTown,
 } from '@/maps/abroad'
-import type { ClaimPart, PartRole } from '@/maps/claims'
+import { partFocus, type ClaimPart, type PartRole } from '@/maps/claims'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
 import { GROUND, STANCE_COLOURS } from '@/maps/palette'
@@ -335,9 +335,8 @@ export function AbroadClaims({
     // Far out, the nations; closer in, the towns; a town of no nation is always itself.
     if (nation && (zoom < NATIONS_BELOW || !town)) onSelect({ kind: 'nation', slug: nation.slug })
     else if (town) {
-      // A click on an outpost, or on claims detached from the town, looks at what was clicked rather than the town.
-      const part = hit.part !== null ? town.parts[hit.part] : undefined
-      onSelect({ kind: 'abroad', slug: town.slug }, part && part.role !== 'main' ? part.bounds : undefined)
+      // A click on an outpost, on claims detached from the town or on a site's piece apart from its mark looks at what was clicked.
+      onSelect({ kind: 'abroad', slug: town.slug }, partFocus(town.parts, hit.part))
     }
   }
   // Mid-drag the map slides under a still pointer: the nations passing beneath it aren't hovered, and nothing restyles.

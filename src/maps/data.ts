@@ -219,7 +219,7 @@ export function mapTown(town: Town): MapTown {
     home,
     claims,
     outposts,
-    parts: claimParts(claims, home, outposts),
+    parts: claimParts(claims, home, outposts, { site: kind !== 'town' }),
     bounds: boundsOf(claims.flatMap(outlineToRing)),
     updatedAt: town.updatedAt,
   }

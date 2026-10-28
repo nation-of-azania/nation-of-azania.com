@@ -23,6 +23,12 @@ import { boundsOf, inRing, isPoint, outlineToRing, ringArea, type Bounds, type O
  *   detached   whatever reaches neither, a part for each group of them
  *              within reach of one another.
  *
+ * A site the server runs (a quarry, a wasteland, a treasure ship, …) is
+ * no players' town, and Towny's rule isn't its: its claims stand as the
+ * server laid them out. What reaches neither its home nor an outpost is
+ * more of the site itself, never detached: a main piece of its own, after
+ * the one holding the site's mark.
+ *
  * Where a claim is in reach of two, the nearer takes it. Pure, and cheap
  * enough to run in the browser over the whole world: only claims of one
  * town are ever measured against one another, and only when their boxes
@@ -43,6 +49,7 @@ export const spawnsFrom = (value: unknown): OutpostSpawn[] =>
 export type PartRole = 'main' | 'outpost' | 'detached'
 
 export type ClaimPart = {
+  /** What it is; a site's pieces are all 'main', the first holding its mark. */
   role: PartRole
   /** The town's claims in it, by their index among the town's claims. */
   claims: number[]
@@ -101,8 +108,18 @@ function gapBetween(a: Point[], b: Point[], boxA: Bounds, boxB: Bounds): number 
 /** The middle of the block at a point: a marker stands on a block, and its edge is a claim's. */
 const blockMiddle = ([x, z]: Point): Point => [x + 0.5, z + 0.5]
 
-/** A town's claims in their parts: the main part first, then its outposts in Towny's order, then what's detached, the biggest first. */
-export function claimParts(claims: Outline[], home: Point | null, outposts: OutpostSpawn[]): ClaimPart[] {
+/**
+ * A town's claims in their parts: the main part first, then its outposts
+ * in Towny's order, then what's detached, the biggest first. For a site
+ * (`site`), what would be detached is more of the site: main pieces after
+ * the first, the biggest first, before its outposts.
+ */
+export function claimParts(
+  claims: Outline[],
+  home: Point | null,
+  outposts: OutpostSpawn[],
+  { site = false }: { site?: boolean } = {},
+): ClaimPart[] {
   const rings = claims.map(outlineToRing)
   const boxes = rings.map(boundsOf)
   const chunks = rings.map((ring) => ringArea(ring) / 256)
@@ -158,11 +175,11 @@ export function claimParts(claims: Outline[], home: Point | null, outposts: Outp
     }
   }
   grow((j) => owner[j] !== null, (j) => owner[j]!)
-  // What's left is detached: in parts of claims within reach of one another.
+  // What's left is detached, or for a site more of it: in parts of claims within reach of one another.
   let detached = 0
   for (let i = 0; i < n; i++) {
     if (owner[i] !== null) continue
-    owner[i] = `detached:${detached++}`
+    owner[i] = `${site ? 'piece' : 'detached'}:${detached++}`
     const key = owner[i]!
     grow((j) => owner[j] === key, () => key)
   }
@@ -178,7 +195,7 @@ export function claimParts(claims: Outline[], home: Point | null, outposts: Outp
       claims: members,
       bounds,
       chunks: Math.round(members.reduce((sum, i) => sum + chunks[i], 0)),
-      centre: role === 'main' ? (home && held >= 0 ? home : middle) : role === 'outpost' ? spawns[0].at : middle,
+      centre: key === 'main' ? (home && held >= 0 ? home : middle) : role === 'outpost' ? spawns[0].at : middle,
       spawns,
     }
   }
@@ -187,15 +204,26 @@ export function claimParts(claims: Outline[], home: Point | null, outposts: Outp
     .filter((key) => key.startsWith('outpost:'))
     .sort((a, b) => Number(a.slice(8)) - Number(b.slice(8)))
     .map((key) => partOf(key, 'outpost'))
-  const detachedParts = keys
-    .filter((key) => key.startsWith('detached:'))
-    .map((key) => partOf(key, 'detached'))
-    .sort((a, b) => (b?.chunks ?? 0) - (a?.chunks ?? 0))
-  return [partOf('main', 'main'), ...outpostParts, ...detachedParts].filter((part): part is ClaimPart => part !== null)
+  const apart = (prefix: string, role: PartRole) =>
+    keys
+      .filter((key) => key.startsWith(prefix))
+      .map((key) => partOf(key, role))
+      .sort((a, b) => (b?.chunks ?? 0) - (a?.chunks ?? 0))
+  return [partOf('main', 'main'), ...apart('piece:', 'main'), ...outpostParts, ...apart('detached:', 'detached')].filter(
+    (part): part is ClaimPart => part !== null,
+  )
 }
 
-/** The town itself, as against its outposts and what's detached: its main part's bounds. */
+/** The town itself, as against its outposts and what's detached: its main part's bounds; for a site, the piece holding its mark. */
 export const mainBounds = (parts: ClaimPart[]): Bounds | null => parts.find((part) => part.role === 'main')?.bounds ?? null
+
+/**
+ * Where a click on one of a town's parts looks, when it isn't the town
+ * itself (the first part): an outpost, detached claims, a site's piece
+ * apart from its mark; nothing for the town, which is looked at as ever.
+ */
+export const partFocus = (parts: ClaimPart[], index: number | null | undefined): Bounds | undefined =>
+  index != null && index > 0 ? parts[index]?.bounds : undefined
 
 /** The part of a town holding a block, by its claims; null when none does. */
 export function partAt(parts: ClaimPart[], claims: Outline[], block: Point): ClaimPart | null {

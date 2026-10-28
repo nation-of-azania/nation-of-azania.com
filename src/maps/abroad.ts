@@ -117,7 +117,7 @@ export function abroadOf(world: World, own: Pick<MapTown, 'townyId'>[]): Abroad 
     if (townBySlug.has(slug)) slug = `${slug}-${(town.id ?? String(towns.length)).slice(0, 4)}`
     // Two of the spawn town's places of one name share its id's start: told apart by where they stand.
     if (townBySlug.has(slug) && town.home) slug = worldSlug(`${town.name} ${town.home[0]} ${town.home[1]}`)
-    const parts = claimParts(claims, town.home, town.outposts ?? [])
+    const parts = claimParts(claims, town.home, town.outposts ?? [], { site: town.kind !== 'town' })
     const abroad: AbroadTown = { ...town, claims, slug, claimBounds, bounds: unite(claimBounds), parts }
     townBySlug.set(slug, abroad)
     towns.push(abroad)

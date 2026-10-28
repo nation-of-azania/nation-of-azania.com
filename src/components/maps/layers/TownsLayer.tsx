@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import type { ClaimPart, PartRole } from '@/maps/claims'
+import { partFocus, type ClaimPart, type PartRole } from '@/maps/claims'
 import { homeClaimBounds, isSite, spoken, type MapTown } from '@/maps/data'
 import { outlineToRing, type Bounds, type Point } from '@/maps/geo'
 import { GROUND } from '@/maps/palette'
@@ -52,7 +52,7 @@ type Props = {
   selected?: number | null
   /** Towns to set apart, in gold: a mayor's own, while they draw. Everything else fades. */
   emphasised?: number[]
-  /** A town clicked; `focus`, the bounds of the part of it clicked when that's an outpost or detached, to look at instead of the town. */
+  /** A town clicked; `focus`, the bounds of the part of it clicked when that isn't the town itself, to look at instead of the town. */
   onSelect?: (town: MapTown, focus?: Bounds) => void
 }
 
@@ -62,13 +62,13 @@ const partsOf = (town: MapTown): Pick<ClaimPart, 'role' | 'claims'>[] =>
 
 /**
  * The part of a town a click fell on, by the `data-part` of the path under
- * it: its bounds when it's an outpost or detached, which the map looks at
+ * it: its bounds when it isn't the town itself (an outpost, detached
+ * claims, a site's piece apart from its mark), which the map looks at
  * rather than the town; nothing for the town itself.
  */
 export function clickedPart(event: { target: EventTarget | null }, parts: ClaimPart[]): Bounds | undefined {
   const index = Number((event.target as Element | null)?.closest?.('[data-part]')?.getAttribute('data-part'))
-  const part = Number.isInteger(index) ? parts[index] : undefined
-  return part && part.role !== 'main' ? part.bounds : undefined
+  return Number.isInteger(index) ? partFocus(parts, index) : undefined
 }
 
 const far = (zoom: number) => zoom <= -3
