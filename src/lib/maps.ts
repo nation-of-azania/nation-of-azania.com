@@ -17,6 +17,7 @@ import {
   type MapRoad,
   type MapTown,
   type MapViewData,
+  type Relation,
 } from '@/maps/data'
 import { spawnsFrom } from '@/maps/claims'
 import type { Outline } from '@/maps/geo'
@@ -36,6 +37,16 @@ import type { Article, Town as TownDoc } from '@/payload-types'
 const getClient = () => getPayload({ config })
 
 const ALL = { limit: 0, pagination: false as const, depth: 0 }
+
+/** Azania's diplomacy as the map shows it, from Settings → Azania Maps: every relation with a nation and a stance. */
+export const relationsOf = (relations: { nation?: string | null; stance?: string | null; note?: string | null }[] | null | undefined): Relation[] =>
+  (relations ?? [])
+    .filter((relation) => relation.nation?.trim() && isStance(relation.stance))
+    .map((relation) => ({
+      nation: relation.nation!.trim(),
+      stance: relation.stance as Stance,
+      note: relation.note?.trim() || null,
+    }))
 
 /** The whole nation, once per render. */
 export const getMapData = cache(async (): Promise<MapData> => {
@@ -61,13 +72,7 @@ export const getMapData = cache(async (): Promise<MapData> => {
       roads: roads.docs.map(mapRoad).filter(present),
       events: events.docs.map(mapEvent).filter(present),
       // Only the diplomacy: the rest of the settings stay with the admins.
-      relations: (settings?.relations ?? [])
-        .filter((relation) => relation.nation?.trim() && isStance(relation.stance))
-        .map((relation) => ({
-          nation: relation.nation.trim(),
-          stance: relation.stance as Stance,
-          note: relation.note?.trim() || null,
-        })),
+      relations: relationsOf(settings?.relations),
     }
   } catch {
     return { towns: [], places: [], roads: [], events: [], relations: [] }

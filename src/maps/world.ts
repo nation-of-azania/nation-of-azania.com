@@ -49,6 +49,12 @@ export type WorldTown = {
   capital: boolean
   ruler: string | null
   residents: number
+  /**
+   * Its residents' Minecraft names as the map lists them, the ruler first;
+   * Bedrock players' with the dot their server gives them. Empty for a
+   * site, and in a reading the CDN kept from before they were read.
+   */
+  people: string[]
   chunks: number
   founded: string | null
   publicSpawn: boolean | null
@@ -124,6 +130,7 @@ export const unpackWorld = (world: PackedWorld): World => ({
     ...town,
     claims: town.claims.map(([x, z]) => ({ x: corners(x), z: corners(z) })),
     outposts: town.outposts ?? [],
+    people: town.people ?? [],
     culture: town.culture ?? null,
     religion: town.religion ?? null,
   })),

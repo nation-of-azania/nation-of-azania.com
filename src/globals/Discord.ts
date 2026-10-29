@@ -2,7 +2,7 @@ import { ValidationError, type GlobalAfterChangeHook, type GlobalBeforeChangeHoo
 
 import { isAdmin } from '../access'
 import { isWebhookUrl } from '../lib/discord'
-import { greetSiegeChannel, roleId, webhookProblem, type SiegeAlertSettings } from '../lib/siegeAlerts'
+import { ALLY_SIEGES, greetSiegeChannel, roleId, webhookProblem, type SiegeAlertSettings } from '../lib/siegeAlerts'
 import { isTimeZone, sessionTimes } from '../maps/sessions'
 
 /**
@@ -50,6 +50,8 @@ const greetSiegeChannelOnChange: GlobalAfterChangeHook = async ({ doc, previousD
     Boolean(now.battles) === Boolean(before.battles) &&
     Boolean(now.ended) === Boolean(before.ended) &&
     Boolean(now.laidByAzania) === Boolean(before.laidByAzania) &&
+    (now.allies ?? null) === (before.allies ?? null) &&
+    Boolean(now.pingAllies) === Boolean(before.pingAllies) &&
     (now.sessionTimes ?? null) === (before.sessionTimes ?? null) &&
     (now.sessionZone ?? null) === (before.sessionZone ?? null)
   if (!same) await greetSiegeChannel(req.payload, now)
@@ -187,6 +189,34 @@ export const Discord: GlobalConfig = {
               label: 'Sieges Azania lays',
               defaultValue: false,
               admin: { width: '34%', description: 'Also post the sieges Azania lays against other towns. Never pings.' },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'allies',
+              type: 'select',
+              label: 'Allies’ sieges',
+              defaultValue: 'involved',
+              options: Object.entries(ALLY_SIEGES).map(([value, { label }]) => ({ label, value })),
+              admin: {
+                width: '60%',
+                isClearable: false,
+                description:
+                  'Allies are the nations set to Allied under Settings → Azania Maps → Diplomacy, or from a nation’s panel on Azania Maps. Their sieges are posted in green, and when fighting starts and when one ends follow the switches above.',
+              },
+            },
+            {
+              name: 'pingAllies',
+              type: 'checkbox',
+              label: 'Ping for allies too',
+              defaultValue: false,
+              admin: {
+                width: '40%',
+                description: 'Ping the role when an ally is besieged, and when fighting starts at its town, as for Azania’s own. An ally’s own siege never pings.',
+              },
             },
           ],
         },

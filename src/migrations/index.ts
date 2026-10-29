@@ -21,6 +21,7 @@ import * as migration_20261028_141151_siege_sessions from './20261028_141151_sie
 import * as migration_20261028_143909_siege_sessions_utc from './20261028_143909_siege_sessions_utc';
 import * as migration_20261028_235257_town_religion from './20261028_235257_town_religion';
 import * as migration_20261029_102339_map_snapshot from './20261029_102339_map_snapshot';
+import * as migration_20261029_123043_diplomacy_allies from './20261029_123043_diplomacy_allies';
 
 export const migrations = [
   {
@@ -136,6 +137,11 @@ export const migrations = [
   {
     up: migration_20261029_102339_map_snapshot.up,
     down: migration_20261029_102339_map_snapshot.down,
-    name: '20261029_102339_map_snapshot'
+    name: '20261029_102339_map_snapshot',
+  },
+  {
+    up: migration_20261029_123043_diplomacy_allies.up,
+    down: migration_20261029_123043_diplomacy_allies.down,
+    name: '20261029_123043_diplomacy_allies',
   },
 ];

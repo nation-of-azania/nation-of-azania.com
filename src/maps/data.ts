@@ -141,9 +141,11 @@ export type MapRights = {
   towns: number[]
   /** May draw map views for articles. */
   views: boolean
+  /** May set Azania's stance toward other nations: admins and diplomats. */
+  diplomacy: boolean
 }
 
-export const NO_RIGHTS: MapRights = { user: null, anywhere: false, towns: [], views: false }
+export const NO_RIGHTS: MapRights = { user: null, anywhere: false, towns: [], views: false, diplomacy: false }
 
 const idOf = (value: number | { id: number } | null | undefined): number | null =>
   value == null ? null : typeof value === 'number' ? value : value.id
@@ -153,8 +155,9 @@ const idOf = (value: number | { id: number } | null | undefined): number | null 
  * own account (/api/users/me), by the server's rule (src/access/maps.ts):
  * staff and cartographers draw anywhere, mayors inside their towns, and
  * map views are for staff, cartographers and anyone granted a context to
- * write in. The pages themselves are cached for everyone alike, so this is
- * the only thing about a visitor the map needs.
+ * write in, and the diplomacy is for admins and diplomats. The pages
+ * themselves are cached for everyone alike, so this is the only thing about
+ * a visitor the map needs.
  */
 export function mapRightsOf(user: unknown): MapRights {
   const account = user as {
@@ -162,6 +165,7 @@ export function mapRightsOf(user: unknown): MapRights {
     name?: string
     role?: string | null
     cartographer?: boolean | null
+    diplomat?: boolean | null
     mayorOf?: (number | { id: number })[] | null
     contextAccess?: { context?: number | { id: number } | null; level?: string | null }[] | null
   } | null
@@ -170,7 +174,8 @@ export function mapRightsOf(user: unknown): MapRights {
   const towns = (account.mayorOf ?? []).map(idOf).filter((id): id is number => id !== null)
   const views =
     anywhere || (account.contextAccess ?? []).some((grant) => idOf(grant.context) !== null && Boolean(grant.level))
-  return { user: { id: account.id, name: account.name ?? '' }, anywhere, towns, views }
+  const diplomacy = account.role === 'admin' || Boolean(account.diplomat)
+  return { user: { id: account.id, name: account.name ?? '' }, anywhere, towns, views, diplomacy }
 }
 
 const pathOf = (value: unknown): Point[] | null =>

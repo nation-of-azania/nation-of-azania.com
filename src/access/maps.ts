@@ -40,6 +40,14 @@ export function getMapRights(user: unknown): MapRights {
 
 export const canDrawOnMap = (rights: MapRights): boolean => rights.anywhere || rights.towns.length > 0
 
+/**
+ * Who may set Azania's stance toward other nations from Azania Maps: admins,
+ * and the people they make diplomats (Users → Azania Maps). The stances are
+ * also under Settings → Azania Maps, for admins.
+ */
+export const canSetDiplomacy = (user: unknown): boolean =>
+  hasRole(user as MapUser, 'admin') || Boolean((user as { diplomat?: boolean | null } | null)?.diplomat)
+
 /** Places, roads, events: create if you may draw anywhere at all (the town is checked on save). */
 export const createMapFeature: Access = ({ req }) => canDrawOnMap(getMapRights(req.user))
 

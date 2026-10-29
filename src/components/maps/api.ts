@@ -7,7 +7,9 @@ import {
   type MapPlace,
   type MapRoad,
   type MapViewData,
+  type Relation,
 } from '@/maps/data'
+import type { Stance } from '@/maps/registry'
 import type { Event, MapView, Place, Road } from '@/payload-types'
 
 /**
@@ -164,6 +166,17 @@ export const api = {
       ? write<MapView>('PATCH', `/api/map-views/${id}?depth=0`, data)
       : write<MapView>('POST', '/api/map-views?depth=0', data))
     return mapView(doc)!
+  },
+  /**
+   * Sets Azania's stance toward a nation ('neutral' takes it off the list),
+   * for admins and diplomats; resolves to the whole diplomacy as it now stands.
+   */
+  saveStance: async (nation: string, stance: Stance | 'neutral', note: string): Promise<Relation[]> => {
+    const body = await request<{ relations: Relation[] }>('/maps/diplomacy', {
+      method: 'POST',
+      body: JSON.stringify({ nation, stance, note }),
+    })
+    return body.relations
   },
   saveAbout: (id: number, about: string) =>
     write<unknown>('PATCH', `/api/towns/${id}?depth=0`, { about }),

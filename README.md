@@ -1130,7 +1130,9 @@ something was being fetched.
   - The Towny nation is "Azania" (it was "Canada" until October 2026). When Towny renames it, the next reading follows by itself: if a named nation is gone from the map and most of the towns that counted under it now share one other nation, the settings take that name, and the reading's note says so. A nation that falls apart is no rename; its towns stop counting until an admin names where they went.
   - `src/lib/towns.ts` reads the map's marker file into the **Towns** collection.
   - Towns are keyed on Towny's own town id, so a renamed town keeps its places and mayors. A town that leaves or falls is kept, marked.
-- **Diplomacy:** also under Settings → Azania Maps, a nation (spelt as the map has it; case, spaces and underscores don't matter), a stance (allied, friendly, tense, hostile, at war) and a line for readers. Every nation not named is neutral. It is public: the map's diplomacy layer, the front and the nations' pages show it to anyone.
+- **Diplomacy:** also under Settings → Azania Maps, a nation, a stance (allied, friendly, tense, hostile, at war) and a line for readers. Every nation not named is neutral. It is public: the map's diplomacy layer, the front and the nations' pages show it to anyone, and the siege alerts tell the sieges Azania's allies are in (see *Discord announcements*).
+  - Nations and towns in these settings are **picked from the Rulercraft map** rather than typed (`src/components/admin/WorldNameField.tsx`, reading `/maps/world.json`), so they're spelt as the map has them. A name saved before and gone from the map since stays, marked "not on the map now".
+  - **Admins and diplomats** can also set a stance from a nation's panel on Azania Maps: an admin makes a member a **diplomat** under Users → Azania Maps (editors too). `POST /maps/diplomacy` (`src/app/(frontend)/maps/diplomacy/route.ts`) sets one nation's stance and note, or takes it off the list with `neutral`, leaving the rest as it is; it takes only a nation on the map now, or one already listed, and never Azania.
 - **When the map is read:**
   - every five minutes, by the **watch** (`/maps/watch`, `src/lib/watch.ts`): a job at cron-job.org asks for it (set up in an admin's account there; it needs no password), and it reads the marker file once, brings the towns up to date when the last reading is ten minutes old, and tells the **siege alerts** (see *Discord announcements* below). So Azania's towns are some ten to fifteen minutes behind Towny's own markers, visitors or none;
   - after a page of Azania Maps finds the last reading a quarter of an hour old, should the schedule stall;
@@ -1146,6 +1148,7 @@ something was being fetched.
 - **Who draws:**
   - Admins make a member **mayor** of towns (Users → Azania Maps). A mayor draws and edits places, roads and events inside those towns' claims, and writes the town's description. The claims are checked on every save.
   - **Cartographers**, editors and admins draw anywhere, including national roads between towns.
+  - **Diplomats** (Users → Azania Maps) and admins set Azania's stance toward other nations from their panels (see *Diplomacy* above).
   - Map views belong to whoever drew them and are for anyone who writes articles.
   - Every edit to a place, road or event keeps a version, so vandalism is one restore away.
 - **Tiles:** `/maps/tiles/<map>/<level>/<column>/<row>.jpg`. The CDN keeps a tile fresh for 15 minutes, then refreshes it in the background the next time someone looks, so nobody waits on the Rulercraft map. Browsers keep a tile 5 minutes and then check back by its ETag. The two coarsest levels (4 and 5) are kept 6 hours at the CDN and an hour in the browser, as is `/maps/sheet.webp`, the whole world as one picture made from level 5. While the map errors, the CDN keeps serving the last good tile for a month.
@@ -1313,7 +1316,7 @@ read the settings. As a fallback, the environment variables
 the same page: a webhook, optionally a role to ping (its ID, with Discord's
 Developer Mode on: *Server Settings → Roles → ⋯ → Copy Role ID*), what
 besides a new siege against Azania to post (fighting starting at one, one
-ending, the sieges Azania lays), and when the battle sessions are. A new webhook is checked with Discord
+ending, the sieges Azania lays, its allies' sieges), and when the battle sessions are. A new webhook is checked with Discord
 before it's saved, and saving a webhook or role posts a short note to the
 channel, so you see at once that it works (`src/lib/siegeAlerts.ts`).
 
@@ -1326,6 +1329,13 @@ Azania Maps' settings, and tells each thing **once** (`src/lib/siegeWatch.ts`):
   on the map — its fire, from the moment the banner is placed, before any
   fighting — with the role pinged; and, if chosen, one Azania lays, pinging
   nobody;
+- **an ally's siege**: one against a town of a nation set to *Allied* under
+  Diplomacy, or, if chosen, one it lays (*Allies' sieges*: besieged, besieged
+  or besieging, never). In green, said as an ally's ("Our ally The Balkan
+  Kingdom is under siege at Santorini"); it pings the role only with *Ping
+  for allies too*, and only for an ally besieged. Azania's own part comes
+  first: an ally besieging Azania is Azania's siege. Fighting and the end
+  follow the switches below, as for Azania's own;
 - **fighting started** at one, if chosen: SiegeWar's crossed swords in place
   of the fire, once each battle session, the role pinged;
 - **its end**, if chosen: its mark gone from the map in two readings minutes

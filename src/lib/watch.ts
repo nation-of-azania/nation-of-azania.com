@@ -111,7 +111,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const alertSettings = (discord.sieges ?? {}) as SiegeAlertSettings
   const war = warOf(file)
   const { sieges } = war
-  const { watch, alerts } = planSieges(watchFrom(stored), sieges, home, alertSettings, now)
+  // Azania's allies, as its diplomacy has them (Settings → Azania Maps, or a nation's panel on the map).
+  const allies = (settings.relations ?? []).filter((relation) => relation.stance === 'ally' && relation.nation?.trim()).map((relation) => relation.nation.trim())
+  const { watch, alerts } = planSieges(watchFrom(stored), sieges, home, alertSettings, now, allies)
 
   // The world and the war as read now, saved every quarter of an hour for when the map is down (src/lib/snapshot.ts).
   const world = await getWorld()

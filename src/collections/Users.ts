@@ -149,7 +149,8 @@ export const Users: CollectionConfig = {
       label: 'Azania Maps',
       admin: {
         initCollapsed: true,
-        condition: (data) => data?.role !== 'admin' && data?.role !== 'editor',
+        // Admins may do all of it; editors draw anywhere already, and may only be made diplomats.
+        condition: (data) => data?.role !== 'admin',
       },
       fields: [
         {
@@ -162,6 +163,7 @@ export const Users: CollectionConfig = {
           admin: {
             description:
               'Draw and edit places, roads and events inside these towns’ claims on Azania Maps, and write the town’s description. Towns → a town shows who Towny says rules it.',
+            condition: (data) => data?.role !== 'editor',
           },
         },
         {
@@ -172,6 +174,20 @@ export const Users: CollectionConfig = {
           access: { create: isAdminField, update: isAdminField },
           admin: {
             description: 'Draw anywhere on Azania Maps, including national roads and places between towns.',
+            condition: (data) => data?.role !== 'editor',
+          },
+        },
+        {
+          // Azania's stance toward other nations, set from a nation's panel on
+          // Azania Maps (src/app/(frontend)/maps/diplomacy/route.ts).
+          name: 'diplomat',
+          type: 'checkbox',
+          label: 'Diplomat',
+          defaultValue: false,
+          access: { create: isAdminField, update: isAdminField },
+          admin: {
+            description:
+              'Set where Azania stands with other nations (allied, at war, …) from their panels on Azania Maps. Admins can always.',
           },
         },
       ],

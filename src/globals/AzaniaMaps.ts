@@ -29,6 +29,10 @@ const refreshDiplomacy: GlobalAfterChangeHook = ({ doc, previousDoc, req }) => {
   return doc
 }
 
+/** Names picked from the Rulercraft map rather than typed (src/components/admin/WorldNameField.tsx). */
+const NATION_PICKER = { path: '/components/admin/WorldNameField#WorldNameField', clientProps: { of: 'nations' } }
+const TOWN_PICKER = { path: '/components/admin/WorldNameField#WorldNameField', clientProps: { of: 'towns' } }
+
 export const AzaniaMaps: GlobalConfig = {
   slug: 'azania-maps',
   label: 'Azania Maps',
@@ -50,9 +54,9 @@ export const AzaniaMaps: GlobalConfig = {
       labels: { singular: 'Nation', plural: 'Nations' },
       admin: {
         description:
-          'Every town in these Towny nations counts as Azanian. Spelt as the map has it. When the nation is renamed in game, the next reading of the map follows the new name by itself (and says so under Result).',
+          'Every town in these Towny nations counts as Azanian. When the nation is renamed in game, the next reading of the map follows the new name by itself (and says so under Result).',
       },
-      fields: [{ name: 'name', type: 'text', required: true }],
+      fields: [{ name: 'name', type: 'text', required: true, admin: { components: { Field: NATION_PICKER } } }],
     },
     {
       name: 'towns',
@@ -61,9 +65,9 @@ export const AzaniaMaps: GlobalConfig = {
       labels: { singular: 'Town', plural: 'Towns' },
       admin: {
         description:
-          'Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet. Spelt as the map has it.',
+          'Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet.',
       },
-      fields: [{ name: 'name', type: 'text', required: true }],
+      fields: [{ name: 'name', type: 'text', required: true, admin: { components: { Field: TOWN_PICKER } } }],
     },
     {
       name: 'relations',
@@ -72,13 +76,13 @@ export const AzaniaMaps: GlobalConfig = {
       labels: { singular: 'Relation', plural: 'Relations' },
       admin: {
         description:
-          'Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see. Nations not named here are neutral. Spelt as the map has them.',
+          'Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see, and the siege alerts for allies (Settings → Discord). Nations not named here are neutral. Admins and diplomats (Users → Azania Maps) can also set these from a nation’s panel on Azania Maps.',
       },
       fields: [
         {
           type: 'row',
           fields: [
-            { name: 'nation', type: 'text', required: true, admin: { width: '40%' } },
+            { name: 'nation', type: 'text', required: true, admin: { width: '40%', components: { Field: NATION_PICKER } } },
             {
               name: 'stance',
               type: 'select',

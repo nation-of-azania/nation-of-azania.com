@@ -6,11 +6,12 @@ import { clip, postWebhook, siteUrl } from './discord'
 /**
  * Siege alerts in Discord: a post in a channel when a siege is laid against
  * one of Azania's towns, as SiegeWar marks it on the Rulercraft map, and,
- * as the admins choose, when a battle begins at one, when one ends, and
- * when Azania lays a siege of its own. Set under Settings → Discord
- * (src/globals/Discord.ts); off until a webhook is set. A role can be
- * pinged for what calls for defenders: a new siege against Azania, and a
- * battle at one.
+ * as the admins choose, when a battle begins at one, when one ends, when
+ * Azania lays a siege of its own, and when an ally (a nation Azania's
+ * diplomacy calls allied) is besieged or lays one. Set under Settings →
+ * Discord (src/globals/Discord.ts); off until a webhook is set. A role can
+ * be pinged for what calls for defenders: a new siege against Azania, and a
+ * battle at one; and, as the admins choose, the same at an ally's town.
  */
 
 export type SiegeAlertSettings = {
@@ -20,6 +21,10 @@ export type SiegeAlertSettings = {
   battles?: boolean | null
   ended?: boolean | null
   laidByAzania?: boolean | null
+  /** Which of its allies' sieges are told (ALLY_SIEGES); unset is 'involved'. */
+  allies?: AllySieges | null
+  /** Whether an ally besieged pings the role, as a siege against Azania does. */
+  pingAllies?: boolean | null
   /** When battle sessions start ("12:00, 18:00, 00:00"), in `sessionZone`. */
   sessionTimes?: string | null
   sessionZone?: string | null
@@ -29,6 +34,20 @@ export type SiegeAlertSettings = {
 
 /** The side colour of a siege alert: cinnabar, the colour of the war. */
 export const SIEGE_COLOUR = 0x9b2c1a
+/** An ally's siege's: the diplomacy layer's green for allies (src/maps/palette.ts → STANCE_COLOURS). */
+export const ALLY_COLOUR = 0x2e8a55
+
+/** Which of Azania's allies' sieges are told: those against them, those they're in at all, or none. */
+export const ALLY_SIEGES = {
+  besieged: { label: 'When an ally is besieged' },
+  involved: { label: 'When an ally is besieged or lays a siege' },
+  off: { label: 'Never' },
+} as const
+export type AllySieges = keyof typeof ALLY_SIEGES
+
+/** The allies' sieges told, as set; 'involved' until the admins say otherwise. */
+export const alliesWanted = (settings: SiegeAlertSettings): AllySieges =>
+  settings.allies && settings.allies in ALLY_SIEGES ? settings.allies : 'involved'
 
 const DISCORD_HOST = /^https:\/\/(?:\w+\.)?discord(?:app)?\.com\//
 
@@ -65,7 +84,12 @@ function promised(settings: SiegeAlertSettings): string {
     settings.ended ? 'when one ends' : null,
   ].filter((clause): clause is string => clause !== null)
   const list = when.length > 1 ? `${when.slice(0, -1).join(', ')} and ${when.at(-1)}` : when[0]
-  return `Azania Maps will post here ${list}.${settings.laidByAzania ? ' The sieges Azania lays are posted too.' : ''}`
+  const allies = {
+    besieged: ' So are the sieges against Azania’s allies (the nations its diplomacy calls allied), in green.',
+    involved: ' So are the sieges Azania’s allies (the nations its diplomacy calls allied) are in, besieged or besieging, in green.',
+    off: '',
+  }[alliesWanted(settings)]
+  return `Azania Maps will post here ${list}.${settings.laidByAzania ? ' The sieges Azania lays are posted too.' : ''}${allies}`
 }
 
 /**
@@ -78,8 +102,9 @@ export async function greetSiegeChannel(payload: Payload, settings: SiegeAlertSe
   const url = settings.webhookUrl?.trim()
   if (!url) return false
   const role = roleId(settings.role)
+  const allies = settings.pingAllies && alliesWanted(settings) !== 'off' ? ' or one of its allies' : ''
   const pings = role
-    ? `<@&${role}> will be pinged for each new siege against Azania${settings.battles ? ' and when fighting starts at one' : ''}.`
+    ? `<@&${role}> will be pinged for each new siege against Azania${allies}${settings.battles ? ', and when fighting starts at one' : ''}.`
     : 'No role will be pinged.'
   const schedule = scheduleOf(settings.sessionTimes, settings.sessionZone)
   const sessions = schedule

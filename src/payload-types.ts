@@ -405,6 +405,10 @@ export interface User {
    * Draw anywhere on Azania Maps, including national roads and places between towns.
    */
   cartographer?: boolean | null;
+  /**
+   * Set where Azania stands with other nations (allied, at war, …) from their panels on Azania Maps. Admins can always.
+   */
+  diplomat?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email?: string | null;
@@ -1095,6 +1099,7 @@ export interface UsersSelect<T extends boolean = true> {
       };
   mayorOf?: T;
   cartographer?: T;
+  diplomat?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1341,6 +1346,14 @@ export interface Discord {
      */
     laidByAzania?: boolean | null;
     /**
+     * Allies are the nations set to Allied under Settings → Azania Maps → Diplomacy, or from a nation’s panel on Azania Maps. Their sieges are posted in green, and when fighting starts and when one ends follow the switches above.
+     */
+    allies?: ('besieged' | 'involved' | 'off') | null;
+    /**
+     * Ping the role when an ally is besieged, and when fighting starts at its town, as for Azania’s own. An ally’s own siege never pings.
+     */
+    pingAllies?: boolean | null;
+    /**
      * Rulercraft’s battle sessions, an hour each, as times of day in the time zone beside: 12:00, 18:00 and 00:00 UTC (19:00, 01:00 and 07:00 in Thai time), all year. The alerts give the next ones as Discord timestamps, which each reader sees in their own time.
      */
     sessionTimes?: string | null;
@@ -1365,7 +1378,7 @@ export interface Discord {
 export interface AzaniaMap {
   id: number;
   /**
-   * Every town in these Towny nations counts as Azanian. Spelt as the map has it. When the nation is renamed in game, the next reading of the map follows the new name by itself (and says so under Result).
+   * Every town in these Towny nations counts as Azanian. When the nation is renamed in game, the next reading of the map follows the new name by itself (and says so under Result).
    */
   nations?:
     | {
@@ -1374,7 +1387,7 @@ export interface AzaniaMap {
       }[]
     | null;
   /**
-   * Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet. Spelt as the map has it.
+   * Towns that count as Azanian whatever their nation, such as towns that haven’t joined yet.
    */
   towns?:
     | {
@@ -1383,7 +1396,7 @@ export interface AzaniaMap {
       }[]
     | null;
   /**
-   * Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see. Nations not named here are neutral. Spelt as the map has them.
+   * Where Azania stands with other nations, for the map’s diplomacy layer, which anyone can see, and the siege alerts for allies (Settings → Discord). Nations not named here are neutral. Admins and diplomats (Users → Azania Maps) can also set these from a nation’s panel on Azania Maps.
    */
   relations?:
     | {
@@ -1460,6 +1473,8 @@ export interface DiscordSelect<T extends boolean = true> {
         battles?: T;
         ended?: T;
         laidByAzania?: T;
+        allies?: T;
+        pingAllies?: T;
         sessionTimes?: T;
         sessionZone?: T;
         sessionsSeen?: T;

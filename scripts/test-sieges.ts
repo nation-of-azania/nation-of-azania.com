@@ -9,8 +9,9 @@
  *
  *   pnpm test:sieges
  */
-import { roleId } from '../src/lib/siegeAlerts'
+import { ALLY_COLOUR, roleId } from '../src/lib/siegeAlerts'
 import {
+  alertHeadline,
   alertMessage,
   ENDED_AFTER_MS,
   planSieges,
@@ -73,6 +74,7 @@ function siege(
 }
 
 const on = { enabled: true, webhookUrl: 'https://discord.com/api/webhooks/1/abc', role: '123456789012345678', battles: true, ended: true, laidByAzania: false }
+const AZANIA_DEFENDS = { side: 'defending', ally: null } as const
 const t0 = Date.parse('2026-10-28T12:00:00Z')
 const at = (minutes: number) => new Date(t0 + minutes * 60_000)
 const kinds = (alerts: SiegeAlert[]) => alerts.map((alert) => `${alert.kind}:${alert.siege.townId}`).join(' ') || 'none'
@@ -171,6 +173,48 @@ let watch: SiegeWatch
   check(kinds(ours.alerts) === 'laid:id-lima', `Azania's own when asked (${kinds(ours.alerts)})`)
 }
 
+// Allies' sieges: a nation Azania's diplomacy calls allied, besieged or besieging.
+{
+  const allies = ['norway', 'Balkan Kingdom']
+  const base = watch.sieges.map((entry) => entry.last)
+  const against = siege('id-oslo', 'Peru', 'Norway')
+  const by = siege('id-lima', 'Balkan_Kingdom', 'Peru')
+  const plan = planSieges(watch, [...base, against, by], home, on, at(420), allies)
+  check(kinds(plan.alerts) === 'laid:id-oslo laid:id-lima', `an ally besieged and an ally besieging are told, however their names are spelt (${kinds(plan.alerts)})`)
+  const [besieged, besieging] = plan.alerts
+  check(alertHeadline(besieged) === 'Our ally Norway is under siege at Oslo', `said as an ally's (${alertHeadline(besieged)})`)
+  check(alertHeadline(besieging) === 'Our ally Balkan Kingdom is besieging Lima', `and as an ally's own (${alertHeadline(besieging)})`)
+  const message = alertMessage(besieged, 'https://example.test/maps', on, at(420))
+  check(message.content === '**Our ally Norway is under siege at Oslo**' && message.embeds[0].color === ALLY_COLOUR, `an ally's siege pings nobody, and is green (${message.content})`)
+  const pinged = alertMessage(besieged, 'https://example.test/maps', { ...on, pingAllies: true }, at(420))
+  check(pinged.content.startsWith('<@&123456789012345678> '), 'unless allies are to ping')
+  check(!alertMessage(besieging, 'https://example.test/maps', { ...on, pingAllies: true }, at(420)).content.includes('<@&'), 'and an ally besieging never pings')
+  const only = planSieges(watch, [...base, against, by], home, { ...on, allies: 'besieged' }, at(420), allies)
+  check(kinds(only.alerts) === 'laid:id-oslo', `only allies besieged, as set (${kinds(only.alerts)})`)
+  const none = planSieges(watch, [...base, against, by], home, { ...on, allies: 'off' }, at(420), allies)
+  check(none.alerts.length === 0, 'none, as set')
+  const strangers = planSieges(watch, [...base, against, by], home, on, at(420), [])
+  check(strangers.alerts.length === 0, 'and none without allies')
+
+  // Azania's own part comes first: an ally besieging Azania is Azania's siege.
+  const turned = planSieges(watch, [...base, siege('id-pretoria', 'Norway', 'Azania')], home, on, at(420), allies)
+  check(turned.alerts.length === 1 && alertHeadline(turned.alerts[0]) === 'Pretoria is under siege', `an ally against Azania is told as Azania's (${turned.alerts.map(alertHeadline).join(' / ')})`)
+
+  const fighting = planSieges(plan.watch, [...base, siege('id-oslo', 'Peru', 'Norway', { battle: true }), by], home, on, at(425), allies)
+  check(fighting.alerts.length === 1 && alertHeadline(fighting.alerts[0]) === 'Fighting has started at Oslo, held by our ally Norway', `fighting at an ally's town (${fighting.alerts.map(alertHeadline).join(' / ')})`)
+  const gone = planSieges(fighting.watch, base, home, on, at(430), allies)
+  const ended = planSieges(gone.watch, base, home, on, at(430 + ENDED_AFTER_MS / 60_000), allies)
+  check(
+    ended.alerts.map(alertHeadline).join(' / ') === 'The siege of Oslo, held by our ally Norway, has ended / The siege of Lima has ended',
+    `and their ends (${ended.alerts.map(alertHeadline).join(' / ')})`,
+  )
+
+  // A record from before allies were told: its entries have no ally, until next seen.
+  const old: SiegeWatch = { ...plan.watch, sieges: plan.watch.sieges.map(({ ally: _ally, ...entry }) => entry) }
+  const oldGone = planSieges(planSieges(old, base, home, on, at(430), allies).watch, base, home, on, at(440), allies)
+  check(oldGone.alerts.length === 0, 'an old record’s sieges end untold, never wrongly')
+}
+
 // While the alerts are off, sieges are recorded and not told, then or later.
 {
   const off = { ...on, webhookUrl: '' }
@@ -201,24 +245,24 @@ let watch: SiegeWatch
 // The message: the line, the ping, the link.
 {
   const href = 'https://example.test/maps/town/cape-town?siege=id-cape'
-  const laid = alertMessage({ kind: 'laid', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), side: 'defending' }, href, on, at(0))
+  const laid = alertMessage({ kind: 'laid', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), party: AZANIA_DEFENDS }, href, on, at(0))
   check(laid.content === '<@&123456789012345678> **Cape Town is under siege**', `a siege against Azania pings the role (${laid.content})`)
   check(JSON.stringify(laid.allowed_mentions) === '{"parse":[],"roles":["123456789012345678"]}', 'and only that role')
   check(laid.embeds[0].url === href && laid.embeds[0].description.includes(href), 'and links to the siege on Azania Maps')
   check(laid.embeds[0].title === 'Siege: Balkan Kingdom vs Azania', `titled as SiegeWar does (${laid.embeds[0].title})`)
   check(laid.embeds[0].fields.some((field) => field.name === 'Banner at' && field.value === 'X 1201 · Z -340'), 'with where the banner stands')
-  const ours = alertMessage({ kind: 'laid', siege: siege('id-lima', 'Azania', 'Peru'), side: 'attacking' }, href, on, at(0))
+  const ours = alertMessage({ kind: 'laid', siege: siege('id-lima', 'Azania', 'Peru'), party: { side: 'attacking', ally: null } }, href, on, at(0))
   check(ours.content === '**Azania is besieging Lima**' && JSON.stringify(ours.allowed_mentions) === '{"parse":[]}', `Azania's own siege pings nobody (${ours.content})`)
   const end = alertMessage(
-    { kind: 'ended', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), side: 'defending', lastSeen: at(0).toISOString(), entry: watch.sieges[0] },
+    { kind: 'ended', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), party: AZANIA_DEFENDS, lastSeen: at(0).toISOString(), entry: watch.sieges[0] },
     href,
     on,
     at(10),
   )
   check(end.content === '**The siege of Cape Town has ended**' && !end.content.includes('<@&'), `an end pings nobody (${end.content})`)
-  const battle = alertMessage({ kind: 'battle', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania', { battle: true }), side: 'defending', session: 2 }, href, on, at(0))
+  const battle = alertMessage({ kind: 'battle', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania', { battle: true }), party: AZANIA_DEFENDS, session: 2 }, href, on, at(0))
   check(battle.content.startsWith('<@&') && battle.embeds[0].description.startsWith('Fighting at the banner, in battle session 3 of 7'), 'a battle pings, and says its session')
-  const none = alertMessage({ kind: 'laid', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), side: 'defending' }, href, { ...on, role: null }, at(0))
+  const none = alertMessage({ kind: 'laid', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), party: AZANIA_DEFENDS }, href, { ...on, role: null }, at(0))
   check(none.content === '**Cape Town is under siege**', 'no role, no ping')
 }
 
@@ -283,7 +327,7 @@ let watch: SiegeWatch
   const last = whenLines({ ...fresh, progress: { done: 2, of: 3 }, battleTimeLeft: '30 minutes' }, schedule, new Date('2026-10-28T12:30:00Z'))
   check(last.length === 1, 'in its last session, nothing after')
   check(whenLines(fresh, null, now).length === 0, 'with no times set, nothing to come')
-  const laid = alertMessage({ kind: 'laid', siege: fresh, side: 'defending' }, 'https://example.test/maps', { ...on, sessionTimes: '13:00, 19:00, 01:00', sessionZone: 'Europe/Berlin' }, now)
+  const laid = alertMessage({ kind: 'laid', siege: fresh, party: AZANIA_DEFENDS }, 'https://example.test/maps', { ...on, sessionTimes: '13:00, 19:00, 01:00', sessionZone: 'Europe/Berlin' }, now)
   check(laid.embeds[0].description.includes('**Next battle session:** <t:'), 'and the alert says when to fight')
 }
 

@@ -23,6 +23,7 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { WorldNameField as WorldNameField_747d92a97b3c32f2b2a990c40f573343 } from '../../../components/admin/WorldNameField'
 import { RegistryIcon as RegistryIcon_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
 import { RegistryLogo as RegistryLogo_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
 import { LoginHelp as LoginHelp_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
@@ -57,6 +58,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "/components/admin/WorldNameField#WorldNameField": WorldNameField_747d92a97b3c32f2b2a990c40f573343,
   "/components/admin/RegistryGraphics#RegistryIcon": RegistryIcon_d6e5a03ac347c0f3fe350c498c861719,
   "/components/admin/RegistryGraphics#RegistryLogo": RegistryLogo_d6e5a03ac347c0f3fe350c498c861719,
   "/components/admin/RegistryGraphics#LoginHelp": LoginHelp_d6e5a03ac347c0f3fe350c498c861719,

@@ -3,7 +3,8 @@
  * of them (src/maps/beliefs.ts), checked without a browser: a choice read
  * as the map writes it, the map's placeholders for none read as none, a
  * server site having neither; the shares by people, the towns that
- * haven't chosen last, sites left out.
+ * haven't chosen last, sites left out. And the residents' names the
+ * world carries for the outlaw lists.
  *
  *   pnpm test:beliefs                      the checks
  *   pnpm test:beliefs path/to/markers.json and the live map's, from a copy of its marker file
@@ -61,8 +62,13 @@ function area(name: string, { religion, culture, ruler = 'Mayor1', nation = 'Nor
   check(quarry.kind === 'quarry' && quarry.religion === null && quarry.culture === null, 'a server site has neither: its terms and its "War" aren’t beliefs')
   const world = unpackWorld(JSON.parse(JSON.stringify(packWorld(worldOf(file)))))
   check(world.towns.find((town) => town.name === 'Chosen')?.religion === 'Catholic', 'and the world carries them to the browser')
-  const old = unpackWorld({ at: 0, nations: [], towns: [{ ...packWorld(worldOf(file)).towns[0], culture: undefined, religion: undefined }] } as never)
+  const old = unpackWorld({ at: 0, nations: [], towns: [{ ...packWorld(worldOf(file)).towns[0], culture: undefined, religion: undefined, people: undefined }] } as never)
   check(old.towns[0].culture === null && old.towns[0].religion === null, 'a world read before them has none')
+
+  // Its residents' names, for the outlaw lists: the ruler first, a site's none.
+  check(world.towns.find((town) => town.name === 'Chosen')?.people.join(',') === 'Mayor1,Another', 'a town carries its residents’ names, the ruler first')
+  check(world.towns.find((town) => town.name === 'Europe_Quarry')?.people.length === 0, 'a server site carries none')
+  check(Array.isArray(old.towns[0].people) && old.towns[0].people.length === 0, 'nor does a world read before them')
 }
 
 // A nation's shares.

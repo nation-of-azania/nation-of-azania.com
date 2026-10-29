@@ -1,3 +1,4 @@
+import { sameNation } from '../maps/abroad'
 import { spoken } from '../maps/data'
 import { nextSessions, scheduleOf, timeLeftMs, type SessionSchedule } from '../maps/sessions'
 import {
@@ -14,7 +15,7 @@ import {
 } from '../maps/sieges'
 import type { Siege } from '../maps/world'
 import { clip } from './discord'
-import { roleId, SIEGE_COLOUR, type SiegeAlertSettings } from './siegeAlerts'
+import { ALLY_COLOUR, alliesWanted, roleId, SIEGE_COLOUR, type SiegeAlertSettings } from './siegeAlerts'
 
 /**
  * What the siege alerts say, and when: each run of the watch (src/lib/watch.ts)
@@ -23,8 +24,10 @@ import { roleId, SIEGE_COLOUR, type SiegeAlertSettings } from './siegeAlerts'
  *
  *   laid     a siege first seen against one of Azania's towns (its fire,
  *            from the moment the banner is placed, before any fighting), or,
- *            as the admins choose, one Azania lays; with when it's fought,
- *            as Discord timestamps (whenLines);
+ *            as the admins choose, one Azania lays, and one an ally is in
+ *            (a nation Azania's diplomacy calls allied, besieged or
+ *            besieging); with when it's fought, as Discord timestamps
+ *            (whenLines);
  *   battle   fighting started at its banner (SiegeWar's crossed swords, in
  *            place of the quiet fire), once a battle session;
  *   ended    its mark gone from the map, in two readings minutes apart, so
@@ -42,12 +45,23 @@ import { roleId, SIEGE_COLOUR, type SiegeAlertSettings } from './siegeAlerts'
  * hour at most.
  */
 
+/** An ally in a siege Azania isn't in: the allied nation, and its side. */
+export type AllySide = { nation: string; side: 'defending' | 'attacking' }
+
+/**
+ * Whose siege an alert is about, and on which side: Azania's own (`ally`
+ * null), or an ally's, by the nation's name as Azania's diplomacy has it.
+ */
+export type Party = { side: 'defending' | 'attacking'; ally: string | null }
+
 /** A siege as the watch last saw it. */
 export type WatchedSiege = {
   townId: string
   attacker: string
   /** Azania's side in it when last seen. */
   side: SiegeSide
+  /** An ally's side in it when last seen, when Azania has none; absent in a record from before allies were told. */
+  ally?: AllySide | null
   /** When it was first seen. */
   since: string
   /** Its first alert is done: posted, or not wanted when the siege was first seen. */
@@ -64,9 +78,9 @@ export type WatchedSiege = {
 export type SiegeWatch = { checkedAt: string | null; sieges: WatchedSiege[] }
 
 export type SiegeAlert =
-  | { kind: 'laid'; siege: Siege; side: Exclude<SiegeSide, null> }
-  | { kind: 'battle'; siege: Siege; side: Exclude<SiegeSide, null>; session: number }
-  | { kind: 'ended'; siege: Siege; side: Exclude<SiegeSide, null>; lastSeen: string; entry: WatchedSiege }
+  | { kind: 'laid'; siege: Siege; party: Party }
+  | { kind: 'battle'; siege: Siege; party: Party; session: number }
+  | { kind: 'ended'; siege: Siege; party: Party; lastSeen: string; entry: WatchedSiege }
 
 /** A siege gone from the map in readings this far apart has ended. */
 export const ENDED_AFTER_MS = 4 * 60 * 1000
@@ -87,9 +101,30 @@ export function watchFrom(value: unknown): SiegeWatch | null {
 export const alertsOn = (settings: SiegeAlertSettings): boolean =>
   settings.enabled !== false && Boolean(settings.webhookUrl?.trim())
 
-/** Whether a siege with Azania on this side is told at all. */
-const wanted = (side: SiegeSide, settings: SiegeAlertSettings): side is Exclude<SiegeSide, null> =>
-  side === 'defending' || (side === 'attacking' && Boolean(settings.laidByAzania))
+/**
+ * An ally's side in a siege, from the nations Azania's diplomacy calls
+ * allied: its town besieged, or its banner laid; the nation named as the
+ * map spells it. Null when no ally is in it.
+ */
+export function allyIn(siege: Siege, allies: string[]): AllySide | null {
+  const ally = (name: string | null) => (name && allies.some((candidate) => sameNation(name, candidate)) ? name : null)
+  const defending = ally(siege.townNation) ?? ally(siege.defender)
+  if (defending) return { nation: defending, side: 'defending' }
+  const attacking = ally(siege.attacker)
+  return attacking ? { nation: attacking, side: 'attacking' } : null
+}
+
+/** Whose siege it is, Azania's before an ally's; null for one neither is in. */
+const partyOf = (side: SiegeSide, ally: AllySide | null | undefined): Party | null =>
+  side ? { side, ally: null } : ally ? { side: ally.side, ally: ally.nation } : null
+
+/** Whether a siege is told at all, by whose it is and the settings. */
+function wanted(party: Party | null, settings: SiegeAlertSettings): party is Party {
+  if (!party) return false
+  if (party.ally === null) return party.side === 'defending' || Boolean(settings.laidByAzania)
+  const allies = alliesWanted(settings)
+  return allies === 'involved' || (allies === 'besieged' && party.side === 'defending')
+}
 
 const keyOf = (siege: { townId: string; attacker: string }) => `${siege.townId}|${siege.attacker.toLowerCase()}`
 
@@ -98,7 +133,7 @@ const sessionOf = (siege: Siege): number => siege.progress?.done ?? -1
 
 /**
  * The next record and what to tell, from the last record (null: the first
- * run of all) and the sieges now on the map.
+ * run of all), the sieges now on the map, and Azania's allies by name.
  */
 export function planSieges(
   previous: SiegeWatch | null,
@@ -106,6 +141,7 @@ export function planSieges(
   home: HomeSide,
   settings: SiegeAlertSettings,
   now: Date,
+  allies: string[] = [],
 ): { watch: SiegeWatch; alerts: SiegeAlert[] } {
   const at = now.toISOString()
   const first = previous === null
@@ -122,14 +158,16 @@ export function planSieges(
     const known = before.get(key)
     before.delete(key)
     const side = azaniaSide(siege, home)
+    const ally = side ? null : allyIn(siege, allies)
+    const party = partyOf(side, ally)
     const entry: WatchedSiege = known
-      ? { ...known, side, missing: null, last: siege, lastSeen: at }
-      : { townId: siege.townId, attacker: siege.attacker, side, since: at, told: !on, battles: [], missing: null, last: siege, lastSeen: at }
+      ? { ...known, side, ally, missing: null, last: siege, lastSeen: at }
+      : { townId: siege.townId, attacker: siege.attacker, side, ally, since: at, told: !on, battles: [], missing: null, last: siege, lastSeen: at }
     let laid = false
     if (!entry.told) {
       entry.told = true
-      if (on && wanted(side, settings) && age(entry.since) < TELL_WITHIN_MS) {
-        alerts.push({ kind: 'laid', siege, side })
+      if (on && wanted(party, settings) && age(entry.since) < TELL_WITHIN_MS) {
+        alerts.push({ kind: 'laid', siege, party })
         laid = true
       }
     }
@@ -138,16 +176,17 @@ export function planSieges(
       // Kept short: a siege runs a handful of sessions.
       entry.battles = [...entry.battles, session].slice(-12)
       // A siege told just now says its battle in the same breath.
-      if (on && !laid && settings.battles && wanted(side, settings)) alerts.push({ kind: 'battle', siege, side, session })
+      if (on && !laid && settings.battles && wanted(party, settings)) alerts.push({ kind: 'battle', siege, party, session })
     }
     next.push(entry)
   }
 
   for (const entry of before.values()) {
     const missing = entry.missing ?? at
+    const party = partyOf(entry.side, entry.ally)
     if (age(missing) < ENDED_AFTER_MS) next.push({ ...entry, missing })
-    else if (on && settings.ended && wanted(entry.side, settings) && age(missing) < TELL_WITHIN_MS) {
-      alerts.push({ kind: 'ended', siege: entry.last, side: entry.side, lastSeen: entry.lastSeen, entry })
+    else if (on && settings.ended && wanted(party, settings) && age(missing) < TELL_WITHIN_MS) {
+      alerts.push({ kind: 'ended', siege: entry.last, party, lastSeen: entry.lastSeen, entry })
     }
   }
 
@@ -175,18 +214,28 @@ const townName = (siege: Siege) => (siege.town ? spoken(siege.town) : 'a town')
 /** The alert's line, which Discord also shows in its notification. */
 export function alertHeadline(alert: SiegeAlert): string {
   const town = townName(alert.siege)
+  const { side, ally } = alert.party
+  const allied = ally ? `our ally ${spoken(ally)}` : null
   switch (alert.kind) {
     case 'laid':
-      return alert.side === 'defending' ? `${town} is under siege` : `Azania is besieging ${town}`
+      if (allied) return side === 'defending' ? `${cap(allied)} is under siege at ${town}` : `${cap(allied)} is besieging ${town}`
+      return side === 'defending' ? `${town} is under siege` : `Azania is besieging ${town}`
     case 'battle':
-      return `Fighting has started at ${alert.side === 'defending' ? town : `Azania’s siege of ${town}`}`
+      if (allied) return side === 'defending' ? `Fighting has started at ${town}, held by ${allied}` : `Fighting has started at ${spoken(ally!)}’s siege of ${town}`
+      return `Fighting has started at ${side === 'defending' ? town : `Azania’s siege of ${town}`}`
     case 'ended':
-      return `The siege of ${town} has ended`
+      return allied && side === 'defending' ? `The siege of ${town}, held by ${allied}, has ended` : `The siege of ${town} has ended`
   }
 }
 
-/** Only what calls for defenders pings: a siege against Azania, and fighting started at one. */
-export const pings = (alert: SiegeAlert): boolean => alert.side === 'defending' && alert.kind !== 'ended'
+const cap = (words: string) => words.charAt(0).toUpperCase() + words.slice(1)
+
+/**
+ * Only what calls for defenders pings: a siege against Azania, and fighting
+ * started at one; and the same for an ally besieged, when the admins choose.
+ */
+export const pings = (alert: SiegeAlert, settings: SiegeAlertSettings): boolean =>
+  alert.party.side === 'defending' && alert.kind !== 'ended' && (alert.party.ally === null || Boolean(settings.pingAllies))
 
 type Field = { name: string; value: string; inline?: boolean }
 
@@ -266,7 +315,7 @@ function description(alert: SiegeAlert, href: string, schedule: SessionSchedule 
  * embed of the siege, linking to `href` on Azania Maps.
  */
 export function alertMessage(alert: SiegeAlert, href: string, settings: SiegeAlertSettings, now: Date) {
-  const role = pings(alert) ? roleId(settings.role) : null
+  const role = pings(alert, settings) ? roleId(settings.role) : null
   return {
     content: clip(`${role ? `<@&${role}> ` : ''}**${alertHeadline(alert)}**`, 2000),
     allowed_mentions: role ? { parse: [], roles: [role] } : { parse: [] },
@@ -275,7 +324,7 @@ export function alertMessage(alert: SiegeAlert, href: string, settings: SiegeAle
         title: clip(siegeTitle(alert.siege), 256),
         url: href,
         description: clip(description(alert, href, scheduleOf(settings.sessionTimes, settings.sessionZone), now), 4096),
-        color: SIEGE_COLOUR,
+        color: alert.party.ally ? ALLY_COLOUR : SIEGE_COLOUR,
         fields: figures(alert.siege, alert.kind),
         footer: { text: 'Azania Maps · read off the Rulercraft map' },
         timestamp: now.toISOString(),
