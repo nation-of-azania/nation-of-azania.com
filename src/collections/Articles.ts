@@ -472,5 +472,16 @@ export const Articles: CollectionConfig = {
         description: 'Towns, places or events this article is about. They link back to it on the map.',
       },
     },
+    {
+      // "Share the draft": links that show the latest draft to anyone who has
+      // one, made and revoked from the sidebar (src/collections/DraftLinks.ts).
+      name: 'draftShare',
+      type: 'ui',
+      admin: {
+        position: 'sidebar',
+        disableListColumn: true,
+        components: { Field: '/components/admin/DraftShare#DraftShare' },
+      },
+    },
   ],
 }

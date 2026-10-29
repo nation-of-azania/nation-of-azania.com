@@ -24,7 +24,7 @@ import { slugify } from '../fields/slug'
 
 /** URL segments a top-level context can't take: routes the site already uses. */
 const RESERVED_TOP_SLUGS = new Set([
-  'admin', 'api', 'account', 'login', 'preview', 'og', 'mapclip', 'maps', 'feeds', 'feed.xml', 'litematic', 'media', 'next', '_next',
+  'admin', 'api', 'account', 'login', 'preview', 'draft', 'og', 'mapclip', 'maps', 'feeds', 'feed.xml', 'litematic', 'media', 'next', '_next',
 ])
 /** `/<top>/articles/…` is each top-level context's article archive. */
 const RESERVED_SECOND_SLUGS = new Set(['articles'])

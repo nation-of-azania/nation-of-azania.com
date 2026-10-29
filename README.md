@@ -357,6 +357,23 @@ browser only, and the pages then render the latest draft *you* may read (`src/li
 admin a bar marks the page as a draft preview, with *Exit preview* to return
 to the published version. Visitors never see drafts.
 
+### Draft links
+
+To show a draft to someone without an account (a council member, a
+reviewer, or a Claude Code cloud session, which has no production
+credentials and can only fetch public pages), the article editor's
+**Share the draft** panel makes a link: `/draft/<token>`
+(`src/app/(frontend)/draft/[token]`). It shows the article's *latest* draft,
+later edits included, in the design of the context it will appear in, with
+a note that it's a draft and until when the link works. A link lasts a day,
+a week or a month (never longer), can carry a note on who it's for, and is
+revoked by deleting it, from the same panel or under **Administration →
+Draft links**. Anyone who may edit an article may share it; staff see and
+revoke every link, everyone else their own (`src/collections/DraftLinks.ts`).
+The pages are never cached or indexed, and send no referrer, so the token
+stays with the people it was given to. An expired link says so; an unknown
+one is a 404.
+
 Article and page content is a Lexical rich-text field with ten custom blocks
 (schema in `src/blocks/config.ts`, renderers in `src/blocks/components/`):
 
@@ -1436,7 +1453,8 @@ Configure the cloud environment like this:
   session can read them, and dev mode against production Postgres breaks
   migrations (see [Database adapters](#database-adapters-and-migrations)).
   None are needed anyway: `pnpm migrate:create` and `pnpm migrate:check` work
-  offline.
+  offline. To show a session an unpublished article, give it a
+  [draft link](#draft-links).
 - **Setup script:** pin the pnpm version from `packageManager`:
 
   ```sh
@@ -1550,7 +1568,7 @@ import map. Without that handler, the production admin panel renders blank.
 ```
 src/
 ├─ app/
-│  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview
+│  ├─ (frontend)/       # public site: [top]/[[...rest]] serves every context; /login, /account, /preview, /draft
 │  │  ├─ og/            # /og/<path>: link-preview cards (route + the TTFs they are set in)
 │  │  ├─ feeds/         # /feeds/<path>: the RSS feeds, reached as /<path>/feed.xml and /feed.xml
 │  │  ├─ mapclip/       # /mapclip?town=…: a clipping of the Rulercraft map, for the map block

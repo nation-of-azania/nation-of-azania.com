@@ -79,6 +79,7 @@ export interface Config {
     events: Event;
     'map-views': MapView;
     'town-census': TownCensus;
+    'draft-links': DraftLink;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -103,6 +104,7 @@ export interface Config {
     events: EventsSelect<false> | EventsSelect<true>;
     'map-views': MapViewsSelect<false> | MapViewsSelect<true>;
     'town-census': TownCensusSelect<false> | TownCensusSelect<true>;
+    'draft-links': DraftLinksSelect<false> | DraftLinksSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -842,6 +844,28 @@ export interface TownCensus {
   createdAt: string;
 }
 /**
+ * Links that show an article’s latest draft to anyone who has them. Made from the article’s editor; delete one to revoke it.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "draft-links".
+ */
+export interface DraftLink {
+  id: number;
+  /**
+   * Set by the server; the link is /draft/<token>.
+   */
+  token?: string | null;
+  article?: (number | null) | Article;
+  expiresAt: string;
+  /**
+   * Who it’s for, to know which to revoke (“Council review”). Only editors see it.
+   */
+  note?: string | null;
+  createdBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -912,6 +936,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'town-census';
         value: number | TownCensus;
+      } | null)
+    | ({
+        relationTo: 'draft-links';
+        value: number | DraftLink;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1249,6 +1277,19 @@ export interface TownCensusSelect<T extends boolean = true> {
   residents?: T;
   chunks?: T;
   nation?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "draft-links_select".
+ */
+export interface DraftLinksSelect<T extends boolean = true> {
+  token?: T;
+  article?: T;
+  expiresAt?: T;
+  note?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
