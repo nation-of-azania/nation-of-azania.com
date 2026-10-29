@@ -161,16 +161,14 @@ export const findEvent = (data: MapData, id: number): MapEvent | null =>
   data.events.find((event) => event.id === id) ?? null
 
 /** A town's full record, for its page: the about text and the residents' names. */
-export async function getTownRecord(
-  id: number,
-): Promise<{ about: string | null; residents: string[]; culture: string | null; religion: string | null } | null> {
+export async function getTownRecord(id: number): Promise<{ about: string | null; residents: string[] } | null> {
   try {
     const payload = await getClient()
     const town = await payload.findByID({ collection: 'towns', id, depth: 0 })
     const residents = Array.isArray(town.residents)
       ? town.residents.filter((name): name is string => typeof name === 'string')
       : []
-    return { about: town.about ?? null, residents, culture: town.culture ?? null, religion: town.religion ?? null }
+    return { about: town.about ?? null, residents }
   } catch {
     return null
   }

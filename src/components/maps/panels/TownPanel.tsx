@@ -5,7 +5,7 @@ import { awayOf } from '@/maps/abroad'
 import { spoken, townFit, type MapData, type MapTown } from '@/maps/data'
 import type { Article } from '@/payload-types'
 
-import { ComingClippings, ComingText, ComingWords, type Coming } from './coming'
+import { ComingClippings, ComingText, type Coming } from './coming'
 import { GrowthChart, GrowthChartComing } from './GrowthChart'
 import { AboutActions, AddHere, EventsList, Survey } from './islands'
 import { AwayParts, partsWords } from './parts'
@@ -36,7 +36,7 @@ export function TownPanel({
 }: {
   town: MapTown
   data: MapData
-  record: Coming<{ about: string | null; residents: string[]; culture: string | null } | null>
+  record: Coming<{ about: string | null; residents: string[] } | null>
   census: Coming<CensusPoint[]>
   articles: Coming<Article[]>
 }) {
@@ -94,15 +94,8 @@ export function TownPanel({
               value: `${town.chunks.toLocaleString('en-GB')}${partsWords(away)}`,
             },
             { label: 'Founded', value: foundedOn(town.founded) ?? 'Not recorded' },
-            {
-              label: 'Culture',
-              value:
-                record === undefined ? (
-                  <ComingWords width="5.5rem" />
-                ) : (
-                  <span className="az-arrive">{record?.culture ?? 'Not recorded'}</span>
-                ),
-            },
+            { label: 'Culture', value: town.culture ? spoken(town.culture) : 'Not chosen' },
+            { label: 'Religion', value: town.religion ? spoken(town.religion) : 'Not chosen' },
           ]}
         />
       </div>

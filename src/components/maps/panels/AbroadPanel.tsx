@@ -24,6 +24,7 @@ import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 import { SiteBadge } from '../layers/SiteMark'
 import { StanceSwatch } from '../ui/Diplomacy'
 import { Swatch } from '../ui/Swatch'
+import { BeliefsSection } from './BeliefsChart'
 import { Arrival, Look, Survey } from './islands'
 import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
 import { AwayParts, partsWords } from './parts'
@@ -241,6 +242,8 @@ export function AbroadTownPanel({
                     value: `${town.chunks.toLocaleString('en-GB')}${partsWords(town.away)}`,
                   },
                   { label: 'Founded', value: foundedOn(town.founded) ?? 'Not recorded' },
+                  { label: 'Culture', value: town.culture ? spoken(town.culture) : 'Not chosen' },
+                  { label: 'Religion', value: town.religion ? spoken(town.religion) : 'Not chosen' },
                 ]
           }
         />
@@ -377,6 +380,8 @@ export function NationPanel({
       </div>
 
       <NationSieges nation={nation.name} />
+
+      <BeliefsSection beliefs={nation.beliefs} towns={towns.length} />
 
       {nation.capital && capital ? (
         <PanelSection title="War reach">

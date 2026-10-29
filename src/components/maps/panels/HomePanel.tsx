@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import type { CensusPoint } from '@/lib/maps'
 import { worldSlug } from '@/maps/abroad'
+import { beliefsOf } from '@/maps/beliefs'
 import { spoken, type MapData } from '@/maps/data'
 import { STANCE_COLOURS } from '@/maps/palette'
 import { holdingsOf, incomeWords, settlements, siteFacts, siteTitle } from '@/maps/sites'
@@ -10,6 +11,7 @@ import { nationHref, townHref } from '@/maps/url'
 import { SiteBadge } from '../layers/SiteMark'
 import { STANCE_ORDER, StanceSwatch, stanceLabel } from '../ui/Diplomacy'
 import { Icon } from '../ui/icons'
+import { BeliefsSection } from './BeliefsChart'
 import type { Coming } from './coming'
 import { StatTile } from './GrowthChart'
 import { EventsList, LayerToggle } from './islands'
@@ -63,6 +65,9 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
           ? `Recorded daily from the Rulercraft map since ${since}.`
           : 'Recorded daily from the Rulercraft map.'}
       </p>
+
+      {/* What the nation's towns chose, in game: their mayors' cultures and religions, by its people. */}
+      <BeliefsSection beliefs={beliefsOf(data.towns)} towns={towns.length} />
 
       {/* A ledger, not a dashboard: what the nation holds and what each pays, with the day's total under a rule. */}
       {sites.length ? (

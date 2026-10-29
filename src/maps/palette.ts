@@ -151,6 +151,20 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export const NO_NATION = { line: '#7c828d', text: GROUND.inkSoft } as const
 
 /**
+ * The colours a nation's cultures and religions are charted in
+ * (src/components/maps/panels/BeliefsChart.tsx): seven of the site's own
+ * hues — its sea, saffron, coral, green, plum, rose and lagoon — each
+ * lifted to a chroma that reads as a colour and set at a lightness that
+ * tells it from every other under red–green colour-blindness as far as
+ * seven can be, against the panels' sand. Checked, not eyeballed: every
+ * pair clears the normal-vision floor, the closest (green and coral, for
+ * a deuteranope) sits in the band a gap and a key make legal, and both
+ * are drawn. A name is given one by its hash, so a religion is the same
+ * colour in every nation's chart.
+ */
+export const BELIEF_COLOURS = ['#00519d', '#b6770b', '#953402', '#0d6f44', '#792d80', '#ca5a87', '#009eaf'] as const
+
+/**
  * Another nation's colour as Azania Maps draws it. The Rulercraft map paints
  * a nation in a web colour (#FF0000, #FFFF00, #000000), which would shout
  * over the nation's own sea and saffron; the hue is kept, so a nation is

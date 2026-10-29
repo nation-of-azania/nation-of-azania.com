@@ -829,7 +829,17 @@ which the routes insist on, so every viewer shares one copy.
   towards its choices, and the towns that haven't chosen make a share of
   their own, always last (`beliefsOf` in `src/maps/beliefs.ts`;
   `pnpm test:beliefs`, which also reads a copy of the live map's marker
-  file when given one).
+  file when given one). A nation's panel, and Azania's front, chart them
+  under *Culture and religion*: a ring for each beside its key, the
+  slices by people and each row saying people, towns and share, the
+  towns that haven't chosen hatched and last, a long tail folded into
+  "n more", which opens to list them. A name keeps its colour in every
+  nation's chart (hashed into `BELIEF_COLOURS` in `src/maps/palette.ts`,
+  seven hues checked for colour-blindness against the panels' sand), and
+  the pointer or a tap lights a slice and its row together. Where a ring
+  would only belabour it, a sentence: "Its one town is Brazilian", "No
+  town has chosen a religion yet". A town's panel, Azania's or abroad,
+  says its own (`panels/BeliefsChart.tsx`).
 - **Trading outposts and landmarks** (with the world). The server's spawn
   town, RulerSpawn in Towny, is no town: it is how the server holds its
   places across the world, its home block a ship far out in the Pacific. The
