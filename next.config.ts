@@ -56,4 +56,25 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withPayload(nextConfig, { devBundleServerPackages: false })
+const withPayloadConfig = withPayload(nextConfig, { devBundleServerPackages: false })
+
+/**
+ * Payload sends `Critical-CH: Sec-CH-Prefers-Color-Scheme` with every page,
+ * so that its admin knows the reader's light or dark theme from the first
+ * request. Chrome answers it by sending any request that lacked the hint a
+ * second time: a browser that hasn't seen the site yet (a new profile, a
+ * private window, cleared site data) loads every first page twice, and the
+ * admin's "Create new", which makes its draft as the page renders (autosave),
+ * left an empty, untitled article behind for every one it opened. Without
+ * it, `Accept-CH` still has the browser send the hint from the next request
+ * on; the first admin page a browser ever opens may show the default theme
+ * for a moment.
+ */
+const payloadHeaders = withPayloadConfig.headers
+withPayloadConfig.headers = async () =>
+  ((await payloadHeaders?.()) ?? []).map((rule) => ({
+    ...rule,
+    headers: rule.headers.filter((header) => header.key.toLowerCase() !== 'critical-ch'),
+  }))
+
+export default withPayloadConfig
