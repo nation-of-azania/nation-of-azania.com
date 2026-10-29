@@ -441,7 +441,8 @@ The block has two more settings, which tie it to [Azania Maps](#azania-maps):
   near, starting from the same frame, with buttons to zoom and to come back
   to the frame; the mouse wheel doesn't catch the page. A town or
   coordinate block can be interactive too, showing the nation's layers
-  around it.
+  around it; the town's outlined claims and the pin stay, as the clipping
+  drew them, while the reader moves the map.
 
 Either way the figure carries a small **Azania Maps** mark in its corner
 that opens `/maps` at the same spot — with the view's highlights, when it

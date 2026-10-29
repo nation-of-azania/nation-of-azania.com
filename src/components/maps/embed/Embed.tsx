@@ -7,6 +7,7 @@ import { cn } from '@/blocks/components/shared'
 import type { MapData } from '@/maps/data'
 
 import type { EmbedSceneProps } from './EmbedScene'
+import type { Subject } from '../layers/SubjectLayer'
 import type { Frame } from '../still/Still'
 
 /**
@@ -26,6 +27,8 @@ type Props = {
   now: number
   /** Where the mark leads: Azania Maps, at this spot. */
   href: string
+  /** What the still drew of its own, for the live map to keep: a town block's claims and pin (../layers/SubjectLayer.tsx). */
+  subject?: Subject | null
   /** The still, shown until the map is up. */
   children: ReactNode
 }
@@ -33,10 +36,11 @@ type Props = {
 /**
  * An article's map that readers can move: the still first (server-rendered,
  * there before any script), the live map faded in over it when the reader
- * scrolls near, starting from the same frame. The wheel doesn't zoom it,
- * so a page scroll never gets caught; the buttons and pinching do.
+ * scrolls near, starting from the same frame, with whatever the still drew
+ * of its own. The wheel doesn't zoom it, so a page scroll never gets
+ * caught; the buttons and pinching do.
  */
-export function MapEmbed({ frame, data, now, href, children }: Props) {
+export function MapEmbed({ frame, data, now, href, subject, children }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<'still' | 'loading' | 'live' | 'failed'>('still')
 
@@ -79,6 +83,7 @@ export function MapEmbed({ frame, data, now, href, children }: Props) {
           href={href}
           now={now}
           onReady={() => setPhase('live')}
+          subject={subject}
         />
       ) : null}
     </div>

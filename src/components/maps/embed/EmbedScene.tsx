@@ -12,6 +12,7 @@ import { EventsLayer } from '../layers/EventsLayer'
 import { planLabels } from '../layers/labels'
 import { PlacesLayer } from '../layers/PlacesLayer'
 import { RoadsLayer } from '../layers/RoadsLayer'
+import { SubjectLayer, type Subject } from '../layers/SubjectLayer'
 import { TownLabels, TownsLayer } from '../layers/TownsLayer'
 import { fitBounds, MapCanvas, OnTop, useProjection, type L } from '../leaflet/canvas'
 import { MapsMark } from '../Mark'
@@ -25,6 +26,8 @@ export type EmbedSceneProps = {
   data: MapData
   now: number
   href: string
+  /** What the still drew of its own, kept on the live map: a town block's claims and pin (../layers/SubjectLayer.tsx). */
+  subject?: Subject | null
   className?: string
   onReady?: () => void
 }
@@ -35,7 +38,7 @@ export type EmbedSceneProps = {
  * the frame, and the mark that opens Azania Maps here. Everything else
  * — search, panels, editing — stays on /maps, where the mark leads.
  */
-export function EmbedScene({ frame, data, now, href, className, onReady }: EmbedSceneProps) {
+export function EmbedScene({ frame, data, now, href, subject, className, onReady }: EmbedSceneProps) {
   const mapRef = useRef<L.Map | null>(null)
   const bounds = frameBounds(frame.centre, frame.span, frame.aspect)
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -79,15 +82,17 @@ export function EmbedScene({ frame, data, now, href, className, onReady }: Embed
         }}
         wheel={false}
       >
-        <Layers data={data} frame={frame} now={now} />
+        <Layers data={data} frame={frame} now={now} subject={subject ?? null} />
       </MapCanvas>
     </div>
   )
 }
 
-function Layers({ frame, data, now }: { frame: Frame; data: MapData; now: number }) {
+function Layers({ frame, data, now, subject }: { frame: Frame; data: MapData; now: number; subject: Subject | null }) {
   const projection = useProjection(`embed-${frame.centre.join('-')}`)
   const show = (layer: MapLayer) => frame.layers.includes(layer)
+  // The subject's claims come outlined in the paper's ink, over the towns' tint: an Azanian subject isn't tinted stronger as well.
+  const selected = subject?.claims.length ? null : (frame.town ?? null)
   const labels = planLabels(projection, {
     drawings: frame.drawings,
     towns: show('towns') ? data.towns : [],
@@ -99,9 +104,8 @@ function Layers({ frame, data, now }: { frame: Frame; data: MapData; now: number
   // The ground, and over it what keeps its size on the page mid-zoom (leaflet/canvas.tsx → OnTop).
   return (
     <>
-      {show('towns') ? (
-        <TownsLayer projection={projection} selected={frame.town ?? null} towns={data.towns} />
-      ) : null}
+      {show('towns') ? <TownsLayer projection={projection} selected={selected} towns={data.towns} /> : null}
+      {subject ? <SubjectLayer part="claims" projection={projection} subject={subject} /> : null}
       {show('roads') ? <RoadsLayer part="roads" projection={projection} roads={data.roads} /> : null}
       <OnTop>
         {show('roads') ? (
@@ -122,6 +126,7 @@ function Layers({ frame, data, now }: { frame: Frame; data: MapData; now: number
             towns={data.towns}
           />
         ) : null}
+        {subject ? <SubjectLayer part="pin" projection={projection} subject={subject} /> : null}
         {frame.drawings.length ? (
           <DrawingsLayer drawings={frame.drawings} projection={projection} />
         ) : null}

@@ -1,5 +1,6 @@
 import { MapEmbed } from '@/components/maps/embed/Embed'
 import { SiteBadge } from '@/components/maps/layers/SiteMark'
+import type { Subject } from '@/components/maps/layers/SubjectLayer'
 import { MapsMark } from '@/components/maps/Mark'
 import { MapStill, type Frame } from '@/components/maps/still/Still'
 import { COLOR, STYLE_THEME } from '@/components/og/tokens'
@@ -220,7 +221,9 @@ function Fact({
  * plate of its own instead: its mark, what it is and pays, and its terms,
  * since its ruler is a bot and nobody lives there. The clipping is drawn
  * by /mapclip (src/app/(frontend)/mapclip) and cached at the CDN; the
- * claims are outlined in the paper's colour, or the style's.
+ * claims are outlined in the paper's colour, or the style's. Set to
+ * interactive, the live map that takes the clipping's place keeps its
+ * outline and pin (src/components/maps/layers/SubjectLayer.tsx).
  *
  * A server component, so the town is looked up at render time (cached an
  * hour in src/lib/dynmap.ts) and the page stays static. Whatever the map
@@ -381,6 +384,12 @@ export async function MapBlock({
       width={width}
     />
   )
+  // What the clipping draws of its own, for the live map to keep when it takes the still's place.
+  const subject: Subject = {
+    ink: colour,
+    claims: town && claims !== false ? town.outlines : [],
+    pin: pin ? [cx, cz] : null,
+  }
 
   return (
     <figure className="my-8">
@@ -393,6 +402,7 @@ export async function MapBlock({
                 frame={mapsFrame}
                 href={mapsLink}
                 now={now}
+                subject={subject}
               >
                 {still}
               </MapEmbed>
