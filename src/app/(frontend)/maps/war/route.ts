@@ -1,4 +1,4 @@
-import { getWar } from '@/lib/world'
+import { warReading } from '@/lib/snapshot'
 import { CAPITAL_WAR_RADIUS, WAR_EVERY_S } from '@/maps/world'
 
 /**
@@ -8,10 +8,11 @@ import { CAPITAL_WAR_RADIUS, WAR_EVERY_S } from '@/maps/world'
  *
  *   { at, sieges: [{ attacker, defender, town, at: [x, z], battle, … }], capitals: [...], radius: 12320 }
  *
- * Read from the map's marker file and passed on; nothing is stored. The
- * CDN shares one copy among everyone for three minutes (a siege moves by
- * the battle session), so the map server sees one read every few minutes
- * while anyone is looking and none otherwise.
+ * Read from the map's marker file and passed on. The CDN shares one copy
+ * among everyone for three minutes (a siege moves by the battle session),
+ * so the map server sees one read every few minutes while anyone is
+ * looking and none otherwise. While the map is down, the war as last saved
+ * (src/lib/snapshot.ts), marked `offline`; with none saved either, a 503.
  */
 
 export const runtime = 'nodejs'
@@ -19,13 +20,20 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   if (new URL(request.url).search) return new Response('No query here.', { status: 400 })
-  const war = await getWar()
-  if (!war) {
+  const reading = await warReading()
+  if (!reading) {
     return Response.json(
       { at: Date.now(), sieges: [], capitals: [], radius: CAPITAL_WAR_RADIUS, offline: true },
-      { headers: { 'Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'max-age=60' } },
+      { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' } },
     )
   }
+  if (reading.saved) {
+    return Response.json(
+      { ...reading.value, offline: true },
+      { headers: { 'Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'max-age=60, stale-if-error=86400' } },
+    )
+  }
+  const war = reading.value
   return Response.json(war, {
     headers: {
       'Cache-Control': 'public, max-age=60',

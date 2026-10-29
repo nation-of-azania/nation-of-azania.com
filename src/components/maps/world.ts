@@ -12,13 +12,19 @@ import { unpackWorld, WORLD_EVERY_S, WORLD_URL, type PackedWorld, type World } f
  * quarter of an hour while the tab is in view, as the CDN refreshes it. A
  * world that comes back offline leaves the last one standing. Always the
  * bare path, which every viewer shares at the CDN (the route refuses a
- * query).
+ * query). While the Rulercraft map is down, the route sends the world as
+ * the site last saved it, which is shown as such.
  */
 
 export type WorldState = {
   world: World | null
-  /** 'waiting' until asked, 'asking' until the first answer, 'down' while the Rulercraft map isn't answering and nothing was kept. */
-  status: 'waiting' | 'asking' | 'live' | 'down'
+  /**
+   * 'waiting' until asked, 'asking' until the first answer; 'saved' while
+   * the Rulercraft map isn't answering and the world shown is the one the
+   * site last saved (src/lib/snapshot.ts); 'down' while it isn't and there's
+   * nothing to show.
+   */
+  status: 'waiting' | 'asking' | 'live' | 'saved' | 'down'
 }
 
 const isWorld = (body: unknown): body is PackedWorld => {
@@ -71,8 +77,18 @@ export function useWorld(start: boolean, eager: boolean): WorldState {
         if (!response.ok) throw new Error(`The world answered ${response.status}`)
         const body: unknown = await response.json()
         if (cancelled) return
-        if (!isWorld(body) || body.offline) {
+        if (!isWorld(body)) {
           setState((current) => (current.world ? current : { world: null, status: 'down' }))
+        } else if (body.offline) {
+          // The map is down: the world as the site last saved it, unless the one shown is newer.
+          const saved = body.towns.length ? unpackWorld(body) : null
+          setState((current) =>
+            current.world && (!saved || current.world.at >= saved.at)
+              ? current
+              : saved
+                ? { world: saved, status: 'saved' }
+                : { world: null, status: 'down' },
+          )
         } else setState({ world: unpackWorld(body), status: 'live' })
       } catch {
         if (!cancelled) setState((current) => (current.world ? current : { world: null, status: 'down' }))

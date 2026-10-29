@@ -11,7 +11,9 @@ import { CAPITAL_WAR_RADIUS, WAR_EVERY_S, type Siege, type War } from '@/maps/wo
  * siege is shown whenever there is one, so there's no layer to switch: the
  * map always asks. While the Rulercraft map isn't answering, or the
  * browser is offline, the last sieges known stay on the map, said to be
- * as of then. Always the bare path, which every viewer shares at the CDN.
+ * as of then: those shown already, or those the site last saved
+ * (src/lib/snapshot.ts). Always the bare path, which every viewer shares at
+ * the CDN.
  */
 
 export type WarState = {
@@ -47,8 +49,14 @@ export function useWar(): WarState {
         if (!response.ok) throw new Error(`The war answered ${response.status}`)
         const body: unknown = await response.json()
         if (cancelled) return
-        // Offline with nothing kept: the last sieges known stand.
-        if (!isWar(body) || body.offline) down()
+        if (!isWar(body)) down()
+        // The map is down: the war as the site last saved it, unless what's shown is newer; said to be the last known.
+        else if (body.offline)
+          setState((current) =>
+            current.at >= body.at
+              ? { ...current, status: 'down' }
+              : { sieges: body.sieges, capitals: body.capitals, radius: body.radius || CAPITAL_WAR_RADIUS, at: body.at, status: 'down' },
+          )
         else
           setState({
             sieges: body.sieges,

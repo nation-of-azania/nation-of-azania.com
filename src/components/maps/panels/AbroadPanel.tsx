@@ -502,8 +502,8 @@ export function AbroadOffline({ what }: { what: 'town' | 'nation' }) {
       <p className={EYEBROW}>{what === 'town' ? 'A town abroad' : 'A nation'}</p>
       <h1 className="mt-1 font-display text-2xl leading-tight text-sea-950">Not to be seen just now</h1>
       <p className="mt-2 text-sm leading-relaxed text-ink-500">
-        The rest of the world comes from the Rulercraft map, which isn’t answering, and Azania Maps keeps none of
-        it itself. Try again in a few minutes; Azania’s own towns are on the map as ever.
+        The rest of the world comes from the Rulercraft map, which isn’t answering, and Azania Maps hasn’t a copy of
+        it saved yet. Try again in a few minutes; Azania’s own towns are on the map as ever.
       </p>
     </article>
   )

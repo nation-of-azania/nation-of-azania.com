@@ -116,6 +116,10 @@ export async function GET(
     })
     if (response.status === 404) return empty(cached)
     if (!response.ok) return unavailable(`The Rulercraft map answered ${response.status}.`)
+    // A page in a picture's place (its host's notice while the map is down) is no tile: the CDN keeps the last one.
+    if (!(response.headers.get('Content-Type') ?? 'image/').startsWith('image/')) {
+      return unavailable('The Rulercraft map answered with something other than a picture.')
+    }
     const bytes = new Uint8Array(await response.arrayBuffer())
     // Dynmap answers ground it hasn't drawn with a tiny placeholder.
     if (bytes.length <= 400) return empty(cached)

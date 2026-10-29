@@ -459,25 +459,41 @@ function townFacts(name: string, desc: string) {
 
 let markerFile: { at: number; file: MarkerFile } | null = null
 let markerRead: Promise<MarkerFile> | null = null
+let markerFailed: { at: number; error: Error } | null = null
+
+/**
+ * After the map fails to answer, it isn't asked again by this server for so
+ * long: while it's down, every page abroad would otherwise wait out the
+ * timeout before falling back to what was saved (src/lib/snapshot.ts).
+ */
+const RETRY_AFTER_MS = 60 * 1000
 
 /**
  * The map's marker file (towns, sieges and the rest), read at most once per
  * `maxAgeMs` in this server, with readers arriving meanwhile sharing one
  * read. About 5 MB, served uncompressed and uncached: too big for Next's
  * data cache, so it's kept in memory instead. Throws when the map can't be
- * read.
+ * read, and for a minute after, at once.
  */
 export async function readMarkerFile(maxAgeMs: number): Promise<MarkerFile> {
   if (markerFile && Date.now() - markerFile.at < maxAgeMs) return markerFile.file
+  if (markerFailed && Date.now() - markerFailed.at < RETRY_AFTER_MS) throw markerFailed.error
   markerRead ??= (async () => {
-    const response = await fetch(`${DYNMAP_URL}/tiles/_markers_/marker_${DYNMAP_WORLD}.json`, {
-      signal: AbortSignal.timeout(10000),
-      cache: 'no-store',
-    })
-    if (!response.ok) throw new Error(`The map answered ${response.status}`)
-    const file = (await response.json()) as MarkerFile
-    markerFile = { at: Date.now(), file }
-    return file
+    try {
+      const response = await fetch(`${DYNMAP_URL}/tiles/_markers_/marker_${DYNMAP_WORLD}.json`, {
+        signal: AbortSignal.timeout(10000),
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error(`The map answered ${response.status}`)
+      const file = (await response.json()) as MarkerFile
+      if (!file || typeof file !== 'object' || !file.sets) throw new Error('The map answered with no markers')
+      markerFile = { at: Date.now(), file }
+      markerFailed = null
+      return file
+    } catch (error) {
+      markerFailed = { at: Date.now(), error: error as Error }
+      throw error
+    }
   })().finally(() => {
     markerRead = null
   })

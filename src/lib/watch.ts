@@ -8,16 +8,19 @@ import { postWebhook, siteUrl } from './discord'
 import { FRESH_MS, readMarkerFile } from './dynmap'
 import type { SiegeAlertSettings } from './siegeAlerts'
 import { alertHeadline, alertMessage, planSieges, untold, watchFrom, type SiegeAlert } from './siegeWatch'
+import { saveSnapshot } from './snapshot'
 import { syncTowns, type SyncResult } from './towns'
 import { getWorld, warOf } from './world'
 
 /**
  * The watch on the Rulercraft map (/maps/watch), run every five minutes by
- * a GitHub schedule (.github/workflows/watch.yml): one reading of the map's
- * marker file, from which Azania's towns are brought up to date when the
- * last reading is ten minutes old (src/lib/towns.ts, which refreshes the
- * pages when anything changed), and the sieges are held against the last
- * run's, for the siege alerts in Discord (src/lib/siegeWatch.ts).
+ * a job at cron-job.org (and, as a fallback, a GitHub schedule,
+ * .github/workflows/watch.yml): one reading of the map's marker file, from
+ * which Azania's towns are brought up to date when the last reading is ten
+ * minutes old (src/lib/towns.ts, which refreshes the pages when anything
+ * changed), the sieges are held against the last run's, for the siege
+ * alerts in Discord (src/lib/siegeWatch.ts), and the world and the war are
+ * saved every quarter of an hour, for when the map is down (src/lib/snapshot.ts).
  *
  * Anyone may ask: it runs at most every few minutes however often it's
  * asked, and each thing is told once. While the map isn't answering, or
@@ -60,6 +63,8 @@ export type WatchResult = {
   note: string
   towns?: SyncResult
   sieges?: { onMap: number; told: string[]; failed: string[] } | 'unknown'
+  /** Whether this run saved the world and the war for an outage. */
+  snapshot?: boolean
 }
 
 type StoredWatch = { claimedAt?: unknown } & Record<string, unknown>
@@ -104,8 +109,18 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const home: HomeSide = { nation: homeNationOf(ours.map((town) => ({ nation: town.nation ?? null }))), towns: ours.map((town) => ({ name: town.name, townyId: town.townyId })) }
   const discord = await payload.findGlobal({ slug: 'discord', depth: 0 })
   const alertSettings = (discord.sieges ?? {}) as SiegeAlertSettings
-  const { sieges } = warOf(file)
+  const war = warOf(file)
+  const { sieges } = war
   const { watch, alerts } = planSieges(watchFrom(stored), sieges, home, alertSettings, now)
+
+  // The world and the war as read now, saved every quarter of an hour for when the map is down (src/lib/snapshot.ts).
+  const world = await getWorld()
+  const snapshot = world
+    ? await saveSnapshot(payload, world, war, now).catch((error: unknown) => {
+        payload.logger.error({ err: error, msg: 'Azania Maps: saving the world for an outage failed' })
+        return false
+      })
+    : false
 
   // The session times, checked whenever the map shows a session running.
   const seen = sessionSeen(sieges, alertSettings, now)
@@ -164,8 +179,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const saying = [`${onMap} on the map`, told.length ? `${told.length} told` : null, failed.length ? `${failed.length} to try again` : null]
   return {
     status: 'watched',
-    note: `Towns: ${towns.note} Sieges: ${saying.filter(Boolean).join(', ')}.${seen ? ` Battle session: ${seen}` : ''}`,
+    note: `Towns: ${towns.note} Sieges: ${saying.filter(Boolean).join(', ')}.${seen ? ` Battle session: ${seen}` : ''}${snapshot ? ' The world and the war saved for an outage.' : ''}`,
     towns,
     sieges: { onMap, told, failed },
+    snapshot,
   }
 }

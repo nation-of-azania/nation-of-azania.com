@@ -115,10 +115,12 @@ export interface Config {
   globals: {
     discord: Discord;
     'azania-maps': AzaniaMap;
+    'map-snapshot': MapSnapshot;
   };
   globalsSelect: {
     discord: DiscordSelect<false> | DiscordSelect<true>;
     'azania-maps': AzaniaMapsSelect<false> | AzaniaMapsSelect<true>;
+    'map-snapshot': MapSnapshotSelect<false> | MapSnapshotSelect<true>;
   };
   locale: null;
   widgets: {
@@ -1410,6 +1412,34 @@ export interface AzaniaMap {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "map-snapshot".
+ */
+export interface MapSnapshot {
+  id: number;
+  world?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  war?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  takenAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "discord_select".
  */
 export interface DiscordSelect<T extends boolean = true> {
@@ -1466,6 +1496,18 @@ export interface AzaniaMapsSelect<T extends boolean = true> {
   syncedAt?: T;
   syncNote?: T;
   siegeWatch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "map-snapshot_select".
+ */
+export interface MapSnapshotSelect<T extends boolean = true> {
+  world?: T;
+  war?: T;
+  takenAt?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -20,6 +20,7 @@ import * as migration_20261028_134537_siege_alerts from './20261028_134537_siege
 import * as migration_20261028_141151_siege_sessions from './20261028_141151_siege_sessions';
 import * as migration_20261028_143909_siege_sessions_utc from './20261028_143909_siege_sessions_utc';
 import * as migration_20261028_235257_town_religion from './20261028_235257_town_religion';
+import * as migration_20261029_102339_map_snapshot from './20261029_102339_map_snapshot';
 
 export const migrations = [
   {
@@ -130,6 +131,11 @@ export const migrations = [
   {
     up: migration_20261028_235257_town_religion.up,
     down: migration_20261028_235257_town_religion.down,
-    name: '20261028_235257_town_religion'
+    name: '20261028_235257_town_religion',
+  },
+  {
+    up: migration_20261029_102339_map_snapshot.up,
+    down: migration_20261029_102339_map_snapshot.down,
+    name: '20261029_102339_map_snapshot'
   },
 ];

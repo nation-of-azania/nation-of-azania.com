@@ -11,7 +11,7 @@ import {
 import type { MapData } from '@/maps/data'
 import { WORLD_EVERY_S } from '@/maps/world'
 
-import { getWorld } from './world'
+import { worldReading } from './snapshot'
 
 /**
  * What the pages of Azania Maps for the world abroad say (/maps/abroad/…
@@ -22,7 +22,8 @@ import { getWorld } from './world'
  * own towns, so a page neither waits on the Rulercraft map's 5 MB marker
  * file each time nor stops being cached (the read inside doesn't make the
  * page dynamic); the world changes slowly, so a quarter of an hour, as
- * /maps/world.json itself. What it keeps outlives a deploy, so its key
+ * /maps/world.json itself. While the Rulercraft map is down, the world as
+ * last saved (src/lib/snapshot.ts). What it keeps outlives a deploy, so its key
  * changes whenever the shape of a page does: a town's page with the
  * trading outposts around one of the server's places is the second.
  */
@@ -36,7 +37,7 @@ export type AbroadNationPage = NationPage | { kind: 'offline' }
 
 const readTown = unstable_cache(
   async (slug: string, own: string[], home: string | null): Promise<AbroadTownPage> => {
-    const world = await getWorld()
+    const world = (await worldReading())?.value
     if (!world) return { kind: 'offline' }
     return abroadTownPage(abroadOf(world, own.map((townyId) => ({ townyId }))), slug, home)
   },
@@ -46,7 +47,7 @@ const readTown = unstable_cache(
 
 const readNation = unstable_cache(
   async (slug: string, own: string[], home: string | null): Promise<AbroadNationPage> => {
-    const world = await getWorld()
+    const world = (await worldReading())?.value
     if (!world) return { kind: 'offline' }
     return abroadNationPage(abroadOf(world, own.map((townyId) => ({ townyId }))), slug, home)
   },

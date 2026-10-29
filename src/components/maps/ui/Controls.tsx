@@ -85,6 +85,7 @@ function ExtraRow({
 const WORLD_WORDS: Partial<Record<WorldState['status'], string>> = {
   waiting: 'soon',
   asking: 'loading…',
+  saved: 'as last saved',
   down: 'offline',
 }
 

@@ -21,6 +21,7 @@ import { TownCensus } from './collections/maps/TownCensus'
 import { Towns } from './collections/maps/Towns'
 import { AzaniaMaps } from './globals/AzaniaMaps'
 import { Discord } from './globals/Discord'
+import { MapSnapshot } from './globals/MapSnapshot'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -108,7 +109,7 @@ export default buildConfig({
     MapViews,
     TownCensus,
   ],
-  globals: [Discord, AzaniaMaps],
+  globals: [Discord, AzaniaMaps, MapSnapshot],
   editor: lexicalEditor(),
   // A visitor asking for something they may not see (an admin-only setting,
   // a draft) is routine, not a server error worth a stack trace.
