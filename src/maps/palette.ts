@@ -187,18 +187,34 @@ export function nationInk(colour: string | null | undefined): { line: string; te
  * Azania's diplomacy on the map (STANCES in ./registry.ts, and neutral for
  * every nation not named): a road from green to red through a quiet grey,
  * as a reader expects of friend and foe, kept clear of the nation's own
- * sea and saffron. `fill` is how strongly a nation is washed, so allies
- * and enemies stand out and the neutral recede; `text` is the dark shade
- * names are set in. A nation at war with Azania is also hatched.
+ * sea and saffron. `fill` is how strongly a nation is washed: the friends
+ * and foes deeply, so they read as the political map's colours do, and
+ * the neutral hardly at all, so they recede to an edge; `text` is the
+ * dark shade names are set in. A nation at war with Azania is also
+ * hatched. The washes are laid over the terrain veiled in whitewash
+ * (DIPLOMACY_VEIL), since the Rulercraft tiles run from forest green to
+ * desert sand and no wash reads over them as it is: an ally's green was
+ * one more forest.
  */
 export const STANCE_COLOURS: Record<Stance | 'neutral', { line: string; text: string; fill: number }> = {
-  ally: { line: '#2e8a55', text: '#1d5c38', fill: 0.26 },
-  friendly: { line: '#78b06a', text: '#3d6b33', fill: 0.18 },
-  neutral: { line: '#8d9199', text: '#4a505b', fill: 0.05 },
-  tense: { line: '#c29a2e', text: '#6e5512', fill: 0.18 },
-  hostile: { line: '#d2642c', text: '#8a3a12', fill: 0.22 },
-  war: { line: '#b3261e', text: '#7d1712', fill: 0.18 },
+  ally: { line: '#1b7f4b', text: '#135a35', fill: 0.5 },
+  friendly: { line: '#5fa052', text: '#2f6b2a', fill: 0.34 },
+  neutral: { line: '#8d9199', text: '#5a606b', fill: 0.03 },
+  tense: { line: '#d0981f', text: '#7a5610', fill: 0.34 },
+  hostile: { line: '#d9602a', text: '#8a3a12', fill: 0.44 },
+  war: { line: '#b3261e', text: '#7d1712', fill: 0.46 },
 }
+
+/**
+ * The veil over the terrain while the diplomacy layer is on: the sheet
+ * washed in whitewash, as an atlas prints its political map on paper
+ * rather than over a photograph, so the stances' colours carry and the
+ * land beneath still shows its coasts and deserts.
+ */
+export const DIPLOMACY_VEIL = { colour: GROUND.whitewash, opacity: 0.5 } as const
+
+/** How strongly the stances' washes are laid on the globe, whose ground is dim already and needs no veil. */
+export const GLOBE_STANCE_FILL = 0.9
 
 /** Pixels per block at a map zoom: level 0 is 2 px per block. */
 export const pixelsPerBlock = (zoom: number): number => 2 * 2 ** zoom

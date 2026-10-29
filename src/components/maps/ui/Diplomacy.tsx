@@ -1,71 +1,60 @@
 import { cn } from '@/blocks/components/shared'
-import type { Relation } from '@/maps/data'
 import { STANCE_COLOURS } from '@/maps/palette'
 import { STANCES, type Stance } from '@/maps/registry'
 
-import { EYEBROW } from '../panels/shared'
+/**
+ * The diplomacy's words and samples, shared by the map's key
+ * (./DiplomacyKey.tsx), the legend, the panels and the front: pure, with
+ * no hook in them, so the server-rendered panels can use them as they are.
+ */
 
-/** The stances from friend to foe, neutral in the middle, as the key reads. */
+/** The stances from friend to foe, neutral in the middle, as a legend reads. */
 export const STANCE_ORDER: (Stance | 'neutral')[] = ['ally', 'friendly', 'neutral', 'tense', 'hostile', 'war']
+
+/** The stances as the key lists them: friend to foe, and the neutral, who are everyone else, last. */
+export const KEY_ORDER: (Stance | 'neutral')[] = ['ally', 'friendly', 'tense', 'hostile', 'war', 'neutral']
 
 export const stanceLabel = (stance: Stance | 'neutral'): string => (stance === 'neutral' ? 'Neutral' : STANCES[stance].label)
 
-/**
- * A stance's sample, as the diplomacy layer washes a nation: hatched, for
- * war. The hatching's id is the same in every sample, which is harmless
- * since they're the same pattern, and keeps this free of hooks for the
- * server-rendered panels.
- */
-export function StanceSwatch({ stance, className }: { stance: Stance | 'neutral'; className?: string }) {
-  const id = 'az-stance-war-hatch'
-  const colour = STANCE_COLOURS[stance]
-  return (
-    <svg aria-hidden="true" className={cn('h-3 w-4 shrink-0', className)} viewBox="0 0 16 12">
-      {stance === 'war' ? (
-        <defs>
-          <pattern height={4} id={id} patternTransform="rotate(-45)" patternUnits="userSpaceOnUse" width={4}>
-            <line stroke={colour.line} strokeWidth={1.4} x1={0} x2={0} y1={0} y2={4} />
-          </pattern>
-        </defs>
-      ) : null}
-      <rect fill={colour.line} fillOpacity={Math.min(0.5, colour.fill * 2)} height={10} width={14} x={1} y={1} />
-      {stance === 'war' ? <rect fill={`url(#${id})`} height={10} width={14} x={1} y={1} /> : null}
-      <rect fill="none" height={10} stroke={colour.line} strokeWidth={1.25} width={14} x={1} y={1} />
-    </svg>
-  )
+/** Where Azania stands with a nation, in a sentence. */
+export const STANCE_WORDS: Record<Stance | 'neutral', (nation: string) => string> = {
+  ally: (nation) => `${nation} is Azania’s ally`,
+  friendly: (nation) => `Azania is on friendly terms with ${nation}`,
+  neutral: (nation) => `Azania is neutral towards ${nation}`,
+  tense: (nation) => `Relations between Azania and ${nation} are tense`,
+  hostile: (nation) => `${nation} is hostile to Azania`,
+  war: (nation) => `Azania is at war with ${nation}`,
 }
 
 /**
- * The key to the diplomacy layer, on the map while it's on: the stances
- * from friend to foe, friends on one line and foes on the next, each with
- * how many nations Azania holds it towards; every nation not named is
- * neutral.
+ * The war's hatching within a sample, as the segments themselves rather
+ * than a pattern: a pattern wants an id, and the first of that id in the
+ * page wins, which may stand in a folded key where it draws nothing.
+ * Lines at 45°, bottom left to top right, `step` apart.
  */
-export function DiplomacyKey({ relations, className }: { relations: Relation[]; className?: string }) {
-  const count = (stance: Stance | 'neutral') => relations.filter((relation) => relation.stance === stance).length
+function hatchPath(x: number, y: number, width: number, height: number, step = 2.8): string {
+  let d = ''
+  for (let c = x + y + step; c < x + width + y + height; c += step) {
+    const x0 = Math.max(x, c - y - height)
+    const x1 = Math.min(x + width, c - y)
+    if (x1 <= x0) continue
+    d += `M${x0.toFixed(2)} ${(c - x0).toFixed(2)}L${x1.toFixed(2)} ${(c - x1).toFixed(2)}`
+  }
+  return d
+}
+
+/**
+ * A stance's sample, as the diplomacy layer washes a nation: hatched, for
+ * war. Free of hooks and of ids, for the server-rendered panels and for
+ * the many places a sample is drawn.
+ */
+export function StanceSwatch({ stance, className }: { stance: Stance | 'neutral'; className?: string }) {
+  const colour = STANCE_COLOURS[stance]
   return (
-    <div
-      className={cn(
-        'border border-sand-300 bg-sand-50/95 px-3 py-2 shadow-[0_1px_2px_rgba(22,25,31,0.08)]',
-        className,
-      )}
-      role="note"
-    >
-      <p className={EYEBROW}>Azania’s diplomacy</p>
-      <ul className="mt-1.5 grid grid-cols-3 gap-x-3 gap-y-1 text-[12px] text-ink-700">
-        {STANCE_ORDER.map((stance) => {
-          const n = count(stance)
-          return (
-            <li className="inline-flex items-center gap-1.5" key={stance}>
-              <StanceSwatch stance={stance} />
-              <span>{stanceLabel(stance)}</span>
-              {stance === 'neutral' ? null : n ? (
-                <span className="font-mono text-[11px] text-ink-400 tabular-nums">{n}</span>
-              ) : null}
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+    <svg aria-hidden="true" className={cn('h-3 w-4 shrink-0', className)} viewBox="0 0 16 12">
+      <rect fill={colour.line} fillOpacity={Math.min(0.6, colour.fill * 1.2)} height={10} width={14} x={1} y={1} />
+      {stance === 'war' ? <path d={hatchPath(1, 1, 14, 10)} stroke={colour.line} strokeWidth={1.3} /> : null}
+      <rect fill="none" height={10} stroke={colour.line} strokeWidth={1.25} width={14} x={1} y={1} />
+    </svg>
   )
 }

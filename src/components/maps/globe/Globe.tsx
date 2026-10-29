@@ -47,7 +47,7 @@ import { createNames, type NameMarks, type Names } from './labels'
 import { buildMarks, buildPlayers, NO_MARKS, playerHits, type MarkHit, type PlayerHit } from './marks'
 import { reachRing } from './reach'
 import { createMotion, ease, lessMotion, mix, smoothstep } from './motion'
-import { nameInk, paletteBytes } from './palette'
+import { nameStyle, paletteBytes } from './palette'
 import { releaseSheet, warmSheet } from './sheet'
 import type { GlobeEntry, GlobePhase, GlobePick, GlobeProps, GlobePull, LeaveRequest } from './types'
 
@@ -870,7 +870,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
     const bySlug = new Map((inks.world?.nations ?? []).map((nation) => [nation.slug, nation]))
     names.colour((slug) => {
       const nation = bySlug.get(slug)
-      return nameInk(nation?.name ?? '', nation?.colour ?? null, inks.relations)
+      return nameStyle(nation?.name ?? '', nation?.colour ?? null, inks.relations)
     })
     showWorld = inks.showWorld
     invalidate()
@@ -884,7 +884,7 @@ function createStage(elements: Elements, hooks: Hooks): Stage {
   const mapBox = document.querySelector('[data-globe-notes]')?.parentElement?.parentElement ?? null
   const floatingColumns = () => [
     (mapBox ?? document).querySelector('[data-globe-notes]')?.parentElement ?? null,
-    (mapBox ?? document).querySelector('.az-siege-alert, [role="note"]')?.parentElement ?? null,
+    (mapBox ?? document).querySelector('.az-siege-alert, .az-diplomacy-key')?.parentElement ?? null,
   ]
   const measureFloating = () => {
     const box = root.getBoundingClientRect()

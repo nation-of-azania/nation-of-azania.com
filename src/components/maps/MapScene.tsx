@@ -8,8 +8,8 @@ import { roundPoint, type Bounds, type Point } from '@/maps/geo'
 import type { Insets } from '@/maps/globe'
 import { siegesOnMap } from '@/maps/besieged'
 import { azaniaSide } from '@/maps/sieges'
-import { GROUND, nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
-import type { MapLayer, ViewAspect } from '@/maps/registry'
+import { DIPLOMACY_VEIL, GROUND, nationInk, NO_NATION, pixelsPerBlock, STANCE_COLOURS } from '@/maps/palette'
+import type { MapLayer, Stance, ViewAspect } from '@/maps/registry'
 import { wrapPoint } from '@/maps/source'
 import type { EventPhase } from '@/maps/time'
 import type { MapPosition, MapSelection } from '@/maps/url'
@@ -22,7 +22,7 @@ import { PointChip } from './editor/PointChip'
 import { Tools } from './editor/Tools'
 import type { GlobePull } from './globe/types'
 import { createStore, useLatest, type Store } from './hooks'
-import { AbroadClaims, AbroadMarks, HomeGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
+import { AbroadClaims, AbroadMarks, HomeGlow, StanceGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
 import { AbroadHover, HoverReach } from './layers/hover'
@@ -34,9 +34,9 @@ import type { LiveState } from './live'
 import { WarReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { SiegeCard } from './layers/SiegeCard'
-import { SiegesLayer } from './layers/SiegesLayer'
+import { SiegesLayer, type SiegeToDraw } from './layers/SiegesLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
-import { EchoWash, echoesIn, echoProjection, Seams } from './layers/WorldEdge'
+import { EchoWash, echoesIn, echoProjection, Seams, SheetVeil } from './layers/WorldEdge'
 import {
   fitBounds,
   flyTo,
@@ -546,9 +546,13 @@ const Layers = memo(function Layers({
     town: selection?.kind === 'abroad' ? selection.slug : null,
     nation: selection?.kind === 'nation' ? selection.slug : null,
   }
-  const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null } : null
+  const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null, styleOf: diplomacy ? styleOf : undefined } : null
   const towns = data.towns
-  const war = useMemo(() => siegesOnMap(sieges, { towns }, abroad), [sieges, towns, abroad])
+  const relations = diplomacy ? data.relations : null
+  const war = useMemo<SiegeToDraw[]>(
+    () => siegesOnMap(sieges, { towns }, abroad).map((entry) => ({ ...entry, ring: relations ? ringOf(entry.siege, relations) : null })),
+    [sieges, towns, abroad, relations],
+  )
   // The reach of the wars: Azania's always (with its layer on), and another nation's while it's open or hovered.
   const reachOf = useReaches(capitals, abroad, styleOf)
   const homeName = home?.name ?? null
@@ -591,6 +595,9 @@ const Layers = memo(function Layers({
       {homeReach ? <WarReach part="ring" projection={at} radius={radius} reach={homeReach} /> : null}
       {openReach ? <WarReach part="ring" projection={at} radius={radius} reach={openReach} /> : null}
       {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
+      {/* The diplomacy: the sheet veiled, and the friends' and foes' towns aglow, under the claims. */}
+      {worldShown && diplomacy ? <SheetVeil colour={DIPLOMACY_VEIL.colour} opacity={DIPLOMACY_VEIL.opacity} projection={at} /> : null}
+      {worldShown && diplomacy ? <StanceGlow abroad={worldShown} projection={at} styleOf={styleOf} /> : null}
       {worldShown ? (
         <AbroadClaims
           abroad={worldShown}
@@ -749,17 +756,35 @@ function useNationStyles(abroad: Abroad | null, relations: Relation[] | null): (
     const styleOf = (name: string, colour: string | null): NationStyle => {
       if (!relations) return { ...nationInk(colour), fill: 0.08 }
       const stance = relationWith(name, relations)?.stance ?? 'neutral'
-      const voice = stance === 'neutral' ? 'quiet' : stance === 'ally' || stance === 'war' || stance === 'hostile' ? 'loud' : undefined
-      return { ...STANCE_COLOURS[stance], hatch: stance === 'war', voice }
+      const voice = stance === 'neutral' ? 'quiet' : 'loud'
+      return { ...STANCE_COLOURS[stance], hatch: stance === 'war', voice, stance }
     }
     const styles = new Map<string, NationStyle>(
       (abroad?.nations ?? []).map((nation) => [nation.name, styleOf(nation.name, nation.colour)]),
     )
     const none: NationStyle = relations
-      ? { ...STANCE_COLOURS.neutral, dash: '3 2' }
+      ? { ...STANCE_COLOURS.neutral, dash: '3 2', stance: 'neutral' }
       : { line: NO_NATION.line, text: NO_NATION.text, fill: 0.05, dash: '3 2' }
     return (nation) => (nation ? (styles.get(nation) ?? styleOf(nation, null)) : none)
   }, [abroad, relations])
+}
+
+/** The stances in the order a siege is ringed by: the one Azania must mind most first. */
+const RING_ORDER: Stance[] = ['war', 'hostile', 'ally', 'tense', 'friendly']
+
+/**
+ * The colour a siege's mark is ringed in while the diplomacy is drawn: the
+ * stance Azania holds toward a nation in it, by its attacker, its defender
+ * or the besieged town's nation; of two, the one Azania must mind most.
+ * Null for a siege between neutral nations, which stays as it is; Azania's
+ * own sieges wear their saffron whatever this says.
+ */
+function ringOf(siege: Siege, relations: Relation[]): string | null {
+  const stances = [siege.attacker, siege.defender, siege.townNation]
+    .map((nation) => relationWith(nation, relations)?.stance)
+    .filter((stance): stance is Stance => Boolean(stance))
+  const stance = RING_ORDER.find((candidate) => stances.includes(candidate))
+  return stance ? STANCE_COLOURS[stance].line : null
 }
 
 /**

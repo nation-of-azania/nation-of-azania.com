@@ -203,8 +203,8 @@ type Name = {
 export type Names = {
   /** Makes the names for a reading of the world (Azania's alone before one has come). */
   build: (world: Abroad | null, home: HomeName | null) => void
-  /** Sets the names' inks, by the nation's address: its own colour's dark shade, or its stance's. */
-  colour: (inkOf: (slug: string) => string) => void
+  /** Sets the names' inks, by the nation's address: its own colour's dark shade, or its stance's; and, with the diplomacy on, which are set loud (in bold) and which quiet. */
+  colour: (styleOf: (slug: string) => { ink: string; voice: 'loud' | 'quiet' | null }) => void
   /**
    * Places the names for a frame drawn at `now`: each about its heartland,
    * where it faces the reader enough to be read and finds room, clear of
@@ -388,8 +388,14 @@ export function createNames(svg: SVGSVGElement): Names {
       names = next
       orderedFor = undefined
     },
-    colour: (inkOf) => {
-      for (const name of names) if (name.slug) name.label.setAttribute('fill', inkOf(name.slug))
+    colour: (styleOf) => {
+      for (const name of names) {
+        if (!name.slug) continue
+        const { ink, voice } = styleOf(name.slug)
+        name.label.setAttribute('fill', ink)
+        name.label.setAttribute('font-weight', voice === 'loud' ? '700' : '500')
+        name.label.setAttribute('fill-opacity', voice === 'quiet' ? '0.6' : '1')
+      }
     },
     place: (view, marks, shown, world, lifted, now) => {
       const dt = lastFrame ? Math.min(64, Math.max(0, now - lastFrame)) : FRAME_MS

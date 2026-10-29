@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import { cn } from '@/blocks/components/shared'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import {
@@ -13,8 +12,7 @@ import {
 } from '@/maps/abroad'
 import { spoken, type Relation } from '@/maps/data'
 import type { Bounds, Point } from '@/maps/geo'
-import { nationInk, NO_NATION, STANCE_COLOURS } from '@/maps/palette'
-import type { Stance } from '@/maps/registry'
+import { nationInk, NO_NATION } from '@/maps/palette'
 import { incomeWords, isSiteKind, resourceWords, siteTitle, type SiteFacts } from '@/maps/sites'
 import type { SpawnRoute, SpawnTown } from '@/maps/spawn'
 import { isServerKind } from '@/maps/trading'
@@ -22,19 +20,22 @@ import { abroadHref, nationHref, townHref } from '@/maps/url'
 import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { SiteBadge } from '../layers/SiteMark'
-import { StanceSwatch } from '../ui/Diplomacy'
 import { Swatch } from '../ui/Swatch'
 import { BeliefsSection } from './BeliefsChart'
 import { Arrival, Look, Survey } from './islands'
+import { NationPeople, Residents } from './people'
 import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
 import { AwayParts, partsWords } from './parts'
 import { NationSieges, TownSiege } from './sieges'
+import { StanceNote } from './Stance'
 import { TradingPanel } from './TradingPanel'
 
 /**
  * The panels of the world abroad: a town of another nation (or of none)
  * and another nation, each light — what Towny says of it, the way there,
- * and its place in the world — since Azania Maps keeps nothing of other
+ * its people (for Azania's outlaw lists: ./people.tsx), where Azania
+ * stands with it (./Stance.tsx, set right there by its diplomats), and
+ * its place in the world — since Azania Maps keeps nothing of other
  * nations' towns: no census, no mayors, no places drawn. The server's own
  * places, its trading outposts and landmarks, have a panel of their own
  * (./TradingPanel.tsx), since they are no towns. Server-rendered
@@ -70,44 +71,6 @@ function NationLink({ nation }: { nation: Pick<NationSummary, 'name' | 'slug' | 
 
 const whereTo = (fit: Bounds | null, home: AbroadFacts['home']) =>
   fit ? { bounds: fit } : home ? { centre: home, zoom: 0 } : null
-
-/** Where Azania stands with a nation, in a sentence. */
-const STANCE_WORDS: Record<Stance | 'neutral', (nation: string) => string> = {
-  ally: (nation) => `${nation} is Azania’s ally`,
-  friendly: (nation) => `Azania is on friendly terms with ${nation}`,
-  neutral: (nation) => `Azania is neutral towards ${nation}`,
-  tense: (nation) => `Relations between Azania and ${nation} are tense`,
-  hostile: (nation) => `${nation} is hostile to Azania`,
-  war: (nation) => `Azania is at war with ${nation}`,
-}
-
-/** Where Azania stands with a nation, in its stance's colour, with the admins' line about it. */
-export function StanceNote({
-  nation,
-  relation,
-  className,
-}: {
-  nation: string
-  relation: Relation | null
-  className?: string
-}) {
-  const stance = relation?.stance ?? 'neutral'
-  const colour = STANCE_COLOURS[stance]
-  return (
-    <div
-      className={cn('flex items-start gap-2.5 border-l-[3px] px-3 py-2', className)}
-      style={{ borderColor: colour.line, background: `color-mix(in srgb, ${colour.line} 9%, transparent)` }}
-    >
-      <StanceSwatch className="mt-1" stance={stance} />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold leading-snug" style={{ color: colour.text }}>
-          {STANCE_WORDS[stance](spoken(nation))}
-        </p>
-        {relation?.note ? <p className="mt-0.5 text-[13px] leading-snug text-ink-700">{relation.note}</p> : null}
-      </div>
-    </div>
-  )
-}
 
 /** One of Azania's towns, as the reach of another's war is measured against them. */
 export type OurTown = { name: string; slug: string; home: Point | null }
@@ -249,7 +212,9 @@ export function AbroadTownPanel({
         />
       </div>
 
-      {nation && relation ? <StanceNote className="mx-4 mt-4" nation={nation.name} relation={relation} /> : null}
+      {nation ? <StanceNote className="mx-4 mt-4" nation={nation.name} quietWhenNeutral relation={relation} /> : null}
+
+      <Residents town={town} />
 
       {site ? (
         <PanelSection title="Terms">
@@ -486,6 +451,8 @@ export function NationPanel({
           ))}
         </ul>
       </PanelSection>
+
+      <NationPeople members={members} nation={nation} />
 
       <p className="mt-6 px-4 text-xs leading-relaxed text-ink-400">
         From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other

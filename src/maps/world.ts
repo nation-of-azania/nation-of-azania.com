@@ -50,9 +50,9 @@ export type WorldTown = {
   ruler: string | null
   residents: number
   /**
-   * Its residents' Minecraft names as the map lists them, the ruler first;
-   * Bedrock players' with the dot their server gives them. Empty for a
-   * site, and in a reading the CDN kept from before they were read.
+   * Its residents' Minecraft names in the map's order (which needn't put the
+   * ruler first); Bedrock players' with the dot their server gives them.
+   * Empty for a site, and in a reading the CDN kept from before they were read.
    */
   people: string[]
   chunks: number

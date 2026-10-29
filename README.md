@@ -882,15 +882,49 @@ which the routes insist on, so every viewer shares one copy.
   town that has joined Azania redirects to its own page, and Azania's
   nation to the front. A trading outpost or a landmark has a page of its
   own at the same address (above).
-- **Diplomacy** (a layer, off by default). Where Azania stands with the
-  other nations, set under Settings → Azania Maps → Diplomacy, and public
-  on the map: the nations are drawn by stance instead of their own colours,
-  a road from green to red through a quiet grey (`STANCE_COLOURS` in
-  `src/maps/palette.ts`): allies washed deep green, enemies red and, at
-  war, hatched, the neutral receding; far out, friends' and foes' names are
-  set in bold. A key sits at the map's top left while it's on; a nation's
-  page says the stance in a sentence, with the admins' note, and so does a
-  town abroad of a nation that isn't neutral.
+- **Diplomacy** (a layer, off by default; the pennant button beside
+  *Layers* switches it, as does its row in the layers menu, a nation's
+  panel, and `diplomacy` listed in `&layers=`). Where Azania stands with the other
+  nations, set under Settings → Azania Maps → Diplomacy or from a nation's
+  panel (below), and public on the map, read at a glance as an atlas's
+  political page:
+  - the map's own picture is veiled in whitewash (`DIPLOMACY_VEIL`), so its
+    forests and deserts don't pass for stances;
+  - the nations are drawn by stance instead of their own colours, a road
+    from green to red through a quiet grey (`STANCE_COLOURS` in
+    `src/maps/palette.ts`): allies deep green, enemies red and, at war,
+    hatched; the neutral recede to a faint edge, their names dimmed;
+  - far out, where claims are specks, a soft glow in the stance's colour
+    about every town of a nation Azania holds a stance toward, so its
+    towns merge into one patch (`StanceGlow` in `layers/AbroadLayer.tsx`);
+    nearer in, a band around their claims;
+  - a pennant in the stance's colour before a friend's or foe's name, set
+    in bold; on the globe the same names are bold and the neutral dimmed;
+  - a siege a friend or foe is in is ringed in the stance's colour
+    (Azania's own keep their saffron).
+
+  Its key, at the map's top left (`ui/DiplomacyKey.tsx`), lists the
+  nations under each stance, each opening its page and bringing the map
+  to it, with the admins' note on hover and the swords beside one in a
+  siege; on a phone it folds to the counts. A nation's page says the
+  stance in a sentence, with the note, and so does a town abroad of a
+  nation that isn't neutral.
+
+  **Setting a stance on the map** (`panels/Stance.tsx`): admins and
+  diplomats (Users → Azania Maps → Diplomat) get *Set the stance* there: the
+  six stances and a note, saved through `POST /maps/diplomacy` as the
+  signed-in person. The layer, its key and the panels change at once; the
+  map holds what was saved ahead of the cached pages until they catch up.
+- **Outlaw lists** (`panels/people.tsx`). A town abroad's page lists its
+  residents, the ruler first, each with their head, whether they're online
+  (while the players layer polls), and `/t outlaw add <name>` to copy with
+  a click: Towny takes one name a command, and a player pastes one line at
+  a time. A nation's page lists every resident of every town, town by town
+  (folded, the capital first), with a search over names and towns. Each
+  list, a town's or the whole nation's, copies as names or as commands, a
+  line each, for notes or a macro. The names come with the world's reading
+  (`people` on each town in `/maps/world.json`); Bedrock players keep the
+  dot their server gives them, which is part of the name in game.
 - **Sieges**, always, whenever there are any: there's no layer to switch
   off. The war is asked for as the page arrives and every three minutes
   while the tab is in view (`components/maps/war.ts`); offline, the last

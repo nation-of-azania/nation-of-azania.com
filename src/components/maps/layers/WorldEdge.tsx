@@ -88,6 +88,35 @@ export function EchoWash({ projection, world = 0 }: { projection: Projection; wo
 }
 
 /**
+ * The sheet veiled, under the layers, while the diplomacy is drawn: the
+ * world's picture washed in whitewash (src/maps/palette.ts →
+ * DIPLOMACY_VEIL), as an atlas prints a political map on paper rather
+ * than over a photograph, so the stances' colours carry and the land
+ * beneath still shows its coasts and deserts. One rect over the sheet in
+ * this projection (an echo's is drawn in its own), kept to the sheet, so
+ * the night sea off the world's edge stays as it is. Drawn with the
+ * ground, it scales mid-zoom as the tiles do.
+ */
+export function SheetVeil({ projection, colour, opacity }: { projection: Projection; colour: string; opacity: number }) {
+  const span = sheetSpan(projection)
+  if (!span) return null
+  const [left] = projection.project([WORLD_WEST, 0])
+  const [right] = projection.project([WORLD_EAST, 0])
+  return (
+    <rect
+      className="az-veil"
+      fill={colour}
+      fillOpacity={opacity}
+      height={span.bottom - span.top}
+      pointerEvents="none"
+      width={right - left}
+      x={left}
+      y={span.top}
+    />
+  )
+}
+
+/**
  * The seams, drawn over everything: at every edge of the world on the
  * page, a hairline the height of the world, half black and dashed, where
  * the real world meets its echo. The wash over the echo says the rest.

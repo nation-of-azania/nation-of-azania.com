@@ -17,6 +17,7 @@ import { StatTile } from './GrowthChart'
 import { EventsList, LayerToggle } from './islands'
 import { OtherSieges, OurSieges } from './sieges'
 import { EYEBROW, PanelSection } from './shared'
+import { DiplomatHint } from './Stance'
 import { YourViews } from './views'
 
 /**
@@ -154,7 +155,9 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
           </ul>
           <p className="mt-1 px-4 text-[11px] text-ink-400">Every other nation is neutral.</p>
         </PanelSection>
-      ) : null}
+      ) : (
+        <DiplomatHint relations={relations.length} />
+      )}
 
       <OtherSieges />
 

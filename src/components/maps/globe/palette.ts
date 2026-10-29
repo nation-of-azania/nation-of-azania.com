@@ -1,6 +1,6 @@
 import { relationWith, type AbroadNation } from '@/maps/abroad'
 import type { Relation } from '@/maps/data'
-import { GROUND, nationInk, NO_NATION, STANCE_COLOURS } from '@/maps/palette'
+import { GLOBE_STANCE_FILL, GROUND, nationInk, NO_NATION, STANCE_COLOURS } from '@/maps/palette'
 import { NUMBER } from '@/maps/raster'
 import { SERVER_INKS } from '@/maps/trading'
 
@@ -59,11 +59,15 @@ type Ink = { line: string; lineAlpha: number; wash: string; washAlpha: number }
 /** How Azania itself is drawn on the globe: a saffron edge round a light saffron wash. */
 const AZANIA: Ink = { line: GROUND.saffron, lineAlpha: 1, wash: GROUND.saffronLight, washAlpha: 0.35 }
 
-/** The ink a nation's name is set in, as its edge is drawn: its own colour's dark shade, or its stance's. */
-export function nameInk(name: string, colour: string | null, relations: Relation[] | null): string {
-  if (!relations) return nationInk(colour).text
+/**
+ * How a nation's name is set: the ink, its own colour's dark shade or its
+ * stance's; and, with the diplomacy on, whether it's set loud (in bold)
+ * as Azania's friends' and foes' are, or quiet, as the neutral nations'.
+ */
+export function nameStyle(name: string, colour: string | null, relations: Relation[] | null): { ink: string; voice: 'loud' | 'quiet' | null } {
+  if (!relations) return { ink: nationInk(colour).text, voice: null }
   const stance = relationWith(name, relations)?.stance ?? 'neutral'
-  return STANCE_COLOURS[stance].text
+  return { ink: STANCE_COLOURS[stance].text, voice: stance === 'neutral' ? 'quiet' : 'loud' }
 }
 
 export function paletteBytes({
@@ -91,12 +95,14 @@ export function paletteBytes({
       const line = nationInk(colour).line
       return { line, lineAlpha: 0.9, wash: line, washAlpha: 0.1 }
     }
-    const stance = STANCE_COLOURS[relationWith(name, relations)?.stance ?? 'neutral']
-    return { line: stance.line, lineAlpha: 0.9, wash: stance.line, washAlpha: stance.fill }
+    // The friends and foes washed deeply and edged firmly, the neutral left to a faint edge, so the stances read.
+    const stance = relationWith(name, relations)?.stance ?? 'neutral'
+    const ink = STANCE_COLOURS[stance]
+    return { line: ink.line, lineAlpha: stance === 'neutral' ? 0.5 : 0.95, wash: ink.line, washAlpha: ink.fill * GLOBE_STANCE_FILL }
   }
   put(NUMBER.azania, AZANIA, true)
   const stateless = relations ? STANCE_COLOURS.neutral.line : NO_NATION.line
-  put(NUMBER.stateless, { line: stateless, lineAlpha: 0.7, wash: stateless, washAlpha: 0.06 }, showWorld)
+  put(NUMBER.stateless, { line: stateless, lineAlpha: relations ? 0.4 : 0.7, wash: stateless, washAlpha: relations ? 0.03 : 0.06 }, showWorld)
   put(NUMBER.server, { line: SERVER_INKS.trading.edge, lineAlpha: 0.8, wash: SERVER_INKS.trading.edge, washAlpha: 0.12 }, showWorld)
   for (let number = NUMBER.first; number < NUMBER.past; number++) {
     const each = nations[number]

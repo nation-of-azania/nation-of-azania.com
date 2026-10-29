@@ -31,6 +31,7 @@ import {
   type MapRoad,
   type MapTown,
   type MapViewData,
+  type Relation,
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import type { Insets } from '@/maps/globe'
@@ -81,8 +82,8 @@ import {
   type Snapshot,
 } from './state'
 import { Notice, TextButton } from './ui/chrome'
-import { DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
-import { DiplomacyKey } from './ui/Diplomacy'
+import { DiplomacyButton, DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
+import { DiplomacyKey } from './ui/DiplomacyKey'
 import { Icon } from './ui/icons'
 import { Coordinates, LiveCount, StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
@@ -186,6 +187,14 @@ const RIGHTS_RETRIES = [0, 1500, 4000]
 /** Steps of undo kept for one editing session. */
 const HISTORY_LIMIT = 100
 
+/** How long a diplomat's own copy of the diplomacy outranks the server's, at most: the pages' own minute. */
+const LOCAL_RELATIONS_MS = 60_000
+
+/** Whether two readings of the diplomacy say the same, nation for nation. */
+const sameRelations = (a: Relation[], b: Relation[]): boolean =>
+  a.length === b.length &&
+  a.every((relation, i) => relation.nation === b[i].nation && relation.stance === b[i].stance && (relation.note ?? null) === (b[i].note ?? null))
+
 /**
  * What a signed-in person may do on the map, in a few words beside their
  * name, so nobody has to guess their rights: "draws anywhere" for staff and
@@ -271,12 +280,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const [, startTransition] = useTransition()
 
   // The nation as served, with the visitor's own edits until the server catches up.
-  const [data, setData] = useState(served)
+  const [edited, setData] = useState(served)
   const [lastServed, setLastServed] = useState(served)
+  // The diplomacy as a diplomat has just set it (panels/Stance.tsx), ahead of the cached pages: it wins over
+  // what the server sends until the server sends the same (two saves close together each ask for the pages
+  // afresh, and the first's answer may land after the second's save), or at most for the pages' own minute.
+  const [local, setLocal] = useState<{ relations: Relation[]; at: number } | null>(null)
   if (served !== lastServed) {
     setLastServed(served)
     setData(served)
+    if (local && sameRelations(local.relations, served.relations)) setLocal(null)
   }
+  const data = useMemo(() => (local ? { ...edited, relations: local.relations } : edited), [edited, local])
 
   // Who the visitor is on the map: asked of the server once the page is here,
   // since the page is the same for everyone. A flaky connection is no answer:
@@ -992,6 +1007,13 @@ export function MapsShell({ data: served, children }: ShellProps) {
     (town: MapTown, text: string) => openEditor({ kind: 'about', town: town.id, text }),
     [openEditor],
   )
+  // A stance set from a nation's panel: the diplomacy as the Registry now has it, kept here ahead of the cached
+  // pages (the panel asks for them to be regenerated), so the layer, its key and the panels change at once.
+  const setRelations = useCallback((relations: Relation[]) => {
+    const at = Date.now()
+    setLocal({ relations, at })
+    window.setTimeout(() => setLocal((current) => (current?.at === at ? null : current)), LOCAL_RELATIONS_MS)
+  }, [])
   const closeEditor = useCallback(() => setEditor(null), [setEditor])
   /** A siege's card, opened from a panel or the alert: the map comes to its banner, close enough to see the town. */
   const openSiege = useCallback(
@@ -1120,6 +1142,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
       setExtra,
       war,
       openSiege,
+      setRelations,
+      liveStore,
     }),
     [
       world,
@@ -1129,6 +1153,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
       setExtra,
       war,
       openSiege,
+      setRelations,
+      liveStore,
       data,
       rights,
       rightsStatus,
@@ -1298,6 +1324,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     </>
   )
 
+  const drawShown = canDraw || rights.views
   const controls = (
     <>
       <LayerMenu
@@ -1310,8 +1337,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
         showPast={showPast}
         worldStatus={worldState.status}
       />
+      <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
       <Legend globe={globeSupport} />
-      {canDraw || rights.views ? (
+      {drawShown ? (
         <DrawMenu
           active={Boolean(editor)}
           canDraw={canDraw}
@@ -1521,8 +1549,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <div
               className={cn(
                 'pointer-events-none absolute left-3 z-10 flex flex-col items-start gap-2',
-                // Clear of the controls: a column of them beside a wide map, a row of two on a phone's.
-                wide ? 'top-3 max-w-[calc(100%-4.75rem)]' : 'top-16 max-w-[calc(100%-7.75rem)]',
+                // Clear of the controls: a column of them beside a wide map, a row of three or four on a phone's.
+                wide
+                  ? 'top-3 max-w-[calc(100%-4.75rem)]'
+                  : drawShown
+                    ? 'top-16 max-w-[calc(100%-13.5rem)]'
+                    : 'top-16 max-w-[calc(100%-10.75rem)]',
               )}
             >
               {ourSieges.slice(0, wide ? 2 : 1).map(({ siege, side }) => (
@@ -1553,7 +1585,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 </p>
               ) : null}
               {extras.diplomacy ? (
-                <DiplomacyKey className="pointer-events-auto w-[19rem] max-w-full" relations={data.relations} />
+                <DiplomacyKey
+                  className="pointer-events-auto"
+                  compact={!wide}
+                  onHide={() => setExtra('diplomacy', false)}
+                  relations={data.relations}
+                />
               ) : null}
             </div>
           ) : null}

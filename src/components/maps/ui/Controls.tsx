@@ -163,7 +163,7 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.diplomacy}
             label="Diplomacy"
-            note="The nations tinted by where Azania stands with them: allies green, enemies red."
+            note="Where Azania stands with the other nations: allies green, enemies red, the land veiled so they read. The pennant button beside is the same switch."
             onChange={(on) => onExtra('diplomacy', on)}
           />
         </li>
@@ -422,6 +422,9 @@ export function Legend({ globe }: { globe: boolean }) {
             </li>
           ))}
         </ul>
+        <p className="mt-1.5 px-1 text-[12px] leading-snug text-ink-500">
+          The land is veiled and each nation washed in its stance; a friend’s or foe’s name wears a pennant, and a siege one is in is ringed in its colour. Set from a nation’s page by Azania’s diplomats.
+        </p>
       </div>
     </Popover>
   )
@@ -465,6 +468,23 @@ export function ZoomButtons({
         />
       ) : null}
     </>
+  )
+}
+
+/**
+ * The diplomacy layer's own button, beside the layers: where Azania stands
+ * with the other nations is the question the map is most often asked, and
+ * a row in the layers menu was too easy to miss. A toggle, pressed while
+ * the layer is on.
+ */
+export function DiplomacyButton({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <IconButton
+      icon="diplomacy"
+      label={on ? 'Hide Azania’s diplomacy' : 'Show Azania’s diplomacy: where it stands with the other nations'}
+      onClick={onToggle}
+      pressed={on}
+    />
   )
 }
 

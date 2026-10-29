@@ -42,6 +42,10 @@ const PATHS = {
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
   offline: 'M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M2 8.5a15 15 0 0 1 20 0M12 19h.01M3 3l18 18',
   globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.5 9h17M3.5 15h17M12 3c-2.6 2.4-3.9 5.4-3.9 9s1.3 6.6 3.9 9c2.6-2.4 3.9-5.4 3.9-9S14.6 5.4 12 3z',
+  /** Two nations' pennants, one raised beside the other: the diplomacy. */
+  diplomacy: 'M5 21V4M5 4h7l-1.5 3 1.5 3H5M15 21v-9M15 12h6l-1.5 2.5L21 17h-6',
+  /** A roll of names: the people of a town, listed. */
+  people: 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6M9 16h4',
 } as const
 
 export type IconName = keyof typeof PATHS

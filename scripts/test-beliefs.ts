@@ -65,8 +65,8 @@ function area(name: string, { religion, culture, ruler = 'Mayor1', nation = 'Nor
   const old = unpackWorld({ at: 0, nations: [], towns: [{ ...packWorld(worldOf(file)).towns[0], culture: undefined, religion: undefined, people: undefined }] } as never)
   check(old.towns[0].culture === null && old.towns[0].religion === null, 'a world read before them has none')
 
-  // Its residents' names, for the outlaw lists: the ruler first, a site's none.
-  check(world.towns.find((town) => town.name === 'Chosen')?.people.join(',') === 'Mayor1,Another', 'a town carries its residents’ names, the ruler first')
+  // Its residents' names, for the outlaw lists; a site's none.
+  check(world.towns.find((town) => town.name === 'Chosen')?.people.join(',') === 'Mayor1,Another', 'a town carries its residents’ names, as the map lists them')
   check(world.towns.find((town) => town.name === 'Europe_Quarry')?.people.length === 0, 'a server site carries none')
   check(Array.isArray(old.towns[0].people) && old.towns[0].people.length === 0, 'nor does a world read before them')
 }

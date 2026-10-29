@@ -10,13 +10,14 @@ import {
   placeHomeName,
   type AbroadPlan,
   type HomeNation,
+  type NationStyle,
 } from './AbroadLayer'
 import { reserveDrawings } from './DrawingsLayer'
 import { eventMarks, markRect, placeEventNames, type EventName } from './EventsLayer'
 import { pinRect, placePins, placePlaceNames, type PlaceName } from './PlacesLayer'
 import { LabelPlacer, type Projection } from './projection'
 import { placeRoadNames, type RoadName } from './RoadsLayer'
-import { placeSiegeNames, siegeMarkRect, siegeMarks, type SiegeMark, type SiegeName, type SiegeOnMap } from './SiegesLayer'
+import { placeSiegeNames, siegeMarkRect, siegeMarks, type SiegeMark, type SiegeName, type SiegeToDraw } from './SiegesLayer'
 import { placeTownNames, type OutpostLabel, type TownLabel } from './TownsLayer'
 
 /** Where every name on the map goes, decided once per view, before anything is drawn. */
@@ -78,10 +79,10 @@ export function planLabels(
     phases?: EventPhase[]
     selectedPlace?: number | null
     selectedEvent?: number | null
-    /** The world abroad, and Azania itself among the nations far out. */
-    abroad?: { world: Abroad; home: HomeNation | null } | null
-    /** The sieges on the server, each with Azania's side in it. */
-    sieges?: SiegeOnMap[]
+    /** The world abroad, Azania itself among the nations far out, and, with the diplomacy on, each nation's style, whose stance marks its name. */
+    abroad?: { world: Abroad; home: HomeNation | null; styleOf?: (nation: string | null) => NationStyle } | null
+    /** The sieges on the server, each with Azania's side in it and, with the diplomacy on, its ring. */
+    sieges?: SiegeToDraw[]
     /**
      * Whether names that lost, or would be named a little further in, are
      * kept in reserve, drawn hidden, for the live map to bring in as the
@@ -116,7 +117,7 @@ export function planLabels(
   const others = placeSiegeNames(projection, war, placer, false, reserve)
   const besieged = { marks: war, names: new Map([...ours, ...others]) }
   if (!abroad) return { ...plan, abroad: EMPTY_ABROAD_PLAN, sieges: besieged }
-  const world = placeAbroadNames(projection, abroad.world, home?.name ?? null, placer, reserve)
+  const world = placeAbroadNames(projection, abroad.world, home?.name ?? null, placer, reserve, abroad.styleOf)
   const homeName = early ?? late
   if (homeName) world.nations.set('', homeName)
   return { ...plan, abroad: world, sieges: besieged }

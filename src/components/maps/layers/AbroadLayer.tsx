@@ -14,6 +14,7 @@ import { partFocus, type ClaimPart, type PartRole } from '@/maps/claims'
 import { spoken } from '@/maps/data'
 import type { Bounds, Outline, Point } from '@/maps/geo'
 import { GROUND, STANCE_COLOURS } from '@/maps/palette'
+import type { Stance } from '@/maps/registry'
 import { isSiteKind, siteLine, type SiteFacts } from '@/maps/sites'
 import { isServerKind, SERVER_INKS, SERVER_WORDS, type ServerKind } from '@/maps/trading'
 import type { MapSelection } from '@/maps/url'
@@ -78,7 +79,9 @@ import { TRADING_R, TradingMark, tradingMarkRect, TradingPip } from './TradingMa
  * How a nation is drawn: its edge and fill, the ink of its names, a dash
  * for the towns of no nation, a hatch for a nation at war with Azania, and
  * how loudly its name is set — the diplomacy layer sets Azania's friends
- * and foes in bold and lets the neutral recede.
+ * and foes in bold, with a pennant in their stance's colour before the
+ * name, and lets the neutral recede; `stance` is where Azania stands with
+ * it, set only while the diplomacy is drawn.
  */
 export type NationStyle = {
   line: string
@@ -87,6 +90,7 @@ export type NationStyle = {
   dash?: string
   hatch?: boolean
   voice?: 'loud' | 'quiet'
+  stance?: Stance | 'neutral'
 }
 
 /** Clicks further out than this open the nation; closer in, the town. */
@@ -461,8 +465,16 @@ export function AbroadClaims({
 /** A town's name abroad, where the plan found room: as it's set, and for one of the server's places, which. */
 export type AbroadName = Rect & { fontSize: number; tracking: number; text: string; sub: string | null; server: ServerKind | null; live?: Live }
 
-/** A nation's name across its heartland, where the plan found room; `live`, how it may move mid-gesture on the live map's own canvas. */
-export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number; live?: Live }
+/**
+ * A nation's name across its heartland, where the plan found room; `mark`,
+ * the colour of the pennant set before it while the diplomacy is on and
+ * Azania holds a stance toward it; `live`, how it may move mid-gesture on
+ * the live map's own canvas.
+ */
+export type NationName = Rect & { fontSize: number; tracking: number; text: string; opacity: number; mark?: string; live?: Live }
+
+/** The pennant before a nation's name (NationName.mark), by the name's size: its width and height, and the gap to the name. */
+const pennantOf = (fontSize: number) => ({ width: fontSize * 0.95, height: fontSize * 0.68, gap: fontSize * 0.32 })
 
 /** The world's names: its towns' by address, its towns' outposts' by address and part (`${slug}/${part}`), and far out the nations'. */
 export type AbroadPlan = { towns: Map<string, AbroadName>; outposts: Map<string, AbroadName>; nations: Map<string, NationName> }
@@ -512,6 +524,7 @@ function nationName(
   extent: Bounds | null,
   chunks: number,
   home: boolean,
+  mark: string | null = null,
 ): NationName[] {
   const { zoom, ppb } = projection
   const text = spoken(name).toUpperCase()
@@ -520,7 +533,9 @@ function nationName(
   const bare = textWidth(text, fontSize)
   // Never tighter than a little air, nor looser than a letter's width apart.
   const tracking = Math.max(fontSize * (home ? 0.3 : 0.12), Math.min(fontSize * 0.7, (across * 0.75 - bare) / Math.max(1, text.length - 1)))
-  const width = bare + tracking * text.length + 6
+  // The pennant, where there is one, takes its room before the name.
+  const flag = mark ? pennantOf(fontSize).width + pennantOf(fontSize).gap : 0
+  const width = bare + tracking * text.length + 6 + flag
   const height = fontSize + 6
   const [hx, y] = projection.project(heart)
   const view = projection.view ?? projection.bounds
@@ -530,7 +545,7 @@ function nationName(
   const near = inBounds(projection.bounds, heart) && right - left > width + 24
   const x = near ? Math.min(right - 12 - width / 2, Math.max(left + 12 + width / 2, hx)) : hx
   const opacity = home ? 1 : zoom <= NATIONS_BELOW ? 0.85 : 0.7
-  const box = (cy: number): NationName => ({ x: x - width / 2, y: cy - height / 2, width, height, fontSize, tracking, text, opacity })
+  const box = (cy: number): NationName => ({ x: x - width / 2, y: cy - height / 2, width, height, fontSize, tracking, text, opacity, mark: mark ?? undefined })
   return [box(y), box(y - height * 1.1), box(y + height * 1.1)]
 }
 
@@ -585,6 +600,8 @@ export function placeAbroadNames(
   home: string | null,
   placer: LabelPlacer,
   reserve = false,
+  /** Each nation's style while the diplomacy is on: a nation Azania holds a stance toward is named with a pennant in its colour. */
+  styleOf?: (nation: string | null) => NationStyle,
 ): AbroadPlan {
   const { zoom } = projection
   const live = livePlan(projection)
@@ -618,7 +635,9 @@ export function placeAbroadNames(
       const placeable = nationsPlaceable && nation.chunks >= least
       const reservable = nationsReservable && nation.chunks >= nearer
       if (!placeable && !reservable) continue
-      const candidates = nationName(projection, nation.name, nation.heart, nation.extent, nation.chunks, false)
+      const style = styleOf?.(nation.name)
+      const mark = style?.stance && style.stance !== 'neutral' ? style.line : null
+      const candidates = nationName(projection, nation.name, nation.heart, nation.extent, nation.chunks, false, mark)
       const rank = placer.rank()
       const spot = placeable ? placer.tryPlace(candidates) : null
       if (!live) {
@@ -881,6 +900,11 @@ export function AbroadMarks({
         const home = !slug
         const style = home ? null : styleOf(nation?.name ?? null)
         const ink = style?.text ?? GROUND.sea800
+        const loud = style?.voice === 'loud'
+        // With the diplomacy on, the neutral nations' names step well back, so the friends' and foes' stand out.
+        const quiet = style?.voice === 'quiet' ? 0.55 : 1
+        const pennant = label.mark ? pennantOf(label.fontSize) : null
+        const flag = pennant ? pennant.width + pennant.gap : 0
         // Set across the heartland, it keeps its size about its own middle mid-zoom.
         return (
           <g
@@ -888,23 +912,36 @@ export function AbroadMarks({
             {...upright(label.x + label.width / 2, label.y + label.height / 2)}
             {...named(projection, 'nation', slug || 'home', { box: label, live: label.live })}
           >
+            {/* The pennant of a nation Azania holds a stance toward, in its stance's colour, before the name. */}
+            {pennant && label.mark ? (
+              <path
+                className={hit}
+                d={pennantPath(label.x + 3, label.y + (label.height - pennant.height) / 2, pennant.width, pennant.height)}
+                fill={label.mark}
+                onClick={onSelect && nation ? () => onSelect({ kind: 'nation', slug: nation.slug }) : undefined}
+                stroke={GROUND.whitewash}
+                strokeLinejoin="round"
+                strokeWidth={1.25}
+                style={nation ? cursor : undefined}
+              />
+            ) : null}
             <text
               className={cnHit(hit, 'font-display')}
               fill={ink}
               fontSize={label.fontSize}
-              fontWeight={home || selected.nation === slug || style?.voice === 'loud' ? 700 : 500}
+              fontWeight={home || selected.nation === slug || loud ? 700 : 500}
               letterSpacing={label.tracking}
               onClick={onSelect && nation ? () => onSelect({ kind: 'nation', slug: nation.slug }) : undefined}
               opacity={
                 home
                   ? 1
-                  : style?.voice === 'loud'
+                  : loud
                     ? 1
-                    : label.opacity * (selected.nation && selected.nation !== slug ? 0.7 : 1) * (style?.voice === 'quiet' ? 0.75 : 1)
+                    : label.opacity * (selected.nation && selected.nation !== slug ? 0.7 : 1) * quiet
               }
               style={nation ? cursor : undefined}
               textAnchor="middle"
-              x={label.x + label.width / 2 + label.tracking / 2}
+              x={label.x + flag + (label.width - flag) / 2 + label.tracking / 2}
               y={label.y + label.fontSize}
               {...halo(GROUND.whitewash, home ? 3.5 : 2.5)}
             >
@@ -925,6 +962,10 @@ export function AbroadMarks({
     </g>
   )
 }
+
+/** A pennant as a path: a small flag with a swallowtail, its hoist at (x, y). */
+const pennantPath = (x: number, y: number, width: number, height: number): string =>
+  `M${x.toFixed(1)} ${y.toFixed(1)}h${width.toFixed(1)}l${(-height * 0.4).toFixed(1)} ${(height / 2).toFixed(1)}l${(height * 0.4).toFixed(1)} ${(height / 2).toFixed(1)}h${(-width).toFixed(1)}Z`
 
 const cnHit = (...names: (string | undefined)[]) => names.filter(Boolean).join(' ')
 
@@ -992,6 +1033,68 @@ export function HomeGlow({
       strokeOpacity={0.5}
       strokeWidth={zoom <= -2 ? 4 : 5}
     />
+  )
+}
+
+/** From here out, the stances' glow is discs about the towns' homes; nearer, a casing about their claims. */
+const STANCE_DISCS_BELOW = -4.5
+
+/**
+ * Under the towns of every nation Azania holds a stance toward, while the
+ * diplomacy is drawn: a glow in the stance's colour, as Azania's own towns
+ * glow saffron (HomeGlow), so the friends and the foes read on the map at
+ * every zoom. Far out, where a town is a few pixels and its claims can
+ * carry no wash, a soft disc about each home, and a nation's towns run
+ * together into one patch of its colour, which is how an atlas shows a
+ * country at the scale of the world; nearer, a casing about the claims,
+ * under the claims themselves, so an ally's border is a green band and an
+ * enemy's a red one. One path per stance, so it costs a few elements
+ * however many towns there are; drawn with the ground, so mid-zoom it
+ * scales as the claims do.
+ */
+export function StanceGlow({
+  projection,
+  abroad,
+  styleOf,
+}: {
+  projection: Projection
+  abroad: Abroad
+  styleOf: (nation: string | null) => NationStyle
+}) {
+  const { zoom, ppb } = projection
+  const f = affineOf(projection)
+  const discs = zoom < STANCE_DISCS_BELOW
+  const byStance = new Map<string, { line: string; d: string }>()
+  for (const town of abroad.towns) {
+    if (!town.nation || isServerKind(town.kind) || !onPage(projection, town)) continue
+    const style = styleOf(town.nation)
+    if (!style.stance || style.stance === 'neutral') continue
+    const entry = byStance.get(style.stance) ?? { line: style.line, d: '' }
+    byStance.set(style.stance, entry)
+    if (discs) {
+      const centre = abroadCentre(town)
+      if (centre) entry.d += dot(at(f, centre))
+    } else entry.d += claimsPath(town, f, projection.bounds, ppb)
+  }
+  if (byStance.size === 0) return null
+  const r = zoom <= -6 ? 6.5 : 5.5
+  return (
+    <g className="az-stance-glow" pointerEvents="none">
+      {[...byStance].map(([stance, { line, d }]) =>
+        d ? (
+          <path
+            d={d}
+            fill="none"
+            key={stance}
+            stroke={line}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeOpacity={discs ? 0.45 : 0.4}
+            strokeWidth={discs ? r * 2 : zoom <= -2 ? 5 : 6}
+          />
+        ) : null,
+      )}
+    </g>
   )
 }
 

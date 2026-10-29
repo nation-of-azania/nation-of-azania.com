@@ -13,6 +13,7 @@ import type { LiveState } from '../live'
 import type { Store } from '../hooks'
 import { useLatest, useStore } from '../hooks'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
+import { monogramOf } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 
@@ -74,23 +75,6 @@ type Entry = {
 const at = (player: LivePlayer): Point => [player.x, player.z]
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-/**
- * A monogram's ink: one of the house's quieter colours, picked by the name
- * so a player keeps theirs, as an account's initial does in a mail app.
- * Never saffron (Azania's ring), coral (a siege) or the night sea of the
- * map's backdrop, where a monogram used to read as a hole in the map. All
- * take the whitewash letter at 4.9:1 or better.
- */
-const MONOGRAM_INKS = ['#215577', '#11707d', '#357166', '#9b2f5e', '#6b5540', '#8a5a9c']
-
-/** A player's monogram: the first letter of the name (a Bedrock player's without its dot) and its ink. */
-function monogramOf(name: string): { letter: string; ink: string } {
-  const bare = name.replace(/^\./, '')
-  let hash = 0
-  for (const char of bare.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  return { letter: bare.charAt(0).toUpperCase() || '·', ink: MONOGRAM_INKS[hash % MONOGRAM_INKS.length] }
-}
 
 /**
  * The head: the player's monogram, with the skin service's face laid over

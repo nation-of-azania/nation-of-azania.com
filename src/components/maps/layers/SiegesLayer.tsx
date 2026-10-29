@@ -35,8 +35,16 @@ import {
 /** A siege as the map draws it (src/maps/sieges.ts), said here too for the layers that draw it. */
 export type { SiegeOnMap }
 
+/**
+ * A siege with, while the diplomacy is drawn, the colour of a ring about
+ * its mark: the stance Azania holds toward a nation in it (MapScene →
+ * ringOf), so a siege that touches an ally or an enemy is picked out as
+ * Azania's own are in saffron.
+ */
+export type SiegeToDraw = SiegeOnMap & { ring?: string | null }
+
 /** A mark placed: the siege, and where and how big. */
-export type SiegeMark = SiegeOnMap & { x: number; y: number; scale: number }
+export type SiegeMark = SiegeToDraw & { x: number; y: number; scale: number }
 
 /** A siege's name, placed: its box, the title and the line beneath; `live`, how it may move mid-gesture on the live map's own canvas. */
 export type SiegeName = Rect & { title: string; sub: string | null; live?: Live }
@@ -60,7 +68,7 @@ const scaleOf = (zoom: number, side: SiegeSide) => (zoom <= -5 ? 0.75 : zoom <= 
  * the page (a town besieged is marked even when its banner is off the
  * edge), Azania's last, so they're drawn on top.
  */
-export function siegeMarks(projection: Projection, sieges: SiegeOnMap[]): SiegeMark[] {
+export function siegeMarks(projection: Projection, sieges: SiegeToDraw[]): SiegeMark[] {
   return sieges
     .filter(({ siege, town }) => inBounds(projection.bounds, siege.at) || (town?.home && inBounds(projection.bounds, town.home)))
     .map((entry) => {
@@ -71,8 +79,8 @@ export function siegeMarks(projection: Projection, sieges: SiegeOnMap[]): SiegeM
 }
 
 /** The box a mark takes, with its ring, which no name may cover. */
-export const siegeMarkRect = ({ x, y, scale, side }: SiegeMark): Rect => {
-  const r = R * scale + (side ? 6 : 3)
+export const siegeMarkRect = ({ x, y, scale, side, ring }: SiegeMark): Rect => {
+  const r = R * scale + (side ? 6 : ring ? 5 : 3)
   return { x: x - r, y: y - r, width: r * 2, height: r * 2 }
 }
 
@@ -135,14 +143,17 @@ export function placeSiegeNames(
 
 /**
  * A siege's mark: crossed swords on coral for a battle, breathing on the
- * map; a fire on whitewash while it's quiet; Azania's ringed in saffron.
- * Off the map (a badge in a panel, the alert, the legend) it keeps still:
- * an SVG that breathes is painted again every frame, and only the map's
- * one mark needs to.
+ * map; a fire on whitewash while it's quiet; Azania's ringed in saffron,
+ * and, while the diplomacy is drawn, one that touches a nation Azania
+ * holds a stance toward ringed in that stance's colour (`ring`). Off the
+ * map (a badge in a panel, the alert, the legend) it keeps still: an SVG
+ * that breathes is painted again every frame, and only the map's one mark
+ * needs to.
  */
 export function SiegeMarkGlyph({
   battle,
   side,
+  ring = null,
   x,
   y,
   scale = 1,
@@ -151,6 +162,7 @@ export function SiegeMarkGlyph({
 }: {
   battle: boolean
   side: SiegeSide
+  ring?: string | null
   x: number
   y: number
   scale?: number
@@ -172,6 +184,11 @@ export function SiegeMarkGlyph({
       ) : null}
       {side ? (
         <circle fill="none" r={r + 4.5} stroke={GROUND.saffron} strokeWidth={3} />
+      ) : ring ? (
+        <>
+          <circle fill="none" r={r + 4} stroke={GROUND.whitewash} strokeOpacity={0.9} strokeWidth={4} />
+          <circle fill="none" r={r + 4} stroke={ring} strokeWidth={2.5} />
+        </>
       ) : null}
       {selected ? <circle fill="none" r={r + (side ? 8 : 5)} stroke={GROUND.ink} strokeOpacity={0.6} strokeWidth={1.5} /> : null}
       <circle
@@ -245,7 +262,7 @@ export function SiegesLayer({
         )
       })}
       {marks.map((mark) => {
-        const { siege, side, x, y, scale } = mark
+        const { siege, side, ring, x, y, scale } = mark
         const name = labels.get(siege.townId)
         return (
           <g
@@ -264,7 +281,7 @@ export function SiegesLayer({
           >
             <title>{siegeTitle(siege)}</title>
             <g {...upright(x, y)} {...kept(projection, siegeMarkRect(mark))}>
-              <SiegeMarkGlyph battle={siege.battle} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
+              <SiegeMarkGlyph battle={siege.battle} ring={ring} scale={scale} selected={selected === siege.townId} side={side} x={x} y={y} />
             </g>
             {name ? (
               <g {...upright(x, y)} {...named(projection, 'siege', siege.townId, { box: name, live: name.live })}>

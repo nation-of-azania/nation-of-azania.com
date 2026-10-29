@@ -3,12 +3,13 @@
 import { createContext, useContext } from 'react'
 
 import type { Abroad } from '@/maps/abroad'
-import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData } from '@/maps/data'
+import type { MapData, MapEvent, MapPlace, MapRights, MapRoad, MapTown, MapViewData, Relation } from '@/maps/data'
 import type { Bounds } from '@/maps/geo'
 import type { MapLayer } from '@/maps/registry'
 import type { ExtraLayer, Extras, MapSelection } from '@/maps/url'
 
 import type { Store } from './hooks'
+import type { LiveState } from './live'
 import type { LookTarget } from './MapScene'
 import type { Editor } from './state'
 import type { WarState } from './war'
@@ -74,6 +75,15 @@ export type MapsActions = {
   /** The war on the server (/maps/war), polled while the tab is seen; and a siege's card opened, by its town's Towny id. */
   war: WarState
   openSiege: (townId: string) => void
+  /**
+   * Azania's diplomacy as a diplomat has just set it (panels/Stance.tsx):
+   * kept in the browser, ahead of the cached pages, so the layer, its key
+   * and the panels change at once; the server's own copy takes over when
+   * the pages come back fresh.
+   */
+  setRelations: (relations: Relation[]) => void
+  /** The players online, as the live layer polls them (./live.ts): read with useStore; 'off' while the layer is off. */
+  liveStore: Store<LiveState>
 }
 
 export const MapsContext = createContext<MapsActions | null>(null)
