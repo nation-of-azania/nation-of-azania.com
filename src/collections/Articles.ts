@@ -163,23 +163,26 @@ const stampPublishedAt: CollectionBeforeChangeHook = ({ data }) => {
  * profile for those who can publish here, made for this context or one above
  * it. "IPaaat, Co-Leader" made for Government can sign anything in Government
  * and its ministries; a delegate's profile made for International can't.
+ *
+ * As alternatives, each a flat list of conditions (`extra` added to each),
+ * to be joined with `or`, rather than nested: the byline field's menu sends
+ * its filter as a form, which Payload reads at most ten brackets deep
+ * (createPayloadRequest), and wraps it in two of its own. Nested deeper, the
+ * owner's conditions came apart, and the menu was refused with a 400.
  */
 const bylineChoices = (
   scope: Scope,
   authorId: number | undefined,
   contextId: number | undefined,
   trusted: boolean,
-): Where => {
+  extra: Where[] = [],
+): Where[] => {
   const contexts = contextId ? scope.tree.ancestors(contextId).map((context) => context.id) : []
   const shared = trusted || can(scope, contextId, 'publish')
-  return {
-    and: [
-      { contexts: { in: anyOf(contexts) } },
-      shared
-        ? { or: [{ owner: { exists: false } }, ...(authorId ? [{ owner: { equals: authorId } }] : [])] }
-        : { owner: { equals: authorId ?? -1 } },
-    ],
-  }
+  const owners: Where[] = shared
+    ? [{ owner: { exists: false } }, ...(authorId ? [{ owner: { equals: authorId } }] : [])]
+    : [{ owner: { equals: authorId ?? -1 } }]
+  return owners.map((owner) => ({ and: [...extra, { contexts: { in: anyOf(contexts) } }, owner] }))
 }
 
 /**
@@ -197,12 +200,11 @@ const applyDefaultByline: CollectionBeforeValidateHook = async ({ data, original
   const authorId = idOf(data.author ?? originalDoc?.author)
   const bylineId = idOf(data.byline !== undefined ? data.byline : originalDoc?.byline)
   const pickedNow = data.byline !== undefined && bylineId !== idOf(originalDoc?.byline)
-  const choices = bylineChoices(scope, authorId, contextId, !req.user)
   const fits = async (extra: Where[]) =>
     (
       await req.payload.count({
         collection: 'profiles',
-        where: { and: [{ id: { equals: bylineId } }, choices, ...extra] },
+        where: { and: [{ id: { equals: bylineId } }, { or: bylineChoices(scope, authorId, contextId, !req.user, extra) }] },
         req,
       })
     ).totalDocs > 0
@@ -224,7 +226,7 @@ const applyDefaultByline: CollectionBeforeValidateHook = async ({ data, original
   const { docs } = await req.payload.find({
     collection: 'profiles',
     where: {
-      and: [{ active: { equals: true } }, { owner: { equals: authorId } }, bylineChoices(scope, authorId, contextId, false)],
+      or: bylineChoices(scope, authorId, contextId, false, [{ active: { equals: true } }, { owner: { equals: authorId } }]),
     },
     sort: 'createdAt',
     limit: 1,
@@ -280,6 +282,9 @@ export const Articles: CollectionConfig = {
               { context: { in: anyOf(contextIdsWith(scope, 'write')) } },
             ],
           },
+          // Their own draft before it has a context: autosave makes it the moment the editor opens,
+          // and the context then picked is checked by applyContext.
+          { and: [{ author: { equals: req.user.id } }, { context: { exists: false } }] },
           { context: { in: anyOf(contextIdsWith(scope, 'publish')) } },
         ],
       }
@@ -421,12 +426,7 @@ export const Articles: CollectionConfig = {
       // Also enforced on save: Payload validates the value against these options.
       filterOptions: async ({ id, data, user, req }) => {
         const scope = await getScope(req)
-        const choices: Where = {
-          and: [
-            { active: { equals: true } },
-            bylineChoices(scope, idOf(data?.author), idOf(data?.context), !user),
-          ],
-        }
+        const choices = bylineChoices(scope, idOf(data?.author), idOf(data?.context), !user, [{ active: { equals: true } }])
         // The byline already saved stays valid (and listed), even after its
         // profile is switched off, so old articles keep their credit.
         const saved = id
@@ -435,7 +435,8 @@ export const Articles: CollectionConfig = {
               .then((doc) => idOf(doc.byline))
               .catch(() => undefined)
           : undefined
-        return saved ? { or: [choices, { id: { equals: saved } }] } : choices
+        // Flat, as bylineChoices says: nine brackets deep at most, the menu's own two included.
+        return { or: saved ? [...choices, { id: { equals: saved } }] : choices }
       },
     },
     {
