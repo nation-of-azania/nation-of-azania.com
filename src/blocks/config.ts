@@ -273,6 +273,14 @@ export const DiscordBlock: Block = {
           },
         },
         {
+          name: 'translation',
+          type: 'textarea',
+          admin: {
+            description:
+              'Optional: the message in English, when it was written in another language. Shown under it, marked as a translation; the same markdown.',
+          },
+        },
+        {
           type: 'row',
           fields: [
             {
@@ -544,6 +552,78 @@ export const SkinBlock: Block = {
   ],
 }
 
+/**
+ * A sanction list (src/collections/Lists.ts, kind "sanctions") in an
+ * article: who is on it now, one change as it was recorded, or its
+ * changelog as it grows. Only a public list is shown; the renderer reads it
+ * as a visitor would (src/lib/sanctions.ts).
+ */
+export const SanctionsBlock: Block = {
+  slug: 'sanctions',
+  interfaceName: 'SanctionsBlockType',
+  labels: { singular: 'Sanction list', plural: 'Sanction lists' },
+  fields: [
+    {
+      name: 'list',
+      type: 'relationship',
+      relationTo: 'lists',
+      required: true,
+      filterOptions: { kind: { equals: 'sanctions' } },
+      admin: { description: 'A sanction list from Lists. Only a public one is shown to readers.' },
+    },
+    {
+      name: 'show',
+      type: 'select',
+      required: true,
+      defaultValue: 'players',
+      options: [
+        { value: 'players', label: 'Who is on it now (live)' },
+        { value: 'change', label: 'One change, as recorded' },
+        { value: 'log', label: 'Its changelog (live, newest first)' },
+      ],
+    },
+    {
+      name: 'change',
+      type: 'relationship',
+      relationTo: 'list-changes',
+      admin: {
+        condition: (_, siblingData) => siblingData?.show === 'change',
+        description: 'The change to show: e.g. the save that added those named in a decree.',
+      },
+      filterOptions: ({ siblingData }) => {
+        const list = (siblingData as { list?: unknown } | undefined)?.list
+        const id = typeof list === 'object' && list ? (list as { id?: unknown }).id : list
+        return typeof id === 'number' || typeof id === 'string' ? { list: { equals: id } } : true
+      },
+      validate: (value: unknown, { siblingData }: { siblingData: { show?: string } }) =>
+        siblingData?.show === 'change' && value == null ? 'Choose the change to show.' : true,
+    },
+    {
+      name: 'through',
+      type: 'text',
+      maxLength: 60,
+      label: 'Only through',
+      admin: {
+        condition: (_, siblingData) => siblingData?.show !== 'change',
+        description:
+          'A town or nation on the list, as the map spells it (Imperial_Avalonia): only the players it brings, or the residents moving in and out of it. Empty for the whole list.',
+      },
+    },
+    {
+      name: 'limit',
+      type: 'number',
+      min: 5,
+      max: 200,
+      defaultValue: 30,
+      admin: {
+        condition: (_, siblingData) => siblingData?.show === 'log',
+        description: 'How many changes to show, newest first.',
+      },
+    },
+    { name: 'caption', type: 'text', maxLength: 200 },
+  ],
+}
+
 /** Every block available in article/page content, in menu order. */
 export const contentBlocks: Block[] = [
   CalloutBlock,
@@ -553,6 +633,7 @@ export const contentBlocks: Block[] = [
   EmbedBlock,
   DiscordBlock,
   MapBlock,
+  SanctionsBlock,
   SkinBlock,
   Model3DBlock,
   LitematicBlock,

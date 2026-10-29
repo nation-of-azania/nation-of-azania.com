@@ -14,6 +14,15 @@ import type { Article, Context, Page } from '@/payload-types'
 
 export type ShellProps = { nav: SiteNav; children: ReactNode }
 
+/** A sanction list a front page points to (src/lib/sanctions.ts), in brief. */
+export type SanctionListLink = {
+  name: string
+  href: string
+  players: number
+  /** When it last changed (ISO). */
+  changedAt: string
+}
+
 /** /<top>: the top-level context's front page. */
 export type HomeProps = {
   top: Context
@@ -24,6 +33,8 @@ export type HomeProps = {
   pinned: Article[]
   /** Newest first, pinned articles excluded. */
   latest: Article[]
+  /** Its public sanction lists; a design that keeps none may ignore them. */
+  sanctions?: SanctionListLink[]
 }
 
 /** /<top>/<sub>/…: a sub-context at any depth. */

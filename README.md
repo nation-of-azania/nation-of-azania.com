@@ -374,7 +374,7 @@ The pages are never cached or indexed, and send no referrer, so the token
 stays with the people it was given to. An expired link says so; an unknown
 one is a 404.
 
-Article and page content is a Lexical rich-text field with ten custom blocks
+Article and page content is a Lexical rich-text field with eleven custom blocks
 (schema in `src/blocks/config.ts`, renderers in `src/blocks/components/`):
 
 | Block       | Purpose                                                                  |
@@ -386,6 +386,7 @@ Article and page content is a Lexical rich-text field with ten custom blocks
 | `embed`     | YouTube/Vimeo player from a URL; other URLs render as a link card.       |
 | `discord`   | An exchange quoted from Discord, rendered the way Discord renders it. See below. |
 | `map`       | A piece of the map as a figure: a clipping around a Towny town or a pair of coordinates (claims outlined, the town's facts), or a **map view** drawn on Azania Maps with its highlights; still, or one readers can move. See below. |
+| `sanctions` | A sanction list: who is on it now, one change as recorded, or its changelog as it grows. See [Lists](#lists-and-the-sanction-list). |
 | `skin`      | A player's Minecraft skin as a portrait: turnable in 3D, with a still render before it loads and wherever WebGL is missing. See below. |
 | `model3d`   | Interactive three.js viewer for a `.glb` from the media library, with optional auto-rotate (editors and admins only). |
 | `litematic` | Interactive viewer for a Litematica `.litematic` build (editors and admins only). |
@@ -411,6 +412,46 @@ Message text takes Discord's own markdown: `**bold**`, `*italic*`,
 `> quotes`, `||spoilers||`, links, `@mentions` and `#channels`. It's parsed
 into React elements, never HTML, so a pasted message can't inject markup.
 `pnpm test:discord` covers the parser, including that escaping.
+
+A message written in another language can carry its **translation**, in the
+same markdown: it's shown under the original, marked as a translation.
+
+### Lists and the sanction list
+
+**Lists** (admin → Lists) hold players, named outright or through the
+**town** or **nation** they live in: a town's or nation's residents are on a
+list for as long as they live there, less the towns (one held by
+occupation, say) and players its entry leaves out. Each entry can carry
+the list's **classes** ("Indefinite", "War crime", "Moral code") and a
+reason. `src/lists/resolve.ts` renders a list down to player names against
+the map; `pnpm test:lists` checks it.
+
+Every change is written to the list's **changelog** (admin → List changes),
+with what it did to the players: an edit, with the *Note for this change*
+saved alongside (the decree that ordered it, say), or the map's watch
+seeing people move in or out of a listed town or nation, within minutes of
+the map showing it (`src/lib/lists.ts`, run by the watch in
+`src/lib/watch.ts`). A reading of the map that can't tell who lives where
+changes nothing. Each player keeps the date they came onto the list.
+
+A list's **visibility** says who may read it, through the API too: the
+public, anyone signed in, or staff. Its **kind** says what it is, and only
+a kind the site knows how to show is shown; there is deliberately no page
+of every list, since lists mean very different things. A *plain* list is
+data for other features (the guilds to come). A *sanction list* that's
+public belongs to a publication (its context) and is shown:
+
+- on its own page, `/<top>/sanctions/<slug>` (`/gov/sanctions/…` for the
+  Gazette's), with every player on it, why and since when, what it names,
+  its classes and its changelog, and the outlaw commands
+  (`/town outlaw add <name>`) for a mayor to copy;
+- on its publication's front page;
+- in an article, through the **Sanction list** block: who is on it now
+  (optionally only through one town or nation), one change as recorded
+  (the save that added those a decree names), or its changelog as it grows
+  (the residents moving in and out of a listed nation, with dates).
+
+Lists are kept by editors and admins; only admins delete one.
 
 ### Showing the map, and a player
 
@@ -1562,6 +1603,7 @@ import map. Without that handler, the production admin panel renders blank.
 | `pnpm test:uvlock`        | Litematica texture UV-lock tests.                           |
 | `pnpm test:sieges`        | Siege alert tests: what's told, once, and to whom.          |
 | `pnpm test:beliefs`       | Towns' cultures and religions, and a nation's shares.       |
+| `pnpm test:lists`         | Lists rendered down to players, and their changelog's sums. |
 
 ## Project layout
 
@@ -1589,7 +1631,8 @@ src/
 │  └─ members/          # resident area (login form, header)
 ├─ contexts/            # designs and article types, the context tree
 ├─ fields/              # shared fields: auto-generated slug, Minecraft name
-├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser, the Dynmap client (dynmap.ts), the towns sync (towns.ts), Azania Maps' reads (maps.ts)
+├─ lists/               # lists rendered down to players, and their changelog's sums (pure)
+├─ lib/                 # site tree and routing, data helpers, live preview, Litematica parser, the Dynmap client (dynmap.ts), the towns sync (towns.ts), Azania Maps' reads (maps.ts), lists' changelog and sync (lists.ts) and the sanction lists' reads (sanctions.ts)
 ├─ maps/                # Azania Maps in code: geometry (geo.ts), the registries, icons, palette, addresses, time
 ├─ seed/                # pnpm seed (index.ts), first-deploy bootstrap, verify.ts, assets/
 ├─ migrations/          # Postgres migrations (pnpm migrate:create; commit these)

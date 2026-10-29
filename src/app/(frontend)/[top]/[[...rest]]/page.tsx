@@ -16,6 +16,7 @@ import {
   getTypesInUse,
   getViewer,
 } from '@/lib/queries'
+import { getSanctionLists } from '@/lib/sanctions'
 import {
   archiveHref,
   articleStyle,
@@ -288,13 +289,22 @@ export default async function ContextRoute({ params, searchParams }: Props) {
   switch (route.kind) {
     case 'home': {
       const ids = idsBelow(tree, route.top)
-      const [pinned, latest, pages] = await Promise.all([
+      const [pinned, latest, pages, lists] = await Promise.all([
         getPinnedArticles(ids, 4),
         getLatestArticles(ids, 9),
         getPageLinks(route.top),
+        getSanctionLists(ids),
       ])
       const sections = tree.childrenOf(route.top.id).filter((child) => child.listed !== false)
-      return <views.Home top={route.top} sections={sections} pages={pages} pinned={pinned} latest={latest} />
+      const sanctions = lists.map((list) => ({
+        name: list.name,
+        href: `/${route.top.slug}/sanctions/${encodeURIComponent(list.slug)}`,
+        players: list.players.length,
+        changedAt: list.rosterAt ?? list.updatedAt,
+      }))
+      return (
+        <views.Home top={route.top} sections={sections} pages={pages} pinned={pinned} latest={latest} sanctions={sanctions} />
+      )
     }
     case 'section': {
       const ids = idsBelow(tree, route.context)

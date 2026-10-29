@@ -322,3 +322,93 @@ a[href$='/forgot'] {
     outline-offset: 0;
   }
 }
+
+/*
+ * A list entry's name and classes (src/components/admin/ListEntryFields.tsx):
+ * a note under the name on where the map has the player, or that it hasn't,
+ * with spellings to take; the list's classes as ticks.
+ */
+.list-entry-name__note {
+  margin: 4px 0 0;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.list-entry-name__note--warn {
+  color: var(--theme-warning-600, var(--theme-elevation-800));
+}
+
+.list-entry-name__matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.list-entry-name__take {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--theme-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: var(--accessibility-outline);
+  }
+}
+
+.list-entry-classes__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.list-entry-classes__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-s);
+  background: var(--theme-input-bg);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:has(input:checked) {
+    border-color: var(--theme-elevation-800);
+    background: var(--theme-elevation-100);
+  }
+
+  &:has(input:focus-visible) {
+    outline: var(--accessibility-outline);
+  }
+
+  input {
+    margin: 0;
+  }
+}
+
+.list-entry-classes__chip--gone {
+  border-style: dashed;
+  color: var(--theme-elevation-500);
+}
+
+.list-entry-classes__empty {
+  margin: 0;
+  color: var(--theme-elevation-500);
+  font-size: 13px;
+}

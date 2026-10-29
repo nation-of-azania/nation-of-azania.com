@@ -21,9 +21,9 @@ type Of = 'nations' | 'towns'
 
 type Names = { status: 'asking' } | { status: 'known'; options: OptionObject[] } | { status: 'unreachable' }
 
-/** One reading of the world a page, for every field that asks. */
+/** One reading of the world a page, for every field that asks (the lists' entry fields too). */
 let reading: Promise<PackedWorld> | null = null
-const readWorld = () =>
+export const readWorld = () =>
   (reading ??= fetch(WORLD_URL, { credentials: 'omit' })
     .then((response) => (response.ok ? (response.json() as Promise<PackedWorld>) : Promise.reject(new Error(String(response.status)))))
     .catch((error: unknown) => {

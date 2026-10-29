@@ -5,6 +5,7 @@ import { useId, useMemo, useState, useSyncExternalStore } from 'react'
 import { cn } from '@/blocks/components/shared'
 import type { AbroadFacts, NationSummary } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
+import { outlawCommand } from '@/maps/outlaw'
 
 import { useMaps } from '../context'
 import type { Store } from '../hooks'
@@ -29,8 +30,6 @@ import { EYEBROW, PanelSection } from './shared'
  * people) and the list says so when a reading hasn't them yet.
  */
 
-/** Towny's outlaw command, for one name; a Bedrock player's dot is part of their name. */
-export const outlawCommand = (name: string): string => `/t outlaw add ${name}`
 
 /** A town's residents are shown this many before the rest fold. */
 const SHOWN = 8

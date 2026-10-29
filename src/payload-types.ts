@@ -80,6 +80,8 @@ export interface Config {
     'map-views': MapView;
     'town-census': TownCensus;
     'draft-links': DraftLink;
+    lists: List;
+    'list-changes': ListChange;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -105,6 +107,8 @@ export interface Config {
     'map-views': MapViewsSelect<false> | MapViewsSelect<true>;
     'town-census': TownCensusSelect<false> | TownCensusSelect<true>;
     'draft-links': DraftLinksSelect<false> | DraftLinksSelect<true>;
+    lists: ListsSelect<false> | ListsSelect<true>;
+    'list-changes': ListChangesSelect<false> | ListChangesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -866,6 +870,127 @@ export interface DraftLink {
   createdAt: string;
 }
 /**
+ * Players, named or through their town or nation. Every change is written to the changelog, including people moving in and out of a listed town or nation.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lists".
+ */
+export interface List {
+  id: number;
+  name: string;
+  /**
+   * Leave empty to generate from name.
+   */
+  slug?: string | null;
+  /**
+   * What the list is, and so where the site shows it.
+   */
+  kind: 'sanctions' | 'plain';
+  /**
+   * Who may read it. Only a public list is shown on the site.
+   */
+  visibility: 'public' | 'members' | 'staff';
+  /**
+   * The publication it belongs to: its page is /<that context>/sanctions/<slug>, and its front page links to it.
+   */
+  context?: (number | null) | Context;
+  /**
+   * What the list is and what it asks of readers, shown on its page.
+   */
+  description?: string | null;
+  /**
+   * The classes an entry can carry (“Indefinite”, “War crime”, “Moral code”), in the order they’re shown.
+   */
+  classes?:
+    | {
+        name: string;
+        description?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * A player, or a town or nation whose residents are listed for as long as they live there. The changelog records who comes and goes.
+   */
+  entries?:
+    | {
+        kind: 'player' | 'town' | 'nation';
+        /**
+         * A player’s Minecraft name, or the town or nation as the map spells it (Imperial_Avalonia).
+         */
+        name: string;
+        /**
+         * Of the list’s classes above.
+         */
+        classes?: string[] | null;
+        /**
+         * Why, in a line (“Leader and initiator of the Condorian Genocide”).
+         */
+        reason?: string | null;
+        /**
+         * Towns whose residents aren’t listed, e.g. ones the nation holds by occupation.
+         */
+        exceptTowns?: string[] | null;
+        exceptPlayers?: string[] | null;
+        addedAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Goes into the changelog with what this save changes, e.g. the decree that ordered it. Not kept on the list.
+   */
+  changeNote?: string | null;
+  roster?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rosterAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Every list’s changelog, written as lists change. A note can be added afterwards; nothing else changes.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "list-changes".
+ */
+export interface ListChange {
+  id: number;
+  summary?: string | null;
+  list?: (number | null) | List;
+  at: string;
+  source: 'edit' | 'world';
+  by?: (number | null) | User;
+  /**
+   * Why it changed, e.g. the decree that ordered it. Shown with the change.
+   */
+  note?: string | null;
+  entries?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  players?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -940,6 +1065,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'draft-links';
         value: number | DraftLink;
+      } | null)
+    | ({
+        relationTo: 'lists';
+        value: number | List;
+      } | null)
+    | ({
+        relationTo: 'list-changes';
+        value: number | ListChange;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1290,6 +1423,58 @@ export interface DraftLinksSelect<T extends boolean = true> {
   expiresAt?: T;
   note?: T;
   createdBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lists_select".
+ */
+export interface ListsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  kind?: T;
+  visibility?: T;
+  context?: T;
+  description?: T;
+  classes?:
+    | T
+    | {
+        name?: T;
+        description?: T;
+        id?: T;
+      };
+  entries?:
+    | T
+    | {
+        kind?: T;
+        name?: T;
+        classes?: T;
+        reason?: T;
+        exceptTowns?: T;
+        exceptPlayers?: T;
+        addedAt?: T;
+        id?: T;
+      };
+  changeNote?: T;
+  roster?: T;
+  rosterAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "list-changes_select".
+ */
+export interface ListChangesSelect<T extends boolean = true> {
+  summary?: T;
+  list?: T;
+  at?: T;
+  source?: T;
+  by?: T;
+  note?: T;
+  entries?: T;
+  players?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1680,6 +1865,10 @@ export interface DiscordBlockType {
      */
     body?: string | null;
     /**
+     * Optional: the message in English, when it was written in another language. Shown under it, marked as a translation; the same markdown.
+     */
+    translation?: string | null;
+    /**
      * Image attached to this message.
      */
     image?: (number | null) | Media;
@@ -1756,6 +1945,33 @@ export interface MapBlockType {
   id?: string | null;
   blockName?: string | null;
   blockType: 'map';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SanctionsBlockType".
+ */
+export interface SanctionsBlockType {
+  /**
+   * A sanction list from Lists. Only a public one is shown to readers.
+   */
+  list: number | List;
+  show: 'players' | 'change' | 'log';
+  /**
+   * The change to show: e.g. the save that added those named in a decree.
+   */
+  change?: (number | null) | ListChange;
+  /**
+   * A town or nation on the list, as the map spells it (Imperial_Avalonia): only the players it brings, or the residents moving in and out of it. Empty for the whole list.
+   */
+  through?: string | null;
+  /**
+   * How many changes to show, newest first.
+   */
+  limit?: number | null;
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sanctions';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

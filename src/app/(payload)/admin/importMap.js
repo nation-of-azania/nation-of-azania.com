@@ -24,6 +24,8 @@ import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { DraftShare as DraftShare_c0681b23c62efed79153b3703e7d8eed } from '../../../components/admin/DraftShare'
+import { EntryNameField as EntryNameField_a9ecec755b61c2ec3f25bbb7dedbe594 } from '../../../components/admin/ListEntryFields'
+import { EntryClassesField as EntryClassesField_a9ecec755b61c2ec3f25bbb7dedbe594 } from '../../../components/admin/ListEntryFields'
 import { WorldNameField as WorldNameField_747d92a97b3c32f2b2a990c40f573343 } from '../../../components/admin/WorldNameField'
 import { RegistryIcon as RegistryIcon_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
 import { RegistryLogo as RegistryLogo_d6e5a03ac347c0f3fe350c498c861719 } from '../../../components/admin/RegistryGraphics'
@@ -60,6 +62,8 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "/components/admin/DraftShare#DraftShare": DraftShare_c0681b23c62efed79153b3703e7d8eed,
+  "/components/admin/ListEntryFields#EntryNameField": EntryNameField_a9ecec755b61c2ec3f25bbb7dedbe594,
+  "/components/admin/ListEntryFields#EntryClassesField": EntryClassesField_a9ecec755b61c2ec3f25bbb7dedbe594,
   "/components/admin/WorldNameField#WorldNameField": WorldNameField_747d92a97b3c32f2b2a990c40f573343,
   "/components/admin/RegistryGraphics#RegistryIcon": RegistryIcon_d6e5a03ac347c0f3fe350c498c861719,
   "/components/admin/RegistryGraphics#RegistryLogo": RegistryLogo_d6e5a03ac347c0f3fe350c498c861719,

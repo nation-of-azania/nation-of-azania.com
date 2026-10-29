@@ -23,6 +23,7 @@ import * as migration_20261028_235257_town_religion from './20261028_235257_town
 import * as migration_20261029_102339_map_snapshot from './20261029_102339_map_snapshot';
 import * as migration_20261029_123043_diplomacy_allies from './20261029_123043_diplomacy_allies';
 import * as migration_20261029_155746_draft_links from './20261029_155746_draft_links';
+import * as migration_20261029_232807_lists from './20261029_232807_lists';
 
 export const migrations = [
   {
@@ -149,5 +150,10 @@ export const migrations = [
     up: migration_20261029_155746_draft_links.up,
     down: migration_20261029_155746_draft_links.down,
     name: '20261029_155746_draft_links',
+  },
+  {
+    up: migration_20261029_232807_lists.up,
+    down: migration_20261029_232807_lists.down,
+    name: '20261029_232807_lists',
   },
 ];

@@ -6,6 +6,7 @@ import type { HomeSide } from '../maps/sieges'
 import { abroadHref, MAPS_PATH, townHref } from '../maps/url'
 import { postWebhook, siteUrl } from './discord'
 import { FRESH_MS, readMarkerFile } from './dynmap'
+import { syncLists } from './lists'
 import type { SiegeAlertSettings } from './siegeAlerts'
 import { alertHeadline, alertMessage, planSieges, untold, watchFrom, type SiegeAlert } from './siegeWatch'
 import { saveSnapshot } from './snapshot'
@@ -18,9 +19,11 @@ import { getWorld, warOf } from './world'
  * .github/workflows/watch.yml): one reading of the map's marker file, from
  * which Azania's towns are brought up to date when the last reading is ten
  * minutes old (src/lib/towns.ts, which refreshes the pages when anything
- * changed), the sieges are held against the last run's, for the siege
- * alerts in Discord (src/lib/siegeWatch.ts), and the world and the war are
- * saved every quarter of an hour, for when the map is down (src/lib/snapshot.ts).
+ * changed), the lists with a town or a nation on them are held against who
+ * lives where now, for their changelogs (src/lib/lists.ts), the sieges are
+ * held against the last run's, for the siege alerts in Discord
+ * (src/lib/siegeWatch.ts), and the world and the war are saved every
+ * quarter of an hour, for when the map is down (src/lib/snapshot.ts).
  *
  * Anyone may ask: it runs at most every few minutes however often it's
  * asked, and each thing is told once. While the map isn't answering, or
@@ -62,6 +65,8 @@ export type WatchResult = {
   status: 'watched' | 'skipped' | 'offline'
   note: string
   towns?: SyncResult
+  /** The lists whose players changed with this reading, each with what changed. */
+  lists?: string[] | 'unknown'
   sieges?: { onMap: number; told: string[]; failed: string[] } | 'unknown'
   /** Whether this run saved the world and the war for an outage. */
   snapshot?: boolean
@@ -95,8 +100,19 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   })
 
   const fresh = typeof file.timestamp === 'number' && now.getTime() - file.timestamp < STALE_FILE_MS
+
+  // Who lives where, for the lists: only from a fresh reading, so an old file moves nobody on or off a list.
+  const listed = fresh ? await getWorld() : null
+  const lists = listed && !listed.offline
+    ? (await syncLists(payload, listed.towns).catch((error: unknown) => {
+        payload.logger.error({ err: error, msg: 'Lists: bringing them up to date failed' })
+        return null
+      }))?.changed ?? 'unknown'
+    : 'unknown'
+  const listNote = Array.isArray(lists) && lists.length ? ` Lists: ${lists.join('; ')}.` : ''
+
   if (!file.sets?.['siegewar.markerset'] || !fresh) {
-    return { status: 'watched', note: `Towns: ${towns.note} Sieges: can’t be told from this reading.`, towns, sieges: 'unknown' }
+    return { status: 'watched', note: `Towns: ${towns.note}${listNote} Sieges: can’t be told from this reading.`, towns, lists, sieges: 'unknown' }
   }
 
   const { docs: ours } = await payload.find({
@@ -181,8 +197,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const saying = [`${onMap} on the map`, told.length ? `${told.length} told` : null, failed.length ? `${failed.length} to try again` : null]
   return {
     status: 'watched',
-    note: `Towns: ${towns.note} Sieges: ${saying.filter(Boolean).join(', ')}.${seen ? ` Battle session: ${seen}` : ''}${snapshot ? ' The world and the war saved for an outage.' : ''}`,
+    note: `Towns: ${towns.note}${listNote} Sieges: ${saying.filter(Boolean).join(', ')}.${seen ? ` Battle session: ${seen}` : ''}${snapshot ? ' The world and the war saved for an outage.' : ''}`,
     towns,
+    lists,
     sieges: { onMap, told, failed },
     snapshot,
   }

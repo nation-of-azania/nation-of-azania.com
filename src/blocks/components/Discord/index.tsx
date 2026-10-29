@@ -73,6 +73,8 @@ type Message = {
   image: Media | null
   key: string
   timestamp: string | null
+  /** The message in English, when it was written in another language. */
+  translation: string | null
 }
 
 type Group = Identity & { key: string; messages: Message[] }
@@ -129,6 +131,7 @@ function toGroups(messages: RawMessage[]): Group[] {
       image,
       key: message.id ?? `m${index}`,
       timestamp: message.timestamp?.trim() || null,
+      translation: message.translation?.trim() || null,
     }
 
     const last = groups.at(-1)
@@ -235,6 +238,23 @@ function ChannelBar({ channel }: { channel: string }) {
       <span className="truncate text-[0.9375rem] font-medium text-dc-name">
         {channel.replace(/^#/, '')}
       </span>
+    </div>
+  )
+}
+
+/**
+ * A message's translation, under the original rather than in its place: the
+ * reader sees what was said, and what it means. Set off by a rule in the
+ * client's quote style, under a small label, and marked as English for
+ * screen readers.
+ */
+function Translation({ text }: { text: string }) {
+  return (
+    <div className="mt-1 mb-0.5 border-l-[3px] border-dc-bar pl-3 text-dc-icon" lang="en">
+      <p className="text-[0.6875rem] leading-4 font-semibold tracking-[0.02em] text-dc-muted uppercase">Translation</p>
+      <div className="text-[0.9375rem] leading-[1.25rem] italic">
+        <MessageBody body={text} />
+      </div>
     </div>
   )
 }
@@ -347,6 +367,8 @@ export function DiscordBlock({ channel, messages, sourceUrl, caption }: DiscordP
                           (edited)
                         </span>
                       ) : null}
+
+                      {message.translation ? <Translation text={message.translation} /> : null}
 
                       {message.image ? <Attachment media={message.image} /> : null}
 

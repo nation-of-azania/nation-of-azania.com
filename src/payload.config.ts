@@ -10,6 +10,8 @@ import sharp from 'sharp'
 import { Articles } from './collections/Articles'
 import { Contexts } from './collections/Contexts'
 import { DraftLinks } from './collections/DraftLinks'
+import { ListChanges } from './collections/ListChanges'
+import { Lists } from './collections/Lists'
 import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Profiles } from './collections/Profiles'
@@ -110,6 +112,8 @@ export default buildConfig({
     MapViews,
     TownCensus,
     DraftLinks,
+    Lists,
+    ListChanges,
   ],
   globals: [Discord, AzaniaMaps, MapSnapshot],
   editor: lexicalEditor(),

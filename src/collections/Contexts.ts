@@ -26,8 +26,8 @@ import { slugify } from '../fields/slug'
 const RESERVED_TOP_SLUGS = new Set([
   'admin', 'api', 'account', 'login', 'preview', 'draft', 'og', 'mapclip', 'maps', 'feeds', 'feed.xml', 'litematic', 'media', 'next', '_next',
 ])
-/** `/<top>/articles/…` is each top-level context's article archive. */
-const RESERVED_SECOND_SLUGS = new Set(['articles'])
+/** `/<top>/articles/…` is each top-level context's article archive; `/<top>/sanctions/…`, its sanction lists. */
+const RESERVED_SECOND_SLUGS = new Set(['articles', 'sanctions'])
 
 const idOf = (value: unknown): number | undefined =>
   typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id

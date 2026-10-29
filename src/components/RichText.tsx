@@ -24,6 +24,7 @@ import type {
   Model3DBlockType,
   Page,
   QuoteBlockType,
+  SanctionsBlockType,
   SkinBlockType,
 } from '@/payload-types'
 
@@ -36,6 +37,7 @@ import { LitematicBlock } from '@/blocks/components/Litematic'
 import { MapBlock } from '@/blocks/components/Map'
 import { Model3DBlock } from '@/blocks/components/Model3D'
 import { QuoteBlock } from '@/blocks/components/Quote'
+import { SanctionsBlock } from '@/blocks/components/Sanctions'
 import { cn, type Tone, type Voice } from '@/blocks/components/shared'
 import { SkinBlock } from '@/blocks/components/Skin'
 
@@ -49,6 +51,7 @@ type ContentBlocks =
   | MapBlockType
   | Model3DBlockType
   | QuoteBlockType
+  | SanctionsBlockType
   | SkinBlockType
 
 type NodeTypes = DefaultNodeTypes | SerializedBlockNode<ContentBlocks>
@@ -87,6 +90,7 @@ const convertersFor =
       map: ({ node }) => <MapBlock {...node.fields} {...voice} />,
       model3d: ({ node }) => <Model3DBlock {...node.fields} />,
       quote: ({ node }) => <QuoteBlock {...node.fields} />,
+      sanctions: ({ node }) => <SanctionsBlock {...node.fields} />,
       skin: ({ node }) => <SkinBlock {...node.fields} {...voice} />,
     },
     // Nodes/blocks without a converter render nothing instead of crashing or

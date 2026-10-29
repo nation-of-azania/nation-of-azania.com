@@ -5,14 +5,18 @@ import { Crest } from '@/components/site/Crest'
 import { DocumentCard } from '@/components/site/DocumentCard'
 import { FeedLink } from '@/components/site/FeedLink'
 import { FlagTick } from '@/components/site/FlagTick'
+import { formatDate } from '@/components/site/format'
 import { LinkButton } from '@/components/site/LinkButton'
 import { SectionHeading } from '@/components/site/SectionHeading'
 import { archiveHref, contextHref, feedHref } from '@/lib/site'
 
 import type { HomeProps } from '../types'
 
-/** The Gazette's front page: masthead, the offices of state, Documents of State, latest dispatches. */
-export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
+/**
+ * The Gazette's front page: masthead, the offices of state, Documents of
+ * State, the sanction lists in force, latest dispatches.
+ */
+export function Home({ top, sections, pages, pinned, latest, sanctions = [] }: HomeProps) {
   const archive = archiveHref(top)
   const about = pages[0]
 
@@ -95,6 +99,36 @@ export function Home({ top, sections, pages, pinned, latest }: HomeProps) {
           </p>
         )}
       </section>
+
+      {/* Sanctions in force: each public sanction list's register, a line each. */}
+      {sanctions.length > 0 ? (
+        <section aria-labelledby="sanctions" className="mx-auto max-w-6xl px-6 pt-16 md:pt-20">
+          <SectionHeading id="sanctions" eyebrow="By order of the Chancellery" title="Sanctions in force" />
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+            {sanctions.map((list) => (
+              <li key={list.href}>
+                <Link
+                  href={list.href}
+                  className="group flex h-full items-start gap-4 border border-sand-300 border-l-[3px] border-l-(--seal-ink) bg-sand-100/60 px-5 py-4 transition-colors hover:bg-sand-100"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-xl leading-snug text-sea-950 transition-colors group-hover:text-sea-700">
+                      {list.name}
+                    </p>
+                    <p className="mt-1.5 text-sm text-ink-500">
+                      {list.players.toLocaleString('en-GB')} {list.players === 1 ? 'player' : 'players'} on the list
+                      {formatDate(list.changedAt) ? ` · last changed ${formatDate(list.changedAt)}` : ''}
+                    </p>
+                  </div>
+                  <span aria-hidden="true" className="mt-1 text-sea-700 transition-transform group-hover:translate-x-0.5">
+                    →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Latest from the Gazette */}
       <section aria-labelledby="latest-gazette" className="mx-auto max-w-6xl px-6 pt-16 md:pt-20">
