@@ -100,6 +100,7 @@ export async function recordListChange(payload: Payload, { list, before, source,
   const players: PlayerChange[] = next?.changes ?? []
 
   const saveRoster = async (roster: Roster) => {
+    const held = req?.context.listSync
     await payload.update({
       collection: 'lists',
       id: list.id,
@@ -109,6 +110,9 @@ export async function recordListChange(payload: Payload, { list, before, source,
       depth: 0,
       req,
     })
+    // The flag is for this save alone: Payload keeps it on a request passed in, and a request (a script, a
+    // migration) may go on to edit the list again, whose changes must still be recorded.
+    if (req) req.context.listSync = held
   }
 
   if (entryChanges.length === 0 && players.length === 0) {

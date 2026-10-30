@@ -48,7 +48,8 @@ const prepare: CollectionBeforeChangeHook = ({ data, req }) => {
   if (Array.isArray(data.entries)) {
     data.entries = (data.entries as EntryRow[]).map((row) => ({ ...row, addedAt: row.addedAt ?? now }))
   }
-  if (typeof data.changeNote === 'string' && data.changeNote.trim()) req.context.listChangeNote = data.changeNote.trim()
+  // Each save's own note, or none: a request that saves the list twice mustn't lend the first note to the second.
+  req.context.listChangeNote = typeof data.changeNote === 'string' && data.changeNote.trim() ? data.changeNote.trim() : undefined
   data.changeNote = null
   return data
 }
