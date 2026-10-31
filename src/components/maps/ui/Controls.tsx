@@ -29,6 +29,9 @@ import { EYEBROW, IconButton, Popover } from './chrome'
 import { STANCE_ORDER, StanceSwatch, stanceLabel } from './Diplomacy'
 import { Icon } from './icons'
 
+/** The game's pixel heart (the one under the heads, ui/Vitals.tsx), drawn as one path on an 8-unit grid for the legend. */
+const LEGEND_HEART = 'M1 1h2v1H1zM4 1h2v1H4zM0 2h7v2H0zM1 4h5v1H1zM2 5h3v1H2zM3 6h1v1H3z'
+
 const LAYER_WORDS: Record<MapLayer, string> = {
   towns: 'Towns and held sites',
   places: 'Places',
@@ -434,13 +437,19 @@ export function Legend({ globe }: { globe: boolean }) {
             </span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.coral} strokeWidth={2} width={12} x={8} y={2} />
-              <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={12} x={28} y={2} />
-              <rect fill={GROUND.coral} height={2} width={10} x={9} y={17} />
-              <rect fill={GROUND.sea500} height={2} width={7} x={29} y={17} />
+            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+              <rect fill={GROUND.sea500} height={10} rx={1} stroke={GROUND.coral} strokeWidth={2} width={10} x={7} y={1} />
+              <rect fill="#701e14" height={8} rx={1} width={20} x={2} y={14} />
+              <rect fill={GROUND.inkSoft} height={10} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={10} x={31} y={1} />
+              <rect fill="#103658" height={8} rx={1} width={20} x={26} y={14} />
+              {[4, 9, 14, 28, 33].map((x) => (
+                <path d={LEGEND_HEART} fill="#ff4d4d" key={x} transform={`translate(${x} 16) scale(0.5)`} />
+              ))}
             </svg>
-            <span>And its fighters: ringed by their side, attackers coral and defenders sea, health and armour beneath</span>
+            <span>
+              And its fighters, ringed and tagged in their side’s colour, attackers coral and defenders sea, with their
+              hearts and armour under the name as the game shows them
+            </span>
           </li>
           {globe ? (
             <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
