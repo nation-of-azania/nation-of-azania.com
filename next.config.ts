@@ -21,8 +21,7 @@ const nextConfig: NextConfig = {
     ],
   }),
   images: {
-    // 100 serves Minecraft heads losslessly (BylineAvatar); 75 is the default.
-    qualities: [75, 100],
+    qualities: [75],
     localPatterns: [
       {
         pathname: '/api/media/file/**',
@@ -34,12 +33,8 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
       },
-      // Minecraft player heads, the default byline avatars
-      {
-        protocol: 'https',
-        hostname: 'mc-heads.net',
-        pathname: '/avatar/**',
-      },
+      // Minecraft heads are not here on purpose: the browser loads them
+      // straight from mc-heads.net (src/components/site/BylineAvatar.tsx).
     ],
   },
   webpack: (webpackConfig) => {

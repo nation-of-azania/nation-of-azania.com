@@ -255,8 +255,9 @@ An article is credited through its **byline**, a profile with a **name**, a
 e.g. "IPaaat, Co-Leader" in Government and "IPaaat, Editor-in-Chief" in the
 Times. One account can hold any number of
 profiles. The avatar is the player's **Minecraft head**, looked up from the
-profile's Minecraft name (mc-heads.net, through Vercel's image proxy), unless
-an image is uploaded instead.
+profile's Minecraft name (loaded by the browser straight from mc-heads.net, not
+through Vercel's image proxy, which would spend a transformation on it every few
+hours for nothing), unless an image is uploaded instead.
 
 - **Everyone manages their own** profiles under Content → Profiles, for the
   contexts they can write in; editors and admins can manage all of them. Name and Minecraft name default to the

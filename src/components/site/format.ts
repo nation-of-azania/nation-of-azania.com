@@ -117,9 +117,9 @@ export function resolveImage(
 
 /**
  * A player's head (helmet layer included) from the public skin service, used
- * as the default byline avatar. next/image fetches it through Vercel's image
- * proxy (see images.remotePatterns in next.config.ts). Render it with
- * `image-rendering: pixelated` so the 8×8 skin stays crisp.
+ * as the default byline avatar and on the map. The browser loads it straight
+ * from there, never through Vercel's image proxy (BylineAvatar). Render it
+ * with `image-rendering: pixelated` so the 8×8 skin stays crisp.
  */
 export function minecraftHeadUrl(minecraftName: string, size = 64): string {
   return `https://mc-heads.net/avatar/${encodeURIComponent(minecraftName)}/${size}`

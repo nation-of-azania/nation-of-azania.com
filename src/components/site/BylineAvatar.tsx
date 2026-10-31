@@ -12,8 +12,7 @@ import { bylineInitials, type ResolvedByline } from './format'
 export type AvatarSize = 24 | 32 | 40 | 48 | 64
 
 /**
- * The size `minecraftHeadUrl` requests. It is declared as the intrinsic size
- * so the image proxy serves the head unresampled (it never upscales) and the
+ * The size `minecraftHeadUrl` requests, declared as the intrinsic size: the
  * browser does the only scaling, nearest-neighbour, down to the display size.
  */
 const HEAD_SOURCE_PX = 64
@@ -64,12 +63,15 @@ export function BylineAvatar({ byline, size, tone, className }: Props) {
   return (
     <span className={cn('inline-block shrink-0 overflow-hidden', tones.frame, className)}>
       {avatar?.pixelated ? (
+        // Straight from the skin service, as the map's heads are: a 64px PNG
+        // the image proxy could only pass through, at a transformation each
+        // time its six-hour cache lapses, from Vercel's allowance of them.
         <Image
           src={avatar.url}
           alt={avatar.alt}
           width={HEAD_SOURCE_PX}
           height={HEAD_SOURCE_PX}
-          quality={100}
+          unoptimized
           style={box}
           className="pixelated block"
         />
