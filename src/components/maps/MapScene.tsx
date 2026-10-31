@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import { homeNationOf, relationWith, type Abroad } from '@/maps/abroad'
+import { homeNationOf, relationWith, sameNation, type Abroad } from '@/maps/abroad'
 import { heartland, type MapData, type MapRights, type MapTown, type MapViewData, type Relation } from '@/maps/data'
 import { roundPoint, type Bounds, type Point } from '@/maps/geo'
 import type { Insets } from '@/maps/globe'
@@ -572,11 +572,14 @@ const Layers = memo(function Layers({
     () => siegesOnMap(sieges, { towns }, abroad).map((entry) => ({ ...entry, ring: relations ? ringOf(entry.siege, relations) : null })),
     [sieges, towns, abroad, relations],
   )
-  // The reach of the wars: Azania's always (with its layer on), and another nation's while it's open or hovered.
+  // The reach of the wars: Azania's (with its layer on; in the war view, when it's in the fight), and another nation's while it's open or hovered.
   const reachOf = useReaches(capitals, abroad, styleOf)
   const homeName = home?.name ?? null
   const openNation = selection?.kind === 'nation' ? (abroad?.nationBySlug.get(selection.slug)?.name ?? null) : null
-  const homeReach = showReach && homeName ? reachOf(homeName, { home: true }) : null
+  // In the war view Azania's own reach is drawn only when Azania is in the fight it's on (a side of its siege, or the nation
+  // it's looking at): a siege elsewhere is about others, and Azania's ring there would only be in the way.
+  const homeInView = !war || war.nations.some((nation) => sameNation(nation, homeName))
+  const homeReach = showReach && homeName && homeInView ? reachOf(homeName, { home: true }) : null
   const openReach = showReach && openNation && openNation !== homeName ? reachOf(openNation, { named: true }) : null
   // The war view's own: the nation it's looking at, and the two sides of the siege it's on, each named along its ring.
   const warReaches = (war?.nations ?? [])

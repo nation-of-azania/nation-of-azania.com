@@ -202,7 +202,7 @@ function Gone({ back, what }: { back: ReactNode; what: string }) {
   )
 }
 
-/* The overview: the clock, the sieges, who's in them, and who's online. */
+/* The overview: the clock, the sieges, who's in them, and who of them is online. */
 
 function Overview({
   sieges,
@@ -250,7 +250,7 @@ function Overview({
           </ul>
         </section>
       ) : null}
-      <OnlineNow onFocus={onFocus} towns={towns} />
+      <OnlineInTheFight nations={nations} onFocus={onFocus} towns={towns} />
       <p className={FOOT}>
         Choose a siege, a nation or a player, here or on the map. The players every 1.5 s; the sieges as SiegeWar rewrites their markers, every 15 s.
       </p>
@@ -325,32 +325,58 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
   )
 }
 
-/** Who of Azania is online just now, the lowest health first, each a row that watches them. */
-function OnlineNow({ towns, onFocus }: { towns: SideTown[]; onFocus: (focus: WarFocus) => void }) {
+/**
+ * Who of the nations in the fight is online just now, nation by nation, the
+ * lowest health first, each a row that watches them: Azania first when it's
+ * one of them, and not at all when it isn't. The war view is about the
+ * sieges on the server, not about home; only with no siege anywhere does it
+ * fall back to Azania's own.
+ */
+function OnlineInTheFight({ nations, towns, onFocus }: { nations: string[]; towns: SideTown[]; onFocus: (focus: WarFocus) => void }) {
   const { data, liveStore } = useMaps()
   const live = useStore(liveStore)
   const home = homeNationOf(data.towns)
   if (live.status === 'off') return null
-  const ours = live.players
-    .filter((player) => {
-      const town = townOfName(player.name, towns)
-      return town && sameNation(town.nation, home)
-    })
-    .sort(byHealth)
+  const fighting = nations.length > 0
+  const shown = fighting
+    ? [...nations].sort((a, b) => Number(sameNation(b, home)) - Number(sameNation(a, home)))
+    : home
+      ? [home]
+      : []
+  const groups = shown.map((nation) => ({
+    nation,
+    players: live.players
+      .filter((player) => {
+        const town = townOfName(player.name, towns)
+        return town && sameNation(town.nation, nation)
+      })
+      .sort(byHealth),
+  }))
+  const total = groups.reduce((sum, group) => sum + group.players.length, 0)
   return (
     <section className="mt-3 px-4">
       <p className={EYEBROW}>
-        Azania online · {ours.length}
+        {fighting ? 'Online in the fight' : 'Azania online'} · {total}
         {live.status === 'live' ? ` of ${live.online ?? live.players.length} on the server` : live.status === 'down' ? ' · the map isn’t answering' : ''}
       </p>
-      {ours.length ? (
-        <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
-          {ours.map((player) => (
-            <FighterRow key={player.name} onOpen={() => onFocus({ kind: 'player', name: player.name })} player={player} side={null} />
-          ))}
-        </ul>
-      ) : live.status === 'live' ? (
-        <p className="mt-1 text-[15px] text-sand-200/85">Nobody of Azania is on just now.</p>
+      {groups.map((group) =>
+        group.players.length ? (
+          <div className="mt-1.5" key={group.nation}>
+            {fighting ? (
+              <p className="text-[13px] font-semibold text-sand-100">
+                {spoken(group.nation)} <span className="font-normal text-sand-200/75">· {group.players.length}</span>
+              </p>
+            ) : null}
+            <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+              {group.players.map((player) => (
+                <FighterRow key={player.name} onOpen={() => onFocus({ kind: 'player', name: player.name })} player={player} side={null} />
+              ))}
+            </ul>
+          </div>
+        ) : null,
+      )}
+      {total === 0 && live.status === 'live' ? (
+        <p className="mt-1 text-[15px] text-sand-200/85">{fighting ? 'Nobody of the nations in the fight is on just now.' : 'Nobody of Azania is on just now.'}</p>
       ) : null}
     </section>
   )

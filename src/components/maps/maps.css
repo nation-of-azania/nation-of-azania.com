@@ -552,6 +552,19 @@
 .az-players-war .az-player-watched .az-player-tag {
   --az-tag-edge: #d8962c;
 }
+/*
+ * In the war view a head says its side in the siege the view is on, and
+ * nothing of home: an Azanian who isn't in that fight wears the plain
+ * ring and edge anyone else does, not Azania's saffron.
+ */
+.az-players-war .az-player-azanian:not([data-side='attackers'], [data-side='defenders']) .az-player-mark {
+  box-shadow:
+    0 0 0 2px rgba(251, 248, 241, 0.92),
+    0 1px 3px rgba(22, 25, 31, 0.45);
+}
+.az-players-war .az-player-azanian:not([data-side='attackers'], [data-side='defenders'], .az-player-watched) .az-player-tag {
+  --az-tag-edge: rgba(251, 248, 241, 0.92);
+}
 .az-player-watched .az-player-mark {
   box-shadow:
     0 0 0 2px #fbf8f1,

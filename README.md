@@ -1072,8 +1072,12 @@ which the routes insist on, so every viewer shares one copy.
   beneath, and nothing in the view is under 13 px. Its overview is the session clock (the hour's
   battle session, or when the next begins: sessions at 13:00, 19:00 and
   01:00 server time) and the sieges, Azania's and battles first, each
-  with its score, then the nations in the fight and who of Azania is
-  online. A **siege**, chosen there or by its banner on the map, is the
+  with its score, then the nations in the fight and who of them is online,
+  nation by nation (Azania first when it's one of them, and not there at
+  all when it isn't; only with no siege anywhere does the view fall back to
+  Azania's own). The war view puts the fight it's on first, not home:
+  Azania's reach is drawn only when Azania is a side of the siege, or the
+  nation chosen, and an Azanian not in that fight wears no saffron. A **siege**, chosen there or by its banner on the map, is the
   battle assessed (`src/maps/battle.ts`, pure and checked by
   `pnpm test:battle` against `docs/war-rules.md`, where the server's rules
   and SiegeWar's scoring are set out): the live score, run on second by
