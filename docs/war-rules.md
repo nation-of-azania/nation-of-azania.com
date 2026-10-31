@@ -178,7 +178,7 @@ changed it.
 |---|---|---|
 | Battle sessions in a siege | 3 (2 for a revolt) | the rules |
 | Session length | 60 minutes | the rules |
-| Sessions | 13:00, 19:00 and 01:00 server time (the old guide: CET) | the rules |
+| Sessions | 13:00, 19:00 and 01:00 server time, CET/CEST | the rules; confirmed by the leadership |
 | Time to capture the banner | 5 minutes in the zone | the rules (plugin default 7) |
 | Banner control points | 10 per holder every 20 seconds (30 a minute) | the rules |
 | Points for a kill | 100 to the other side, per death in the siege zone | the rules (plugin default 150) |
@@ -186,7 +186,7 @@ changed it.
 | Siege zone | 200 blocks around the banner, horizontally: no teleporting in, deaths cost points | **assumed** |
 | Banner control reversal bonus | on, ×3 | **assumed** |
 | Siege balance cap | ±20,000 | **assumed** |
-| End of a session | the balance moves by attacker points − defender points | **assumed** (plugin default; "winner takes all" off) |
+| End of a session | the balance moves by attacker points − defender points; the siege goes to the side the balance favours after the last session | confirmed by the leadership ("winner takes all" off) |
 
 **Banner control.** A player who stays in the zone for the capture time,
 alive, not flying or gliding, finishes a capture. If their side already

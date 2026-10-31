@@ -47,8 +47,13 @@ export const RULES = {
   closeVictory: 3_500,
 } as const
 
-/** The rules above the server's rules don't give, taken from SiegeWar's defaults: said as estimates wherever they count. */
-export const ASSUMED = ['bannerRadius', 'siegeZoneRadius', 'reversalFactor', 'balanceCap', 'serverTimeZone'] as const
+/**
+ * The rules above the server's rules don't give, taken from SiegeWar's
+ * defaults: said as estimates wherever they count. The session times (in
+ * CET/CEST) and the balance moving by attacker − defender points each
+ * session are confirmed by the leadership.
+ */
+export const ASSUMED = ['bannerRadius', 'siegeZoneRadius', 'reversalFactor', 'balanceCap'] as const
 
 /** How fast a player covers ground, in blocks a second: sprinting on flat ground, as the game moves them. */
 export const SPRINT_BLOCKS_PER_S = 5.6
