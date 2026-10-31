@@ -5,10 +5,13 @@ import { useEffect, useRef, useState } from 'react'
 import { readingOf, type BattleReading } from '@/maps/battle'
 import { CAPITAL_WAR_RADIUS, WAR_EVERY_S, WAR_LIVE_EVERY_S, type Siege, type War } from '@/maps/world'
 
+import { HIDDEN_FOR_MS, steadyTimeout } from './steady'
+
 /**
  * The war, as the map in the browser has it: /maps/war, asked for as soon
- * as the page is here (it's a few kilobytes) and again every three minutes
- * while the tab is in view, as the CDN refreshes it — never otherwise. In
+ * as the page is here (it's a few kilobytes) and again every three minutes,
+ * as the CDN refreshes it, in sight or, for a while, out of it
+ * (./steady.ts). In
  * the war view while a battle is on (`live`), /maps/war/live every half
  * minute instead. A siege is shown whenever there is one, so there's no
  * layer to switch: the map always asks. While the Rulercraft map isn't
@@ -78,12 +81,19 @@ export function useWar({ live = false }: { live?: boolean } = {}): WarState {
   const lastAsked = useRef(0)
   useEffect(() => {
     let cancelled = false
-    let timer: number | undefined
+    let cancelTimer: (() => void) | null = null
     const url = fast ? '/maps/war/live' : '/maps/war'
-    const visible = () => document.visibilityState === 'visible'
+    let hiddenSince = document.visibilityState === 'visible' ? null : Date.now()
+    // Out of sight for long enough, the war rests until the tab is back (./steady.ts).
+    const resting = () => hiddenSince !== null && Date.now() - hiddenSince > HIDDEN_FOR_MS
+    const later = (ms: number) => {
+      cancelTimer?.()
+      cancelTimer = cancelled || resting() ? null : steadyTimeout(ask, ms)
+    }
     const down = () => setState((current) => ({ ...current, status: 'down' }))
     const ask = async () => {
-      window.clearTimeout(timer)
+      cancelTimer?.()
+      cancelTimer = null
       lastAsked.current = Date.now()
       try {
         const response = await fetch(url)
@@ -117,15 +127,19 @@ export function useWar({ live = false }: { live?: boolean } = {}): WarState {
       } catch {
         if (!cancelled) down()
       } finally {
-        if (!cancelled && visible()) timer = window.setTimeout(ask, everyS * 1000)
+        if (!cancelled) later(everyS * 1000)
       }
     }
-    // Back to the tab after a while away: ask at once; away from it, stop.
+    // Back in sight after a while away: ask at once if the last answer is older than the beat, else when it's due.
     const onVisibility = () => {
-      if (!visible()) return window.clearTimeout(timer)
+      if (document.visibilityState !== 'visible') {
+        hiddenSince ??= Date.now()
+        return
+      }
+      hiddenSince = null
       const since = Date.now() - lastAsked.current
       if (since >= everyS * 1000) void ask()
-      else timer = window.setTimeout(ask, everyS * 1000 - since)
+      else later(everyS * 1000 - since)
     }
     const onOffline = () => down()
     const onOnline = () => void ask()
@@ -135,10 +149,10 @@ export function useWar({ live = false }: { live?: boolean } = {}): WarState {
     // The first ask at once; a switch of feed asks the new one at once only when the last answer is older than its beat.
     const since = Date.now() - lastAsked.current
     if (!lastAsked.current || since >= everyS * 1000) void ask()
-    else timer = window.setTimeout(ask, everyS * 1000 - since)
+    else later(everyS * 1000 - since)
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
+      cancelTimer?.()
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('offline', onOffline)
       window.removeEventListener('online', onOnline)

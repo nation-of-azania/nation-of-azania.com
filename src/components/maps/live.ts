@@ -5,12 +5,13 @@ import { useEffect, useMemo } from 'react'
 import { LIVE_PLAYERS_EVERY_MS, PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers } from '@/maps/players'
 
 import { createStore, type Store } from './hooks'
+import { HIDDEN_FOR_MS, steadyTimeout } from './steady'
 
 /**
  * Who is online, as the map in the browser has it: /maps/players asked
- * every few seconds while the players layer is on and the tab is visible,
- * and not at all otherwise; /maps/players/live every second and a half
- * instead in the war view (`fast`). The answer lives in a small store rather than
+ * every few seconds while the players layer is on, in sight or (for a
+ * while) out of it, and not at all otherwise; /maps/players/live every
+ * second and a half instead in the war view (`fast`). The answer lives in a small store rather than
  * React state, so only what shows it — the heads on the map, the count —
  * follows it, and nothing else on the page re-renders for a poll. Nothing
  * is written anywhere: the positions are gone when the tab is.
@@ -61,10 +62,13 @@ function readAnswer(body: unknown, every: number): LiveState {
 }
 
 /**
- * Polls the live feed while `enabled` and the tab is visible: one request
- * at a time, the next scheduled only once the last has answered, so a slow
- * answer never stacks; waits longer and longer while the map is down. The
- * request has no query, so every viewer shares the CDN's copy.
+ * Polls the live feed while `enabled`: one request at a time, the next
+ * scheduled only once the last has answered, so a slow answer never
+ * stacks; waits longer and longer while the map is down. It goes on while
+ * the tab is out of sight (behind the game, or shared in a call), on a
+ * clock a hidden tab doesn't slow (./steady.ts), for up to HIDDEN_FOR_MS,
+ * and asks at once when it's back in sight. The request has no query, so
+ * every viewer shares the CDN's copy.
  */
 export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: boolean } = {}): Store<LiveState> {
   const store = useMemo(() => createStore<LiveState>(OFF), [])
@@ -80,15 +84,18 @@ export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: bool
     let cancelled = false
     let inFlight = false
     let wait = every
-    let timer: number | undefined
-    const visible = () => document.visibilityState === 'visible'
+    let cancelTimer: (() => void) | null = null
+    let hiddenSince = document.visibilityState === 'visible' ? null : Date.now()
+    // Out of sight for long enough, the feed rests until the tab is back.
+    const resting = () => hiddenSince !== null && Date.now() - hiddenSince > HIDDEN_FOR_MS
 
     const schedule = () => {
-      window.clearTimeout(timer)
-      if (!cancelled && visible()) timer = window.setTimeout(poll, wait)
+      cancelTimer?.()
+      cancelTimer = null
+      if (!cancelled && !resting()) cancelTimer = steadyTimeout(poll, wait)
     }
     const poll = async () => {
-      if (cancelled || inFlight || !visible()) return
+      if (cancelled || inFlight || resting()) return
       inFlight = true
       try {
         const response = await fetch(url, { cache: 'no-store' })
@@ -106,18 +113,19 @@ export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: bool
         schedule()
       }
     }
-    // Back to the tab: ask at once; away from it: stop asking.
+    // Back in sight: ask at once, and the clock out of sight starts again next time.
     const onVisibility = () => {
-      if (visible()) {
+      if (document.visibilityState === 'visible') {
+        hiddenSince = null
         wait = every
         void poll()
-      } else window.clearTimeout(timer)
+      } else hiddenSince ??= Date.now()
     }
     document.addEventListener('visibilitychange', onVisibility)
     void poll()
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
+      cancelTimer?.()
       document.removeEventListener('visibilitychange', onVisibility)
       // Nothing cleared here: turned off, the next run clears the heads; switched between feeds, they stay.
     }
