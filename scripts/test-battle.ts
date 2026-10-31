@@ -9,8 +9,10 @@
  */
 import {
   RULES,
+  assessBattle,
   bannerOf,
   bannerRate,
+  killPaceObserved,
   multiplierObserved,
   playersAtSiege,
   projectBattle,
@@ -108,6 +110,58 @@ check(multiplierObserved(pair(60)) === 1, 'multiplier: 2 holders, 3 ticks, 60 po
 check(multiplierObserved(pair(180)) === 3, 'multiplier: 180 points is ×3')
 check(multiplierObserved(pair(160)) === 1, 'multiplier: 160 points (a kill and ×1) is ×1')
 check(multiplierObserved(pair(30)) === null, 'multiplier: less than the holders earn says nothing')
+// Readings half a minute apart, as the war view has them: a tick and a half each, read across the run.
+const halfMinutes = (points: number[]): BattleReading[] =>
+  points.map((defender, i) => ({ at: at + i * 30_000, banner: { side: 'defenders', holders: 2 }, points: { attacker: 0, defender }, secondsLeft: 1800 - i * 30 }))
+check(multiplierObserved(halfMinutes([1000, 1060, 1180])) === 3, 'multiplier: readings half a minute apart say ×3 across a minute')
+check(multiplierObserved(halfMinutes([1000, 1060])) === null, 'multiplier: two readings half a minute apart say nothing yet')
+check(
+  multiplierObserved([...halfMinutes([1000, 1060, 1180]), { ...halfMinutes([0])[0], at: at + 90_000, banner: { side: 'attackers', holders: 1 }, points: { attacker: 500, defender: 1180 } }]) === 3,
+  'multiplier: a change of hands ends the run, and the run before still says',
+)
+
+// The pace of kills the points show.
+const paceReadings = (gains: [number, number][]): BattleReading[] =>
+  gains.map(([attacker, defender], i) => ({
+    at: at + i * 60_000,
+    banner: { side: 'attackers', holders: 2 },
+    points: { attacker, defender },
+    secondsLeft: 3600 - i * 60,
+  }))
+// Two holders at ×1 earn 60 a minute; the rest of the attackers' 160 is a kill, and the defenders' 200 two.
+check(
+  JSON.stringify(killPaceObserved(paceReadings([[0, 0], [160, 0], [220, 200]]), 1)) === JSON.stringify({ attacker: 0.5, defender: 1 }),
+  'pace: a kill a minute for the attackers over two minutes, two for the defenders',
+)
+check(killPaceObserved(paceReadings([[0, 0]]), 1) === null, 'pace: one reading says nothing')
+// Three holders at ×3 earn 90 a tick: half-minute readings that alternate one and two ticks are no kills.
+const ticking = [0, 90, 270, 360, 540, 630].map((attacker, i) => ({
+  at: at + i * 30_000,
+  banner: { side: 'attackers' as const, holders: 3 },
+  points: { attacker, defender: 0 },
+  secondsLeft: 1800 - i * 30,
+}))
+check(killPaceObserved(ticking, 3)?.attacker === 0, 'pace: the banner’s own ticks between readings are not kills')
+check(
+  killPaceObserved([...paceReadings([[0, 0], [60, 0]]), { ...paceReadings([[0, 0]])[0], at: at + 120_000, banner: { side: 'defenders', holders: 1 }, points: { attacker: 60, defender: 300 } }], 1)
+    ?.defender === 0,
+  'pace: a pair across a change of hands is skipped',
+)
+
+// The battle, assessed.
+const assessed = assessBattle(siege(), [reading], at + 65_000, { attackers: 3, defenders: 1 })
+check(assessed?.multiplier.value === 1 && assessed.multiplier.source === 'assumed', 'assessed: one reading mid-session assumes ×1')
+check(assessed?.score?.attacker === 690, 'assessed: the score run on')
+// A minute and five seconds on: 690 now, and 86 more ticks of three holders (2,580) to come.
+check(assessed?.projected?.balance === 1250 + 690 + 2580 - 200, 'assessed: the projection from the reading')
+check(assessed?.behind?.side === 'defenders' && assessed.behind.deficit === 4320, 'assessed: the defenders are behind by the projected balance')
+check(assessed?.behind?.kills === 44, 'assessed: 4,320 points is 44 kills')
+// 29 minutes less a bit left: 86 ticks; retaking at ×3 earns 30 a tick a holder, 2,580 a holder: two holders.
+check(assessed?.behind?.holdersNeeded === 2, 'assessed: or two holders after taking the banner back')
+check(assessed?.behind?.minutesRetaken !== null && (assessed?.behind?.minutesRetaken ?? 0) > 5, 'assessed: taking it back takes the capture and the holding')
+check(assessBattle(siege(), [], at, { attackers: 0, defenders: 0 }) === null, 'assessed: nothing without a reading')
+const fromStart = assessBattle(siege(), steps([null, 'attackers', 'defenders']), at + 90_000, { attackers: 1, defenders: 1 })
+check(fromStart?.multiplier.value === 3 && fromStart.multiplier.source === 'inferred', 'assessed: a reversal seen from the session start infers ×3')
 
 // Sides and zones.
 const towns = [

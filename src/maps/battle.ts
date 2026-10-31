@@ -132,23 +132,49 @@ export function reversalsSeen(readings: BattleReading[]): { reversals: number; c
 }
 
 /**
- * The banner's multiplier as the points show it: between two readings with
- * the same side holding with the same holders, the points it gained over
- * what the holders alone earn at ×1. Kills only add points, so the largest
- * multiplier the gain covers is taken; null when no two readings say.
+ * The readings as runs: each run the readings in a row with the same side
+ * holding with the same holders, all with points, so what the banner
+ * earned across it can be told from the points; a change of hands or of
+ * holders begins another. Readings come half a minute apart, a tick and a
+ * half, so two in a row say little; a run says more the longer it goes.
+ */
+function runsOf(readings: BattleReading[]): BattleReading[][] {
+  const runs: BattleReading[][] = []
+  let run: BattleReading[] = []
+  for (const reading of readings) {
+    const last = run.at(-1)
+    const joins =
+      Boolean(reading.points) &&
+      Boolean(last) &&
+      last!.banner.side === reading.banner.side &&
+      last!.banner.holders === reading.banner.holders
+    if (!joins) {
+      if (run.length > 1) runs.push(run)
+      run = reading.points ? [reading] : []
+    } else run.push(reading)
+  }
+  if (run.length > 1) runs.push(run)
+  return runs
+}
+
+/**
+ * The banner's multiplier as the points show it: across a run of readings
+ * with the same side holding with the same holders, the points it gained
+ * over what the holders alone earn at ×1. Kills only add points, so the
+ * largest multiplier the gain covers is taken, from the latest run long
+ * enough to say (two ticks); null when none is.
  */
 export function multiplierObserved(readings: BattleReading[]): number | null {
   let best: number | null = null
-  for (let index = 1; index < readings.length; index++) {
-    const [before, after] = [readings[index - 1], readings[index]]
-    const side = after.banner.side
-    if (!side || before.banner.side !== side || before.banner.holders !== after.banner.holders) continue
-    if (!before.points || !after.points) continue
-    const ticks = Math.floor((after.at - before.at) / 1000 / RULES.tickSeconds)
+  for (const run of runsOf(readings)) {
+    const [first, last] = [run[0], run[run.length - 1]]
+    const side = last.banner.side
+    if (!side) continue
+    const ticks = Math.floor((last.at - first.at) / 1000 / RULES.tickSeconds)
     if (ticks < 2) continue
     const key = side === 'attackers' ? 'attacker' : 'defender'
-    const gained = after.points[key] - before.points[key]
-    const base = after.banner.holders * RULES.pointsPerHolder * ticks
+    const gained = last.points![key] - first.points![key]
+    const base = last.banner.holders * RULES.pointsPerHolder * ticks
     if (base <= 0 || gained < base) continue
     const candidates = [1, 3, 6, 9, 12, 15].filter((m) => m * base <= gained * 1.05)
     best = candidates.at(-1) ?? 1
@@ -223,6 +249,114 @@ export function toTurnAround(deficit: number, holders: number, nextMultiplier: n
     minutesRetaken: RULES.captureMinutes + deficit / perMinute(nextMultiplier),
     holders,
   }
+}
+
+/**
+ * The kills a minute each side has been making, as far as the readings
+ * show: across a run of readings with the same side holding with the same
+ * holders, what a side gained over what its holders earn (at `multiplier`)
+ * can only be kills, 100 apiece; the span across a change of hands says
+ * nothing and is left out. The banner's ticks fall where they may between
+ * readings, so its earnings are reckoned by the run's exact length and the
+ * kills rounded, which a banner earning near a hundred a tick can pass for
+ * one of. Taken at the one multiplier, a stretch read before a reversal at
+ * a lower bonus can read as a kill or so more. Null until a minute of
+ * readings says anything.
+ */
+export function killPaceObserved(readings: BattleReading[], multiplier: number): { attacker: number; defender: number } | null {
+  let minutes = 0
+  const kills = { attacker: 0, defender: 0 }
+  for (const run of runsOf(readings)) {
+    const [first, last] = [run[0], run[run.length - 1]]
+    const seconds = (last.at - first.at) / 1000
+    if (seconds <= 0) continue
+    const base = last.banner.side ? (last.banner.holders * RULES.pointsPerHolder * multiplier * seconds) / RULES.tickSeconds : 0
+    const excess = (side: 'attacker' | 'defender', holds: boolean) =>
+      Math.max(0, last.points![side] - first.points![side] - (holds ? base : 0))
+    kills.attacker += Math.round(excess('attacker', last.banner.side === 'attackers') / RULES.killPoints)
+    kills.defender += Math.round(excess('defender', last.banner.side === 'defenders') / RULES.killPoints)
+    minutes += seconds / 60
+  }
+  if (minutes < 1) return null
+  return { attacker: kills.attacker / minutes, defender: kills.defender / minutes }
+}
+
+/** Where the banner's multiplier was read from: the points themselves, the changes of hands seen since the session began, or taken for granted. */
+export type MultiplierSource = 'observed' | 'inferred' | 'assumed'
+
+/**
+ * A battle as it stands at `now`, worked out from its readings for the war
+ * view's sidebar: the latest reading, the banner's multiplier and where it
+ * was read from, the score run on, the time left, the session's end as
+ * the banner alone would make it and at the battle's own pace of kills,
+ * and, for the side the projected balance leaves behind, what it takes to
+ * come level by the session's end: kills; holders at the banner for the
+ * rest of it, more than it has (`holders` is each side's at the banner
+ * now); or, when the enemy holds it, taking it back and holding it. Null
+ * without a reading.
+ */
+export function assessBattle(
+  siege: Pick<Siege, 'balance' | 'progress'>,
+  readings: BattleReading[],
+  now: number,
+  holders: { attackers: number; defenders: number },
+): {
+  reading: BattleReading
+  multiplier: { value: number; source: MultiplierSource }
+  reversals: number
+  score: { attacker: number; defender: number } | null
+  secondsLeft: number | null
+  projected: ReturnType<typeof projectBattle>
+  pace: { attacker: number; defender: number } | null
+  paced: ReturnType<typeof projectBattle>
+  behind: {
+    side: BattleSide
+    deficit: number
+    kills: number
+    /** Holders at the banner, in all, for the rest of the session; null when the time left wouldn't do with any number. */
+    holdersNeeded: number | null
+    /** How many of the side behind stand at the banner now, at least one: whom the minutes below are reckoned for. */
+    holders: number
+    /** Taking the banner from the enemy, then holding it with those: minutes in all, with the capture; null when the side behind holds it, or nobody does. */
+    minutesRetaken: number | null
+  } | null
+} | null {
+  const reading = readings.at(-1)
+  if (!reading) return null
+  const seen = reversalsSeen(readings)
+  const observed = multiplierObserved(readings)
+  const multiplier =
+    observed !== null
+      ? { value: observed, source: 'observed' as const }
+      : { value: reversalMultiplier(seen.reversals), source: seen.complete ? ('inferred' as const) : ('assumed' as const) }
+  const score = scoreNow(reading, multiplier.value, now)
+  const secondsLeft = secondsLeftNow(reading, now)
+  const projected = projectBattle(siege, reading, multiplier.value, now)
+  const pace = killPaceObserved(readings, multiplier.value)
+  const paced = pace && (pace.attacker > 0 || pace.defender > 0) ? projectBattle(siege, reading, multiplier.value, now, pace) : null
+  let behind: NonNullable<ReturnType<typeof assessBattle>>['behind'] = null
+  if (projected && projected.balance !== null && projected.balance !== 0 && secondsLeft !== null) {
+    const side: BattleSide = projected.balance > 0 ? 'defenders' : 'attackers'
+    const deficit = Math.abs(projected.balance)
+    const ticks = Math.floor(secondsLeft / RULES.tickSeconds)
+    const holds = reading.banner.side === side
+    const enemyHolds = reading.banner.side !== null && !holds
+    // Holding on at the rate the banner earns now, or, taken from the enemy, at the bonus that brings.
+    const rateIfHeld = holds ? multiplier.value : enemyHolds ? reversalMultiplier(seen.reversals + 1) : multiplier.value
+    const perHolder = RULES.pointsPerHolder * rateIfHeld * ticks
+    const holdersNeeded = perHolder > 0 ? Math.ceil(deficit / perHolder) : null
+    const present = Math.max(1, holders[side])
+    const turn = toTurnAround(deficit, present, reversalMultiplier(seen.reversals + 1))
+    behind = {
+      side,
+      deficit,
+      kills: Math.ceil(deficit / RULES.killPoints),
+      holdersNeeded,
+      holders: present,
+      minutesRetaken: enemyHolds && turn ? turn.minutesRetaken : null,
+    }
+  }
+  return { reading, multiplier, reversals: seen.reversals, score, secondsLeft, projected, pace, paced, behind }
 }
 
 /** Where a player stands to a siege, by their town's and nation's part in it. */
