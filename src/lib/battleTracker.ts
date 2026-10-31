@@ -131,7 +131,8 @@ export type TrackResult = { status: 'tracked' | 'busy' | 'over budget' | 'no bat
  */
 export async function trackBattles(payload: Payload, sieges: Siege[], until: number): Promise<TrackResult> {
   const began = Date.now()
-  if (!sieges.some((siege) => siege.battle)) return { status: 'no battle', battles: [], readings: 0 }
+  // Sieges with no battle on yet are read too: the feed's marker updates say when one starts (the file can be a minute behind).
+  if (!sieges.length) return { status: 'no battle', battles: [], readings: 0 }
   if ((await budgetLeft(began)) <= 0) return { status: 'over budget', battles: [], readings: 0 }
   if (!(await takeLease(until))) return { status: 'busy', battles: [], readings: 0 }
 

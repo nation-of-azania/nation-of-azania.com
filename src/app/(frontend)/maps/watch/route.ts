@@ -6,6 +6,7 @@ import { trackBattles } from '@/lib/battleTracker'
 import { FRESH_MS, readMarkerFile } from '@/lib/dynmap'
 import { watchMap } from '@/lib/watch'
 import { warOf } from '@/lib/world'
+import { sessionClock } from '@/maps/battle'
 
 /**
  * The watch on the Rulercraft map (src/lib/watch.ts): Azania's towns kept up
@@ -38,8 +39,10 @@ export async function GET(request: Request) {
     const result = await watchMap(payload, { force })
     // One line a run, so the logs say how often the database is woken, and why (src/lib/quietWatch.ts).
     payload.logger.info(`[watch] ${result.status}; database ${result.database ?? 'asked'}; battles ${result.battles ?? 0}; online ${result.online ?? '?'}`)
-    if (result.battles) {
-      // A battle on: after answering, read the map for the battle tracker until the next ask (src/lib/battleTracker.ts).
+    // A battle on, or a session on with sieges on the map (the marker file, written about once a minute, can be behind
+    // a battle's first minute; the live feed's own marker updates say it within seconds): after answering, read the map
+    // for the battle tracker until the next ask (src/lib/battleTracker.ts).
+    if (result.battles || (result.siegesOnMap && sessionClock(askedAt).on)) {
       const file = await readMarkerFile(FRESH_MS).catch(() => null)
       if (file) {
         const sieges = warOf(file).sieges

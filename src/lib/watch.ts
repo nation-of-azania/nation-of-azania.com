@@ -79,8 +79,9 @@ export type WatchResult = {
   snapshot?: boolean
   /** Why the run went to the database, or why it didn't (src/lib/quietWatch.ts). */
   database?: string
-  /** Sieges with a battle on, by this reading: the route then keeps reading for the battle tracker (src/lib/battleTracker.ts). */
+  /** Sieges with a battle on, and sieges at all, by this reading: the route then keeps reading for the battle tracker (src/lib/battleTracker.ts). */
   battles?: number
+  siegesOnMap?: number
   /** Players online, noted for their usual hours (src/lib/presence.ts); null when the feed didn't answer. */
   online?: number | null
 }
@@ -118,7 +119,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const day = dayOf(now.getTime())
   // Who's online, for their usual hours (kept in the cache, written on a full run), and whether a battle is on.
   const online = await notePresence(now.getTime()).catch(() => null)
-  const battles = fresh ? warOf(file).sieges.filter((siege) => siege.battle).length : 0
+  const onMap = fresh ? warOf(file).sieges : []
+  const battles = onMap.filter((siege) => siege.battle).length
+  const siegesOnMap = onMap.length
 
   if (!force && note) {
     const decision = quietDecision(note, now.getTime(), marksNow(file, fresh, note.interest, day))
@@ -129,12 +132,13 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
         note: 'Nothing the site keeps or tells has changed on the map.',
         database: `left asleep: ${decision.why}`,
         battles,
+        siegesOnMap,
         online,
       }
     }
-    return { ...(await fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)), battles, online }
+    return { ...(await fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)), battles, siegesOnMap, online }
   }
-  return { ...(await fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')), battles, online }
+  return { ...(await fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')), battles, siegesOnMap, online }
 }
 
 /** What a full run leaves for the note: which fingerprints it brought up to date, and whether it left anything pending. */
