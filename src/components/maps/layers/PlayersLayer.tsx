@@ -166,10 +166,13 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   element.setAttribute('role', 'button')
   element.setAttribute('aria-label', `${player.name}, online${town ? `, of ${spoken(town.name)}` : ''}`)
   element.appendChild(headOf(player.name))
+  // The tag hung from the head: the name, and under it in the war view the health and armour, on one dark plate.
+  const tag = document.createElement('span')
+  tag.className = 'az-player-tag'
   const name = document.createElement('span')
   name.className = 'az-player-name'
   name.textContent = player.name
-  element.appendChild(name)
+  tag.appendChild(name)
   const vitals = document.createElement('span')
   vitals.className = 'az-player-vitals'
   const stats = document.createElement('span')
@@ -194,7 +197,8 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
     bar.appendChild(fill)
     vitals.appendChild(bar)
   }
-  element.appendChild(vitals)
+  tag.appendChild(vitals)
+  element.appendChild(tag)
   // Leaflet takes the element as the icon's html, and sets its size and anchor.
   const icon = L.divIcon({ html: element, className: 'az-player-icon', iconSize: [BOX_PX, BOX_PX], iconAnchor: [BOX_PX / 2, BOX_PX / 2] })
   return { icon, element }

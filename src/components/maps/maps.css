@@ -396,101 +396,111 @@
     0 0 0 4px #d8962c,
     0 1px 4px rgba(22, 25, 31, 0.5);
 }
-.az-player-name {
+/*
+ * The tag hung from the head: the name in large white letters on a dark
+ * plate, so it reads on any ground (sand, sea, a town's claims), joined to
+ * the head by a top edge in the colour of the head's ring: saffron for
+ * Azania's own, coral and sea for the two sides in the war view, cream for
+ * anyone else. In the war view the plate carries the health and armour
+ * under the name. Shown on hover, on the chosen player, close in, at every
+ * zoom while the viewer has names on, and always in the war view.
+ */
+.az-player-tag {
+  --az-tag-edge: rgba(251, 248, 241, 0.92);
   position: absolute;
-  top: 29px;
+  top: 27px;
   left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 28px;
+  padding: 2px 7px 3px;
+  box-sizing: border-box;
   transform: translateX(-50%);
   visibility: hidden;
-  white-space: nowrap;
-  font-family: var(--font-body, inherit);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  color: #16191f;
-  text-shadow:
-    0 0 2px #fbf8f1,
-    0 0 2px #fbf8f1,
-    0 0 3px #fbf8f1,
-    0 0 4px #fbf8f1;
+  background: rgba(14, 18, 26, 0.86);
+  border-top: 2px solid var(--az-tag-edge);
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 6px rgba(14, 18, 26, 0.35);
   pointer-events: none;
 }
-.az-player-azanian .az-player-name {
-  color: #96600f;
+.az-player-name {
+  display: block;
+  white-space: nowrap;
+  font-family: var(--font-body, inherit);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: #ffffff;
 }
-.az-player:hover .az-player-name,
-.az-player-selected .az-player-name,
-.az-players-near .az-player-name,
+.az-player-azanian .az-player-tag {
+  --az-tag-edge: #d8962c;
+}
+.az-player-selected .az-player-tag,
+.az-player-watched .az-player-tag {
+  --az-tag-edge: #d8962c;
+}
+.az-player:hover .az-player-tag,
+.az-player-selected .az-player-tag,
+.az-players-near .az-player-tag,
 /* And at every zoom while the viewer has it so (the layers menu; warView.ts), and always in the war view. */
-.az-players-named .az-player-name,
-.az-players-war .az-player-name {
+.az-players-named .az-player-tag,
+.az-players-war .az-player-tag {
   visibility: visible;
 }
 
 /*
  * The war view's heads are fighters (layers/PlayersLayer.tsx): ringed by
  * their side in the siege the view is on, attackers in the seal's coral
- * and defenders in the sea, the name set bolder, and under it their
- * health and armour: the two figures with a heart and a chestplate, bold
- * and haloed so they read on any ground, and under those a health bar
- * and an armour bar, thick enough to read across the map. A poll writes
- * two figures and two custom properties, and nothing is laid out again.
- * Low health burns hotter and pulses. The one being watched wears a
- * saffron ring that breathes.
+ * and defenders in the sea, the tag's edge in the same colour, and on the
+ * tag under the name their health and armour: the two figures with a
+ * heart and a chestplate, and under those a health bar and an armour bar
+ * the width of the tag. A poll writes two figures and two custom
+ * properties, and nothing is laid out again. Low health burns hotter and
+ * pulses. The one being watched wears a saffron ring that breathes.
  */
-.az-players-war .az-player-name {
-  font-size: 12px;
-  font-weight: 700;
-}
 .az-player-vitals {
-  position: absolute;
-  top: 42px;
-  left: 50%;
   display: none;
-  width: 48px;
+  align-self: stretch;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
-  transform: translateX(-50%);
-  pointer-events: none;
+  min-width: 64px;
 }
 .az-players-war .az-player-vitals {
   display: flex;
 }
 .az-player-stats {
   display: flex;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   font-family: var(--font-mono, monospace);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  color: #16191f;
+  color: #ffffff;
   white-space: nowrap;
-  text-shadow:
-    0 0 2px #fbf8f1,
-    0 0 2px #fbf8f1,
-    0 0 3px #fbf8f1,
-    0 0 4px #fbf8f1;
 }
 .az-player-stat {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 .az-player-stat svg {
-  width: 11px;
-  height: 11px;
-  filter: drop-shadow(0 0 1px #fbf8f1) drop-shadow(0 0 1px #fbf8f1);
+  width: 13px;
+  height: 13px;
 }
 .az-player-stat[data-kind='health'] svg {
-  fill: #e0523a;
+  fill: #ff5a43;
 }
 .az-player-stat[data-kind='armour'] svg {
-  fill: #4f7ea3;
+  fill: #a9cbe3;
 }
 .az-player[data-low] .az-player-stat[data-kind='health'] {
-  color: #b81f0f;
+  color: #ff6b57;
 }
 .az-player[data-low] .az-player-stat[data-kind='health'] svg {
   fill: #ff4d3d;
@@ -498,10 +508,9 @@
 }
 .az-player-vitals .az-vital-track {
   display: block;
-  width: 44px;
+  width: 100%;
   height: 5px;
-  background: rgba(22, 25, 31, 0.6);
-  box-shadow: 0 0 0 1px rgba(251, 248, 241, 0.85);
+  background: rgba(251, 248, 241, 0.18);
 }
 .az-player-vitals .az-vital-track[data-kind='armour'] {
   height: 3px;
@@ -534,11 +543,14 @@
     0 0 0 3px rgba(251, 248, 241, 0.7),
     0 1px 3px rgba(22, 25, 31, 0.45);
 }
-.az-players-war .az-player[data-side='attackers'] .az-player-name {
-  color: #a63727;
+.az-players-war .az-player[data-side='attackers'] .az-player-tag {
+  --az-tag-edge: #e0644c;
 }
-.az-players-war .az-player[data-side='defenders'] .az-player-name {
-  color: #1a4461;
+.az-players-war .az-player[data-side='defenders'] .az-player-tag {
+  --az-tag-edge: #4f9fd6;
+}
+.az-players-war .az-player-watched .az-player-tag {
+  --az-tag-edge: #d8962c;
 }
 .az-player-watched .az-player-mark {
   box-shadow:
