@@ -1,6 +1,7 @@
 import type { Bounds, Point } from './geo'
 import { pixelsPerBlock, zoomForPixelsPerBlock } from './palette'
 import { VIEW_ASPECTS, type ViewAspect } from './registry'
+import { WORLD_WIDTH } from './source'
 
 /**
  * Frames: a piece of the map a set number of blocks across, in one of the
@@ -89,5 +90,12 @@ export function frameInViewport(
   return { left: (viewport.width - width) / 2, top: (viewport.height - height) / 2, width, height }
 }
 
-/** A span the collection accepts. */
-export const clampSpan = (span: number): number => Math.round(Math.min(40000, Math.max(32, span)))
+/**
+ * How many blocks across a map view may be: from a few houses to the whole
+ * world (src/maps/source.ts → WORLD_WIDTH), past which a frame would only
+ * show the world again in its echoes.
+ */
+export const VIEW_SPAN = { min: 32, max: WORLD_WIDTH } as const
+
+/** A span the collection accepts: a frame the editor framed wider than the world is kept at the world's width. */
+export const clampSpan = (span: number): number => Math.round(Math.min(VIEW_SPAN.max, Math.max(VIEW_SPAN.min, span)))

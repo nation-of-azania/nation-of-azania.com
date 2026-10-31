@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { INK_COLOURS } from '@/maps/palette'
+import { clampSpan, VIEW_SPAN } from '@/maps/view'
 import {
   INKS,
   MAP_LAYERS,
@@ -137,7 +138,7 @@ export function ViewForm({
       const view = await api.saveView(editor.id, {
         title: draft.title.trim(),
         centre: { x: current.centre[0], z: current.centre[1] },
-        span: current.span,
+        span: clampSpan(current.span),
         aspect: draft.aspect,
         layers: draft.layers,
         drawings: keep(draft.drawings).map((d) =>
@@ -225,7 +226,7 @@ export function ViewForm({
       </Field>
       <p className="mt-2 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
         {frame
-          ? `${frame.span.toLocaleString('en-GB')} blocks across · centre X ${frame.centre[0]} Z ${frame.centre[1]}`
+          ? `${clampSpan(frame.span).toLocaleString('en-GB')} blocks across${frame.span > VIEW_SPAN.max ? ' (the whole world: a view is no wider)' : ''} · centre X ${frame.centre[0]} Z ${frame.centre[1]}`
           : 'Move and zoom the map to set the frame.'}
       </p>
 

@@ -304,10 +304,13 @@ export function DiscordBlock({ channel, messages, sourceUrl, caption }: DiscordP
                       article's heading outline. min-h, as in the client, so an
                       unusually long name can still wrap on narrow screens. */}
                   <div className="min-h-[1.375rem] text-base leading-[1.375rem]">
-                    {/* 500, as the dark client sets usernames in gg sans. A
-                        fallback without a medium face (Arial) shows it at 400. */}
+                    {/* The dark client sets usernames in gg sans at 500, but
+                        our fallback stack has no true 500 (Arial jumps 400 to
+                        bold) and reads too thin. 600 restores gg sans's
+                        optical weight — the same call Discord itself makes for
+                        its light theme (.theme-light bumps usernames to 600). */}
                     <span
-                      className={cn('font-medium', !group.colour && 'text-dc-name')}
+                      className={cn('font-semibold', !group.colour && 'text-dc-name')}
                       style={group.colour ? { color: group.colour } : undefined}
                     >
                       {group.name}

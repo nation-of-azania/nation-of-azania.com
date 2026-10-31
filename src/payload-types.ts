@@ -802,7 +802,7 @@ export interface MapView {
     z: number;
   };
   /**
-   * How many blocks the frame shows across.
+   * How many blocks the frame shows across, up to the whole world’s width.
    */
   span: number;
   aspect: 'wide' | 'square' | 'banner';

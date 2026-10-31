@@ -2,6 +2,7 @@ import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
 
 import { createMapView, editMapView } from '../../access/maps'
 import { drawingsProblem, MAP_LAYERS, options, VIEW_ASPECTS } from '../../maps/registry'
+import { VIEW_SPAN } from '../../maps/view'
 import { pointField } from './shared'
 
 const stampAuthor: CollectionBeforeChangeHook = ({ data, req, operation }) => {
@@ -50,10 +51,10 @@ export const MapViews: CollectionConfig = {
           name: 'span',
           type: 'number',
           required: true,
-          min: 32,
-          max: 40000,
+          min: VIEW_SPAN.min,
+          max: VIEW_SPAN.max,
           defaultValue: 600,
-          admin: { width: '50%', description: 'How many blocks the frame shows across.' },
+          admin: { width: '50%', description: 'How many blocks the frame shows across, up to the whole world’s width.' },
         },
         {
           name: 'aspect',

@@ -7,6 +7,7 @@ import {
   type Outline,
 } from '@/lib/dynmap'
 import { getTownByName } from '@/lib/maps'
+import { VIEW_SPAN } from '@/maps/view'
 
 /**
  * A clipping of the Rulercraft map as a JPEG, for the Map block:
@@ -38,7 +39,9 @@ export async function GET(request: Request) {
   if (!isZoomName(zoom) || !isMapName(map) || !isAspectName(aspect)) return bad('Unknown zoom, map or aspect.')
   const spanParam = query.get('span')
   const span = spanParam == null ? undefined : Number(spanParam)
-  if (span !== undefined && !(Number.isFinite(span) && span >= 32 && span <= 40000)) return bad('A span is 32 to 40,000 blocks.')
+  if (span !== undefined && !(Number.isFinite(span) && span >= VIEW_SPAN.min && span <= VIEW_SPAN.max)) {
+    return bad(`A span is ${VIEW_SPAN.min} to ${VIEW_SPAN.max.toLocaleString('en-GB')} blocks.`)
+  }
 
   const townName = query.get('town')
   if (townName && !/^[\w-]{1,40}$/.test(townName)) return bad('Not a town name.')
