@@ -313,7 +313,7 @@ export function assessBattle(
     side: BattleSide
     deficit: number
     kills: number
-    /** Holders at the banner, in all, for the rest of the session; null when the time left wouldn't do with any number. */
+    /** Holders at the banner, in all, for the rest of the session (after capturing it, when the side doesn't hold it); null when the time left wouldn't do with any number. */
     holdersNeeded: number | null
     /** How many of the side behind stand at the banner now, at least one: whom the minutes below are reckoned for. */
     holders: number
@@ -338,9 +338,11 @@ export function assessBattle(
   if (projected && projected.balance !== null && projected.balance !== 0 && secondsLeft !== null) {
     const side: BattleSide = projected.balance > 0 ? 'defenders' : 'attackers'
     const deficit = Math.abs(projected.balance)
-    const ticks = Math.floor(secondsLeft / RULES.tickSeconds)
     const holds = reading.banner.side === side
     const enemyHolds = reading.banner.side !== null && !holds
+    // A side that doesn't hold the banner earns nothing from it until it has captured it: the capture's minutes come off.
+    const earning = holds ? secondsLeft : secondsLeft - RULES.captureMinutes * 60
+    const ticks = Math.floor(Math.max(0, earning) / RULES.tickSeconds)
     // Holding on at the rate the banner earns now, or, taken from the enemy, at the bonus that brings.
     const rateIfHeld = holds ? multiplier.value : enemyHolds ? reversalMultiplier(seen.reversals + 1) : multiplier.value
     const perHolder = RULES.pointsPerHolder * rateIfHeld * ticks
