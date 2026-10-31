@@ -1,6 +1,7 @@
 import { sameNation } from '@/maps/abroad'
 import { RULES } from '@/maps/battle'
 import type { Point } from '@/maps/geo'
+import type { FighterRecord } from '@/maps/fighters'
 import type { LivePlayer, LivePlayers } from '@/maps/players'
 import { CAPITAL_WAR_RADIUS, type Siege, type War, type World, type WorldTown } from '@/maps/world'
 
@@ -182,3 +183,52 @@ export async function demoPlayers(now: number): Promise<LivePlayers> {
 
 /** How often SiegeWar rewrites a siege's marker, as seen in a battle. */
 const MARKER_EVERY_MS = 15_000
+
+/**
+ * The demo's fighters' records, for /maps/fighters on one's own machine:
+ * the cast with made-up but plausible histories (some keen, some who never
+ * come, one who dies a lot), and usual hours peaking in the evening.
+ */
+export async function demoFighters(now: number): Promise<(FighterRecord & { hours: number[] })[]> {
+  const cast = await currentScene()
+  if (!cast) return []
+  const people = [
+    ...cast.attackers.map((person) => ({ name: person.name, side: 'attackers' as const })),
+    ...cast.defenders.map((person) => ({ name: person.name, side: 'defenders' as const })),
+    ...cast.others.map((name) => ({ name, side: 'other' as const })),
+  ]
+  return people.map(({ name, side }, index) => {
+    const seed = [...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) + index * 7
+    const could = 4 + (seed % 9)
+    const fought = index % 5 === 4 ? 0 : Math.min(could, 1 + (seed % (could + 1)))
+    const stays = fought * (1 + (seed % 3))
+    const held = Math.round(stays * ((seed % 7) / 7))
+    const died = Math.round((stays - held) * (index === 2 ? 0.9 : 0.5))
+    const left = Math.max(0, stays - held - died - (seed % 2))
+    const peak = 18 + (seed % 5)
+    const hours = Array.from({ length: 168 }, (_, hour) => {
+      const ofDay = hour % 24
+      const near = Math.min(Math.abs(ofDay - peak), 24 - Math.abs(ofDay - peak))
+      return Math.max(0, Math.round((0.9 - near * 0.15 + (hour >= 120 ? 0.1 : 0)) * 100) / 100)
+    })
+    return {
+      name,
+      could,
+      fought,
+      minutes: fought * (20 + (seed % 35)),
+      bannerMinutes: fought * (seed % 12),
+      stays,
+      held,
+      died,
+      left,
+      cut: Math.max(0, stays - held - died - left),
+      deaths: died + (seed % 3),
+      confirmed: died,
+      won: Math.round(fought * 0.6),
+      lost: fought - Math.round(fought * 0.6),
+      side: fought ? side : null,
+      lastFought: fought ? new Date(now - (seed % 6) * 86_400_000).toISOString() : null,
+      hours,
+    }
+  })
+}

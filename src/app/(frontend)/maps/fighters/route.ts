@@ -1,6 +1,7 @@
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
+import { demoFighters, warDemo } from '@/lib/warDemo'
 import { recordsOf, usualHours, type SavedBattle } from '@/maps/fighters'
 
 /**
@@ -28,6 +29,11 @@ const PRESENCE_DAYS = 28
 export async function GET(request: Request) {
   if (new URL(request.url).search) return new Response('No query here.', { status: 400 })
   const now = Date.now()
+  // On one's own machine with the war demo on (src/lib/warDemo.ts): the demo's fighters, made up.
+  if (warDemo()) {
+    const players = await demoFighters(now)
+    return Response.json({ at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: 12, days: 28, players, demo: true })
+  }
   const payload = await getPayload({ config })
   try {
     const [battles, days] = await Promise.all([
