@@ -11,7 +11,7 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { townsOf, type MarkerFile } from '../src/lib/dynmap'
+import { dollars, townsOf, type MarkerFile } from '../src/lib/dynmap'
 import { worldOf } from '../src/lib/world'
 import { abroadOf } from '../src/maps/abroad'
 import { beliefsOf } from '../src/maps/beliefs'
@@ -31,7 +31,9 @@ function area(name: string, { religion, culture, ruler = 'Mayor1', nation = 'Nor
     `<p><span>&#x1f6d0; ${religion}</span></p> <p><span>&#x1f54e; Culture - ${culture}</span></p> <hr />`,
     `<p><span>&#x1f451; Ruler:</span></p><img src="x.png" /> <span>${ruler}</span><hr />`,
     `<p><span>&#x1f465; Residents:</span> 2<br /></p><span>${ruler}, Another</span>`,
-    `<p><span>⏳ Founded:</span> Jan 17 2026<br /></p>ID 00000000-0000-0000-0000-${String(name.length).padStart(12, '0')}</div>`,
+    `<p><span>⏳ Founded:</span> Jan 17 2026<br /></p>`,
+    `<p><span style="font-size:90%"><span style="font-weight:600">&#x1f4b0; Bank:</span> $27,036.37 <b>Mayor:</b> 36724.78$</span></p>`,
+    `ID 00000000-0000-0000-0000-${String(name.length).padStart(12, '0')}</div>`,
   ].join('')
   return { label: name, desc, x: [0, 16, 16, 0], z: [0, 0, 16, 16], color: '#ff0000' }
 }
@@ -62,8 +64,14 @@ function area(name: string, { religion, culture, ruler = 'Mayor1', nation = 'Nor
   check(quarry.kind === 'quarry' && quarry.religion === null && quarry.culture === null, 'a server site has neither: its terms and its "War" aren’t beliefs')
   const world = unpackWorld(JSON.parse(JSON.stringify(packWorld(worldOf(file)))))
   check(world.towns.find((town) => town.name === 'Chosen')?.religion === 'Catholic', 'and the world carries them to the browser')
-  const old = unpackWorld({ at: 0, nations: [], towns: [{ ...packWorld(worldOf(file)).towns[0], culture: undefined, religion: undefined, people: undefined }] } as never)
+  const old = unpackWorld({ at: 0, nations: [], towns: [{ ...packWorld(worldOf(file)).towns[0], culture: undefined, religion: undefined, people: undefined, bank: undefined, rulerBalance: undefined }] } as never)
   check(old.towns[0].culture === null && old.towns[0].religion === null, 'a world read before them has none')
+
+  // The town's bank and its mayor's own balance, as the town window gives them.
+  check(chosen.bank === 27036.37 && chosen.rulerBalance === 36724.78, `the bank and the mayor's balance are read (${chosen.bank}, ${chosen.rulerBalance})`)
+  check(world.towns.find((town) => town.name === 'Chosen')?.bank === 27036.37, 'and the world carries them to the browser')
+  check(old.towns[0].bank === null && old.towns[0].rulerBalance === null, 'a world read before them has none')
+  check(dollars('$1,234.50') === 1234.5 && dollars('99$') === 99 && dollars('-$5') === null && dollars('-5.00$') === -5 && dollars('N/A') === null, 'sums as the town window writes them')
 
   // Its residents' names, for the outlaw lists; a site's none.
   check(world.towns.find((town) => town.name === 'Chosen')?.people.join(',') === 'Mayor1,Another', 'a town carries its residents’ names, as the map lists them')

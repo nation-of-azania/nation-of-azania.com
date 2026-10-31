@@ -68,6 +68,14 @@ export type WorldTown = {
   chunks: number
   founded: string | null
   publicSpawn: boolean | null
+  /**
+   * The town's bank, and its mayor's own balance, in $, as the Rulercraft
+   * map's town window shows them; null where it doesn't say, and in a
+   * reading the CDN kept from before they were read. Nobody else's balance
+   * is on the map.
+   */
+  bank: number | null
+  rulerBalance: number | null
   /** The culture and religion its mayor chose; null when none is, and for anything but a players' town. A reading the CDN kept from before they were read has none. */
   culture: string | null
   religion: string | null
@@ -143,6 +151,8 @@ export const unpackWorld = (world: PackedWorld): World => ({
     people: town.people ?? [],
     culture: town.culture ?? null,
     religion: town.religion ?? null,
+    bank: town.bank ?? null,
+    rulerBalance: town.rulerBalance ?? null,
   })),
 })
 

@@ -352,6 +352,13 @@ export type Town = {
   /** Whether anyone may `/t spawn` to the town (Towny's "Public Teleport"); null if the map doesn't say. */
   publicSpawn: boolean | null
   /**
+   * The town's bank and its mayor's own balance, in $, as the map's town
+   * window shows them ("💰 Bank: $27,036.37", "Mayor: 36724.78$"); null
+   * where it doesn't say, absent for a town read from the database.
+   */
+  bank?: number | null
+  rulerBalance?: number | null
+  /**
    * Its outposts' spawns (`/t outpost`), in Towny's order: where each
    * stands, and its name when the town gave it one ("Calais"; null for
    * Towny's own "1", "2"). Usually one, never many.
@@ -454,7 +461,17 @@ function townFacts(name: string, desc: string) {
     religion: chosen('Town Religion'),
     founded: after(/Founded:/),
     publicSpawn: teleport == null ? null : /^enabled$/i.test(teleport),
+    bank: dollars(after(/Bank:/)),
+    rulerBalance: dollars(after(/^Mayor:$/)),
   }
+}
+
+/** A sum as the town window writes it, "$27,036.37" or "36724.78$", in dollars; null for anything else. */
+export function dollars(text: string | null | undefined): number | null {
+  const match = /^\s*\$?\s*(-?[\d,]+(?:\.\d+)?)\s*\$?\s*$/.exec(text ?? '')
+  if (!match) return null
+  const value = Number(match[1].replace(/,/g, ''))
+  return Number.isFinite(value) ? value : null
 }
 
 let markerFile: { at: number; file: MarkerFile } | null = null
