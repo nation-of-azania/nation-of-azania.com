@@ -21,6 +21,8 @@ import { MapViews } from './collections/maps/MapViews'
 import { Places } from './collections/maps/Places'
 import { Roads } from './collections/maps/Roads'
 import { TownCensus } from './collections/maps/TownCensus'
+import { Battles } from './collections/maps/Battles'
+import { PresenceDays } from './collections/maps/PresenceDays'
 import { Towns } from './collections/maps/Towns'
 import { AzaniaMaps } from './globals/AzaniaMaps'
 import { Discord } from './globals/Discord'
@@ -111,6 +113,8 @@ export default buildConfig({
     Events,
     MapViews,
     TownCensus,
+    Battles,
+    PresenceDays,
     DraftLinks,
     Lists,
     ListChanges,

@@ -31,6 +31,7 @@
     "test:curves": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-curves.ts",
     "test:battle": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-battle.ts",
     "test:live-sieges": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-live-sieges.ts",
+    "test:fights": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-fights.ts",
     "test:quiet-watch": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-quiet-watch.ts",
     "test:media-names": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-media-names.ts",
     "test:names": "cross-env NODE_OPTIONS=\"--no-deprecation --expose-gc\" tsx scripts/test-names.ts"

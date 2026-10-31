@@ -73,8 +73,8 @@ export function siegeUpdatesOf(updates: unknown): { rewritten: LiveSiege[]; ende
   return { rewritten, ended }
 }
 
-/** One feed, read from where it left off, keeping the latest of every siege it has carried. */
-function feed() {
+/** One feed, read from where it left off, keeping the latest of every siege it has carried; the battle tracker keeps its own. */
+export function feed() {
   let since: number | null = null
   const sieges = new Map<string, LiveSiege>()
   return async function read(): Promise<LivePlayers> {

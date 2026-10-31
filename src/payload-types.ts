@@ -79,6 +79,8 @@ export interface Config {
     events: Event;
     'map-views': MapView;
     'town-census': TownCensus;
+    battles: Battle;
+    'presence-days': PresenceDay;
     'draft-links': DraftLink;
     lists: List;
     'list-changes': ListChange;
@@ -106,6 +108,8 @@ export interface Config {
     events: EventsSelect<false> | EventsSelect<true>;
     'map-views': MapViewsSelect<false> | MapViewsSelect<true>;
     'town-census': TownCensusSelect<false> | TownCensusSelect<true>;
+    battles: BattlesSelect<false> | BattlesSelect<true>;
+    'presence-days': PresenceDaysSelect<false> | PresenceDaysSelect<true>;
     'draft-links': DraftLinksSelect<false> | DraftLinksSelect<true>;
     lists: ListsSelect<false> | ListsSelect<true>;
     'list-changes': ListChangesSelect<false> | ListChangesSelect<true>;
@@ -848,6 +852,110 @@ export interface TownCensus {
   createdAt: string;
 }
 /**
+ * Recorded from the Rulercraft map during battle sessions, a reading every few seconds.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "battles".
+ */
+export interface Battle {
+  id: number;
+  key: string;
+  title?: string | null;
+  startedAt: string;
+  town?: string | null;
+  townId?: string | null;
+  attacker?: string | null;
+  defender?: string | null;
+  /**
+   * Sessions fought in the siege before this one.
+   */
+  session?: number | null;
+  /**
+   * How much of the hour the readings cover, 0–1.
+   */
+  coverage?: number | null;
+  /**
+   * Players in the siege zone a minute or more.
+   */
+  fought?: number | null;
+  trackKeptUntil?: string | null;
+  banner?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  result?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  sides?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  fighters?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  track?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Who was online, in five-minute slots, recorded by the watch.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "presence-days".
+ */
+export interface PresenceDay {
+  id: number;
+  /**
+   * YYYY-MM-DD, UTC.
+   */
+  day: string;
+  /**
+   * Players seen online that day.
+   */
+  players?: number | null;
+  slots?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Links that show an article’s latest draft to anyone who has them. Made from the article’s editor; delete one to revoke it.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1061,6 +1169,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'town-census';
         value: number | TownCensus;
+      } | null)
+    | ({
+        relationTo: 'battles';
+        value: number | Battle;
+      } | null)
+    | ({
+        relationTo: 'presence-days';
+        value: number | PresenceDay;
       } | null)
     | ({
         relationTo: 'draft-links';
@@ -1410,6 +1526,41 @@ export interface TownCensusSelect<T extends boolean = true> {
   residents?: T;
   chunks?: T;
   nation?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "battles_select".
+ */
+export interface BattlesSelect<T extends boolean = true> {
+  key?: T;
+  title?: T;
+  startedAt?: T;
+  town?: T;
+  townId?: T;
+  attacker?: T;
+  defender?: T;
+  session?: T;
+  coverage?: T;
+  fought?: T;
+  trackKeptUntil?: T;
+  banner?: T;
+  result?: T;
+  sides?: T;
+  fighters?: T;
+  track?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "presence-days_select".
+ */
+export interface PresenceDaysSelect<T extends boolean = true> {
+  day?: T;
+  players?: T;
+  slots?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -9,6 +9,8 @@ import { FRESH_MS, readMarkerFile, townsOf, type MarkerFile } from './dynmap'
 import { syncLists } from './lists'
 import type { SiegeAlertSettings } from './siegeAlerts'
 import { alertHeadline, alertMessage, planSieges, untold, watchFrom, type SiegeAlert } from './siegeWatch'
+import { pruneTracks } from './battleTracker'
+import { flushPresence, notePresence } from './presence'
 import { dayOf, interestOf, marksOf, quietDecision, readNote, writeNote, type Marks, type QuietNote } from './quietWatch'
 import { saveSnapshot } from './snapshot'
 import { syncTowns, type SyncResult } from './towns'
@@ -77,6 +79,10 @@ export type WatchResult = {
   snapshot?: boolean
   /** Why the run went to the database, or why it didn't (src/lib/quietWatch.ts). */
   database?: string
+  /** Sieges with a battle on, by this reading: the route then keeps reading for the battle tracker (src/lib/battleTracker.ts). */
+  battles?: number
+  /** Players online, noted for their usual hours (src/lib/presence.ts); null when the feed didn't answer. */
+  online?: number | null
 }
 
 type StoredWatch = { claimedAt?: unknown } & Record<string, unknown>
@@ -110,6 +116,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   if (!file) return { status: 'offline', note: 'The Rulercraft map didn’t answer; nothing changed.', database: 'not asked' }
   const fresh = typeof file.timestamp === 'number' && now.getTime() - file.timestamp < STALE_FILE_MS
   const day = dayOf(now.getTime())
+  // Who's online, for their usual hours (kept in the cache, written on a full run), and whether a battle is on.
+  const online = await notePresence(now.getTime()).catch(() => null)
+  const battles = fresh ? warOf(file).sieges.filter((siege) => siege.battle).length : 0
 
   if (!force && note) {
     const decision = quietDecision(note, now.getTime(), marksNow(file, fresh, note.interest, day))
@@ -119,11 +128,13 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
         status: 'watched',
         note: 'Nothing the site keeps or tells has changed on the map.',
         database: `left asleep: ${decision.why}`,
+        battles,
+        online,
       }
     }
-    return fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)
+    return { ...(await fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)), battles, online }
   }
-  return fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')
+  return { ...(await fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')), battles, online }
 }
 
 /** What a full run leaves for the note: which fingerprints it brought up to date, and whether it left anything pending. */
@@ -165,6 +176,10 @@ async function fullRun(
         pending: outcome.pending,
       })
     }
+    // With the database awake anyway: who was online, from the cache into the database, and battles' readings past
+    // their keeping let go.
+    await flushPresence(payload).catch((error: unknown) => payload.logger.error({ err: error, msg: 'Presence: saving failed' }))
+    await pruneTracks(payload).catch((error: unknown) => payload.logger.error({ err: error, msg: 'Battle tracker: letting old readings go failed' }))
   }
   return { ...result, database }
 }
