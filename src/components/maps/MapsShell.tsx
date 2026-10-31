@@ -662,8 +662,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // On a phone the sheet covers the foot of the map: the player followed is kept in the middle of what's left.
   const sheetCover = !wide && hydrated ? (sheet === 'half' ? window.innerHeight * 0.5 : sheet === 'full' ? window.innerHeight - 72 : 0) : 0
   const warHeads = useMemo<WarHeads>(
-    () => ({ sideOf: sideOfName, watch: watched, follow: following, onPick: pickPlayer, onFollowBroken: followBroken, cover: sheetCover }),
-    [sideOfName, watched, following, pickPlayer, followBroken, sheetCover],
+    () => ({
+      sideOf: sideOfName,
+      watch: watched,
+      follow: following,
+      onPick: pickPlayer,
+      onFollowBroken: followBroken,
+      cover: sheetCover,
+      captures: captures.at ? captures : null,
+      phase: viewPhase,
+    }),
+    [sideOfName, watched, following, pickPlayer, followBroken, sheetCover, captures, viewPhase],
   )
   const warScene = useMemo<SceneProps['war']>(
     () =>

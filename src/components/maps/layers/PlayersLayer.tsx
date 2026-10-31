@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { minecraftHeadUrl } from '@/components/site/format'
-import type { PlayerSide } from '@/maps/battle'
+import { captureEndsAt, type Captures, type PlayerSide } from '@/maps/battle'
 import { spoken, type MapData, type MapTown } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import { isBedrockName, MAX_ARMOR, MAX_HEALTH, TELEPORT_BLOCKS, townOfPlayer, type LivePlayer } from '@/maps/players'
@@ -102,6 +102,10 @@ export type WarHeads = {
   onFollowBroken: () => void
   /** How much of the map's foot a phone's sheet covers, in px, so the one followed is kept in the middle of what's left. */
   cover: number
+  /** The captures under way at the view's siege, and its holders as seen capturing (battle.ts → stepCaptures); null before any reading. */
+  captures: Captures | null
+  /** When SiegeWar's checks fall, for the countdown of a capture (battle.ts → tickPhaseOf). */
+  phase: number | null
 }
 
 const at = (player: LivePlayer): Point => [player.x, player.z]
@@ -199,6 +203,11 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   }
   tag.appendChild(vitals)
   element.appendChild(tag)
+  // A holder's badge, the banner's own mark, shown while the player holds it (the war view says who).
+  const badge = document.createElement('span')
+  badge.className = 'az-player-holder'
+  badge.innerHTML = BANNER
+  element.appendChild(badge)
   // Leaflet takes the element as the icon's html, and sets its size and anchor.
   const icon = L.divIcon({ html: element, className: 'az-player-icon', iconSize: [BOX_PX, BOX_PX], iconAnchor: [BOX_PX / 2, BOX_PX / 2] })
   return { icon, element }
@@ -209,6 +218,29 @@ const HEART =
   "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='1' y='1' width='2' height='1'/><rect x='4' y='1' width='2' height='1'/><rect x='0' y='2' width='7' height='2'/><rect x='1' y='4' width='5' height='1'/><rect x='2' y='5' width='3' height='1'/><rect x='3' y='6' width='1' height='1'/></svg>"
 const CHESTPLATE =
   "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='0' y='1' width='2' height='1'/><rect x='5' y='1' width='2' height='1'/><rect x='0' y='2' width='3' height='1'/><rect x='4' y='2' width='3' height='1'/><rect x='0' y='3' width='7' height='1'/><rect x='1' y='4' width='5' height='3'/></svg>"
+
+/** A siege banner on its pole, for the holder's badge. */
+const BANNER = "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='1' y='0' width='1' height='8'/><path d='M2 1h5l-1.5 1.5L7 4H2z'/></svg>"
+
+/**
+ * A head's part in the capture of the banner, as the war view has it: a
+ * ring filling about the head of a player capturing, in their side's
+ * colour, over the five minutes to the check that completes it; and the
+ * banner's badge on a holder's.
+ */
+function setCapture(element: HTMLElement, name: string, fight: WarHeads | null, now: number): void {
+  const capture = fight?.captures?.under.get(name)
+  if (capture) {
+    const ends = captureEndsAt(capture.since, fight!.phase)
+    const share = Math.max(0, Math.min(1, (now - capture.since) / Math.max(1, ends - capture.since)))
+    element.style.setProperty('--az-cap', share.toFixed(3))
+    element.setAttribute('data-capturing', capture.side)
+  } else if (element.hasAttribute('data-capturing')) {
+    element.removeAttribute('data-capturing')
+    element.style.removeProperty('--az-cap')
+  }
+  element.toggleAttribute('data-holder', Boolean(fight?.captures?.holders.some((holder) => holder.name === name)))
+}
 
 /** The figures and the bars under a head, set to the reading: the two values, a share each, and whether the health is low. */
 function setVitals(element: HTMLElement, player: LivePlayer): void {
@@ -363,6 +395,7 @@ export function PlayersLayer({
         if (fight) {
           element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
           element.classList.toggle('az-player-watched', fight.watch === player.name)
+          setCapture(element, player.name, fight, Date.now())
         }
         const marker = new HeadMarker(toLatLng(to), {
           icon,
@@ -412,6 +445,21 @@ export function PlayersLayer({
       if (chosen && !warRef.current) setChosen(chosen.name)
     })
   }, [pick, warRef])
+
+  // The captures under way: each capturing head's ring filled a little further every second until the check that completes it.
+  const captures = war?.captures ?? null
+  const phase = war?.phase ?? null
+  useEffect(() => {
+    const fight = warRef.current
+    const apply = () => {
+      const now = Date.now()
+      for (const [name, entry] of entries.current) setCapture(entry.element, name, fight, now)
+    }
+    apply()
+    if (!captures?.under.size) return
+    const timer = window.setInterval(apply, 1000)
+    return () => window.clearInterval(timer)
+  }, [captures, phase, warRef])
 
   // The war view's sides and its watched player, on the heads already standing; and a drag ends the following.
   const sideOf = war?.sideOf

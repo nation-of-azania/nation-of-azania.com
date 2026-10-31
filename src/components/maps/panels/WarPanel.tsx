@@ -7,8 +7,10 @@ import { homeNationOf, sameNation } from '@/maps/abroad'
 import {
   ASSUMED,
   assessBattle,
+  captureEndsAt,
   playersAtSiege,
   returnEstimate,
+  reversalMultiplier,
   RULES,
   sideOf,
   SPRINT_BLOCKS_PER_S,
@@ -92,7 +94,7 @@ export type WarPanelProps = {
   phase?: number | null
 }
 
-export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onLeave }: WarPanelProps) {
+export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onLeave, captures, phase = null }: WarPanelProps) {
   const { data, world, war } = useMaps()
   const home = useMemo(() => homeNationOf(data.towns), [data.towns])
   // The towns the sides are read from: the world's reading, Azania's own among them; until it comes, Azania's alone.
@@ -110,7 +112,11 @@ export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onL
   const back = <BackButton onClick={() => onFocus(null)} />
   if (focus?.kind === 'siege') {
     const entry = sieges.find((candidate) => candidate.siege.townId === focus.townId)
-    body = entry ? <SiegeView back={back} entry={entry} onFocus={onFocus} towns={towns} /> : <Gone back={back} what="That siege is over." />
+    body = entry ? (
+      <SiegeView back={back} captures={entry.siege.townId === siegeId ? captures : undefined} entry={entry} onFocus={onFocus} phase={phase} towns={towns} />
+    ) : (
+      <Gone back={back} what="That siege is over." />
+    )
   } else if (focus?.kind === 'nation') {
     body = <NationView back={back} home={home} name={focus.name} onFocus={onFocus} siege={current?.siege ?? null} towns={towns} />
   } else if (focus?.kind === 'player') {
@@ -245,7 +251,9 @@ function Overview({
         </section>
       ) : null}
       <OnlineNow onFocus={onFocus} towns={towns} />
-      <p className={FOOT}>Choose a siege, a nation or a player, here or on the map. Players every 1.5 s; the war every 30 s in a battle.</p>
+      <p className={FOOT}>
+        Choose a siege, a nation or a player, here or on the map. The players every 1.5 s; the sieges as SiegeWar rewrites their markers, every 15 s.
+      </p>
     </>
   )
 }
@@ -296,6 +304,20 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
                 </span>
               ) : null}
             </span>
+          ) : siege.balance !== null ? (
+            <span className={cn(FIGURE, 'mt-1 flex flex-wrap items-baseline gap-x-2 text-[13px] text-sand-200/80')}>
+              balance{' '}
+              <span className={cn('text-[17px] font-semibold', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
+                {signed(siege.balance)}
+              </span>
+              {Math.abs(siege.balance) >= RULES.balanceCap ? (
+                <span className="text-sand-100">at the ±{n(RULES.balanceCap)} cap</span>
+              ) : siege.balance ? (
+                <span>for the {siege.balance > 0 ? 'attackers' : 'defenders'}</span>
+              ) : (
+                <span>even</span>
+              )}
+            </span>
           ) : null}
         </span>
       </button>
@@ -341,11 +363,15 @@ function SiegeView({
   towns,
   back,
   onFocus,
+  captures,
+  phase,
 }: {
   entry: { siege: Siege; side: SiegeSide }
   towns: SideTown[]
   back: ReactNode
   onFocus: (focus: WarFocus) => void
+  captures?: Captures
+  phase: number | null
 }) {
   const { siege, side } = entry
   const { war, liveStore } = useMaps()
@@ -387,7 +413,7 @@ function SiegeView({
       </div>
 
       {assessed ? (
-        <Scoreboard assessed={assessed} now={now} ours={ours} siege={siege} />
+        <Scoreboard assessed={assessed} captures={captures} now={now} onFocus={onFocus} ours={ours} phase={phase} siege={siege} />
       ) : (
         <div className="mx-4 mt-3 border border-sand-50/10 px-3 py-2 text-[15px] leading-snug text-sand-200/85">
           {siege.battle ? 'The battle’s first reading is on its way.' : 'No battle on just now: the score waits for the next session.'}
@@ -416,13 +442,24 @@ function Scoreboard({
   assessed,
   now,
   ours,
+  captures,
+  phase,
+  onFocus,
 }: {
   siege: Siege
   assessed: NonNullable<ReturnType<typeof assessBattle>>
   now: number
   ours: BattleSide | null
+  captures?: Captures
+  phase: number | null
+  onFocus: (focus: WarFocus) => void
 }) {
-  const { score, reading, multiplier, secondsLeft, projected, paced, behind } = assessed
+  const { score, reading, multiplier, secondsLeft, projected, paced, behind, reversals } = assessed
+  // The holders by name, when those seen capturing since the view opened are as many as the marker counts.
+  const holderNames =
+    captures && reading.banner.side && captures.holdersSide === reading.banner.side && captures.holders.length === reading.banner.holders
+      ? captures.holders.map((holder) => holder.name)
+      : null
   const lead = score ? score.attacker - score.defender : 0
   const total = score ? score.attacker + score.defender : 0
   const share = total ? score!.attacker / total : 0.5
@@ -474,6 +511,21 @@ function Scoreboard({
               `${RULES.captureMinutes} min in the zone takes it`
             )}
           </p>
+          {holderNames ? (
+            <ul className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5">
+              {holderNames.map((name) => (
+                <li key={name}>
+                  <button
+                    className={cn('font-mono text-[14px] font-semibold tracking-[0.02em] hover:underline focus-visible:outline-saffron-400', sideColour(holder))}
+                    onClick={() => onFocus({ kind: 'player', name })}
+                    type="button"
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="text-right">
           <p className={cn(FIGURE, 'text-[24px] font-semibold leading-none text-sand-50')}>{secondsLeft === null ? '–' : clockOf(secondsLeft)}</p>
@@ -483,6 +535,8 @@ function Scoreboard({
           </span>
         </div>
       </div>
+
+      <CapturesNow captures={captures} holder={holder} multiplierNext={reversalMultiplier(reversals + 1)} now={now} onFocus={onFocus} phase={phase} />
 
       {/* The balance, now and at the session's end. */}
       {projected && siege.balance !== null ? (
@@ -507,12 +561,100 @@ function Scoreboard({
               </>
             ) : null}
             .
+            {projected.overCap > 0 && ahead ? (
+              <span className="block text-sand-100">
+                At the cap: <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(projected.overCap)}</span> more would go uncounted.
+              </span>
+            ) : null}
           </p>
         </div>
       ) : null}
 
-      <Verdict ahead={ahead} behind={behind} holder={holder} ours={ours} secondsLeft={secondsLeft} sessionsLeft={projected?.sessionsLeft ?? null} siege={siege} />
-      <p className="mt-1.5 text-[12px] text-sand-300/55">Read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago.</p>
+      <Verdict
+        ahead={ahead}
+        behind={behind}
+        holder={holder}
+        ours={ours}
+        overCap={projected?.overCap ?? 0}
+        secondsLeft={secondsLeft}
+        sessionsLeft={projected?.sessionsLeft ?? null}
+        siege={siege}
+      />
+      <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-sand-300/55">
+        {/* The dot flashes as each reading lands: keyed by it, so the flash plays anew each time. */}
+        <span aria-hidden="true" className="az-live-dot" key={reading.at} />
+        Live · read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
+        {phase === null ? ' · the checks’ rhythm not yet read' : ''}.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The captures under way at the banner, each a countdown to the check
+ * that completes it (battle.ts → captureEndsAt), with what completing
+ * would mean: taking the banner, taking it back from the enemy with the
+ * bonus, or joining the holders. The one nearest completing first; a
+ * countdown at zero says "any second", since the server may need one
+ * check more. The thing to read before anything else in a fight: whoever
+ * is about to capture is whom to kill, or to cover.
+ */
+function CapturesNow({
+  captures,
+  holder,
+  multiplierNext,
+  now,
+  phase,
+  onFocus,
+}: {
+  captures?: Captures
+  holder: BattleSide | null
+  multiplierNext: number
+  now: number
+  phase: number | null
+  onFocus: (focus: WarFocus) => void
+}) {
+  const under = captures ? [...captures.under].sort((a, b) => a[1].since - b[1].since) : []
+  if (!under.length) return null
+  const meaning = (side: BattleSide) =>
+    holder === null ? 'takes the banner' : holder === side ? `joins the holders · +${RULES.pointsPerHolder} a check` : `retakes it · ×${multiplierNext}, assumed`
+  return (
+    <div className="mt-2.5 border-t border-sand-50/10 pt-2">
+      <p className={cn(EYEBROW, 'flex items-center gap-1.5 text-coral-300')}>
+        <span aria-hidden="true" className="az-capture-dot" />
+        Capturing · {under.length}
+      </p>
+      <ul className="mt-1 space-y-1.5">
+        {under.map(([name, capture]) => {
+          const ends = captureEndsAt(capture.since, phase)
+          const left = (ends - now) / 1000
+          const share = Math.max(0, Math.min(1, (now - capture.since) / Math.max(1, ends - capture.since)))
+          return (
+            <li key={name}>
+              <button className="block w-full text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={() => onFocus({ kind: 'player', name })} type="button">
+                <span className="flex items-center gap-2.5">
+                  <span className={cn('az-war-head shrink-0', `az-war-head-${capture.side}`)}>
+                    <Head name={name} px={26} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn('block truncate font-mono text-[15px] font-semibold tracking-[0.02em]', sideColour(capture.side))}>{name}</span>
+                    <span className={cn(SECOND, 'block')}>{meaning(capture.side)}</span>
+                  </span>
+                  <span className={cn(FIGURE, 'shrink-0 text-[22px] font-semibold leading-none', left <= 30 ? 'text-coral-300' : 'text-sand-50')}>
+                    {left > 0 ? clockOf(left) : 'any second'}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="mt-1 block h-1.5 bg-sand-50/10">
+                  <span
+                    className={cn('block h-full transition-[width] duration-1000 ease-linear motion-reduce:transition-none', capture.side === 'attackers' ? 'bg-(--az-atk)' : 'bg-(--az-def)')}
+                    style={{ width: `${share * 100}%` }}
+                  />
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
@@ -524,6 +666,7 @@ function Verdict({
   behind,
   holder,
   ours,
+  overCap,
   secondsLeft,
   sessionsLeft,
 }: {
@@ -532,6 +675,8 @@ function Verdict({
   behind: NonNullable<ReturnType<typeof assessBattle>>['behind']
   holder: BattleSide | null
   ours: BattleSide | null
+  /** Points of the session's margin beyond the balance cap, which the side behind may score for nothing. */
+  overCap: number
   secondsLeft: number | null
   sessionsLeft: number | null
 }) {
@@ -540,6 +685,23 @@ function Verdict({
   const good = ours === ahead
   const bad = ours === behind.side
   const minutesLeft = secondsLeft === null ? 0 : secondsLeft / 60
+  if (overCap > 0) {
+    // Past the cap, the side ahead has a cushion: what's over it is the other side's to score for nothing. The sums'
+    // holders and minutes go by the capped balance, so only the kills are said, from the whole of the margin.
+    const whole = behind.deficit + overCap
+    return (
+      <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
+        <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
+          {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}, <span className={FIGURE}>{n(overCap)}</span> over the{' '}
+          <span className={FIGURE}>{n(RULES.balanceCap)}</span> cap{good ? ': hold on.' : '.'}
+        </p>
+        <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
+          {who(behind.side)} can score <span className={cn(FIGURE, 'font-semibold')}>{n(overCap)}</span> this session before it costs {who(ahead)} anything; to come level{' '}
+          {bad ? 'Azania' : 'they'} would need <span className={cn(FIGURE, 'font-semibold')}>{n(whole)}</span>, {Math.ceil(whole / RULES.killPoints)} kills.
+        </p>
+      </div>
+    )
+  }
   const ways: string[] = [`${behind.kills} kill${behind.kills === 1 ? '' : 's'}`]
   const many = (count: number) => `${count} at the banner`
   if (behind.minutesRetaken === null) {

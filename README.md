@@ -1044,15 +1044,19 @@ which the routes insist on, so every viewer shares one copy.
   lists, so an ally the map can't place is of neither), their names
   always beside them, and their **health and armour** under the name: the
   two figures with a heart and a chestplate, bold and haloed, and a thick
-  health bar and an armour bar beneath, low health burning and pulsing. The feeds go fast while
-  the view is on: `/maps/players/live` every second and a half (the CDN
-  shares each answer for one second) and, during a battle,
-  `/maps/war/live` every half minute (shared for half a minute; the
-  marker file it comes from is some 5 MB, so no oftener), only while
-  someone has the view open; the rest of the map stays on the three-second
-  and three-minute feeds. The war store keeps each battle's readings for
-  the session (`components/maps/war.ts`), which is how the view knows what
-  the marker doesn't say.
+  health bar and an armour bar beneath, low health burning and pulsing; a
+  head capturing the banner wears a ring filling in its side's colour over
+  the five minutes, and a holder the banner's badge. The players feed goes
+  fast while the view is on: `/maps/players/live` every second and a half
+  (the CDN shares each answer for one second), only while someone has the
+  view open; the rest of the map stays on the three-second feed. The sieges
+  come with the players, every 15 seconds as SiegeWar rewrites their
+  markers, in every view (`src/lib/livePlayers.ts`; the war store takes
+  them up, `components/maps/war.ts`), and the 5 MB marker file is read
+  every half minute only when the feed goes quiet in a battle. The war
+  store keeps each battle's readings for the session, which is how the
+  view knows what the marker doesn't say: the hands the banner changed, the
+  pace of the points, and the moment SiegeWar's checks fall.
 
   The **sidebar** (`panels/WarPanel.tsx`) takes the panel's place, dark
   where the panels are sand; on a phone it is the sheet. The one question
@@ -1083,7 +1087,17 @@ which the routes insist on, so every viewer shares one copy.
   a verdict in one line, who the session's end favours and, for the side
   behind, what it takes to come level: so many kills, so many at the
   banner for the rest of the session, or taking the banner back and
-  holding it so long; each side's count at the banner and in the zone;
+  holding it so long, or, past the 7,000 cap, the cushion the side ahead
+  has (what's over the cap is the other side's to score for nothing);
+  the **captures under way** at the banner, run on the live positions
+  the way SiegeWar counts them (`stepCaptures`: a check every 20 seconds
+  at the moment the points show, five minutes in the zone, leaving at a
+  check cancels), each with a countdown to the check that completes it, a
+  bar over the five minutes, and what completing would mean, takes the
+  banner, retakes it with the bonus, or joins the holders, "any second"
+  once the countdown is out, since the server may need one check more;
+  the holders by name when those seen capturing since the view opened are
+  as many as the marker counts; each side's count at the banner and in the zone;
   and the fighters within two zones of the banner by side, lowest health
   first, each with their vitals, head and name, how far from the banner,
   and for anyone outside the zone the time back, sprinting at the game's pace or by

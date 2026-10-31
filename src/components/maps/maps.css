@@ -567,6 +567,84 @@
   animation: az-watch 1.6s ease-out infinite;
   pointer-events: none;
 }
+/*
+ * A capture under way (the war view; battle.ts → stepCaptures): a ring
+ * about the head fills in the side's colour over the five minutes to the
+ * check that completes it, the share set each second (--az-cap); a holder
+ * wears the banner's badge at the head's corner.
+ */
+.az-player[data-capturing]::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(var(--az-cap-ink, #d8962c) calc(var(--az-cap, 0) * 360deg), rgba(22, 25, 31, 0.35) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  pointer-events: none;
+}
+.az-player[data-capturing='attackers'] {
+  --az-cap-ink: #e0523a;
+}
+.az-player[data-capturing='defenders'] {
+  --az-cap-ink: #3f8ac2;
+}
+.az-player-holder {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: #d8962c;
+  box-shadow:
+    0 0 0 1.5px #fbf8f1,
+    0 1px 2px rgba(22, 25, 31, 0.5);
+  pointer-events: none;
+}
+.az-player-holder svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  padding: 2px;
+  fill: #16191f;
+}
+.az-players-war .az-player[data-holder] .az-player-holder {
+  display: block;
+}
+/* The sidebar's live dot flashes as each reading lands, and the capturing eyebrow's dot breathes. */
+.az-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #45a8b3;
+  animation: az-live-flash 1.2s ease-out both;
+}
+@keyframes az-live-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(69, 168, 179, 0.9);
+    background: #8acbd2;
+  }
+  100% {
+    box-shadow: 0 0 0 6px rgba(69, 168, 179, 0);
+  }
+}
+.az-capture-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #ff6a4a;
+  animation: az-vital-pulse 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-live-dot,
+  .az-capture-dot {
+    animation: none;
+  }
+}
 @keyframes az-watch {
   0% {
     transform: scale(0.6);
