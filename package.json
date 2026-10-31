@@ -29,6 +29,7 @@
     "test:beliefs": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-beliefs.ts",
     "test:lists": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-lists.ts",
     "test:curves": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-curves.ts",
+    "test:media-names": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-media-names.ts",
     "test:names": "cross-env NODE_OPTIONS=\"--no-deprecation --expose-gc\" tsx scripts/test-names.ts"
   },
   "dependencies": {
