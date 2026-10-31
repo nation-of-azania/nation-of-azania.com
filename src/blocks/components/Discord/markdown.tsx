@@ -185,6 +185,69 @@ const RULES: Rule[] = [
   },
 ]
 
+/**
+ * One emoji, as a grapheme: a pictograph with its presentation selector and
+ * skin tone, joined into a sequence (👨‍👩‍👧), a flag, a keycap (1️⃣) or a
+ * subdivision flag's tag sequence. A pictograph asked to show as text
+ * (U+FE0E) isn't one; nor is a bare digit, which is an emoji only in a keycap.
+ */
+const EMOJI =
+  /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?[\u{E0020}-\u{E007F}]*(?:\u200D\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?)*)$/u
+/** Whether a run of text could hold an emoji at all, before it's split into graphemes. */
+const MAYBE_EMOJI = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/u
+
+const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
+const graphemesOf = (text: string) => Array.from(graphemes.segment(text), (part) => part.segment)
+
+/** Discord shows a message of nothing but emoji this large, up to this many of them. */
+const JUMBO_MOST = 30
+
+/**
+ * Whether a message is all emoji, which Discord shows "jumbo", 48px rather
+ * than 22px: one to thirty of them, with nothing but space between.
+ */
+export function isJumbo(body: string): boolean {
+  const parts = graphemesOf(body.replace(/\s+/g, ''))
+  return parts.length > 0 && parts.length <= JUMBO_MOST && parts.every((part) => EMOJI.test(part))
+}
+
+type EmojiSize = 'inline' | 'jumbo'
+
+/**
+ * Emoji at Discord's sizes, 22px beside 16px text and 48px in a jumbo
+ * message, set on the line's bottom as Discord sets its emoji images. They
+ * are drawn by the reader's own emoji font, which draws a little larger
+ * than its size (Noto Color Emoji about 1.1 times), so the sizes are set
+ * a step under Discord's.
+ */
+const EMOJI_CLASS: Record<EmojiSize, string> = {
+  inline: 'text-[1.25em] leading-none align-bottom',
+  jumbo: 'text-[2.75rem] leading-none align-bottom',
+}
+
+/** Plain text with its emoji set at Discord's size. */
+function withEmoji(text: string, keyPrefix: string, size: EmojiSize): ReactNode[] {
+  if (!MAYBE_EMOJI.test(text)) return [text]
+  const out: ReactNode[] = []
+  let run = ''
+  let n = 0
+  for (const part of graphemesOf(text)) {
+    if (!EMOJI.test(part)) {
+      run += part
+      continue
+    }
+    if (run) out.push(run)
+    run = ''
+    out.push(
+      <span className={EMOJI_CLASS[size]} data-emoji={size} key={`${keyPrefix}-e${n++}`}>
+        {part}
+      </span>,
+    )
+  }
+  if (run) out.push(run)
+  return out
+}
+
 /** First match at or after `from` that the rule's own guard accepts. */
 function nextMatch(rule: Rule, source: string, from: number): RegExpExecArray | null {
   rule.pattern.lastIndex = from
@@ -197,7 +260,7 @@ function nextMatch(rule: Rule, source: string, from: number): RegExpExecArray | 
 }
 
 /** Renders one line's worth of text, resolving inline marks left to right. */
-function renderInline(source: string, keyPrefix: string): ReactNode[] {
+function renderInline(source: string, keyPrefix: string, emoji: EmojiSize = 'inline'): ReactNode[] {
   const out: ReactNode[] = []
   let cursor = 0
   let n = 0
@@ -210,17 +273,18 @@ function renderInline(source: string, keyPrefix: string): ReactNode[] {
     }
 
     if (!best) {
-      out.push(source.slice(cursor))
+      out.push(...withEmoji(source.slice(cursor), `${keyPrefix}-t${n++}`, emoji))
       break
     }
 
-    if (best.match.index > cursor) out.push(source.slice(cursor, best.match.index))
+    if (best.match.index > cursor) out.push(...withEmoji(source.slice(cursor, best.match.index), `${keyPrefix}-t${n++}`, emoji))
 
     const key = `${keyPrefix}-${n++}`
     const inner = best.rule.content(best.match)
     out.push(
       best.rule.render({
-        children: best.rule.recurse ? renderInline(inner, key) : inner,
+        // Code, links and mentions keep their text as typed, emoji and all, as Discord shows them.
+        children: best.rule.recurse ? renderInline(inner, key, emoji) : inner,
         key,
         match: best.match,
       }),
@@ -299,10 +363,12 @@ function toSegments(body: string): Segment[] {
 /**
  * Renders a message body. `whitespace-pre-wrap` keeps the author's own line
  * breaks, exactly as Discord does — chat is written in short lines on purpose.
+ * A message of nothing but emoji shows them jumbo, as Discord does.
  */
 export function MessageBody({ body }: { body: string }) {
   const segments = toSegments(body)
   if (segments.length === 0) return null
+  const emoji: EmojiSize = isJumbo(body) ? 'jumbo' : 'inline'
 
   return (
     <>
@@ -325,7 +391,7 @@ export function MessageBody({ body }: { body: string }) {
             <div className="my-1 flex gap-3" key={key}>
               <span aria-hidden="true" className="w-1 shrink-0 rounded-[4px] bg-dc-bar" />
               <blockquote className="min-w-0 whitespace-pre-wrap">
-                {renderInline(segment.text, key)}
+                {renderInline(segment.text, key, emoji)}
               </blockquote>
             </div>
           )
@@ -333,7 +399,7 @@ export function MessageBody({ body }: { body: string }) {
 
         return (
           <div className="whitespace-pre-wrap" key={key}>
-            {renderInline(segment.text, key)}
+            {renderInline(segment.text, key, emoji)}
           </div>
         )
       })}

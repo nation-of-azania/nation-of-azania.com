@@ -411,6 +411,8 @@ Message text takes Discord's own markdown: `**bold**`, `*italic*`,
 `__underline__`, `~~strike~~`, `` `code` ``, ```` ```code blocks``` ````,
 `> quotes`, `||spoilers||`, links, `@mentions` and `#channels`. It's parsed
 into React elements, never HTML, so a pasted message can't inject markup.
+Emoji come out at Discord's sizes: a little larger than the text in a line,
+and large ("jumbo") when a message is nothing but emoji, up to thirty.
 `pnpm test:discord` covers the parser, including that escaping.
 
 A message written in another language can carry its **translation**, in the

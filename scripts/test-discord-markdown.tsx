@@ -114,7 +114,43 @@ const CASES: Array<{ expect: RegExp[]; name: string; reject?: RegExp[]; source: 
   {
     name: 'emoji and newlines survive',
     source: 'line one 🙂\nline two',
-    expect: [/line one 🙂\nline two/],
+    expect: [/line one <span[^>]*data-emoji="inline"[^>]*>🙂<\/span>\nline two/],
+  },
+  {
+    name: 'a message of only emoji is jumbo, as Discord shows it',
+    source: '💔',
+    expect: [/data-emoji="jumbo"[^>]*>💔</],
+    reject: [/data-emoji="inline"/],
+  },
+  {
+    name: 'several emoji with spaces, a joined family and a flag are jumbo too',
+    source: '😭 👨‍👩‍👧 🇩🇪 1️⃣ ❤️',
+    expect: [/>😭</, />👨‍👩‍👧</, />🇩🇪</, />1️⃣</, />❤️</],
+    reject: [/data-emoji="inline"/],
+  },
+  {
+    name: 'emoji beside words stay inline',
+    source: 'so sad 💔',
+    expect: [/so sad <span[^>]*data-emoji="inline"[^>]*>💔<\/span>/],
+    reject: [/data-emoji="jumbo"/],
+  },
+  {
+    name: 'thirty-one emoji are too many to be jumbo',
+    source: '🙂'.repeat(31),
+    expect: [/data-emoji="inline"/],
+    reject: [/data-emoji="jumbo"/],
+  },
+  {
+    name: 'digits, and a pictograph asked to show as text, are not emoji',
+    source: '123 ☺\uFE0E',
+    reject: [/data-emoji/],
+    expect: [/123 ☺/],
+  },
+  {
+    name: 'emoji in code keep the text as typed',
+    source: '`💔`',
+    expect: [/<code[^>]*>💔<\/code>/],
+    reject: [/data-emoji/],
   },
 ]
 
