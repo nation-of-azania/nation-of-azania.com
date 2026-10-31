@@ -685,23 +685,6 @@ function Verdict({
   const good = ours === ahead
   const bad = ours === behind.side
   const minutesLeft = secondsLeft === null ? 0 : secondsLeft / 60
-  if (overCap > 0) {
-    // Past the cap, the side ahead has a cushion: what's over it is the other side's to score for nothing. The sums'
-    // holders and minutes go by the capped balance, so only the kills are said, from the whole of the margin.
-    const whole = behind.deficit + overCap
-    return (
-      <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
-        <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
-          {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}, <span className={FIGURE}>{n(overCap)}</span> over the{' '}
-          <span className={FIGURE}>{n(RULES.balanceCap)}</span> cap{good ? ': hold on.' : '.'}
-        </p>
-        <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
-          {who(behind.side)} can score <span className={cn(FIGURE, 'font-semibold')}>{n(overCap)}</span> this session before it costs {who(ahead)} anything; to come level{' '}
-          {bad ? 'Azania' : 'they'} would need <span className={cn(FIGURE, 'font-semibold')}>{n(whole)}</span>, {Math.ceil(whole / RULES.killPoints)} kills.
-        </p>
-      </div>
-    )
-  }
   const ways: string[] = [`${behind.kills} kill${behind.kills === 1 ? '' : 's'}`]
   const many = (count: number) => `${count} at the banner`
   if (behind.minutesRetaken === null) {
@@ -715,6 +698,22 @@ function Verdict({
       `take the banner back and hold it ${minutes} min with the ${behind.holders} there now${
         fits ? '' : behind.holdersNeeded !== null ? `, more than is left; ${many(behind.holdersNeeded)} would do it in time` : ', more than is left'
       }`,
+    )
+  }
+  if (overCap > 0) {
+    // Past the cap, the side ahead has a cushion: what's over it is the other side's to score for nothing. The deficit
+    // (battle.ts → assessBattle) is the whole of the margin, the cushion with it, and so are the ways to make it up.
+    return (
+      <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
+        <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
+          {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}, <span className={FIGURE}>{n(overCap)}</span> over the{' '}
+          <span className={FIGURE}>{n(RULES.balanceCap)}</span> cap{good ? ': hold on.' : '.'}
+        </p>
+        <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
+          {who(behind.side)} can score <span className={cn(FIGURE, 'font-semibold')}>{n(overCap)}</span> this session before it costs {who(ahead)} anything; to come level{' '}
+          {bad ? 'Azania' : 'they'} would need <span className={cn(FIGURE, 'font-semibold')}>{n(behind.deficit)}</span>: {ways.join(', or ')}.
+        </p>
+      </div>
     )
   }
   return (

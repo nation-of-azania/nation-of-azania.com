@@ -244,6 +244,12 @@ check(!summer.on && summer.start === Date.UTC(2026, 6, 4, 11), 'clock: 13:00 CES
   check(end !== null && Math.abs(end.points.attacker - 4340) <= 30, `the session projected to its real end, +4,340 (${end?.points.attacker})`)
   check(end?.balance === 7000 && end.overCap === 3280 + end.points.attacker - 7000, `the balance held at the cap, ${end?.overCap} points beyond it lost`)
   check(projectBattle({ balance: 0, progress: null }, late, 1, at, undefined, phase)?.overCap === 0, 'nothing lost short of the cap')
+  // Behind past the cap, the defenders must make up the whole margin: the 7,000 and what's over it.
+  const capped = assessBattle(siege({ balance: 3280 }), [late], at, { attackers: 3, defenders: 0 })
+  check(
+    capped?.behind?.side === 'defenders' && capped.behind.deficit === 7000 + (capped.projected?.overCap ?? 0) && (capped.projected?.overCap ?? 0) > 0,
+    `past the cap the deficit is the whole margin (${capped?.behind?.deficit}, ${capped?.projected?.overCap} over the cap)`,
+  )
 }
 
 // Captures, SiegeWar's way: checks at 11 s past each 20-second step, readings every 2 s, the banner at the origin.

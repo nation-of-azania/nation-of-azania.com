@@ -421,7 +421,8 @@ export function assessBattle(
   let behind: NonNullable<ReturnType<typeof assessBattle>>['behind'] = null
   if (projected && projected.balance !== null && projected.balance !== 0 && secondsLeft !== null) {
     const side: BattleSide = projected.balance > 0 ? 'defenders' : 'attackers'
-    const deficit = Math.abs(projected.balance)
+    // The whole of the margin to come level, past the cap too: what's over it must be made up first, for nothing.
+    const deficit = Math.abs(projected.balance) + projected.overCap
     const holds = reading.banner.side === side
     const enemyHolds = reading.banner.side !== null && !holds
     // A side that doesn't hold the banner earns nothing from it until it has captured it: the capture's minutes come off.
