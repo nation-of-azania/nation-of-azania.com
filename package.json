@@ -31,6 +31,7 @@
     "test:curves": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-curves.ts",
     "test:battle": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-battle.ts",
     "test:live-sieges": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-live-sieges.ts",
+    "test:quiet-watch": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-quiet-watch.ts",
     "test:media-names": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-media-names.ts",
     "test:names": "cross-env NODE_OPTIONS=\"--no-deprecation --expose-gc\" tsx scripts/test-names.ts"
   },
@@ -44,6 +45,7 @@
     "@payloadcms/ui": "3.85.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.3.0",
+    "@vercel/functions": "3.10.5",
     "cross-env": "^7.0.3",
     "deepslate": "^0.26.0",
     "dotenv": "16.4.7",

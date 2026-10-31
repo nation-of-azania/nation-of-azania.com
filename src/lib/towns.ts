@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { revalidatePath } from 'next/cache'
 import type { Payload } from 'payload'
 
@@ -75,6 +77,30 @@ function townData(town: Town, azanian: boolean, at: string) {
     outposts: town.outposts,
     syncedAt: at,
   }
+}
+
+/** What the database says to read the map by: the nations and towns the settings name, and the towns it has rows for. */
+export type TownInterest = { nations: string[]; towns: string[]; townyIds: string[] }
+
+/**
+ * A fingerprint of everything a reading of `towns` would write to the
+ * Towns collection and the census, given what the database last said
+ * (src/lib/quietWatch.ts): equal fingerprints, nothing to write. The census
+ * keeps a row a day, so the day is in it; a town with a row gone from the
+ * map is gone from the fingerprint, so that changes it too.
+ */
+export function townsMark(towns: Map<string, Town>, interest: TownInterest, day: string): string {
+  const nations = lowerNames(interest.nations.map((name) => ({ name })))
+  const listed = lowerNames(interest.towns.map((name) => ({ name })))
+  const rows = new Set(interest.townyIds)
+  const shown: string[] = []
+  for (const town of towns.values()) {
+    const azanian = Boolean((town.nation && nations.has(town.nation.toLowerCase())) || listed.has(town.name.toLowerCase()))
+    const data = townData(town, azanian, '')
+    if (!azanian && !rows.has(data.townyId)) continue
+    shown.push(shownOf({ ...data, slug: townSlug(town.name) }))
+  }
+  return createHash('sha1').update([day, ...shown.sort()].join('\n')).digest('base64url')
 }
 
 /** The reading under way in this server process, which later callers join rather than start another. */
@@ -267,6 +293,10 @@ async function readMap(payload: Payload, { force = false }: { force?: boolean })
  */
 export async function syncIfStale(payload: Payload): Promise<void> {
   try {
+    // The watch read the towns lately and found them as the database has them: as good as fresh, and the database
+    // left asleep (src/lib/quietWatch.ts). Imported here, as it imports this file.
+    const { townsCheckedWithin } = await import('./quietWatch')
+    if (await townsCheckedWithin(STALE_AFTER_MS)) return
     const settings = await payload.findGlobal({ slug: 'azania-maps', depth: 0 })
     const last = settings.syncedAt ? Date.parse(settings.syncedAt) : 0
     if (Date.now() - last < STALE_AFTER_MS) return

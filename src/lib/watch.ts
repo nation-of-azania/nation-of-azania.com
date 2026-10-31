@@ -5,10 +5,11 @@ import { nearestEnd, scheduleOf, SESSION_MS, timeLeftMs } from '../maps/sessions
 import type { HomeSide } from '../maps/sieges'
 import { abroadHref, MAPS_PATH, townHref } from '../maps/url'
 import { postWebhook, siteUrl } from './discord'
-import { FRESH_MS, readMarkerFile } from './dynmap'
+import { FRESH_MS, readMarkerFile, townsOf, type MarkerFile } from './dynmap'
 import { syncLists } from './lists'
 import type { SiegeAlertSettings } from './siegeAlerts'
 import { alertHeadline, alertMessage, planSieges, untold, watchFrom, type SiegeAlert } from './siegeWatch'
+import { dayOf, interestOf, marksOf, quietDecision, readNote, writeNote, type Marks, type QuietNote } from './quietWatch'
 import { saveSnapshot } from './snapshot'
 import { syncTowns, type SyncResult } from './towns'
 import { getWorld, warOf } from './world'
@@ -29,6 +30,10 @@ import { getWorld, warOf } from './world'
  * asked, and each thing is told once. While the map isn't answering, or
  * its file is old, nothing about the sieges changes, so an outage ends no
  * siege.
+ *
+ * Most runs find nothing changed, and those leave the database asleep: a
+ * note in Vercel's runtime cache from the last full run says, from the map
+ * alone, whether there's anything to do (src/lib/quietWatch.ts).
  */
 
 /** However often it's asked, the watch runs at most this often. */
@@ -70,36 +75,126 @@ export type WatchResult = {
   sieges?: { onMap: number; told: string[]; failed: string[] } | 'unknown'
   /** Whether this run saved the world and the war for an outage. */
   snapshot?: boolean
+  /** Why the run went to the database, or why it didn't (src/lib/quietWatch.ts). */
+  database?: string
 }
 
 type StoredWatch = { claimedAt?: unknown } & Record<string, unknown>
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/** The fingerprints of a reading (src/lib/quietWatch.ts), by what the database last said; null when the reading can't say. */
+function marksNow(file: MarkerFile, fresh: boolean, interest: QuietNote['interest'], day: string): Marks | null {
+  if (!fresh || !file.sets?.['siegewar.markerset']) return null
+  // All from the one file this run read, as the towns, the lists (worldOf) and the sieges (warOf) are.
+  const towns = townsOf(file)
+  const world = [...towns.values()].map((town) => ({
+    name: town.name,
+    nation: town.nation,
+    residents: town.residents.length,
+    people: town.kind === 'town' ? town.residents : [],
+  }))
+  return marksOf({ towns, world, sieges: warOf(file).sieges }, interest, day)
+}
+
 export async function watchMap(payload: Payload, { force = false }: { force?: boolean } = {}): Promise<WatchResult> {
   const now = new Date()
+  const note = await readNote()
+  if (!force && note && now.getTime() - note.claimedAt < WATCH_EVERY_MS) {
+    return { status: 'skipped', note: 'The map was watched a moment ago.', database: 'not asked' }
+  }
+  // Claim the run in the note before the slow part, so requests arriving meanwhile skip without waking the database.
+  if (note) await writeNote({ ...note, claimedAt: now.getTime() })
+
+  const file = await readMarkerFile(FRESH_MS).catch(() => null)
+  if (!file) return { status: 'offline', note: 'The Rulercraft map didn’t answer; nothing changed.', database: 'not asked' }
+  const fresh = typeof file.timestamp === 'number' && now.getTime() - file.timestamp < STALE_FILE_MS
+  const day = dayOf(now.getTime())
+
+  if (!force && note) {
+    const decision = quietDecision(note, now.getTime(), marksNow(file, fresh, note.interest, day))
+    if (decision.quiet) {
+      await writeNote({ ...note, claimedAt: now.getTime(), seenAt: now.getTime() })
+      return {
+        status: 'watched',
+        note: 'Nothing the site keeps or tells has changed on the map.',
+        database: `left asleep: ${decision.why}`,
+      }
+    }
+    return fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)
+  }
+  return fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')
+}
+
+/** What a full run leaves for the note: which fingerprints it brought up to date, and whether it left anything pending. */
+type Outcome = { towns: boolean; lists: boolean; sieges: boolean; pending: boolean }
+
+/** A run that goes to the database: the watch as it always was, then the note for the quiet runs after it. */
+async function fullRun(
+  payload: Payload,
+  now: Date,
+  file: MarkerFile,
+  fresh: boolean,
+  day: string,
+  note: QuietNote | null,
+  force: boolean,
+  database: string,
+): Promise<WatchResult> {
+  const outcome: Outcome = { towns: false, lists: false, sieges: false, pending: false }
+  const result = await watchFully(payload, now, file, fresh, note, force, outcome)
+  if (result.status !== 'skipped') {
+    // The note for the runs after this one, with what the database says now (it's awake for it anyway). A fingerprint
+    // this run didn't bring up to date keeps the last one, so the next run comes back to it.
+    // From an old file there are no fingerprints to take: the last ones stand, and the quiet runs say nothing
+    // can be told until the file is fresh again (src/lib/quietWatch.ts → quietDecision).
+    const interest = await interestOf(payload).catch(() => null)
+    if (interest) {
+      const marks = marksNow(file, fresh, interest, day)
+      const kept = note?.marks ?? { towns: '', lists: '', sieges: '' }
+      await writeNote({
+        claimedAt: now.getTime(),
+        fullAt: now.getTime(),
+        seenAt: now.getTime(),
+        day,
+        marks: {
+          towns: marks && outcome.towns ? marks.towns : kept.towns,
+          lists: marks && outcome.lists ? marks.lists : kept.lists,
+          sieges: marks && outcome.sieges ? marks.sieges : kept.sieges,
+        },
+        interest,
+        pending: outcome.pending,
+      })
+    }
+  }
+  return { ...result, database }
+}
+
+async function watchFully(
+  payload: Payload,
+  now: Date,
+  file: MarkerFile,
+  fresh: boolean,
+  note: QuietNote | null,
+  force: boolean,
+  outcome: Outcome,
+): Promise<WatchResult> {
   const settings = await payload.findGlobal({ slug: 'azania-maps', depth: 0 })
   const stored = (settings.siegeWatch ?? null) as StoredWatch | null
   const claimed = typeof stored?.claimedAt === 'string' ? Date.parse(stored.claimedAt) : 0
-  if (!force && now.getTime() - claimed < WATCH_EVERY_MS) {
-    return { status: 'skipped', note: 'The map was watched a moment ago.' }
-  }
+  // Two full runs at once (two callers reading the note before either claimed, or no note): the second skips, as ever.
+  if (!force && now.getTime() - claimed < WATCH_EVERY_MS) return { status: 'skipped', note: 'The map was watched a moment ago.' }
   // Claim the run before the slow part, so requests arriving meanwhile skip; what the
   // record holds stays as it was, the first run's having none.
   const save = (value: Record<string, unknown>) =>
     payload.updateGlobal({ slug: 'azania-maps', data: { siegeWatch: { ...value, claimedAt: now.toISOString() } }, depth: 0 })
   await save(stored ?? {})
 
-  const file = await readMarkerFile(FRESH_MS).catch(() => null)
-  if (!file) return { status: 'offline', note: 'The Rulercraft map didn’t answer; nothing changed.' }
-
   // Azania's towns first, so the sieges are judged by the latest reading of them.
   const towns = await syncTowns(payload).catch((error: unknown): SyncResult => {
     payload.logger.error({ err: error, msg: 'Azania Maps: reading the towns failed' })
     return { status: 'offline', note: 'Reading the towns failed.' }
   })
-
-  const fresh = typeof file.timestamp === 'number' && now.getTime() - file.timestamp < STALE_FILE_MS
+  outcome.towns = towns.status === 'synced'
 
   // Who lives where, for the lists: only from a fresh reading, so an old file moves nobody on or off a list.
   const listed = fresh ? await getWorld() : null
@@ -109,6 +204,7 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
         return null
       }))?.changed ?? 'unknown'
     : 'unknown'
+  outcome.lists = Array.isArray(lists)
   const listNote = Array.isArray(lists) && lists.length ? ` Lists: ${lists.join('; ')}.` : ''
 
   if (!file.sets?.['siegewar.markerset'] || !fresh) {
@@ -129,7 +225,13 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
   const { sieges } = war
   // Azania's allies, as its diplomacy has them (Settings → Azania Maps, or a nation's panel on the map).
   const allies = (settings.relations ?? []).filter((relation) => relation.stance === 'ally' && relation.nation?.trim()).map((relation) => relation.nation.trim())
-  const { watch, alerts } = planSieges(watchFrom(stored), sieges, home, alertSettings, now, allies)
+  // The quiet runs since the last full one saw every siege still on the map: they were last seen then, not at that run.
+  const previous = watchFrom(stored)
+  const seenAt = note && note.seenAt > note.fullAt ? new Date(note.seenAt).toISOString() : null
+  if (previous && seenAt) {
+    previous.sieges = previous.sieges.map((entry) => (entry.missing || entry.lastSeen >= seenAt ? entry : { ...entry, lastSeen: seenAt }))
+  }
+  const { watch, alerts } = planSieges(previous, sieges, home, alertSettings, now, allies)
 
   // The world and the war as read now, saved every quarter of an hour for when the map is down (src/lib/snapshot.ts).
   const world = await getWorld()
@@ -192,6 +294,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
     }
   }
   await save(kept)
+  outcome.sieges = true
+  // A siege gone from the map has its end told minutes later; an alert put back is tried again: the next runs must be full.
+  outcome.pending = kept.sieges.some((entry) => Boolean(entry.missing)) || alerts.length > told.length
 
   const onMap = sieges.length
   const saying = [`${onMap} on the map`, told.length ? `${told.length} told` : null, failed.length ? `${failed.length} to try again` : null]
