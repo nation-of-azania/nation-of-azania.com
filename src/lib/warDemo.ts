@@ -175,5 +175,10 @@ export async function demoPlayers(now: number): Promise<LivePlayers> {
   place(cast.defenders, Math.PI, 10)
   cast.others.forEach((name, index) => add(name, around(banner, 150 + index * 60, t / 60 + index), index + 3))
   players.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
-  return { at: now, online: players.length + 4, players }
+  // The siege as its marker was last rewritten, every fifteen seconds, as the real feed carries it (src/lib/livePlayers.ts).
+  const markedAt = Math.floor(now / MARKER_EVERY_MS) * MARKER_EVERY_MS
+  return { at: now, online: players.length + 4, players, sieges: [{ ...siegeAt(cast.siege, markedAt), markedAt }] }
 }
+
+/** How often SiegeWar rewrites a siege's marker, as seen in a battle. */
+const MARKER_EVERY_MS = 15_000

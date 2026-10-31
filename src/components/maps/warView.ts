@@ -1,8 +1,12 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
-import { sessionClock } from '@/maps/battle'
+import { NO_CAPTURES, sessionClock, stepCaptures, type Captures, type PlayerSide } from '@/maps/battle'
+import type { Siege } from '@/maps/world'
+
+import { useLatest, type Store } from './hooks'
+import type { LiveState } from './live'
 
 /**
  * The war view's own state and small hooks (the view itself is
@@ -91,4 +95,47 @@ export function sessionWords(now: number): { on: boolean; seconds: number; headl
   const seconds = (session.start - now) / 1000
   const at = new Date(session.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   return { on: false, seconds, headline: `in ${spanWords(seconds)}`, detail: `the next battle session, at ${at}` }
+}
+
+/**
+ * The captures under way at the war view's siege, and the holders seen
+ * capturing (src/maps/battle.ts → stepCaptures), run on every live reading
+ * of the players while a battle is on. Kept outside React, and given to it
+ * only when someone starts, stops or completes a capture, so a reading
+ * every second and a half re-renders nothing. Starts afresh for another
+ * siege, and when a battle ends.
+ */
+export function useCaptures(
+  store: Store<LiveState>,
+  siege: Pick<Siege, 'townId' | 'at' | 'battle'> | null,
+  phase: number | null,
+  sideOfName: (name: string) => PlayerSide | null,
+): Captures {
+  // Keyed by the siege they were run for: another siege, or none, shows none until its own come.
+  const [shown, setShown] = useState<{ key: string | null; captures: Captures }>({ key: null, captures: NO_CAPTURES })
+  const townId = siege?.battle ? siege.townId : null
+  const bannerX = siege?.at[0] ?? 0
+  const bannerZ = siege?.at[1] ?? 0
+  const phaseRef = useLatest(phase)
+  const sideRef = useLatest(sideOfName)
+  useEffect(() => {
+    if (!townId) return
+    let captures = NO_CAPTURES
+    let summary = ''
+    const take = () => {
+      const { players, at, status } = store.get()
+      if (status !== 'live' || at <= captures.at) return
+      captures = stepCaptures(captures, { at, players }, [bannerX, bannerZ], phaseRef.current, sideRef.current)
+      const next = [
+        [...captures.under].map(([name, capture]) => `${name}:${capture.since}`).join(),
+        captures.holders.map((holder) => holder.name).join(),
+      ].join('|')
+      if (next === summary) return
+      summary = next
+      setShown({ key: townId, captures })
+    }
+    take()
+    return store.subscribe(take)
+  }, [store, townId, bannerX, bannerZ, phaseRef, sideRef])
+  return shown.key === townId ? shown.captures : NO_CAPTURES
 }

@@ -26,6 +26,13 @@ import {
   sideOf,
   toTurnAround,
   type BattleReading,
+  tickPhaseOf,
+  checksBetween,
+  checkAtOrAfter,
+  stepCaptures,
+  captureEndsAt,
+  NO_CAPTURES,
+  type PlayerSide,
 } from '../src/maps/battle'
 import type { LivePlayer } from '../src/maps/players'
 import type { Siege } from '../src/maps/world'
@@ -204,6 +211,75 @@ const night = sessionClock(Date.UTC(2026, 10, 1, 23, 10))
 check(!night.on && night.start === Date.UTC(2026, 11 - 1, 2, 0), 'clock: 01:00 CET is midnight UTC')
 const summer = sessionClock(Date.UTC(2026, 6, 4, 10))
 check(!summer.on && summer.start === Date.UTC(2026, 6, 4, 11), 'clock: 13:00 CEST is 11:00 UTC')
+
+// The checks' rhythm, read off the real battle (Cyprus, 31 October 2026, from 18:05:00 UTC): markers every 15 s,
+// the attackers holding with two, +20 a tick. Each: [ms after 18:05:00, attacker's points, holders, minutes left].
+{
+  const base = 1793469900000
+  const real: [number, number, number, number][] = [
+    [38083, 100, 2, 54.6], [53083, 120, 2, 54.3], [68083, 120, 2, 54.1], [83083, 140, 2, 53.8], [98083, 160, 2, 53.6],
+    [113083, 180, 2, 53.3], [128113, 180, 2, 53.1], [143083, 200, 2, 52.8], [158083, 220, 2, 52.6], [173083, 240, 2, 52.3],
+    [188433, 240, 2, 52.1], [203433, 260, 2, 51.8], [218433, 280, 2, 51.6], [233433, 300, 2, 51.3], [248433, 300, 2, 51.1],
+    [263433, 320, 2, 50.8], [278433, 340, 2, 50.6], [293434, 360, 2, 50.3], [308433, 360, 2, 50.1], [323434, 380, 2, 49.8],
+    [338433, 400, 2, 49.6], [353433, 420, 2, 49.3], [368436, 420, 2, 49.1], [383442, 440, 2, 48.8], [398433, 460, 2, 48.6],
+  ]
+  const readings: BattleReading[] = real.map(([ms, points, holders, minutes]) => ({
+    at: base + ms,
+    banner: { side: 'attackers', holders },
+    points: { attacker: points, defender: 0 },
+    secondsLeft: Math.round(minutes * 60),
+  }))
+  const phase = tickPhaseOf(readings)
+  check(phase !== null && phase > 8000 && phase < 13500, `the checks fall about 10 s past each 20-second step, as seen (${phase} ms)`)
+  const from = readings[1]
+  check(scoreNow(from, 1, base + 68083, phase)?.attacker === 120 && scoreNow(from, 1, base + 83083, phase)?.attacker === 140, 'with it, the score rises on the very check: none before 68 s, one by 83 s')
+  check(tickPhaseOf(readings.slice(0, 4)) === null, 'too few readings say nothing')
+  check(checksBetween(base, base + 60_000, 11_000) === 3 && checkAtOrAfter(base + 11_001, 11_000) === base + 31_000, 'three checks a minute, on the phase')
+
+  // From the reading of 18:28:23 (the third holder just in, +1,460, 31.8 minutes left), the session ended at +4,340 and the
+  // balance at the cap: 3,280 + 4,340 would have been 7,620.
+  const at = 1793471303583
+  const late: BattleReading = { at, banner: { side: 'attackers', holders: 3 }, points: { attacker: 1460, defender: 0 }, secondsLeft: 1908 }
+  const end = projectBattle({ balance: 3280, progress: { done: 1, of: 3 } }, late, 1, at, undefined, phase)
+  check(end !== null && Math.abs(end.points.attacker - 4340) <= 30, `the session projected to its real end, +4,340 (${end?.points.attacker})`)
+  check(end?.balance === 7000 && end.overCap === 3280 + end.points.attacker - 7000, `the balance held at the cap, ${end?.overCap} points beyond it lost`)
+  check(projectBattle({ balance: 0, progress: null }, late, 1, at, undefined, phase)?.overCap === 0, 'nothing lost short of the cap')
+}
+
+// Captures, SiegeWar's way: checks at 11 s past each 20-second step, readings every 2 s, the banner at the origin.
+{
+  const base = 1793469900000
+  const phase = 11_000
+  const sides: Record<string, PlayerSide> = { A: 'attackers', B: 'attackers', D: 'defenders', O: 'other' }
+  const sideOfName = (name: string) => sides[name] ?? null
+  type Spot = { name: string; x: number; z: number; health: number | null }
+  const run = (from: number, to: number, where: (t: number) => Spot[], start = NO_CAPTURES) => {
+    let captures = start
+    for (let t = from; t <= to; t += 2000) captures = stepCaptures(captures, { at: base + t, players: where(t) }, [0, 0], phase, sideOfName)
+    return captures
+  }
+  const at = (name: string, x = 3): Spot => ({ name, x, z: 0, health: 20 })
+  // A in the zone from 5 s on, but for 52–58 s, between the checks at 51 and 71 s: unseen.
+  const a = run(0, 320_000, (t) => [t >= 5000 && !(t >= 52_000 && t <= 58_000) ? at('A') : at('A', 300), at('O')])
+  check(a.holdersSide === 'attackers' && a.holders.map((h) => h.name).join() === 'A', 'a capture completes on the check five minutes after the first that found them')
+  check(captureEndsAt(base + 11_000, phase) === base + 311_000, 'begun on the check at 11 s, it completes on the one at 311 s')
+  const early = run(0, 310_000, (t) => [t >= 5000 ? at('A') : at('A', 300)])
+  check(early.holders.length === 0 && early.under.get('A')?.since === base + 11_000, 'not a check sooner')
+  // Out of the zone over the check at 71 s: the capture starts again on the next that finds them (91 s), and so ends at 391 s.
+  const broken = run(0, 389_000, (t) => [t >= 5000 && !(t >= 70_000 && t <= 72_000) ? at('A') : at('A', 300)])
+  check(broken.holders.length === 0 && broken.under.get('A')?.since === base + 91_000, 'leaving the zone on a check ends the capture; it starts again')
+  check(run(0, 392_000, (t) => [t >= 5000 && !(t >= 70_000 && t <= 72_000) ? at('A') : at('A', 300)]).holders.length === 1, 'and completes five minutes after that')
+  check(run(0, 400_000, () => [at('O')]).under.size === 0, 'anyone of neither side captures nothing')
+  check(run(0, 400_000, () => [{ ...at('A'), health: 0 }]).under.size === 0, 'nor the dead')
+  // B joins the attackers' holders; then D, a defender, completes a capture: the banner is the defenders', D its only holder.
+  const both = run(0, 420_000, (t) => [at('A'), ...(t >= 30_000 ? [at('B')] : []), ...(t >= 100_000 ? [at('D')] : [])])
+  check(both.holdersSide === 'defenders' && both.holders.map((h) => h.name).join() === 'D', 'an enemy capture takes the banner: the holders are theirs alone')
+  const joined = run(0, 340_000, (t) => [at('A'), ...(t >= 30_000 ? [at('B')] : [])])
+  check(joined.holders.map((h) => h.name).join() === 'A,B', 'a second capture of the same side joins the holders')
+  check(run(0, 330_000, (t) => [at('A')]).under.has('A') === false, 'a holder captures no more')
+  const gap = run(0, 100_000, (t) => [at('A')])
+  check(stepCaptures(gap, { at: base + 400_000, players: [at('A')] }, [0, 0], phase, sideOfName).under.get('A')?.since === base + 391_000, 'after a gap in the readings a capture starts afresh')
+}
 
 if (failed) {
   console.error('\nSome checks failed.')

@@ -16,6 +16,7 @@ import {
   type AtSiege,
   type BattleSide,
   type PlayerSide,
+  type Captures,
 } from '@/maps/battle'
 import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
@@ -85,6 +86,10 @@ export type WarPanelProps = {
   follow: boolean
   onFollow: (on: boolean) => void
   onLeave: () => void
+  /** The captures of the view's siege under way, and its holders as seen capturing (battle.ts → stepCaptures). */
+  captures?: Captures
+  /** When SiegeWar's checks fall for the view's siege (battle.ts → tickPhaseOf); null until its readings say. */
+  phase?: number | null
 }
 
 export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onLeave }: WarPanelProps) {

@@ -1,4 +1,5 @@
 import { WORLD_LIMIT } from './geo'
+import type { Siege } from './world'
 
 /**
  * Who is on the Rulercraft server and where, as the map's live feed has it
@@ -22,6 +23,14 @@ export type LivePlayer = {
   armor: number | null
 }
 
+/**
+ * A siege as SiegeWar last rewrote its marker (every 15 seconds), which the
+ * map's live feed passes on as it happens: the same fields as the war's
+ * (src/maps/world.ts → Siege), and when the marker was written. The town's
+ * nation isn't in the marker; the war's own reading supplies it.
+ */
+export type LiveSiege = Siege & { markedAt: number }
+
 export type LivePlayers = {
   /** When the server answered, in ms since the epoch: the map's own clock. */
   at: number
@@ -29,6 +38,13 @@ export type LivePlayers = {
   online: number | null
   /** Those on the map, in the main world. */
   players: LivePlayer[]
+  /**
+   * Every siege whose marker the feed has carried in the last minute, as
+   * last written: the score, the banner and the time left fresh to fifteen
+   * seconds, without the map's 5 MB marker file (src/lib/livePlayers.ts).
+   * Absent from an answer the feed carried none in.
+   */
+  sieges?: LiveSiege[]
   /** True when the map didn't answer; the list is then empty. */
   offline?: boolean
 }

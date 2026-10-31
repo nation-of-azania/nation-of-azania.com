@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 
-import { LIVE_PLAYERS_EVERY_MS, PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers } from '@/maps/players'
+import { LIVE_PLAYERS_EVERY_MS, PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers, type LiveSiege } from '@/maps/players'
 
 import { createStore, type Store } from './hooks'
 import { HIDDEN_FOR_MS, steadyTimeout } from './steady'
@@ -27,9 +27,11 @@ export type LiveState = {
   status: 'off' | 'asking' | 'live' | 'down'
   /** How often the feed is asked just now, in ms: a head glides from one reading to the next over this. */
   every: number
+  /** The sieges as their markers were last rewritten, which the feed carries too (./war.ts takes them up); empty when it carried none. */
+  sieges: LiveSiege[]
 }
 
-const OFF: LiveState = { players: [], online: null, at: 0, status: 'off', every: PLAYERS_EVERY_MS }
+const OFF: LiveState = { players: [], online: null, at: 0, status: 'off', every: PLAYERS_EVERY_MS, sieges: [] }
 /** While the map is down, each ask waits twice as long as the last, up to this. */
 const LONGEST_WAIT_MS = 60_000
 
@@ -46,10 +48,26 @@ const isPlayer = (value: unknown): value is LivePlayer => {
 
 const stat = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 
+/** A siege as the route passes it on, with what the war needs of it there: anything less is left out. */
+const isLiveSiege = (value: unknown): value is LiveSiege => {
+  const siege = value as LiveSiege
+  return (
+    Boolean(siege) &&
+    typeof siege.townId === 'string' &&
+    typeof siege.markedAt === 'number' &&
+    typeof siege.attacker === 'string' &&
+    typeof siege.defender === 'string' &&
+    Array.isArray(siege.at) &&
+    typeof siege.at[0] === 'number' &&
+    typeof siege.at[1] === 'number' &&
+    typeof siege.battle === 'boolean'
+  )
+}
+
 /** The answer as the route gives it, with anything odd left out rather than trusted; health and armour null where an older answer has none. */
 function readAnswer(body: unknown, every: number): LiveState {
   const answer = (body ?? {}) as Partial<LivePlayers>
-  if (answer.offline) return { players: [], online: null, at: Date.now(), status: 'down', every }
+  if (answer.offline) return { players: [], online: null, at: Date.now(), status: 'down', every, sieges: [] }
   return {
     players: Array.isArray(answer.players)
       ? answer.players.filter(isPlayer).map((player) => ({ ...player, health: stat(player.health), armor: stat(player.armor) }))
@@ -58,6 +76,7 @@ function readAnswer(body: unknown, every: number): LiveState {
     at: typeof answer.at === 'number' ? answer.at : Date.now(),
     status: 'live',
     every,
+    sieges: Array.isArray(answer.sieges) ? answer.sieges.filter(isLiveSiege) : [],
   }
 }
 
@@ -110,7 +129,7 @@ export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: bool
         wait = next.status === 'down' ? Math.min(Math.max(wait, every) * 2, LONGEST_WAIT_MS) : every
       } catch {
         if (cancelled) return
-        store.set({ players: [], online: null, at: Date.now(), status: 'down', every })
+        store.set({ players: [], online: null, at: Date.now(), status: 'down', every, sieges: [] })
         wait = Math.min(Math.max(wait, every) * 2, LONGEST_WAIT_MS)
       } finally {
         inFlight = false

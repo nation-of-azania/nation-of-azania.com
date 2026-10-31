@@ -197,13 +197,70 @@ export function multiplierObserved(readings: BattleReading[]): number | null {
   return best
 }
 
-/** The score a reading leads to by `now`, the banner earning as it does; kills can't be foreseen. */
-export function scoreNow(reading: BattleReading, multiplier: number, now: number): { attacker: number; defender: number } | null {
+const TICK_MS = RULES.tickSeconds * 1000
+
+/** SiegeWar's checks in (from, to], when they fall at `phase` ms past each 20-second step since the epoch. */
+export const checksBetween = (from: number, to: number, phase: number): number =>
+  to <= from ? 0 : Math.floor((to - phase) / TICK_MS) - Math.floor((from - phase) / TICK_MS)
+
+/** The first of SiegeWar's checks at or after `at`. */
+export const checkAtOrAfter = (at: number, phase: number): number => Math.ceil((at - phase) / TICK_MS) * TICK_MS + phase
+
+/**
+ * When SiegeWar's checks fall, as a battle's readings show it: the server
+ * does everything on Towny's short tick, every 20 seconds at the same
+ * moment (seen in a battle: about 10 s past each 20-second step), and the
+ * banner's points rise only then. Between two readings a tick apart or
+ * less, with the same holders, the points either rose by a tick's worth or
+ * didn't; the moment that agrees with the most of them is the phase, in ms
+ * past each 20-second step since the epoch. Kills (hundreds) are left
+ * out. Null until enough readings say it plainly.
+ */
+export function tickPhaseOf(readings: BattleReading[]): number | null {
+  const pairs: { from: number; to: number; ticked: boolean }[] = []
+  for (let index = 1; index < readings.length; index++) {
+    const [a, b] = [readings[index - 1], readings[index]]
+    const side = b.banner.side
+    if (!side || a.banner.side !== side || a.banner.holders !== b.banner.holders || !a.points || !b.points) continue
+    const gap = b.at - a.at
+    if (gap <= 0 || gap > TICK_MS) continue
+    const key = side === 'attackers' ? 'attacker' : 'defender'
+    const gained = b.points[key] - a.points[key]
+    if (gained === 0) pairs.push({ from: a.at, to: b.at, ticked: false })
+    else if (gained > 0 && gained % RULES.killPoints !== 0) pairs.push({ from: a.at, to: b.at, ticked: true })
+  }
+  if (pairs.length < 6) return null
+  let best: number[] = []
+  let bestScore = -1
+  for (let phase = 0; phase < TICK_MS; phase += 250) {
+    const score = pairs.filter((pair) => checksBetween(pair.from, pair.to, phase) > 0 === pair.ticked).length
+    if (score > bestScore) [best, bestScore] = [[phase], score]
+    else if (score === bestScore) best.push(phase)
+  }
+  if (bestScore < pairs.length * 0.9) return null
+  // The middle of the moments that agree best; they run in one stretch, unless it wraps past the step's end.
+  const wraps = best.length > 1 && best[0] === 0 && best.at(-1) === TICK_MS - 250
+  const run = wraps ? best.map((phase) => (phase < TICK_MS / 2 ? phase + TICK_MS : phase)) : best
+  return Math.round(run.reduce((sum, phase) => sum + phase, 0) / run.length) % TICK_MS
+}
+
+/**
+ * The score a reading leads to by `now`, the banner earning as it does;
+ * kills can't be foreseen. With the checks' phase (tickPhaseOf), the
+ * points rise on the very checks the server makes; without it, every 20
+ * seconds from the reading.
+ */
+export function scoreNow(
+  reading: BattleReading,
+  multiplier: number,
+  now: number,
+  phase: number | null = null,
+): { attacker: number; defender: number } | null {
   if (!reading.points) return null
   const elapsed = Math.max(0, (now - reading.at) / 1000)
   const left = reading.secondsLeft
   const running = left === null ? 0 : Math.min(elapsed, left)
-  const ticks = Math.floor(running / RULES.tickSeconds)
+  const ticks = phase === null ? Math.floor(running / RULES.tickSeconds) : checksBetween(reading.at, reading.at + running * 1000, phase)
   const gained = reading.banner.side ? reading.banner.holders * RULES.pointsPerHolder * multiplier * ticks : 0
   return {
     attacker: reading.points.attacker + (reading.banner.side === 'attackers' ? gained : 0),
@@ -229,20 +286,29 @@ export function projectBattle(
   multiplier: number,
   now: number,
   kills: { attacker: number; defender: number } = { attacker: 0, defender: 0 },
-): { points: { attacker: number; defender: number }; balance: number | null; sessionsLeft: number | null } | null {
-  const current = scoreNow(reading, multiplier, now)
+  phase: number | null = null,
+): {
+  points: { attacker: number; defender: number }
+  balance: number | null
+  sessionsLeft: number | null
+  /** Points of the session's margin the cap would leave uncounted (seen in a battle: the balance stops at ±7,000). */
+  overCap: number
+} | null {
+  const current = scoreNow(reading, multiplier, now, phase)
   const left = secondsLeftNow(reading, now)
   if (!current || left === null) return null
-  const ticks = Math.floor(left / RULES.tickSeconds)
+  const ticks = phase === null ? Math.floor(left / RULES.tickSeconds) : checksBetween(now, now + left * 1000, phase)
   const banner = reading.banner.side ? reading.banner.holders * RULES.pointsPerHolder * multiplier * ticks : 0
   const minutes = left / 60
   const points = {
     attacker: Math.round(current.attacker + (reading.banner.side === 'attackers' ? banner : 0) + kills.attacker * minutes * RULES.killPoints),
     defender: Math.round(current.defender + (reading.banner.side === 'defenders' ? banner : 0) + kills.defender * minutes * RULES.killPoints),
   }
-  const balance = siege.balance === null ? null : capped(siege.balance + points.attacker - points.defender)
+  const uncapped = siege.balance === null ? null : siege.balance + points.attacker - points.defender
+  const balance = uncapped === null ? null : capped(uncapped)
+  const overCap = uncapped === null ? 0 : Math.max(0, Math.abs(uncapped) - RULES.balanceCap)
   const sessionsLeft = siege.progress ? Math.max(0, siege.progress.of - siege.progress.done - 1) : null
-  return { points, balance, sessionsLeft }
+  return { points, balance, sessionsLeft, overCap }
 }
 
 /**
@@ -318,6 +384,8 @@ export function assessBattle(
 ): {
   reading: BattleReading
   multiplier: { value: number; source: MultiplierSource }
+  /** When SiegeWar's checks fall (tickPhaseOf); null until the readings say. */
+  phase: number | null
   reversals: number
   score: { attacker: number; defender: number } | null
   secondsLeft: number | null
@@ -344,11 +412,12 @@ export function assessBattle(
     observed !== null
       ? { value: observed, source: 'observed' as const }
       : { value: reversalMultiplier(seen.reversals), source: seen.complete ? ('inferred' as const) : ('assumed' as const) }
-  const score = scoreNow(reading, multiplier.value, now)
+  const phase = tickPhaseOf(readings)
+  const score = scoreNow(reading, multiplier.value, now, phase)
   const secondsLeft = secondsLeftNow(reading, now)
-  const projected = projectBattle(siege, reading, multiplier.value, now)
+  const projected = projectBattle(siege, reading, multiplier.value, now, undefined, phase)
   const pace = killPaceObserved(readings, multiplier.value)
-  const paced = pace && (pace.attacker > 0 || pace.defender > 0) ? projectBattle(siege, reading, multiplier.value, now, pace) : null
+  const paced = pace && (pace.attacker > 0 || pace.defender > 0) ? projectBattle(siege, reading, multiplier.value, now, pace, phase) : null
   let behind: NonNullable<ReturnType<typeof assessBattle>>['behind'] = null
   if (projected && projected.balance !== null && projected.balance !== 0 && secondsLeft !== null) {
     const side: BattleSide = projected.balance > 0 ? 'defenders' : 'attackers'
@@ -373,7 +442,7 @@ export function assessBattle(
       minutesRetaken: enemyHolds && turn ? turn.minutesRetaken : null,
     }
   }
-  return { reading, multiplier, reversals: seen.reversals, score, secondsLeft, projected, pace, paced, behind }
+  return { reading, multiplier, reversals: seen.reversals, score, secondsLeft, projected, pace, paced, behind, phase }
 }
 
 /** Where a player stands to a siege, by their town's and nation's part in it. */
@@ -493,4 +562,86 @@ export function sessionClock(now: number): { on: boolean; start: number; end: nu
     return { on: start <= now, start, end }
   }
   return { on: false, start: base + 6 * hour, end: base + 7 * hour }
+}
+
+/**
+ * Captures of a siege's banner as SiegeWar counts them (its code, and seen
+ * in a battle), run on the live positions: at each of the server's checks
+ * a player of either side in the banner zone, alive, who isn't capturing
+ * and doesn't hold the banner starts; one who has left the zone, or the
+ * map, stops; and one still in it on the check five minutes after the one
+ * that started them completes, so their side takes the banner (they its
+ * only holder; the enemy's holders lose it) or they join its holders.
+ * Anyone of neither side is the server's to remove, and captures nothing.
+ * The zone's radius is SiegeWar's default, an estimate (ASSUMED); the
+ * holders are those seen completing a capture since the view opened.
+ */
+export type Captures = {
+  /** When the last live reading was taken in, and who of either side stood in the banner zone in it. */
+  at: number
+  zone: Map<string, BattleSide>
+  /** Captures under way: who, of which side, from which check. */
+  under: Map<string, { side: BattleSide; since: number }>
+  /** The banner's holders as seen capturing, and their side. */
+  holders: { name: string; side: BattleSide }[]
+  holdersSide: BattleSide | null
+}
+
+export const NO_CAPTURES: Captures = { at: 0, zone: new Map(), under: new Map(), holders: [], holdersSide: null }
+
+/** A capture completes on the check this long after the one that started it; a second's grace for the server's own timing. */
+const CAPTURE_MS = RULES.captureMinutes * 60_000 - 1000
+
+/**
+ * When a capture begun on the check at `since` completes: on the check five
+ * minutes on, or, as SiegeWar counts whole seconds and its checks drift by
+ * a fraction, one check later (seen in a battle: one capture of each).
+ */
+export const captureEndsAt = (since: number, phase: number | null): number =>
+  phase === null ? since + RULES.captureMinutes * 60_000 : checkAtOrAfter(since + CAPTURE_MS, phase)
+
+export function stepCaptures(
+  captures: Captures,
+  reading: { at: number; players: Pick<LivePlayer, 'name' | 'x' | 'z' | 'health'>[] },
+  banner: Point,
+  phase: number | null,
+  sideOfName: (name: string) => PlayerSide | null,
+): Captures {
+  // A gap of more than two checks (the tab asleep, the feed down): what happened in it is unknown, so no capture runs on through it.
+  const gap = captures.at > 0 && reading.at - captures.at > 2 * TICK_MS
+  const from = gap || captures.at === 0 ? reading.at - TICK_MS : captures.at
+  const checks: number[] = []
+  if (phase === null) checks.push(reading.at)
+  else for (let check = checkAtOrAfter(from + 1, phase); check <= reading.at; check += TICK_MS) checks.push(check)
+  const base = gap ? { ...captures, under: new Map<string, { side: BattleSide; since: number }>() } : captures
+  const inZone = new Map<string, BattleSide>()
+  for (const player of reading.players) {
+    if (player.health === 0 || distance([player.x, player.z], banner) > RULES.bannerRadius) continue
+    const side = sideOfName(player.name)
+    if (side === 'attackers' || side === 'defenders') inZone.set(player.name, side)
+  }
+  if (!checks.length) return { ...base, at: reading.at, zone: inZone }
+
+  const under = new Map(base.under)
+  let holders = base.holders
+  let holdersSide = base.holdersSide
+  for (const check of checks) {
+    // Who stood in the zone at the check, as far as the readings either side of it tell: the checks' moment is known to a
+    // second or two (tickPhaseOf), so a player in the zone in either counts as in it; one out of it in both is out.
+    const zone = !gap && base.at > 0 ? new Map([...inZone, ...base.zone]) : inZone
+    for (const name of [...under.keys()]) if (!zone.has(name)) under.delete(name)
+    for (const [name, side] of zone) {
+      if (holdersSide === side && holders.some((holder) => holder.name === name)) continue
+      const capture = under.get(name)
+      if (!capture) {
+        under.set(name, { side, since: check })
+        continue
+      }
+      if (check - capture.since < CAPTURE_MS) continue
+      under.delete(name)
+      if (holdersSide === side) holders = [...holders, { name, side }]
+      else [holders, holdersSide] = [[{ name, side }], side]
+    }
+  }
+  return { at: reading.at, zone: inZone, under, holders, holdersSide }
 }

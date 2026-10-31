@@ -16,7 +16,7 @@ import {
 
 import { cn } from '@/blocks/components/shared'
 import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, sameNation, worldSlug, type Abroad } from '@/maps/abroad'
-import { RULES } from '@/maps/battle'
+import { RULES, tickPhaseOf } from '@/maps/battle'
 import {
   heartland,
   townFit,
@@ -97,7 +97,7 @@ import { WhatsOnStrip } from './ui/WhatsOn'
 import { Wordmark } from './ui/Wordmark'
 import { SiegeBadge } from './ui/Siege'
 import { useWar } from './war'
-import type { WarFocus } from './warView'
+import { useCaptures, type WarFocus } from './warView'
 import { useWorld } from './world'
 
 import './maps.css'
@@ -396,7 +396,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
     [worldState.world, data.towns],
   )
   // The war: asked for at once and every few minutes while the tab is seen, every half minute in the war view during a battle; a siege is always shown.
-  const war = useWar({ live: warOn })
+  // The sieges come with the players too, every fifteen seconds, from the map's live feed (./live.ts): the war store takes them up.
+  const war = useWar({ live: warOn, feed: liveStore })
   const [chosenSiege, setSiegeOpen] = useState<string | null>(null)
   // A siege that has ended takes its card with it.
   const siegeOpen = chosenSiege && war.sieges.some((siege) => siege.townId === chosenSiege) ? chosenSiege : null
@@ -639,6 +640,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
   )
   const viewSiegeObject = useMemo(() => war.sieges.find((siege) => siege.townId === viewSiege) ?? null, [war.sieges, viewSiege])
   const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns), [viewSiegeObject, sideTowns])
+  // The captures of the view's siege, run on the live positions SiegeWar's way (battle.ts → stepCaptures), on the checks the points show.
+  const viewPhase = useMemo(() => tickPhaseOf(viewSiege ? (war.readings[viewSiege] ?? []) : []), [war.readings, viewSiege])
+  const captures = useCaptures(liveStore, warOn ? viewSiegeObject : null, viewPhase, sideOfName)
   const pickPlayer = useCallback((name: string) => focusWar({ kind: 'player', name }), [focusWar])
   // A player picked from the list (ui/PlayersList.tsx): in the war view the sidebar takes them; otherwise the map
   // flies to them and their card opens beside their head.
@@ -1379,7 +1383,16 @@ export function MapsShell({ data: served, children }: ShellProps) {
   )
 
   const content = warOn ? (
-    <WarPanel focus={warFocus} follow={following} onFocus={focusWar} onFollow={setFollowing} onLeave={leaveWar} siege={viewSiege} />
+    <WarPanel
+      captures={captures}
+      focus={warFocus}
+      follow={following}
+      onFocus={focusWar}
+      onFollow={setFollowing}
+      onLeave={leaveWar}
+      phase={viewPhase}
+      siege={viewSiege}
+    />
   ) : editor ? (
     <EditorPanel
       editor={editor}
