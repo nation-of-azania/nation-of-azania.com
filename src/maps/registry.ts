@@ -148,8 +148,8 @@ export type ViewAspect = keyof typeof VIEW_ASPECTS
  * Roads and places are their own collections, with names and categories.
  */
 export type Drawing =
-  /** A stroke: freehand or point-to-point, optionally ending in an arrow. */
-  | { kind: 'line'; points: Point[]; ink: Ink; weight?: 1 | 2 | 3; arrow?: boolean; label?: string }
+  /** A stroke: freehand or point-to-point, straight from point to point or one curve through them (./curves.ts), optionally ending in an arrow. */
+  | { kind: 'line'; points: Point[]; ink: Ink; weight?: 1 | 2 | 3; arrow?: boolean; curve?: boolean; label?: string }
   /** A shaded area. */
   | { kind: 'area'; points: Point[]; ink: Ink; label?: string }
   | { kind: 'pin'; at: Point; ink: Ink; label?: string }
@@ -182,6 +182,7 @@ export function drawingsProblem(value: unknown): string | null {
         if (!isPath(d.points, 2)) return `${where}: a line needs 2 to ${DRAWING_LIMITS.points} points on the map.`
         if (d.weight !== undefined && ![1, 2, 3].includes(d.weight as number)) return `${where}: weight is 1, 2 or 3.`
         if (d.arrow !== undefined && typeof d.arrow !== 'boolean') return `${where}: arrow is true or false.`
+        if (d.curve !== undefined && typeof d.curve !== 'boolean') return `${where}: curve is true or false.`
         if (!isLabel(d.label)) return `${where}: labels are at most ${DRAWING_LIMITS.label} characters.`
         break
       case 'area':

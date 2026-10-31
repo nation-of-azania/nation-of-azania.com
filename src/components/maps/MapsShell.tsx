@@ -1506,7 +1506,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 onPull={globeSupport && !editor ? onPull : undefined}
                 capitals={war.capitals}
                 radius={war.radius}
-                showReach={extras.reach}
+                showReach={extras.diplomacy}
                 viewing={viewing}
                 world={world}
               />

@@ -72,10 +72,10 @@ function NationLink({ nation }: { nation: Pick<NationSummary, 'name' | 'slug' | 
 const whereTo = (fit: Bounds | null, home: AbroadFacts['home']) =>
   fit ? { bounds: fit } : home ? { centre: home, zoom: 0 } : null
 
-/** One of Azania's towns, as the reach of another's war is measured against them. */
+/** One of Azania's towns, as another nation's reach is measured against them. */
 export type OurTown = { name: string; slug: string; home: Point | null }
 
-/** "within" or "beyond" the reach of a war, by the server's rule. */
+/** "within" or "beyond" a nation's reach, by the server's rule. */
 const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' : 'beyond')
 
 /** Names in a list, as a reader says them: "Oasis, Georgetown and Cape Agulhas". */
@@ -100,7 +100,7 @@ export function AbroadTownPanel({
   /** Where Azania stands with its nation; null when neutral. */
   relation: Relation | null
   route: SpawnRoute<SpawnTown> | null
-  /** Azania's capital, from which its war reaches. */
+  /** Azania's capital, from which its reach is measured. */
   capital: HomeCapital
   /** For one of the server's own places, the trading outposts around it. */
   trading: TradingAround | null
@@ -229,10 +229,10 @@ export function AbroadTownPanel({
       <AwayParts away={town.away} from={town.home} of={site ? 'site' : 'town'} town={town.name} />
 
       {fromCapital != null && capital ? (
-        <PanelSection title="War reach">
+        <PanelSection title="Nation reach">
           <p className="text-sm leading-relaxed text-ink-700">
             {farWords(fromCapital)} from {spoken(capital.town)}, Azania’s capital:{' '}
-            <strong className="font-semibold">{reachWord(fromCapital)} Azania’s war reach</strong>, which is{' '}
+            <strong className="font-semibold">{reachWord(fromCapital)} Azania’s reach</strong>, which is{' '}
             {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital.
           </p>
         </PanelSection>
@@ -288,7 +288,7 @@ export function NationPanel({
     .sort((a, b) => (b.income ?? 0) - (a.income ?? 0) || a.name.localeCompare(b.name))
   const total = sites.reduce((sum, site) => sum + (site.income ?? 0), 0)
   const ring = nationInk(nation.colour).line
-  // The reach of each war: which of Azania's towns this nation may besiege, and which of its own Azania may.
+  // Each nation's reach: which of Azania's towns this nation may besiege, and which of its own Azania may.
   const theirs = nation.capital
     ? ours.filter((town) => town.home && blocksBetween(nation.capital!.home, town.home) <= CAPITAL_WAR_RADIUS)
     : []
@@ -349,7 +349,7 @@ export function NationPanel({
       <BeliefsSection beliefs={nation.beliefs} towns={towns.length} />
 
       {nation.capital && capital ? (
-        <PanelSection title="War reach">
+        <PanelSection title="Nation reach">
           <div className="space-y-2 text-sm leading-relaxed text-ink-700">
             <p>
               A nation may besiege towns within {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital. {spoken(nation.name)}’s,{' '}

@@ -341,6 +341,22 @@ export function ViewForm({
               >
                 <Icon className="h-4 w-4" name="arrow" /> Arrow
               </button>
+              <button
+                aria-pressed={selected?.kind === 'line' ? Boolean(selected.curve) : editor.curve}
+                className={cn(
+                  BUTTON,
+                  'h-8 gap-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                )}
+                onClick={() => {
+                  const curve = selected?.kind === 'line' ? !selected.curve : !editor.curve
+                  onChange({ ...editor, curve })
+                  if (selected?.kind === 'line') update({ ...selected, curve })
+                }}
+                title="One smooth curve through the line’s points: click a start, a bend and an end for an arc"
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="curve" /> Curve
+              </button>
             </>
           ) : null}
         </div>

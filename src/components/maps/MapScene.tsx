@@ -31,7 +31,7 @@ import { PlacesLayer } from './layers/PlacesLayer'
 import { PlayersLayer } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
 import type { LiveState } from './live'
-import { WarReach, type Reach } from './layers/ReachLayer'
+import { NationReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { SiegeCard } from './layers/SiegeCard'
 import { SiegesLayer, type SiegeToDraw } from './layers/SiegesLayer'
@@ -114,7 +114,7 @@ export type SceneProps = {
   sieges: Siege[]
   siegeOpen: string | null
   onSiege: (townId: string | null) => void
-  /** Every nation's capital (/maps/war), the reach of a capital's war, and whether it's drawn. */
+  /** Every nation's capital (/maps/war), a nation's reach about it, and whether it's drawn (with the diplomacy layer). */
   capitals: War['capitals']
   radius: number
   showReach: boolean
@@ -379,6 +379,7 @@ export function MapScene(props: SceneProps) {
               ink: current.ink,
               weight: current.weight,
               arrow: current.arrow,
+              curve: current.curve,
             }
           : { kind: 'area' as const, points, ink: current.ink }
       onEditor({
@@ -592,8 +593,8 @@ const Layers = memo(function Layers({
   const ground = (at: Projection) => (
     <>
       {/* The rings of the wars' reach, under everything: long, calm lines across the map. */}
-      {homeReach ? <WarReach part="ring" projection={at} radius={radius} reach={homeReach} /> : null}
-      {openReach ? <WarReach part="ring" projection={at} radius={radius} reach={openReach} /> : null}
+      {homeReach ? <NationReach part="ring" projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <NationReach part="ring" projection={at} radius={radius} reach={openReach} /> : null}
       {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
       {/* The diplomacy: the sheet veiled, and the friends' and foes' towns aglow, under the claims. */}
       {worldShown && diplomacy ? <SheetVeil colour={DIPLOMACY_VEIL.colour} opacity={DIPLOMACY_VEIL.opacity} projection={at} /> : null}
@@ -637,8 +638,8 @@ const Layers = memo(function Layers({
   const marks = (at: Projection, plan: LabelPlan) => (
     <>
       {worldShown && show('towns') ? <HomeGlow part="discs" projection={at} towns={data.towns} /> : null}
-      {homeReach ? <WarReach part="name" projection={at} radius={radius} reach={homeReach} /> : null}
-      {openReach ? <WarReach part="name" projection={at} radius={radius} reach={openReach} /> : null}
+      {homeReach ? <NationReach part="name" projection={at} radius={radius} reach={homeReach} /> : null}
+      {openReach ? <NationReach part="name" projection={at} radius={radius} reach={openReach} /> : null}
       {show('roads') ? <RoadsLayer labels={plan.roads} part="names" projection={at} roads={roads} /> : null}
       {show('places') ? (
         <PlacesLayer
@@ -788,7 +789,7 @@ function ringOf(siege: Siege, relations: Relation[]): string | null {
 }
 
 /**
- * A nation's war reach, ready to draw: its capital (from /maps/war, else
+ * A nation's reach, ready to draw: its capital (from /maps/war, else
  * the world's reading) and its colour — Azania's the deep sea of its own
  * claims, another's as the nations are drawn just now. Null for a nation
  * with no capital on the map.

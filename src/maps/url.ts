@@ -19,8 +19,8 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  *   ?at=<x>,<z>,<zoom>          centre and zoom (zoom 0 is the map's native scale, 2 px per block)
  *   &layers=towns,roads         which layers show (all, when absent), with the layers that
  *                               aren't the nation's own data among them (EXTRA_LAYERS:
- *                               `players`, `world` and `reach` on, `diplomacy` off), each at
- *                               its default when absent
+ *                               `players` and `world` on, `diplomacy` off), each at its
+ *                               default when absent
  *   &view=<id>                  an article's map view, framed with its highlights
  *   &draw=view                  the view editor, open: a new view, or the one named by &view=
  *   &globe=1                    the world as a globe, facing at's spot (its zoom −8 to −5);
@@ -113,9 +113,10 @@ export const ALL_LAYERS = Object.keys(MAP_LAYERS) as MapLayer[]
 /**
  * The layers that aren't the nation's own data, and so aren't MAP_LAYERS,
  * which a map view stores: the players online, the server's, live; the
- * rest of the world around the nation; Azania's diplomacy, the other
- * nations tinted by where it stands with them; and the reach of Azania's
- * war about its capital. None is ever part of a view. Each has its token
+ * rest of the world around the nation; and Azania's diplomacy, the other
+ * nations tinted by where it stands with them, with the nations' reach
+ * about their capitals (layers/ReachLayer.tsx), which shows only with it.
+ * None is ever part of a view. Each has its token
  * in `layers` and is at its default when the address names no layers;
  * when it names some, a token is on when it's there.
  */
@@ -123,7 +124,6 @@ export const EXTRA_LAYERS = {
   players: { on: true },
   world: { on: true },
   diplomacy: { on: false },
-  reach: { on: true },
 } as const satisfies Record<string, { on: boolean }>
 export type ExtraLayer = keyof typeof EXTRA_LAYERS
 export type Extras = Record<ExtraLayer, boolean>

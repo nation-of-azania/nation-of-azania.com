@@ -533,7 +533,7 @@ sheet drawn up over it on a phone) that holds whatever is open.
 - Named **roads**, railways and waterways, straight from point to point or curved smoothly through them, drawn like a road map: casings under translucent fills (a wash the build shows through, thinner the closer you come), widths by zoom, the name along the line once it fits.
 - **Events** with a time and a place.
 - **Map views**: framed pieces of the map with highlights drawn on them, which an article's Map block can show.
-- Around it all, **the rest of the world**: every other nation and its towns, Azania's **diplomacy** with them, the **sieges** on the server, and the **reach** of a capital's war (see *The world around Azania* below). None of it is kept in the database.
+- Around it all, **the rest of the world**: every other nation and its towns, Azania's **diplomacy** with them and each nation's **reach** about its capital, and the **sieges** on the server (see *The world around Azania* below). None of it is kept in the database.
 
 Everything is stored in block coordinates (`src/maps/geo.ts`), never pixels.
 The categories, road kinds and highlight inks are defined in code
@@ -630,7 +630,7 @@ after a redraw shows every name exactly where the last one did. Nothing
 cuts across the seam: a re-basing re-keys every name but keeps its
 element, and the names stay put. Text set along a road never glides, which
 would lift it off the road; a road's name that moves along its road fades
-out and in instead, and so does a war reach's, when its ring is cut anew
+out and in instead, and so does a nation reach's, when its ring is cut anew
 for a view that moved and the name takes another stretch of it. Sizes
 that step with the zoom (a name's 11, 12 or 13 px) still change when the
 view settles. Readers who ask for less motion get the plain swap, and so
@@ -743,9 +743,9 @@ carries what's already drawn into place until the fresh render lands.
   `?at=<x>,<z>,<zoom>`, `&layers=towns,roads`, `&view=<id>` for an article's
   view with its highlights — written as the map moves, so any address can
   be shared. `layers` also names the layers that aren't the nation's own
-  data (`EXTRA_LAYERS` in `src/maps/url.ts`): `players`, `world` and
-  `reach`, on unless the address lists layers without them, and
-  `diplomacy`, off unless listed. (Old links with `&map=biomes` still open;
+  data (`EXTRA_LAYERS` in `src/maps/url.ts`): `players` and `world`, on
+  unless the address lists layers without them, and `diplomacy`, off unless
+  listed; an old link's `reach` is ignored. (Old links with `&map=biomes` still open;
   the biome map is no longer drawn.) Every page of Azania's own has its own
   link-preview card, a clipping of the map with the thing on it (see
   [Link previews](#link-previews)); the pages abroad have the site's plain
@@ -935,8 +935,8 @@ which the routes insist on, so every viewer shares one copy.
   site, the nearest spawn anyone may use, anywhere on the server, with the
   walk), a site's pay, Azania's stance with its nation, any siege of it,
   and how far it is from Azania's capital. `/maps/nation/<slug>` is a
-  nation's: its totals, capital, Azania's stance, its sieges, the reach of
-  its war, its holdings and its towns. There's no editing, census or mayor
+  nation's: its totals, capital, Azania's stance, its sieges, its reach,
+  its holdings and its towns. There's no editing, census or mayor
   abroad. Both are cached like the others; they read the world through
   `src/lib/abroad.ts` (`unstable_cache`, so the read doesn't make them
   dynamic), and tell the map where to open before the world arrives. A
@@ -1003,7 +1003,7 @@ which the routes insist on, so every viewer shares one copy.
   the map's top left ("Cape Agulhas is under siege", with *Show*), the
   same in full at the top of the front, and on a phone the sheet's folded
   line. A besieged town's page and a nation's page show theirs.
-- **War reach** (a layer, on by default). A nation may besiege towns only
+- **Nation reach** (shown with the diplomacy layer). A nation may besiege towns only
   within 12,320 blocks of its capital (`CAPITAL_WAR_RADIUS`, about Africa's
   width), and this is that circle (`layers/ReachLayer.tsx`): Azania's about
   its capital, a calm dashed line in the deep sea on a whitewash casing,
@@ -1056,7 +1056,7 @@ it about where they point. The pointer over a dot is told what it is
 ("Trading outpost · a ship at sea", as the search says it, "Siege · a battle
 on", a player "Online now"), over a nation its name, and once the hand lets
 go and the globe is still, what is under it then; a siege with a battle on sends out a coral ring, again and
-again, while it faces the reader; with the war reach on, Azania's ring lies
+again, while it faces the reader; with diplomacy on, Azania's reach lies
 on the ball as the flat map draws it; and when Azania is round the back, a
 small saffron arrow and *Azania* wait on the limb, the short way round (slid
 round the limb to where there's room beside the globe, on a phone's narrow
@@ -1204,7 +1204,10 @@ it asks again of its own accord when the browser comes back online.
   picture, then mark it up with the **highlighter**: a pen for
   freehand strokes, lines point by point, shaded areas, pins and short
   notes, in the fixed inks (red, gold, sea, green, rose, ink, white), with
-  three weights and an optional arrowhead. Pick a highlight to change its
+  three weights, an optional arrowhead, and **Curve**, which draws a line
+  as one smooth curve through its points (a start, a bend and an end make
+  an arc; `src/maps/curves.ts`, `pnpm test:curves`), its arrowhead following
+  the curve. Pick a highlight to change its
   ink or label, edit its points as a road's, or remove it. Save, and the
   panel says how to use it: in the Registry, add a Map block to an article
   and choose the view by its title. A view is a framed piece of the map for
@@ -1606,6 +1609,7 @@ import map. Without that handler, the production admin panel renders blank.
 | `pnpm test:sieges`        | Siege alert tests: what's told, once, and to whom.          |
 | `pnpm test:beliefs`       | Towns' cultures and religions, and a nation's shares.       |
 | `pnpm test:lists`         | Lists rendered down to players, and their changelog's sums. |
+| `pnpm test:curves`        | Map views' curved lines and the way their arrowheads point. |
 
 ## Project layout
 

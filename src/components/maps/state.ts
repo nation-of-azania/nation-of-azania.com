@@ -79,6 +79,8 @@ export type Editor =
       ink: Ink
       weight: 1 | 2 | 3
       arrow: boolean
+      /** New lines drawn as one curve through their points. */
+      curve: boolean
       /** The drawing being edited (index into draft.drawings). */
       selected: number | null
       /** Of the selected line or area, the point picked for more, by index. */
@@ -137,6 +139,7 @@ export const viewEditor = (
   ink: 'red',
   weight: 2,
   arrow: false,
+  curve: false,
   selected: null,
   vertex: null,
   pending: [],

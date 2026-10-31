@@ -1,3 +1,4 @@
+import { curveEndAngle, curvePath } from '@/maps/curves'
 import type { Point } from '@/maps/geo'
 import { INK_COLOURS } from '@/maps/palette'
 import type { Drawing } from '@/maps/registry'
@@ -79,19 +80,25 @@ export function reserveDrawings(placer: LabelPlacer, projection: Projection, dra
   }
 }
 
-/** An arrowhead at the end of a line, as a filled triangle in the same ink. */
-function arrowhead(projection: Projection, points: Point[], size: number): string | null {
+/**
+ * An arrowhead at the end of a line, as a filled triangle in the same ink:
+ * along the curve's own direction at its end for a curved line, else aimed
+ * from a point a little way back, so a wobbly hand still gives a straight head.
+ */
+function arrowhead(projection: Projection, points: Point[], size: number, curve = false): string | null {
   if (points.length < 2) return null
   const [x1, y1] = projection.project(points[points.length - 1])
-  // Aim from a point a little way back, so a wobbly hand still gives a straight head.
-  let back = points.length - 2
-  while (back > 0) {
-    const [bx, by] = projection.project(points[back])
-    if (Math.hypot(x1 - bx, y1 - by) > size) break
-    back--
+  let angle = curve ? curveEndAngle(points.map((point) => projection.project(point))) : null
+  if (angle == null) {
+    let back = points.length - 2
+    while (back > 0) {
+      const [bx, by] = projection.project(points[back])
+      if (Math.hypot(x1 - bx, y1 - by) > size) break
+      back--
+    }
+    const [x0, y0] = projection.project(points[back])
+    angle = Math.atan2(y1 - y0, x1 - x0)
   }
-  const [x0, y0] = projection.project(points[back])
-  const angle = Math.atan2(y1 - y0, x1 - x0)
   const left = angle + Math.PI * 0.8
   const right = angle - Math.PI * 0.8
   const tip = [x1 + Math.cos(angle) * size * 0.6, y1 + Math.sin(angle) * size * 0.6]
@@ -149,8 +156,10 @@ export function DrawingsLayer({ projection, drawings, selected, onSelect }: Prop
         switch (drawing.kind) {
           case 'line': {
             const width = STROKE_WIDTHS[drawing.weight ?? 2]
-            const d = pathOf(projection, drawing.points)
-            const head = drawing.arrow ? arrowhead(projection, drawing.points, width * 2.2) : null
+            const d = drawing.curve
+              ? curvePath(drawing.points.map((point) => projection.project(point)))
+              : pathOf(projection, drawing.points)
+            const head = drawing.arrow ? arrowhead(projection, drawing.points, width * 2.2, drawing.curve) : null
             const [lx, ly] = projection.project(drawing.points[drawing.points.length - 1])
             return (
               <g key={index} {...hit}>

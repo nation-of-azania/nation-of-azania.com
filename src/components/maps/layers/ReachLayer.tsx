@@ -6,12 +6,12 @@ import { WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST } from '@/maps/source'
 import { halo, named, steadyType, type Projection } from './projection'
 
 /**
- * The reach of a nation's war: the server lets a nation besiege towns only
- * within CAPITAL_WAR_RADIUS (12,320 blocks, about Africa's width) of its
- * capital, and this is that circle. Azania's is drawn calmly, a dashed
- * line in the deep sea on a whitewash casing, named along its top; another
- * nation's is drawn in its colour while its nation is open or under the
- * pointer.
+ * A nation's reach: the server lets a nation besiege towns only within
+ * CAPITAL_WAR_RADIUS (12,320 blocks, about Africa's width) of its capital,
+ * and this is that circle, drawn with the diplomacy layer only. Azania's is
+ * drawn calmly, a dashed line in the deep sea on a whitewash casing, named
+ * along its top; another nation's is drawn in its colour while its nation
+ * is open or under the pointer.
  *
  * The circle is some 77,000 blocks round, so it's never drawn whole when
  * the reader is close: it's sampled finely enough to stay round at every
@@ -159,7 +159,7 @@ export type Reach = {
  * default): the live map draws the ring with the ground and the name over
  * it, where it keeps its size mid-zoom (leaflet/canvas.tsx → OnTop).
  */
-export function WarReach({
+export function NationReach({
   projection,
   reach,
   radius,
@@ -176,7 +176,7 @@ export function WarReach({
   if (!runs.length) return null
   const d = runs.map((run) => pathThrough(projection, run)).join('')
   // Its name in full where the arc on the page will carry it, else just whose reach it is.
-  const short = `${spoken(reach.nation).toUpperCase()}’S WAR REACH`
+  const short = `${spoken(reach.nation).toUpperCase()}’S REACH`
   const long = `${short} · ${radius.toLocaleString('en-GB')} BLOCKS FROM ${spoken(reach.capital.town).toUpperCase()}`
   const fontSize = 10
   const tracking = 1.6

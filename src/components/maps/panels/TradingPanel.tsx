@@ -15,7 +15,7 @@ import { Facts, PanelHead, PanelSection } from './shared'
  * One of the server's own places abroad (src/maps/trading.ts): a trading
  * outpost, or one of its landmarks. Neither is a town nor a site, so none
  * of their furniture — no nation, ruler or residents, no holder, no siege
- * and no war reach, since nobody holds it and no siege can take it — but
+ * and no nation reach, since nobody holds it and no siege can take it — but
  * what a player wants of it: what it is, said plainly, where it is and the
  * way there, and the trading outposts nearest it. Drawn the same by the
  * page and by the shell before the page arrives (./Preview.tsx).

@@ -163,16 +163,8 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.diplomacy}
             label="Diplomacy"
-            note="Where Azania stands with the other nations: allies green, enemies red, the land veiled so they read. The pennant button beside is the same switch."
+            note="Where Azania stands with the other nations: allies green, enemies red, the land veiled so they read; and each nation’s reach, how far from its capital it may besiege: Azania’s ring, and a nation’s when it’s open or under the pointer. The pennant button beside is the same switch."
             onChange={(on) => onExtra('diplomacy', on)}
-          />
-        </li>
-        <li>
-          <ExtraRow
-            checked={extras.reach}
-            label="War reach"
-            note="How far from its capital a nation may besiege: Azania’s ring, and a nation’s when it’s open or under the pointer."
-            onChange={(on) => onExtra('reach', on)}
           />
         </li>
         <li>
@@ -402,8 +394,8 @@ export function Legend({ globe }: { globe: boolean }) {
               <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
             </svg>
             <span>
-              War reach: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a capital, as far as a nation may
-              besiege; it ends at the world’s edge
+              Nation reach, with Diplomacy on: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a capital,
+              as far as a nation may besiege; it ends at the world’s edge
             </span>
           </li>
           {globe ? (

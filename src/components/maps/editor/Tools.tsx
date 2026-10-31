@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { cn } from '@/blocks/components/shared'
+import { curvePath } from '@/maps/curves'
 import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
@@ -466,6 +467,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
                 ink: current.ink,
                 weight: current.weight,
                 arrow: current.arrow,
+                curve: current.curve,
               },
             ],
           },
@@ -554,6 +556,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
                     ink: current.ink,
                     weight: current.weight,
                     arrow: current.arrow,
+                    curve: current.curve,
                   }
                 : { kind: 'area' as const, points: current.pending, ink: current.ink }
             onEditor({
@@ -821,7 +824,11 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           {editor.pending.length > 0 ? (
             <>
               <path
-                d={pathOf(projection, editor.pending, editor.tool === 'area')}
+                d={
+                  editor.tool === 'line' && editor.curve
+                    ? curvePath(editor.pending.map((point) => projection.project(point)))
+                    : pathOf(projection, editor.pending, editor.tool === 'area')
+                }
                 fill={editor.tool === 'area' ? ink.fill : 'none'}
                 fillOpacity={0.15}
                 stroke={ink.fill}

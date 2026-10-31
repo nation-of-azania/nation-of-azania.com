@@ -266,7 +266,7 @@ export type NationSummary = Pick<AbroadNation, 'name' | 'slug' | 'colour' | 'tow
   beliefs: Beliefs
 }
 
-/** Azania's capital, from which its war reaches: its name and home block. */
+/** Azania's capital, from which its reach is measured: its name and home block. */
 export type HomeCapital = { town: string; home: Point } | null
 
 /** Another trading outpost, as seen from one of the server's places: where it is, how far and which way. */

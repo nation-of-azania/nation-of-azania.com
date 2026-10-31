@@ -121,7 +121,7 @@ export function Globe(props: GlobeProps) {
     [data, world, war.sieges, selection, extras.world, extras.diplomacy],
   )
   useEffect(() => stageRef.current?.setPlayers(extras.players), [extras.players])
-  useEffect(() => stageRef.current?.setReach(extras.reach, war.radius), [extras.reach, war.radius, war.capitals, data.towns, world])
+  useEffect(() => stageRef.current?.setReach(extras.diplomacy, war.radius), [extras.diplomacy, war.radius, war.capitals, data.towns, world])
   useEffect(() => stageRef.current?.setInsets(props.insets), [props.insets])
   useEffect(() => stageRef.current?.setHidden(props.hidden), [props.hidden])
   // Last, once the ground and the marks are in: open as asked.

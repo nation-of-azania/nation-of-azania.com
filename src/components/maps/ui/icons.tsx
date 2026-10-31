@@ -29,6 +29,7 @@ const PATHS = {
   area: 'M5 8l7-4 7 4v8l-7 4-7-4zM5 8l7 4 7-4M12 12v8',
   text: 'M5 6V4h14v2M12 4v16M9 20h6',
   arrow: 'M4 12h14M13 6l6 6-6 6',
+  curve: 'M4 19C6 10 13 7 19 10M16.8 4.4L19 10l-6 .2',
   cursor: 'M5 3l14 8-6 2-3 6z',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5M12 8h.01',
   external: 'M14 4h6v6M20 4l-9 9M19 14v6H4V5h6',
