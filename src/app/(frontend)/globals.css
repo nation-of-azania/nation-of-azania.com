@@ -130,13 +130,14 @@
    * dc-well = --background-tertiary, dc-text = --text-normal,
    * dc-name = --header-primary, dc-muted = --text-muted,
    * dc-icon = --interactive-normal, dc-blurple = --brand-experiment.
+   * dc-text follows the refreshed client: --neutral-12, hsl(225 4.878% 83.922%).
    * Not part of the Azania design system — do not use them elsewhere.
    */
   --color-dc-chat: #313338;
   --color-dc-panel: #2b2d31;
   --color-dc-well: #1e1f22;
   --color-dc-line: #3f4147;
-  --color-dc-text: #dbdee1;
+  --color-dc-text: #d4d5d8;
   --color-dc-name: #f2f3f5;
   --color-dc-muted: #949ba4;
   --color-dc-icon: #b5bac1;
