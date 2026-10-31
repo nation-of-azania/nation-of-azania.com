@@ -15,7 +15,8 @@ import {
 } from 'react'
 
 import { cn } from '@/blocks/components/shared'
-import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, worldSlug, type Abroad } from '@/maps/abroad'
+import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, sameNation, worldSlug, type Abroad } from '@/maps/abroad'
+import { RULES } from '@/maps/battle'
 import {
   heartland,
   townFit,
@@ -65,11 +66,13 @@ import { EditorPanel } from './editor/EditorPanel'
 import type { GlobeHostProps, HostApi } from './globe/GlobeHost'
 import { loadGlobe, useGlobeSupport, warmGlobe } from './globe/support'
 import type { GlobeEntry, GlobePull, LeaveRequest } from './globe/types'
-import { createStore, useHydrated, useLatest, useMediaQuery, useSearch, useStore } from './hooks'
+import { createStore, useHydrated, useLatest, useMediaQuery, useNamesSetting, useSearch, useStore } from './hooks'
 import { abroadTownTarget } from './layers/AbroadLayer'
+import type { WarHeads } from './layers/PlayersLayer'
 import { useLivePlayers } from './live'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
 import { Preview } from './panels/Preview'
+import { playerPoint, sidesFor, WarHandle, WarPanel } from './panels/WarPanel'
 import {
   emptyEvent,
   emptyPlace,
@@ -82,7 +85,7 @@ import {
   type Snapshot,
 } from './state'
 import { Notice, TextButton } from './ui/chrome'
-import { DiplomacyButton, DrawMenu, LayerMenu, Legend, ZoomButtons, type DrawChoice } from './ui/Controls'
+import { DiplomacyButton, DrawMenu, LayerMenu, Legend, WarButton, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { DiplomacyKey } from './ui/DiplomacyKey'
 import { Icon } from './ui/icons'
 import { Coordinates, LiveCount, StatusNote, type MapStatus } from './ui/Readouts'
@@ -92,6 +95,7 @@ import { WhatsOnStrip } from './ui/WhatsOn'
 import { Wordmark } from './ui/Wordmark'
 import { SiegeBadge } from './ui/Siege'
 import { useWar } from './war'
+import type { WarFocus } from './warView'
 import { useWorld } from './world'
 
 import './maps.css'
@@ -370,9 +374,14 @@ export function MapsShell({ data: served, children }: ShellProps) {
     (layer: ExtraLayer, on: boolean) => setExtras({ ...extras, [layer]: on }),
     [extras],
   )
-  // The players online are polled only while their layer is on and the tab is seen.
+  // The war view (panels/WarPanel.tsx), on by its button or by the address: the feeds go fast while it is.
+  const warOn = extras.war
+  const warRef = useLatest(warOn)
+  // The players online are polled only while their layer is on and the tab is seen; every second and a half in the war view.
   const live = extras.players
-  const liveStore = useLivePlayers(live)
+  const liveStore = useLivePlayers(live, { fast: warOn })
+  // Names beside the heads at every zoom: the viewer's own setting, kept in their browser.
+  const [named, setNamed] = useNamesSetting()
   const [editor, setEditorState] = useState<Editor | null>(null)
 
   // The world as a globe (./globe): offered where the browser can draw it,
@@ -417,18 +426,27 @@ export function MapsShell({ data: served, children }: ShellProps) {
     () => (worldState.world ? abroadOf(worldState.world, data.towns) : null),
     [worldState.world, data.towns],
   )
-  // The war: asked for at once and every few minutes while the tab is seen; a siege is always shown.
-  const war = useWar()
+  // The war: asked for at once and every few minutes while the tab is seen, every half minute in the war view during a battle; a siege is always shown.
+  const war = useWar({ live: warOn })
   const [chosenSiege, setSiegeOpen] = useState<string | null>(null)
   // A siege that has ended takes its card with it.
   const siegeOpen = chosenSiege && war.sieges.some((siege) => siege.townId === chosenSiege) ? chosenSiege : null
-  // Azania's own sieges, its towns besieged first: what the map's alert and the front say.
-  const ourSieges = useMemo(() => {
+  // The sieges in the order they matter: Azania's own first, its towns besieged before those it presses, battles before quiet ones.
+  const rankedSieges = useMemo(() => {
     const home = { nation: homeNationOf(data.towns), towns: data.towns }
-    return bySiegeWeight(war.sieges.map((siege) => ({ siege, side: azaniaSide(siege, home) }))).filter(
-      (entry) => entry.side !== null,
-    )
+    return bySiegeWeight(war.sieges.map((siege) => ({ siege, side: azaniaSide(siege, home) })))
   }, [war.sieges, data.towns])
+  // Azania's own: what the map's alert and the front say.
+  const ourSieges = useMemo(() => rankedSieges.filter((entry) => entry.side !== null), [rankedSieges])
+  // What the war sidebar is looking at, and the siege the view is on: the one last looked at, else the battle that matters most.
+  const [warFocus, setWarFocus] = useState<WarFocus | null>(null)
+  const [warSiege, setWarSiege] = useState<string | null>(null)
+  // Whether the map follows the player watched, reading by reading.
+  const [following, setFollowing] = useState(false)
+  const viewSiege = useMemo(() => {
+    if (warSiege && war.sieges.some((siege) => siege.townId === warSiege)) return warSiege
+    return (rankedSieges.find((entry) => entry.siege.battle) ?? rankedSieges[0])?.siege.townId ?? null
+  }, [warSiege, war.sieges, rankedSieges])
   const [showPast, setShowPast] = useState(false)
   const [viewing, setViewing] = useState<MapViewData | null>(null)
   const [viewProblem, setViewProblem] = useState<string | null>(null)
@@ -564,6 +582,116 @@ export function MapsShell({ data: served, children }: ShellProps) {
     setMapReady(true)
   }, [])
 
+  /**
+   * The war sidebar's choice: a siege (the map frames its zone, and the
+   * view is on it from then on), a nation (the map fits it), a player
+   * (the map flies to them and follows them), or back to the overview.
+   */
+  const focusWar = useCallback(
+    (focus: WarFocus | null, how?: { stay?: boolean }) => {
+      setWarFocus(focus)
+      if (!focus || focus.kind !== 'player') setFollowing(false)
+      if (!focus) return
+      // On a phone the sheet comes up for what was chosen, as it does for a page opened.
+      if (!wide) setSheet('half')
+      if (focus.kind === 'siege') setWarSiege(focus.townId)
+      else if (focus.kind === 'player') setFollowing(true)
+      // The map goes to it, unless the reader arrived at a spot of their own (`stay`).
+      if (how?.stay) return
+      if (focus.kind === 'siege') {
+        const siege = war.sieges.find((candidate) => candidate.townId === focus.townId)
+        if (!siege) return
+        const r = RULES.siegeZoneRadius * 1.15
+        look({ bounds: { minX: siege.at[0] - r, maxX: siege.at[0] + r, minZ: siege.at[1] - r, maxZ: siege.at[1] + r } })
+      } else if (focus.kind === 'nation') {
+        const nation = world?.nationByName.get(focus.name)
+        const bounds = nation ? nationFit(nation) : sameNation(focus.name, homeNationOf(data.towns)) ? heartland(data.towns) : null
+        if (bounds) look({ bounds })
+      } else {
+        const player = liveStore.get().players.find((candidate) => candidate.name.toLowerCase() === focus.name.toLowerCase())
+        if (player) look({ centre: playerPoint(player), zoom: 1, minZoom: true })
+      }
+    },
+    [war.sieges, world, data.towns, liveStore, look, wide],
+  )
+  /** The war view, entered: nothing else in hand, the heads on, the globe put away, and on a phone the sheet up. */
+  const enterWar = useCallback(() => {
+    setEditor(null)
+    setSiegeOpen(null)
+    setViewing(null)
+    setExtras({ ...extras, war: true, players: true })
+    if (globeFlag.current) leaveGlobe()
+    if (!wide) setSheet('half')
+  }, [extras, leaveGlobe, wide, setEditor])
+  const leaveWar = useCallback(() => {
+    setExtras({ ...extras, war: false })
+    setWarFocus(null)
+    setFollowing(false)
+  }, [extras])
+  // Opened, by the button or by the address, the view goes straight to the battle Azania is in, if there is one,
+  // once the war has answered; otherwise to the overview, or to the nation whose page was open. Arriving by an
+  // address that names a spot as well, the map stays at that spot: the sidebar opens on the battle all the same.
+  const warOpened = useRef(false)
+  // Whether the reader arrived in the war view at a spot the address named: judged on arrival, before the map writes its own spot.
+  const arrivedInWar = useRef(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    arrivedInWar.current = Boolean(decodeExtras(params.get('layers'))?.war) && Boolean(decodeAt(params.get('at')))
+  }, [])
+  const warOpenedBefore = useRef(false)
+  useEffect(() => {
+    if (!warOn) {
+      warOpened.current = false
+      return
+    }
+    if (warOpened.current || war.status === 'asking') return
+    warOpened.current = true
+    const stay = !warOpenedBefore.current && arrivedInWar.current
+    warOpenedBefore.current = true
+    const battle = rankedSieges.find((entry) => entry.siege.battle && entry.side) ?? rankedSieges.find((entry) => entry.siege.battle)
+    const nation = selection?.kind === 'nation' ? (world?.nationBySlug.get(selection.slug)?.name ?? null) : null
+    // Once, as the view opens, in answer to the war's first answer: not a render loop.
+    if (battle) focusWar({ kind: 'siege', townId: battle.siege.townId }, { stay })
+    else if (nation) focusWar({ kind: 'nation', name: nation }, { stay })
+    else if (!wide) setSheet('half')
+  }, [warOn, war.status, rankedSieges, focusWar, selection, world, wide])
+  // A siege's mark clicked: its card, or in the war view the sidebar.
+  const onSiegeMark = useCallback(
+    (townId: string | null) => {
+      if (warRef.current && townId) return focusWar({ kind: 'siege', townId })
+      setSiegeOpen(townId)
+    },
+    [warRef, focusWar],
+  )
+  // What the war view asks of the map: the siege it's on, the nations whose reach is named, and the heads as fighters.
+  const sideTowns = useMemo(
+    () => world?.reading.towns ?? data.towns.map((town) => ({ name: town.name, nation: town.nation, people: town.names, home: town.home })),
+    [world, data.towns],
+  )
+  const viewSiegeObject = useMemo(() => war.sieges.find((siege) => siege.townId === viewSiege) ?? null, [war.sieges, viewSiege])
+  const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns), [viewSiegeObject, sideTowns])
+  const pickPlayer = useCallback((name: string) => focusWar({ kind: 'player', name }), [focusWar])
+  const followBroken = useCallback(() => setFollowing(false), [])
+  const watched = warFocus?.kind === 'player' ? warFocus.name : null
+  const focusedNation = warFocus?.kind === 'nation' ? warFocus.name : null
+  // On a phone the sheet covers the foot of the map: the player followed is kept in the middle of what's left.
+  const sheetCover = !wide && hydrated ? (sheet === 'half' ? window.innerHeight * 0.5 : sheet === 'full' ? window.innerHeight - 72 : 0) : 0
+  const warHeads = useMemo<WarHeads>(
+    () => ({ sideOf: sideOfName, watch: watched, follow: following, onPick: pickPlayer, onFollowBroken: followBroken, cover: sheetCover }),
+    [sideOfName, watched, following, pickPlayer, followBroken, sheetCover],
+  )
+  const warScene = useMemo<SceneProps['war']>(
+    () =>
+      warOn
+        ? {
+            siege: viewSiege,
+            nations: [focusedNation, viewSiegeObject?.attacker ?? null, viewSiegeObject?.defender ?? null].filter((name): name is string => Boolean(name)),
+            heads: warHeads,
+          }
+        : null,
+    [warOn, viewSiege, focusedNation, viewSiegeObject, warHeads],
+  )
+
   // A page abroad says where its town or nation is (panels/AbroadPanel.tsx → Arrival), since
   // the world it's in arrives after the page; the map waits a moment for it before opening.
   const [arrival, setArrival] = useState<LookTarget | null>(null)
@@ -673,9 +801,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
     if (selection) setSheet('half')
   }
   const page = selectionHref(selection)
+  // And so does the war sidebar for whatever it's turned to.
   useEffect(() => {
     panelRef.current?.scrollTo({ top: 0 })
-  }, [page])
+  }, [page, warFocus])
   // The map looks at it once its page has arrived, as it always has. Flown
   // the moment it's opened, the map's new tiles would share a slow
   // connection with the page and the code it needs, and keep the panel's
@@ -774,6 +903,19 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // A click on part of a town: where to look once its page lands (focusFor), or, for the town already open, at once.
   const select = useCallback(
     (next: MapSelection | null, focus?: Bounds) => {
+      // In the war view a click on the map chooses for the sidebar and opens no page: a town's nation, or the nation itself.
+      if (warRef.current) {
+        const name =
+          next?.kind === 'nation'
+            ? (world?.nationBySlug.get(next.slug)?.name ?? null)
+            : next?.kind === 'abroad'
+              ? (world?.townBySlug.get(next.slug)?.nation ?? null)
+              : next?.kind === 'town'
+                ? homeNationOf(data.towns)
+                : null
+        if (name) focusWar({ kind: 'nation', name })
+        return
+      }
       setEditor(null)
       const settled = settle(next, data, world)
       const open = Boolean(settled && sameSelection(settled, selectionOf(pathRef.current)) && !askedRef.current)
@@ -781,7 +923,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       if (focus && open) look({ bounds: focus })
       go(next)
     },
-    [go, setEditor, data, world, pathRef, askedRef, look],
+    [go, setEditor, data, world, pathRef, askedRef, look, warRef, focusWar],
   )
 
   // Back and forward: the page the browser goes to is drawn at once too,
@@ -1015,16 +1157,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
     window.setTimeout(() => setLocal((current) => (current?.at === at ? null : current)), LOCAL_RELATIONS_MS)
   }, [])
   const closeEditor = useCallback(() => setEditor(null), [setEditor])
-  /** A siege's card, opened from a panel or the alert: the map comes to its banner, close enough to see the town. */
+  /** A siege's card, opened from a panel or the alert: the map comes to its banner, close enough to see the town. In the war view, the sidebar takes it. */
   const openSiege = useCallback(
     (townId: string) => {
       const siege = war.sieges.find((candidate) => candidate.townId === townId)
       if (!siege) return
       setEditor(null)
+      if (warRef.current) return focusWar({ kind: 'siege', townId })
       setSiegeOpen(townId)
       look({ centre: siege.at, zoom: -1.5, minZoom: true })
     },
-    [war.sieges, setEditor, look],
+    [war.sieges, setEditor, look, warRef, focusWar],
   )
   // Sent from a siege alert in Discord (src/lib/siegeAlerts.ts, `?siege=<the besieged town's Towny id>`): the
   // siege's card opens on arrival, once the war has come, and once only. Kept on arrival, since the map soon
@@ -1224,12 +1367,17 @@ export function MapsShell({ data: served, children }: ShellProps) {
         return leaveGlobe()
       }
       if (editor) return // the editor handles its own steps
+      // In the war view, a step back to the overview; the view itself is left by its button.
+      if (warOn) {
+        if (warFocus) focusWar(null)
+        return
+      }
       if (viewing) setViewing(null)
       else if (selection) select(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editor, selection, viewing, select, undo, redo, leaveGlobe])
+  }, [editor, selection, viewing, select, undo, redo, leaveGlobe, warOn, warFocus, focusWar])
 
   const described = describe(data, world, selection)
   const canDraw = rights.anywhere || rights.towns.length > 0
@@ -1249,7 +1397,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
     </button>
   )
 
-  const content = editor ? (
+  const content = warOn ? (
+    <WarPanel focus={warFocus} follow={following} onFocus={focusWar} onFollow={setFollowing} onLeave={leaveWar} siege={viewSiege} />
+  ) : editor ? (
     <EditorPanel
       editor={editor}
       onChange={setEditor}
@@ -1331,15 +1481,19 @@ export function MapsShell({ data: served, children }: ShellProps) {
         extras={extras}
         layers={layers}
         liveStore={liveStore}
+        named={named}
         onChange={setLayers}
-        onExtra={setExtra}
+        onExtra={(layer, on) => (layer === 'war' ? (on ? enterWar() : leaveWar()) : setExtra(layer, on))}
+        onNamed={setNamed}
         onShowPast={setShowPast}
         showPast={showPast}
         worldStatus={worldState.status}
       />
       <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
+      <WarButton on={warOn} onToggle={() => (warOn ? leaveWar() : enterWar())} />
       <Legend globe={globeSupport} />
-      {drawShown ? (
+      {/* Nothing is drawn in the war view: the sidebar is the war's. */}
+      {drawShown && !warOn ? (
         <DrawMenu
           active={Boolean(editor)}
           canDraw={canDraw}
@@ -1403,7 +1557,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
         }
       : null)
   const handle =
-    sheet !== 'peek' ? null : peek ? (
+    sheet !== 'peek' ? null : warOn ? (
+      <WarHandle />
+    ) : peek ? (
       <span className="min-w-0 flex-1">
         <span className="block font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
           {peek.kind}
@@ -1453,6 +1609,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       <div
         className="az-maps fixed inset-0 flex bg-sea-900 text-ink-900"
         data-tool={editor ? editor.kind : undefined}
+        data-war={warOn ? '' : undefined}
         onClickCapture={followLink}
       >
         <p aria-live="polite" className="sr-only" role="status">
@@ -1462,15 +1619,21 @@ export function MapsShell({ data: served, children }: ShellProps) {
         {wide ? (
           <aside
             aria-label="Panel"
-            className="flex w-[26rem] shrink-0 flex-col border-r border-sand-300 bg-sand-50"
+            className={cn(
+              'flex w-[26rem] shrink-0 flex-col border-r',
+              warOn ? 'border-sand-50/10 bg-sea-950' : 'border-sand-300 bg-sand-50',
+            )}
           >
-            <header className="border-b border-sand-300 px-4 pb-3 pt-4">
-              <div className="flex items-center justify-between gap-3">
-                <Wordmark />
-                {account}
-              </div>
-              <Search className="mt-3" data={data} onPick={select} world={world} />
-            </header>
+            {/* The war sidebar has a head of its own, and no search: nothing a fighter needs. */}
+            {!warOn ? (
+              <header className="border-b border-sand-300 px-4 pb-3 pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Wordmark />
+                  {account}
+                </div>
+                <Search className="mt-3" data={data} onPick={select} world={world} />
+              </header>
+            ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto" ref={panelRef}>
               <div className="flex min-h-full flex-col">{content}</div>
             </div>
@@ -1490,6 +1653,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 layers={sceneLayers}
                 live={live && !globeCover}
                 liveStore={liveStore}
+                named={named}
                 now={now}
                 onApi={onSceneApi}
                 onEditor={setEditor}
@@ -1502,12 +1666,13 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 showWorld={extras.world}
                 siegeOpen={siegeOpen}
                 sieges={war.sieges}
-                onSiege={setSiegeOpen}
+                onSiege={onSiegeMark}
                 onPull={globeSupport && !editor ? onPull : undefined}
                 capitals={war.capitals}
                 radius={war.radius}
-                showReach={extras.diplomacy}
+                showReach={extras.diplomacy || warOn}
                 viewing={viewing}
+                war={warScene}
                 world={world}
               />
             ) : null}
@@ -1543,9 +1708,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
 
           {/*
             The map's own notes, top left, clear of the controls: a siege Azania is in, which
-            nobody should miss, and the diplomacy layer's key.
+            nobody should miss (the war sidebar says it instead while the view is on), and the
+            diplomacy layer's key.
           */}
-          {ourSieges.length || extras.diplomacy ? (
+          {(ourSieges.length && !warOn) || extras.diplomacy ? (
             <div
               className={cn(
                 'pointer-events-none absolute left-3 z-10 flex flex-col items-start gap-2',
@@ -1557,7 +1723,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                     : 'top-16 max-w-[calc(100%-10.75rem)]',
               )}
             >
-              {ourSieges.slice(0, wide ? 2 : 1).map(({ siege, side }) => (
+              {(warOn ? [] : ourSieges.slice(0, wide ? 2 : 1)).map(({ siege, side }) => (
                 <div
                   className="az-siege-alert pointer-events-auto flex w-[22rem] max-w-full items-center gap-2.5 border border-l-4 border-coral-600/50 border-l-coral-600 bg-sand-50/95 py-2 pl-2.5 pr-2 shadow-[0_2px_8px_rgba(22,25,31,0.18)]"
                   key={siege.townId}
@@ -1579,7 +1745,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                   </TextButton>
                 </div>
               ))}
-              {ourSieges.length > (wide ? 2 : 1) ? (
+              {!warOn && ourSieges.length > (wide ? 2 : 1) ? (
                 <p className="pointer-events-auto border border-sand-300 bg-sand-50/95 px-2.5 py-1 text-[12px] text-coral-700">
                   and {ourSieges.length - (wide ? 2 : 1)} more of Azania’s sieges: see the front
                 </p>
@@ -1649,13 +1815,16 @@ export function MapsShell({ data: served, children }: ShellProps) {
                   />
                   <LiveCount className="pointer-events-auto shrink-0" store={liveStore} />
                 </div>
-                <WhatsOnStrip
-                  className="pointer-events-auto w-full max-w-2xl @4xl:w-[45%] @4xl:shrink-0"
-                  data={data}
-                  now={now}
-                  onOpen={(event) => select({ kind: 'event', id: event.id })}
-                  selected={selection?.kind === 'event' ? selection.id : null}
-                />
+                {/* What's on steps aside for the war view: nothing a fighter needs on the map's foot. */}
+                {!warOn ? (
+                  <WhatsOnStrip
+                    className="pointer-events-auto w-full max-w-2xl @4xl:w-[45%] @4xl:shrink-0"
+                    data={data}
+                    now={now}
+                    onOpen={(event) => select({ kind: 'event', id: event.id })}
+                    selected={selection?.kind === 'event' ? selection.id : null}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1663,21 +1832,29 @@ export function MapsShell({ data: served, children }: ShellProps) {
 
         {/* Phone: the panel as a sheet. */}
         {!wide ? (
-          <Sheet handle={handle} onState={setSheet} page={page} state={sheet}>
-            {/* One line of tools over the page: the way back, the map's centre, the account. */}
-            <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
-              {selection && !editor ? back : null}
-              <div className="min-w-0 flex-1">
-                <PointerReadout
-                  bare
-                  centre={shownStore}
-                  pointer={pointerStore}
-                  towns={data.towns}
-                />
+          <Sheet
+            className={warOn ? 'border-sand-50/10 bg-sea-950 text-sand-100' : undefined}
+            handle={handle}
+            onState={setSheet}
+            page={warOn ? `war:${warFocus ? `${warFocus.kind}:${'townId' in warFocus ? warFocus.townId : warFocus.name}` : ''}` : page}
+            state={sheet}
+          >
+            {/* One line of tools over the page: the way back, the map's centre, the account. The war sidebar has its own head. */}
+            {!warOn ? (
+              <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
+                {selection && !editor ? back : null}
+                <div className="min-w-0 flex-1">
+                  <PointerReadout
+                    bare
+                    centre={shownStore}
+                    pointer={pointerStore}
+                    towns={data.towns}
+                  />
+                </div>
+                <LiveCount className="shrink-0 border-0 bg-transparent px-0" store={liveStore} />
+                {account}
               </div>
-              <LiveCount className="shrink-0 border-0 bg-transparent px-0" store={liveStore} />
-              {account}
-            </div>
+            ) : null}
             <div className="flex min-h-full flex-col">{content}</div>
           </Sheet>
         ) : null}

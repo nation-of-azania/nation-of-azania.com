@@ -91,8 +91,9 @@ const WORLD_WORDS: Partial<Record<WorldState['status'], string>> = {
 
 /**
  * Which of the map's own layers show, whether past events do, and the
- * layers beyond the nation's own: the rest of the world, and the players
- * online.
+ * layers beyond the nation's own: the rest of the world, the diplomacy,
+ * the players online (with the viewer's own setting for names beside the
+ * heads), and the war view.
  */
 export function LayerMenu({
   layers,
@@ -101,6 +102,8 @@ export function LayerMenu({
   onShowPast,
   extras,
   onExtra,
+  named,
+  onNamed,
   liveStore,
   worldStatus,
 }: {
@@ -110,6 +113,9 @@ export function LayerMenu({
   onShowPast: (value: boolean) => void
   extras: Extras
   onExtra: (layer: ExtraLayer, on: boolean) => void
+  /** Names beside every head at every zoom: the viewer's own setting, kept in their browser. */
+  named: boolean
+  onNamed: (value: boolean) => void
   liveStore: Store<LiveState>
   worldStatus: WorldState['status']
 }) {
@@ -174,6 +180,25 @@ export function LayerMenu({
             note="Who’s on the server, where they are, every few seconds. Nothing is kept."
             onChange={(on) => onExtra('players', on)}
             state={extras.players ? <LiveWords store={liveStore} /> : null}
+          />
+          {extras.players ? (
+            <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 pl-9 text-xs text-ink-500 hover:bg-sand-100">
+              <input
+                checked={named}
+                className="h-3.5 w-3.5 accent-sea-800"
+                onChange={(e) => onNamed(e.target.checked)}
+                type="checkbox"
+              />
+              <span>Names beside the heads, at every zoom</span>
+            </label>
+          ) : null}
+        </li>
+        <li>
+          <ExtraRow
+            checked={extras.war}
+            label="War view"
+            note="The map for the hour of a battle: the sieges’ zones to scale, every nation’s reach, the fighters with their health and armour, and a sidebar with the score, where it’s heading and who’s where. The swords button beside is the same switch."
+            onChange={(on) => onExtra('war', on)}
           />
         </li>
       </ul>
@@ -394,9 +419,28 @@ export function Legend({ globe }: { globe: boolean }) {
               <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
             </svg>
             <span>
-              Nation reach, with Diplomacy on: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a capital,
-              as far as a nation may besiege; it ends at the world’s edge
+              Nation reach, with Diplomacy on or in the war view: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a
+              capital, as far as a nation may besiege; it ends at the world’s edge
             </span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+              <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.06} r={11} stroke={GROUND.coralDeep} strokeDasharray="4 3" strokeWidth={1.5} />
+              <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.2} r={3.5} stroke={GROUND.coralDeep} strokeWidth={1.5} />
+            </svg>
+            <span>
+              In the war view, a siege’s zones to scale: the banner zone, where staying five minutes takes the banner,
+              within the siege zone, where a death costs a side a hundred points
+            </span>
+          </li>
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
+              <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.coral} strokeWidth={2} width={12} x={8} y={2} />
+              <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={12} x={28} y={2} />
+              <rect fill={GROUND.coral} height={2} width={10} x={9} y={17} />
+              <rect fill={GROUND.sea500} height={2} width={7} x={29} y={17} />
+            </svg>
+            <span>And its fighters: ringed by their side, attackers coral and defenders sea, health and armour beneath</span>
           </li>
           {globe ? (
             <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
@@ -474,6 +518,22 @@ export function DiplomacyButton({ on, onToggle }: { on: boolean; onToggle: () =>
     <IconButton
       icon="diplomacy"
       label={on ? 'Hide Azania’s diplomacy' : 'Show Azania’s diplomacy: where it stands with the other nations'}
+      onClick={onToggle}
+      pressed={on}
+    />
+  )
+}
+
+/**
+ * The war view's button, beside the diplomacy's: the swords of the siege
+ * mark. A toggle, pressed while the view is on; its row in the layers
+ * menu is the same switch.
+ */
+export function WarButton({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <IconButton
+      icon="war"
+      label={on ? 'Leave the war view' : 'War view: the sieges, their zones, the fighters and the score'}
       onClick={onToggle}
       pressed={on}
     />

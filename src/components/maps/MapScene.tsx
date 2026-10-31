@@ -23,12 +23,13 @@ import { Tools } from './editor/Tools'
 import type { GlobePull } from './globe/types'
 import { createStore, useLatest, type Store } from './hooks'
 import { AbroadClaims, AbroadMarks, HomeGlow, StanceGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
+import { BattleZones } from './layers/BattleZones'
 import { DrawingsLayer } from './layers/DrawingsLayer'
 import { EventsLayer } from './layers/EventsLayer'
 import { AbroadHover, HoverReach } from './layers/hover'
 import { planLabels, type LabelPlan } from './layers/labels'
 import { PlacesLayer } from './layers/PlacesLayer'
-import { PlayersLayer } from './layers/PlayersLayer'
+import { PlayersLayer, type WarHeads } from './layers/PlayersLayer'
 import { LabelPlacer, type Projection } from './layers/projection'
 import type { LiveState } from './live'
 import { NationReach, type Reach } from './layers/ReachLayer'
@@ -121,6 +122,15 @@ export type SceneProps = {
   /** Whether the players online are shown, and the feed they're read from. */
   live: boolean
   liveStore: Store<LiveState>
+  /** Names beside every head at every zoom: the viewer's setting. */
+  named: boolean
+  /**
+   * The war view (panels/WarPanel.tsx), while it's on: the siege it's on,
+   * whose zones are drawn stronger; the nations whose reach is named; and
+   * what it asks of the heads. Places and events step aside for it, and
+   * the claims fade (maps.css → [data-war]).
+   */
+  war: { siege: string | null; nations: string[]; heads: WarHeads } | null
   showPast: boolean
   now: number
   selection: MapSelection | null
@@ -158,7 +168,7 @@ function lookAt(map: L.Map, target: LookTarget, inset?: number | Insets): void {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, data } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, named, war, data } = props
   const { world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
@@ -442,7 +452,7 @@ export function MapScene(props: SceneProps) {
             />
           ) : null}
           {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
-          <PlayersLayer data={data} enabled={live} store={liveStore} />
+          <PlayersLayer data={data} enabled={live} named={named} store={liveStore} war={war?.heads ?? null} />
         </>
       }
       className="absolute inset-0 z-0"
@@ -485,6 +495,7 @@ const Layers = memo(function Layers({
   capitals,
   radius,
   showReach,
+  war,
   showPast,
   now,
   selection,
@@ -533,11 +544,13 @@ const Layers = memo(function Layers({
   // An article's highlights, shown or being drawn, outrank the map's own names.
   const drawings =
     editor?.kind === 'view' ? editor.draft.drawings : viewing ? viewing.drawings : []
+  // In the war view the places and the events step aside: nothing a fighter needs, and in the way of the heads.
+  const fighting = war !== null
   const shown = {
     towns: show('towns') ? data.towns : [],
     roads: show('roads') ? roads : [],
-    places: show('places') ? places : [],
-    events: show('events') ? events : [],
+    places: show('places') && !fighting ? places : [],
+    events: show('events') && !fighting ? events : [],
   }
   // The world around the nation, drawn for itself or for the diplomacy; never in an article's view, which is the nation's own.
   const worldShown = abroad && (showWorld || diplomacy) && !viewLayers ? abroad : null
@@ -550,7 +563,7 @@ const Layers = memo(function Layers({
   const plannedWorld = worldShown ? { world: worldShown, home: show('towns') ? home : null, styleOf: diplomacy ? styleOf : undefined } : null
   const towns = data.towns
   const relations = diplomacy ? data.relations : null
-  const war = useMemo<SiegeToDraw[]>(
+  const drawnSieges = useMemo<SiegeToDraw[]>(
     () => siegesOnMap(sieges, { towns }, abroad).map((entry) => ({ ...entry, ring: relations ? ringOf(entry.siege, relations) : null })),
     [sieges, towns, abroad, relations],
   )
@@ -560,13 +573,19 @@ const Layers = memo(function Layers({
   const openNation = selection?.kind === 'nation' ? (abroad?.nationBySlug.get(selection.slug)?.name ?? null) : null
   const homeReach = showReach && homeName ? reachOf(homeName, { home: true }) : null
   const openReach = showReach && openNation && openNation !== homeName ? reachOf(openNation, { named: true }) : null
-  const hoverReach = (nation: string) => (nation === homeName || nation === openNation ? null : reachOf(nation))
+  // The war view's own: the nation it's looking at, and the two sides of the siege it's on, each named along its ring.
+  const warReaches = (war?.nations ?? [])
+    .filter((nation, index, all) => nation !== homeName && nation !== openNation && all.indexOf(nation) === index)
+    .map((nation) => reachOf(nation, { named: true }))
+    .filter((reach): reach is Reach => reach !== null)
+  const hoverReach = (nation: string) =>
+    nation === homeName || nation === openNation || warReaches.some((reach) => reach.nation === nation) ? null : reachOf(nation)
   // One placer for the real world and its echoes, so no name lands on another across a seam; and what lost is
   // kept in reserve, for the names to be placed again as the map moves (leaflet/placing.ts).
   const placer = new LabelPlacer()
   const labels = planLabels(
     projection,
-    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war, reserve: true },
+    { drawings, ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: drawnSieges, reserve: true },
     placer,
   )
   const copies = [
@@ -578,7 +597,7 @@ const Layers = memo(function Layers({
         at,
         labels: planLabels(
           at,
-          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: war, reserve: true },
+          { ...shown, now, phases, selectedPlace, selectedEvent, abroad: plannedWorld, sieges: drawnSieges, reserve: true },
           placer,
         ),
       }
@@ -595,6 +614,9 @@ const Layers = memo(function Layers({
       {/* The rings of the wars' reach, under everything: long, calm lines across the map. */}
       {homeReach ? <NationReach part="ring" projection={at} radius={radius} reach={homeReach} /> : null}
       {openReach ? <NationReach part="ring" projection={at} radius={radius} reach={openReach} /> : null}
+      {warReaches.map((reach) => (
+        <NationReach key={reach.nation} part="ring" projection={at} radius={radius} reach={reach} />
+      ))}
       {showReach ? <HoverReach projection={at} radius={radius} reachOf={hoverReach} store={hover} /> : null}
       {/* The diplomacy: the sheet veiled, and the friends' and foes' towns aglow, under the claims. */}
       {worldShown && diplomacy ? <SheetVeil colour={DIPLOMACY_VEIL.colour} opacity={DIPLOMACY_VEIL.opacity} projection={at} /> : null}
@@ -628,6 +650,8 @@ const Layers = memo(function Layers({
           selected={selection?.kind === 'road' ? selection.id : null}
         />
       ) : null}
+      {/* The war view: each siege's zones about its banner, to scale, over the claims. */}
+      {war ? <BattleZones part="rings" projection={at} selected={war.siege} sieges={sieges} /> : null}
     </>
   )
 
@@ -640,6 +664,10 @@ const Layers = memo(function Layers({
       {worldShown && show('towns') ? <HomeGlow part="discs" projection={at} towns={data.towns} /> : null}
       {homeReach ? <NationReach part="name" projection={at} radius={radius} reach={homeReach} /> : null}
       {openReach ? <NationReach part="name" projection={at} radius={radius} reach={openReach} /> : null}
+      {warReaches.map((reach) => (
+        <NationReach key={reach.nation} part="name" projection={at} radius={radius} reach={reach} />
+      ))}
+      {war ? <BattleZones part="names" projection={at} selected={war.siege} sieges={sieges} /> : null}
       {show('roads') ? <RoadsLayer labels={plan.roads} part="names" projection={at} roads={roads} /> : null}
       {show('places') ? (
         <PlacesLayer

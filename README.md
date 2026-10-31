@@ -745,8 +745,8 @@ carries what's already drawn into place until the fresh render lands.
   view with its highlights — written as the map moves, so any address can
   be shared. `layers` also names the layers that aren't the nation's own
   data (`EXTRA_LAYERS` in `src/maps/url.ts`): `players` and `world`, on
-  unless the address lists layers without them, and `diplomacy`, off unless
-  listed; an old link's `reach` is ignored. (Old links with `&map=biomes` still open;
+  unless the address lists layers without them, and `diplomacy` and `war`
+  (the war view, below), off unless listed; an old link's `reach` is ignored. (Old links with `&map=biomes` still open;
   the biome map is no longer drawn.) Every page of Azania's own has its own
   link-preview card, a clipping of the map with the thing on it (see
   [Link previews](#link-previews)); the pages abroad have the site's plain
@@ -813,8 +813,10 @@ carries what's already drawn into place until the fresh render lands.
   storage. Each player is a small Minecraft head (`layers/PlayersLayer.tsx`,
   plain Leaflet markers in a pane of their own, moved by one animation
   frame loop, so nothing else on the map is redrawn for a poll) that
-  **glides** from one reading to the next rather than jumping, and jumps
-  only for a teleport; Azania's residents, matched against the towns'
+  **glides** from one reading to the next rather than jumping: at a
+  steady pace over the feed's own beat, so a walk reads as a walk, each
+  reading setting off from wherever the head has got to; it jumps only
+  for a teleport. Azania's residents, matched against the towns'
   resident lists, are ringed in saffron. Two heads that overlap stack by
   where the players stand, the southern one in front, and keep that order
   through a zoom. Every head is the player's
@@ -822,8 +824,11 @@ carries what's already drawn into place until the fresh render lands.
   house's quieter colours: never saffron, coral or the backdrop's night
   sea), with the face laid over it once the face has arrived; so a Bedrock
   player (a name starting with "."), a face still on its way and one that
-  won't load all read as a person, never an empty square. Names show on hover,
-  on the chosen player, and close in. A click opens a small card beside the
+  won't load all read as a person, never an empty square. Names stand
+  beside the heads at every zoom, unless the viewer turns that off in the
+  layers menu (*Names beside the heads*): a setting of their own, not a
+  layer, kept in their browser and never in the address; off, names show
+  on hover, on the chosen player, and close in. A click opens a small card beside the
   head: who they are and, if Azanian, of which town; their coordinates to
   copy; and the way there as a player has it, the nearest town's `/t spawn`
   and the walk, since nobody has `/tp`. A head is never drawn in an echo of
@@ -1004,7 +1009,80 @@ which the routes insist on, so every viewer shares one copy.
   the map's top left ("Cape Agulhas is under siege", with *Show*), the
   same in full at the top of the front, and on a phone the sheet's folded
   line. A besieged town's page and a nation's page show theirs.
-- **Nation reach** (shown with the diplomacy layer). A nation may besiege towns only
+- **War view** (`war` in `&layers=`; the swords button beside the
+  diplomacy's, or its row in the layers menu). The map for the hour of a
+  battle, asked for by the nation's leadership: as little as possible, and
+  what matters read in a glance, with the other hand on the keyboard in
+  the game. On the map, each siege's **zones** are drawn to scale about
+  its banner (`layers/BattleZones.tsx`): the banner control zone, where
+  staying five minutes takes the banner, a solid coral ring, within the
+  siege zone, where a death costs a side a hundred points and nobody may
+  teleport in, a wide dashed one, each named along its top from the zoom
+  where it carries a name; every nation's **reach** shows as with the
+  diplomacy, Azania's and those of the nation and the two sides the view
+  is on named along their rings; the claims, roads and names of every
+  town not in a siege fade back, and the places and events step aside. The
+  **heads** are fighters: ringed by their side in the siege the view is
+  on (attackers coral, defenders sea; worked out from the towns' resident
+  lists, so an ally the map can't place is of neither), their names
+  always beside them, and their **health and armour** under the name as
+  two small bars, from the feed's own figures. The feeds go fast while
+  the view is on: `/maps/players/live` every second and a half (the CDN
+  shares each answer for one second) and, during a battle,
+  `/maps/war/live` every half minute (shared for half a minute; the
+  marker file it comes from is some 5 MB, so no oftener), only while
+  someone has the view open; the rest of the map stays on the three-second
+  and three-minute feeds. The war store keeps each battle's readings for
+  the session (`components/maps/war.ts`), which is how the view knows what
+  the marker doesn't say.
+
+  The **sidebar** (`panels/WarPanel.tsx`) takes the panel's place, dark
+  where the panels are sand, with big figures and nothing else; on a
+  phone it is the sheet. Its overview is the session clock (the hour's
+  battle session, or when the next begins: sessions at 13:00, 19:00 and
+  01:00 server time) and the sieges, Azania's and battles first, each
+  with its score, then the nations in the fight and who of Azania is
+  online. A **siege**, chosen there or by its banner on the map, is the
+  battle assessed (`src/maps/battle.ts`, pure and checked by
+  `pnpm test:battle` against `docs/war-rules.md`, where the server's rules
+  and SiegeWar's scoring are set out): the live score, run on second by
+  second between the map's readings at the banner's rate (ten points a
+  holder every twenty seconds, times the bonus for taking it back); who
+  holds the banner, with how many and at what multiplier, and where that
+  was read from (seen in the points, inferred from the hands it changed
+  since the session began, or assumed); the time left; the balance now
+  and **after this session** if the banner stays as it is, with the
+  sessions left, and at the battle's own pace of kills when it has one;
+  a verdict in one line, who the session's end favours and, for the side
+  behind, what it takes to come level: so many kills, so many at the
+  banner for the rest of the session, or taking the banner back and
+  holding it so long; each side's count at the banner and in the zone;
+  and the fighters within two zones of the banner by side, each with
+  head, name, health and armour, how far from the banner, and for anyone
+  outside the zone the time back, sprinting at the game's pace or by
+  their own town's spawn when that is nearer (the spawn's warm-up isn't
+  counted). The foot says what is assumed: the two radii, the ×3 reversal
+  bonus and the ±20,000 cap are SiegeWar's defaults, which the rules
+  don't give (`ASSUMED` in `battle.ts`). A **nation**, chosen there or
+  by a click on any of its towns on the map, is who it is, how many
+  residents and how many online, its part in a siege, and its online
+  residents listed with health, armour and their distance and time back
+  to the view's banner; a **player**, chosen from any roster or by their
+  head, is one head watched: the map flies to them and **follows** them,
+  reading by reading, until the map is dragged or the following turned
+  off, with their vitals large, their coordinates to copy, and where they
+  stand to the banner. Escape steps back to the overview; *Leave* puts
+  the map back as it was. Nothing of a battle is kept: the figures are
+  the map's readings this session, in this browser.
+
+  Without a battle on the server, which is nearly always, the view can
+  be built and checked against a made-up one: `MAPS_WAR_DEMO=1` on one's
+  own machine (never on Vercel, never in the siege watch;
+  `src/lib/warDemo.ts`) answers the war and the players routes with a
+  siege of a real nearby town by Azania, real residents of either side
+  moving about the banner, and a score, a banner and a clock that run on
+  an hourly script.
+- **Nation reach** (shown with the diplomacy layer, and in the war view). A nation may besiege towns only
   within 12,320 blocks of its capital (`CAPITAL_WAR_RADIUS`, about Africa's
   width), and this is that circle (`layers/ReachLayer.tsx`): Azania's about
   its capital, a calm dashed line in the deep sea on a whitewash casing,

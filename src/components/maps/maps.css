@@ -420,8 +420,201 @@
 }
 .az-player:hover .az-player-name,
 .az-player-selected .az-player-name,
-.az-players-near .az-player-name {
+.az-players-near .az-player-name,
+/* And at every zoom while the viewer has it so (the layers menu; warView.ts), and always in the war view. */
+.az-players-named .az-player-name,
+.az-players-war .az-player-name {
   visibility: visible;
+}
+
+/*
+ * The war view's heads are fighters (layers/PlayersLayer.tsx): ringed by
+ * their side in the siege the view is on, attackers in the seal's coral
+ * and defenders in the sea, with health and armour under the name as two
+ * small bars, each a share of its full twenty, set as custom properties
+ * so a poll writes two numbers and nothing is laid out again. Low health
+ * burns hotter. The one being watched wears a saffron ring that breathes.
+ */
+.az-player-vitals {
+  position: absolute;
+  top: 41px;
+  left: 50%;
+  display: none;
+  width: 26px;
+  flex-direction: column;
+  gap: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.az-players-war .az-player-vitals {
+  display: flex;
+}
+.az-player-vitals .az-vital-track {
+  display: block;
+  height: 3px;
+  background: rgba(22, 25, 31, 0.6);
+  box-shadow: 0 0 0 1px rgba(251, 248, 241, 0.75);
+}
+.az-player-vitals .az-vital-fill {
+  display: block;
+  height: 100%;
+  transition: width 400ms linear;
+}
+.az-player-vitals [data-kind='health'] .az-vital-fill {
+  width: calc(var(--az-hp, 0) * 100%);
+  background: #e0523a;
+}
+.az-player-vitals [data-kind='armour'] .az-vital-fill {
+  width: calc(var(--az-ar, 0) * 100%);
+  background: #a9cbe3;
+}
+.az-player[data-low] .az-player-vitals [data-kind='health'] .az-vital-fill {
+  background: #ff6a4a;
+}
+.az-players-war .az-player[data-side='attackers'] .az-player-mark {
+  box-shadow:
+    0 0 0 2px #bb4631,
+    0 0 0 3px rgba(251, 248, 241, 0.7),
+    0 1px 3px rgba(22, 25, 31, 0.45);
+}
+.az-players-war .az-player[data-side='defenders'] .az-player-mark {
+  box-shadow:
+    0 0 0 2px #2c6b93,
+    0 0 0 3px rgba(251, 248, 241, 0.7),
+    0 1px 3px rgba(22, 25, 31, 0.45);
+}
+.az-players-war .az-player[data-side='attackers'] .az-player-name {
+  color: #a63727;
+}
+.az-players-war .az-player[data-side='defenders'] .az-player-name {
+  color: #1a4461;
+}
+.az-player-watched .az-player-mark {
+  box-shadow:
+    0 0 0 2px #fbf8f1,
+    0 0 0 4px #d8962c,
+    0 1px 4px rgba(22, 25, 31, 0.5);
+}
+.az-player-watched::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border: 2px solid #d8962c;
+  border-radius: 9999px;
+  animation: az-watch 1.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes az-watch {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-player-watched::before {
+    animation: none;
+    opacity: 0.7;
+  }
+  .az-player-vitals .az-vital-fill {
+    transition: none;
+  }
+}
+
+/*
+ * The war view (MapsShell.tsx → data-war): the claims, the roads and the
+ * names of the towns not in a siege fade back, so the sieges' zones and
+ * the fighters read first; a besieged town's claims are drawn by the
+ * sieges layer, in coral over everything, and stay.
+ */
+.az-maps[data-war] .az-overlay :is(.az-towns, .az-town-names, .az-abroad, .az-abroad-marks, .az-home-glow, .az-stance-glow, .az-roads) {
+  opacity: 0.38;
+}
+
+/*
+ * The war sidebar (panels/WarPanel.tsx): dark where the panels are sand,
+ * with the two sides' colours lifted to read on it, and the health and
+ * armour bars (ui/Vitals.tsx) in the same hand as the heads' on the map.
+ */
+.az-war {
+  --az-atk: #f08b74;
+  --az-def: #8cc0e8;
+}
+.az-vital {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.az-vital .az-vital-track {
+  display: block;
+  width: 40px;
+  height: 5px;
+  background: rgba(251, 248, 241, 0.14);
+}
+.az-vital-large .az-vital-track {
+  flex: 1;
+  width: auto;
+  height: 10px;
+}
+.az-vital .az-vital-fill {
+  display: block;
+  height: 100%;
+  width: calc(var(--az-share, 0) * 100%);
+  transition: width 400ms linear;
+}
+.az-vital[data-kind='health'] {
+  color: #f08b74;
+}
+.az-vital[data-kind='health'] .az-vital-fill {
+  background: #e0523a;
+}
+.az-vital[data-kind='health'][data-low] .az-vital-fill {
+  background: #ff6a4a;
+}
+.az-vital[data-low] .az-vital-figure {
+  color: #ff8a70;
+  font-weight: 700;
+}
+.az-vital[data-kind='armour'] {
+  color: #a9cbe3;
+}
+.az-vital[data-kind='armour'] .az-vital-fill {
+  background: #a9cbe3;
+}
+.az-vital-figure {
+  min-width: 1.4em;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: #fbf8f1;
+}
+.az-vital-large .az-vital-figure {
+  min-width: 4.5em;
+  font-size: 15px;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-vital .az-vital-fill {
+    transition: none;
+  }
+}
+/* A head in the sidebar's rosters, ringed by its side as on the map. */
+.az-war-head {
+  display: inline-block;
+  padding: 3px;
+}
+.az-war-head-attackers .az-player-mark {
+  box-shadow: 0 0 0 2px var(--az-atk);
+}
+.az-war-head-defenders .az-player-mark {
+  box-shadow: 0 0 0 2px var(--az-def);
+}
+.az-war-head-other .az-player-mark {
+  box-shadow: 0 0 0 2px rgba(251, 248, 241, 0.35);
 }
 /* In the card: the head on its own, in the card's frame. */
 .az-player-portrait {

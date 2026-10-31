@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { minecraftHeadUrl } from '@/components/site/format'
+import type { PlayerSide } from '@/maps/battle'
 import { spoken, type MapData, type MapTown } from '@/maps/data'
 import type { Point } from '@/maps/geo'
-import { isBedrockName, PLAYERS_EVERY_MS, TELEPORT_BLOCKS, townOfPlayer, type LivePlayer } from '@/maps/players'
+import { isBedrockName, MAX_ARMOR, MAX_HEALTH, TELEPORT_BLOCKS, townOfPlayer, type LivePlayer } from '@/maps/players'
 import { settlements } from '@/maps/sites'
 import { spawnRoute } from '@/maps/spawn'
 
@@ -16,6 +17,7 @@ import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import { monogramOf } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
+import { LOW_HEALTH } from '../ui/Vitals'
 
 /**
  * Who is online and where, live: each player a small Minecraft head on the
@@ -23,10 +25,21 @@ import { useCopy } from '../ui/Readouts'
  * seconds, Azania's own residents ringed in saffron. Plain Leaflet markers
  * in a pane of their own, moved by one animation frame loop writing
  * transforms — nothing of React's runs per frame, and the SVG overlay with
- * every other layer is never touched for a poll. Names show on hover, on
- * the chosen player, and close in; a click opens a small card beside the
- * head with who they are, where, and the way there as a player has it.
- * The heads stand only in the real world, never in an echo of it.
+ * every other layer is never touched for a poll. Names stand beside the
+ * heads at every zoom while the viewer has it so (`named`, on unless they
+ * turned it off); otherwise on hover, on the chosen player, and close in.
+ * A click opens a small card beside the head with who they are, where,
+ * and the way there as a player has it. The heads stand only in the real
+ * world, never in an echo of it.
+ *
+ * In the war view (`war`) the heads are fighters: ringed by their side in
+ * the siege the view is on (attackers coral, defenders sea), with health
+ * and armour drawn under the name as two small bars, and a click gives
+ * the player to the sidebar rather than opening the card. The one being
+ * watched wears a ring that breathes, and, while the view follows them,
+ * the map pans with each reading to keep them in the middle: the pan
+ * takes as long as the reading does, so the ground moves as they do. A
+ * drag of the map ends the following; the sidebar can start it again.
  */
 
 /** The names show for everyone from this zoom in; before that, on hover and on the chosen player. */
@@ -44,6 +57,9 @@ const STACK_SPREAD = 1000
 const RISE = 100_000_000
 
 type StackedMarker = L.Marker & { _icon?: HTMLElement | null; arrival: number }
+
+/** Leaflet's own record of an animated zoom (a flight) under way, which a following pan must not cut short. */
+type AnimatingMap = L.Map & { _animatingZoom?: boolean }
 
 /**
  * A head's marker, stacked by where its player stands in the world, south
@@ -64,12 +80,28 @@ type Entry = {
   marker: L.Marker
   element: HTMLElement
   player: LivePlayer
-  /** Where the head is gliding from and to, and when it set off. */
+  /** Where the head is gliding from and to, when it set off, and how long the glide takes: the feed's own beat. */
   from: Point
   to: Point
   since: number
+  over: number
   /** Whether it has arrived, so a frame can leave it alone. */
   still: boolean
+}
+
+/** What the war view asks of the heads. */
+export type WarHeads = {
+  /** A player's side in the siege the view is on; null for someone it can't place. */
+  sideOf: (name: string) => PlayerSide | null
+  /** The player the sidebar is watching, and whether the map follows them. */
+  watch: string | null
+  follow: boolean
+  /** A head clicked: the sidebar takes the player. */
+  onPick: (name: string) => void
+  /** The reader dragged the map away from the one followed. */
+  onFollowBroken: () => void
+  /** How much of the map's foot a phone's sheet covers, in px, so the one followed is kept in the middle of what's left. */
+  cover: number
 }
 
 const at = (player: LivePlayer): Point => [player.x, player.z]
@@ -127,7 +159,7 @@ function PlayerHead({ name }: { name: string }) {
   )
 }
 
-/** The marker's element: the head, and the name beneath it. */
+/** The marker's element: the head, the name beneath it, and under the name the two bars the war view shows. */
 function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; element: HTMLElement } {
   const element = document.createElement('div')
   element.className = `az-player az-player-new${town ? ' az-player-azanian' : ''}`
@@ -138,19 +170,44 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   name.className = 'az-player-name'
   name.textContent = player.name
   element.appendChild(name)
+  const vitals = document.createElement('span')
+  vitals.className = 'az-player-vitals'
+  for (const kind of ['health', 'armour']) {
+    const bar = document.createElement('span')
+    bar.className = 'az-vital-track'
+    bar.dataset.kind = kind
+    const fill = document.createElement('span')
+    fill.className = 'az-vital-fill'
+    bar.appendChild(fill)
+    vitals.appendChild(bar)
+  }
+  element.appendChild(vitals)
   // Leaflet takes the element as the icon's html, and sets its size and anchor.
   const icon = L.divIcon({ html: element, className: 'az-player-icon', iconSize: [BOX_PX, BOX_PX], iconAnchor: [BOX_PX / 2, BOX_PX / 2] })
   return { icon, element }
+}
+
+/** The bars under a head, set to the reading: a share each, and whether the health is low. */
+function setVitals(element: HTMLElement, player: LivePlayer): void {
+  const share = (value: number | null, max: number) => (value === null ? 0 : Math.max(0, Math.min(1, value / max)))
+  element.style.setProperty('--az-hp', String(share(player.health, MAX_HEALTH)))
+  element.style.setProperty('--az-ar', String(share(player.armor, MAX_ARMOR)))
+  element.toggleAttribute('data-low', player.health !== null && player.health <= LOW_HEALTH)
 }
 
 export function PlayersLayer({
   store,
   data,
   enabled,
+  named,
+  war = null,
 }: {
   store: Store<LiveState>
   data: MapData
   enabled: boolean
+  /** Names beside every head, at every zoom (the viewer's setting). */
+  named: boolean
+  war?: WarHeads | null
 }) {
   const { map } = useLeaflet()
   const towns = useMemo(() => settlements(data.towns), [data.towns])
@@ -158,9 +215,10 @@ export function PlayersLayer({
   const entries = useRef(new Map<string, Entry>())
   const [chosen, setChosen] = useState<string | null>(null)
   const chosenRef = useLatest(chosen)
+  const warRef = useLatest(war)
   const cardRef = useRef<HTMLDivElement>(null)
 
-  // The pane, once: above the overlay, below the chrome; its class says when names show.
+  // The pane, once: above the overlay, below the chrome; its classes say when names show, and whether the heads are fighters.
   useEffect(() => {
     if (map.getPane(PANE)) return
     const pane = map.createPane(PANE)
@@ -169,6 +227,14 @@ export function PlayersLayer({
     map.on('zoomend', near)
     near()
   }, [map])
+  useEffect(() => {
+    map.getPane(PANE)?.classList.toggle('az-players-named', named)
+  }, [map, named])
+  useEffect(() => {
+    map.getPane(PANE)?.classList.toggle('az-players-war', Boolean(war))
+  }, [map, war])
+  // The war's own card is the sidebar: the small one stands aside while the view is on.
+  const picked = war ? null : chosen
 
   /** Where the chosen player's card sits: beside the head, to the right, else the left, else below. */
   const placeCard = () => {
@@ -205,11 +271,11 @@ export function PlayersLayer({
       let moving = false
       for (const entry of held.values()) {
         if (entry.still) continue
-        const t = Math.min(1, (now - entry.since) / PLAYERS_EVERY_MS)
-        // Eased a little at the end, so a head settles rather than stops.
-        const k = 1 - (1 - t) * (1 - t)
-        const x = entry.from[0] + (entry.to[0] - entry.from[0]) * k
-        const z = entry.from[1] + (entry.to[1] - entry.from[1]) * k
+        // At a steady pace from one reading to the next, over the feed's own beat, so a walk reads as a walk; the
+        // next reading sets off from wherever the head has got to, so the pace holds whether the feed is early or late.
+        const t = Math.min(1, (now - entry.since) / entry.over)
+        const x = entry.from[0] + (entry.to[0] - entry.from[0]) * t
+        const z = entry.from[1] + (entry.to[1] - entry.from[1]) * t
         entry.marker.setLatLng(toLatLng([x, z]))
         if (t >= 1) entry.still = true
         else moving = true
@@ -225,12 +291,21 @@ export function PlayersLayer({
       const { lng, lat } = entry.marker.getLatLng()
       return [lng, lat]
     }
+    /** The map brought to the player followed, over the feed's beat, the ground moving as they do; not while a flight is under way. */
+    const follow = (to: Point, over: number, jump: boolean) => {
+      if ((map as AnimatingMap)._animatingZoom) return
+      const cover = warRef.current?.cover ?? 0
+      const zoom = map.getZoom()
+      const target = cover ? map.unproject(map.project(toLatLng(to), zoom).add([0, cover / 2]), zoom) : toLatLng(to)
+      map.panTo(target, { animate: !jump, duration: over / 1000, easeLinearity: 1, noMoveStart: true })
+    }
 
     const reconcile = () => {
-      const { players } = store.get()
+      const { players, every } = store.get()
       const seen = new Set<string>()
       const now = performance.now()
       const jump = reduced()
+      const fight = warRef.current
       for (const player of players) {
         seen.add(player.name)
         const to = at(player)
@@ -242,12 +317,21 @@ export function PlayersLayer({
           entry.from = jump || far ? to : from
           entry.to = to
           entry.since = now
+          entry.over = every
           entry.still = false
           if (jump || far) entry.marker.setLatLng(toLatLng(to))
+          setVitals(entry.element, player)
+          if (fight) entry.element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
+          if (fight?.follow && fight.watch === player.name) follow(to, every, jump || far)
           continue
         }
         const town = townOfPlayer(player.name, townsRef.current)
         const { icon, element } = iconFor(player, town)
+        setVitals(element, player)
+        if (fight) {
+          element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
+          element.classList.toggle('az-player-watched', fight.watch === player.name)
+        }
         const marker = new HeadMarker(toLatLng(to), {
           icon,
           pane: PANE,
@@ -260,12 +344,14 @@ export function PlayersLayer({
         marker.arrival = arrivals++ % STACK_SPREAD
         marker.on('click', (event: L.LeafletMouseEvent) => {
           L.DomEvent.stop(event.originalEvent)
+          const fighting = warRef.current
+          if (fighting) return fighting.onPick(player.name)
           setChosen((picked) => (picked === player.name ? null : player.name))
         })
         marker.addTo(map)
         // The arrival's fade is a one-off.
         window.setTimeout(() => element.classList.remove('az-player-new'), 600)
-        held.set(player.name, { marker, element, player, from: to, to, since: now, still: true })
+        held.set(player.name, { marker, element, player, from: to, to, since: now, over: every, still: true })
       }
       for (const [name, entry] of held) {
         if (seen.has(name)) continue
@@ -284,12 +370,31 @@ export function PlayersLayer({
       held.clear()
       setChosen(null)
     }
-  }, [enabled, store, map, townsRef, chosenRef, placeCardRef])
+  }, [enabled, store, map, townsRef, chosenRef, warRef, placeCardRef])
+
+  // The war view's sides and its watched player, on the heads already standing; and a drag ends the following.
+  const sideOf = war?.sideOf
+  const watch = war?.watch ?? null
+  const following = Boolean(war?.follow)
+  useEffect(() => {
+    for (const [name, entry] of entries.current) {
+      entry.element.setAttribute('data-side', sideOf ? (sideOf(name) ?? '') : '')
+      entry.element.classList.toggle('az-player-watched', Boolean(sideOf) && name === watch)
+    }
+  }, [sideOf, watch])
+  useEffect(() => {
+    if (!following) return
+    const broken = () => warRef.current?.onFollowBroken()
+    map.on('dragstart', broken)
+    return () => {
+      map.off('dragstart', broken)
+    }
+  }, [map, following, warRef])
 
   // The chosen one's ring, and the card kept beside it as the map moves.
   useEffect(() => {
-    for (const [name, entry] of entries.current) entry.element.classList.toggle('az-player-selected', name === chosen)
-    if (!chosen) return
+    for (const [name, entry] of entries.current) entry.element.classList.toggle('az-player-selected', name === picked)
+    if (!picked) return
     const card = cardRef.current
     if (card) {
       L.DomEvent.disableClickPropagation(card)
@@ -321,10 +426,10 @@ export function PlayersLayer({
       map.off('click', close)
       window.removeEventListener('keydown', onKey)
     }
-  }, [chosen, map, placeCardRef])
+  }, [picked, map, placeCardRef])
 
-  if (!enabled || !chosen) return null
-  return <PlayerCard data={data} name={chosen} onClose={() => setChosen(null)} ref={cardRef} store={store} towns={towns} />
+  if (!enabled || !picked) return null
+  return <PlayerCard data={data} name={picked} onClose={() => setChosen(null)} ref={cardRef} store={store} towns={towns} />
 }
 
 /**

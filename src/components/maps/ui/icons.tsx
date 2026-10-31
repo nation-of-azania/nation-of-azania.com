@@ -47,6 +47,12 @@ const PATHS = {
   diplomacy: 'M5 21V4M5 4h7l-1.5 3 1.5 3H5M15 21v-9M15 12h6l-1.5 2.5L21 17h-6',
   /** A roll of names: the people of a town, listed. */
   people: 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6M9 16h4',
+  /** Crossed swords, as the siege mark wears them: the war view. */
+  war: 'M5 5l11 11M14 18l4-4M16 16l3 3M19 5L8 16M6 14l4 4M8 16l-3 3',
+  /** A heart: health. */
+  heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z',
+  /** A shield: armour. */
+  shield: 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z',
 } as const
 
 export type IconName = keyof typeof PATHS
