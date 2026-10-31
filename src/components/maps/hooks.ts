@@ -112,3 +112,56 @@ export function useNamesSetting(): [named: boolean, setNamed: (on: boolean) => v
   }, [])
   return [named, setNamed]
 }
+
+/**
+ * How Azania Maps' chrome and panels are drawn, as the viewer has it:
+ * 'auto' (the default) is light, and dark in the war view, which is how
+ * the map always was; 'light' and 'dark' are always so, the war view
+ * included. Kept in the viewer's browser, like the names setting, and
+ * nothing of it in the address. The server renders 'auto'; the browser's
+ * choice takes over as the page hydrates, and the maps layout's inline
+ * script sets the document's own attribute before the first paint so a
+ * viewer who chose dark never sees a flash of sand (maps.css reads both).
+ */
+export type Appearance = 'auto' | 'light' | 'dark'
+
+const APPEARANCE_KEY = 'az-maps-appearance'
+
+const readAppearance = (): Appearance => {
+  try {
+    const stored = window.localStorage.getItem(APPEARANCE_KEY)
+    return stored === 'light' || stored === 'dark' ? stored : 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
+const appearanceListeners = new Set<() => void>()
+let appearanceNow: Appearance | null = null
+const subscribeAppearance = (callback: () => void) => {
+  appearanceListeners.add(callback)
+  return () => {
+    appearanceListeners.delete(callback)
+  }
+}
+
+export function useAppearance(): [appearance: Appearance, setAppearance: (next: Appearance) => void] {
+  const appearance = useSyncExternalStore(
+    subscribeAppearance,
+    () => (appearanceNow ??= readAppearance()),
+    () => 'auto' as const,
+  )
+  const setAppearance = useCallback((next: Appearance) => {
+    appearanceNow = next
+    try {
+      if (next === 'auto') window.localStorage.removeItem(APPEARANCE_KEY)
+      else window.localStorage.setItem(APPEARANCE_KEY, next)
+    } catch {
+      // Storage out of reach: the choice holds for this page alone.
+    }
+    // The document's own attribute (set before paint by the layout's script) follows, so the two never disagree.
+    document.documentElement.setAttribute('data-az-theme', next)
+    appearanceListeners.forEach((listener) => listener())
+  }, [])
+  return [appearance, setAppearance]
+}

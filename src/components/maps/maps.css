@@ -689,6 +689,147 @@
 }
 
 /*
+ * The appearance (hooks.ts → useAppearance; the layers menu): the chrome
+ * and the panels light, dark, or, left to the map, light and dark in the
+ * war view. The components are written in the site's light tokens, so
+ * the dark appearance is those tokens redefined under the map's root: a
+ * sand becomes a sea, an ink a sand, a deep sea heading a whitewash one,
+ * and every utility inside follows; the map's own ground, the tiles and
+ * the globe, stays as it is. The war sidebar (.az-war) is written in the
+ * dark tokens, so there the real values are restored in the dark
+ * appearance and the mirror image is set in the light one. Before the
+ * shell has hydrated the document's own attribute speaks, set by the
+ * maps layout's inline script from the viewer's setting, so a viewer who
+ * chose dark never sees a flash of sand.
+ */
+.az-maps[data-theme='dark'],
+html[data-az-theme='dark'] .az-maps:not([data-theme]) {
+  --color-sand-50: #0f2638;
+  --color-sand-100: #16324a;
+  --color-sand-200: #1e4160;
+  --color-sand-300: #2f516e;
+  --color-ink-900: #fbf8f1;
+  --color-ink-700: #e4ddcf;
+  --color-ink-500: #b9b2a3;
+  --color-ink-400: #9a9386;
+  --color-sea-950: #ffffff;
+  --color-sea-900: #f2ece0;
+  --color-sea-800: #e3dccb;
+  --color-sea-700: #8cc0e8;
+  --color-sea-600: #a9d2f0;
+  --color-sea-500: #6fb1e2;
+  --color-sea-200: #2f516e;
+  --color-sea-100: #16324a;
+  --color-saffron-600: #e8b65c;
+  --color-saffron-500: #d8962c;
+  --color-saffron-400: #d8962c;
+  --color-saffron-100: #3a2b12;
+  --color-coral-700: #f08b74;
+  --color-coral-600: #e0644c;
+  --color-lagoon-600: #8acbd2;
+  --color-lagoon-500: #45a8b3;
+  background-color: #0f2638;
+}
+/* The backdrops keep the night sea whatever the tokens say: the root behind the map, and the map's own loading sheet. */
+.az-maps[data-theme='dark'] .bg-sea-900,
+html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
+  background-color: #0f2638;
+}
+/* A skeleton's light passes dimly over the dark sand. */
+.az-maps[data-theme='dark'] .az-coming {
+  background-image: linear-gradient(90deg, transparent, rgba(251, 248, 241, 0.12) 50%, transparent);
+}
+/* The frame's label over the map, and the player list's figures, keep their whitewash. */
+.az-maps[data-theme='dark'] .az-frame span {
+  color: #fbf8f1;
+}
+.az-maps[data-theme='dark'] .az-vitals[data-size='list'] .az-vital-figure {
+  color: #fbf8f1;
+}
+.az-maps[data-theme='dark'] .az-vitals[data-size='list'] .az-vital[data-kind='health'] {
+  --az-off: rgba(251, 248, 241, 0.16);
+}
+.az-maps[data-theme='dark'] .az-vitals[data-size='list'] .az-vital[data-kind='armour'] {
+  --az-on: #a9cbe3;
+  --az-off: rgba(251, 248, 241, 0.16);
+}
+.az-maps[data-theme='dark'] .az-vitals[data-size='list'] .az-vital[data-low] .az-vital-figure {
+  color: #ff6a4a;
+}
+.az-maps[data-theme='dark'] .az-vitals[data-size='list'] .az-vital[data-none] .az-vital-figure {
+  color: #f0b429;
+}
+/* The war sidebar, and a phone's sheet carrying it, are written in the dark tokens: here they are the real ones again. */
+.az-maps[data-theme='dark'] .az-war {
+  --color-sand-50: #fbf8f1;
+  --color-sand-100: #f5efe2;
+  --color-sand-200: #ebe2cd;
+  --color-sand-300: #d6c9ab;
+  --color-ink-900: #16191f;
+  --color-ink-700: #353a44;
+  --color-ink-500: #555c6a;
+  --color-ink-400: #666e7d;
+  --color-sea-950: #0a1b2a;
+  --color-sea-900: #0f2638;
+  --color-sea-800: #14334b;
+  --color-sea-700: #1a4461;
+  --color-sea-600: #215577;
+  --color-sea-500: #2c6b93;
+  --color-sea-200: #c3d3df;
+  --color-sea-100: #dde7ee;
+  --color-saffron-600: #96600f;
+  --color-saffron-500: #b2761a;
+  --color-saffron-400: #d8962c;
+  --color-saffron-100: #f8ead0;
+  --color-coral-700: #a63727;
+  --color-coral-600: #bb4631;
+  --color-lagoon-600: #11707d;
+  --color-lagoon-500: #198a98;
+  background-color: #0a1b2a;
+}
+/*
+ * The war sidebar in the light appearance: its deep sea becomes sand, its
+ * sand text ink, its lifted side colours the deep ones, and the hearts'
+ * and chestplates' rows take the ink they take on the player list.
+ */
+.az-maps[data-theme='light'] .az-war {
+  --color-sea-950: #fbf8f1;
+  --color-sand-50: #16191f;
+  --color-sand-100: #353a44;
+  --color-sand-200: #4b5260;
+  --color-sand-300: #666e7d;
+  --color-saffron-300: #96600f;
+  --color-saffron-400: #b2761a;
+  --color-coral-300: #a63727;
+  --color-coral-400: #bb4631;
+  --color-coral-500: #bb4631;
+  --color-lagoon-300: #0d5d69;
+  --color-lagoon-400: #11707d;
+  --az-atk: #bb4631;
+  --az-def: #2c6b93;
+  background-color: #fbf8f1;
+}
+.az-maps[data-theme='light'] .az-war .az-vital-figure {
+  color: #16191f;
+}
+.az-maps[data-theme='light'] .az-war .az-vital[data-kind='health'] {
+  --az-off: rgba(22, 25, 31, 0.16);
+}
+.az-maps[data-theme='light'] .az-war .az-vital[data-kind='armour'] {
+  --az-on: #4f7ea3;
+  --az-off: rgba(22, 25, 31, 0.16);
+}
+.az-maps[data-theme='light'] .az-war .az-vital[data-low] .az-vital-figure {
+  color: #c8321c;
+}
+.az-maps[data-theme='light'] .az-war .az-vital[data-none] .az-vital-figure {
+  color: #96600f;
+}
+.az-maps[data-theme='light'] .az-war .az-war-head-other .az-player-mark {
+  box-shadow: 0 0 0 2px rgba(22, 25, 31, 0.35);
+}
+
+/*
  * The war sidebar (panels/WarPanel.tsx): dark where the panels are sand,
  * with the two sides' colours lifted to read on it. Health and armour
  * (ui/Vitals.tsx) are drawn as the game's HUD draws them: a row of ten

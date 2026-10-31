@@ -107,6 +107,7 @@ export const viewport: Viewport = { themeColor: DESIGN_THEME.gazette }
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
+      suppressHydrationWarning
       lang="en"
       className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable} ${fredoka.variable}`}
     >

@@ -15,6 +15,7 @@ import {
 } from '@/maps/registry'
 import { SERVER_INKS } from '@/maps/trading'
 import { DEFAULT_EXTRAS, type ExtraLayer, type Extras } from '@/maps/url'
+import type { Appearance } from '../hooks'
 import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { useStore, type Store } from '../hooks'
@@ -107,6 +108,8 @@ export function LayerMenu({
   onExtra,
   named,
   onNamed,
+  appearance,
+  onAppearance,
   liveStore,
   worldStatus,
 }: {
@@ -119,6 +122,9 @@ export function LayerMenu({
   /** Names beside every head at every zoom: the viewer's own setting, kept in their browser. */
   named: boolean
   onNamed: (value: boolean) => void
+  /** How the chrome and the panels are drawn: light, dark, or light with the war view dark (the viewer's own setting). */
+  appearance: Appearance
+  onAppearance: (value: Appearance) => void
   liveStore: Store<LiveState>
   worldStatus: WorldState['status']
 }) {
@@ -130,7 +136,36 @@ export function LayerMenu({
   const worldWords = extras.world ? WORLD_WORDS[worldStatus] : undefined
   return (
     <Popover icon="layers" label="Layers" pressed={layers.length < 4 || changed} width="w-72">
-      <p className={cn(EYEBROW, 'px-2 pt-1')}>Azania</p>
+      {/* The viewer's own settings first, then the layers; the whole scrolls within a short window. */}
+      <div className="max-h-[calc(100vh-7rem)] overflow-y-auto">
+      <p className={cn(EYEBROW, 'px-2 pt-1')}>Appearance</p>
+      <div aria-label="Appearance" className="mt-1.5 flex px-2" role="group">
+        {(
+          [
+            ['auto', 'Automatic'],
+            ['light', 'Light'],
+            ['dark', 'Dark'],
+          ] as const
+        ).map(([choice, label], index) => (
+          <button
+            aria-pressed={appearance === choice}
+            className={cn(
+              'flex-1 border px-2 py-1.5 text-[14px] font-semibold transition-colors focus-visible:outline-saffron-500',
+              appearance === choice ? 'border-sea-800 bg-sea-800 text-sand-50' : 'border-sand-300 bg-sand-50 text-sea-900 hover:bg-sand-100',
+              index ? '-ml-px' : null,
+            )}
+            key={choice}
+            onClick={() => onAppearance(choice)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="px-2 pb-2 pt-1.5 text-[12px] leading-snug text-ink-400">
+        Automatic is light, and dark in the war view. Kept in this browser; the map’s own ground stays as it is.
+      </p>
+      <p className={cn(EYEBROW, 'border-t border-sand-300/70 px-2 pt-2.5')}>Azania</p>
       <ul className="mt-1.5">
         {(Object.keys(MAP_LAYERS) as MapLayer[]).map((layer) => (
           <li key={layer}>
@@ -205,6 +240,7 @@ export function LayerMenu({
           />
         </li>
       </ul>
+      </div>
     </Popover>
   )
 }
