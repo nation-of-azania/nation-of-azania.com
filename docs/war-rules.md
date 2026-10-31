@@ -179,13 +179,13 @@ changed it.
 | Battle sessions in a siege | 3 (2 for a revolt) | the rules |
 | Session length | 60 minutes | the rules |
 | Sessions | 13:00, 19:00 and 01:00 server time, CET/CEST | the rules; confirmed by the leadership |
-| Time to capture the banner | 5 minutes in the zone | the rules (plugin default 7) |
-| Banner control points | 10 per holder every 20 seconds (30 a minute) | the rules |
-| Points for a kill | 100 to the other side, per death in the siege zone | the rules (plugin default 150) |
+| Time to capture the banner | 5 minutes in the zone, from the first 20-second check that finds the player there | the rules; seen in a battle (plugin default 7) |
+| Banner control points | 10 per holder every 20 seconds (30 a minute) | the rules; seen in a battle |
+| Points for a kill | 100 to the other side, per death in the siege zone | the rules; seen in a battle (plugin default 150) |
 | Banner control zone | a town block's width (16 blocks) around the banner, horizontally and vertically, in the wild, at or above the banner's height | **assumed** |
 | Siege zone | 200 blocks around the banner, horizontally: no teleporting in, deaths cost points | **assumed** |
 | Banner control reversal bonus | on, ×3 | **assumed** |
-| Siege balance cap | ±20,000 | **assumed** |
+| Siege balance cap | ±7,000 | seen in a battle (plugin default ±20,000) |
 | End of a session | the balance moves by attacker points − defender points; the siege goes to the side the balance favours after the last session | confirmed by the leadership ("winner takes all" off) |
 
 **Banner control.** A player who stays in the zone for the capture time,
@@ -219,6 +219,54 @@ chest, sessions done of how many, the status, the balance, who holds the
 banner and how many holders, both sides' battle points in this session, and
 the time left in it. It doesn't give the banner's height, who the holders
 are, or how many reversals there have been.
+
+## Seen in a battle
+
+Logged from the Rulercraft map every 2 seconds through the battle session
+of 31 October 2026, 19:00 CET: The Balkan Kingdom besieging Cyprus
+(Syrian Empire), the second of three sessions, the balance at +3,280 to
+the attacker. The map's live feed carries SiegeWar's siege marker each
+time the plugin rewrites it, and every player's position, health and
+armour.
+
+- **Checks every 20 seconds.** SiegeWar does everything on Towny's short
+  tick, every 20 seconds (here at about :10, :30 and :50 past each
+  minute): starting the session, counting who is in the banner zone,
+  finishing captures and paying banner points. A player who stepped a
+  few seconds out of the zone between two checks wasn't noticed; that
+  says nothing about how wide the zone is.
+- **The marker** is rewritten every 15 seconds exactly; the session
+  started on the check after 19:00 (the marker turned to crossed swords
+  at 19:00:22).
+- **Capture: 5 minutes from the first check that finds a player in the
+  zone.** Two attackers stood in the zone before the session; the banner
+  became theirs on the check five minutes after the session's first
+  ("Attackers (2)" at 19:05:38 on the marker). A third attacker, in the
+  zone from 19:22:57, joined the holders on the check five minutes after
+  the first that found him (19:28:23 on the marker), and the points went
+  from +20 to +30 a tick at once: joining the holders brings no bonus and
+  costs none.
+- **10 points a holder every 20 seconds**: +20 a tick with two holders,
+  +30 with three, 4,240 in 55 minutes.
+- **Holders keep control wherever they go**: both first holders teleported
+  away at 19:07, and for the next 50 minutes nobody of either side stood
+  within 200 blocks of the banner, while the attackers earned their +20
+  and then +30 a tick to the end.
+- **100 points a kill**: a defender died at the banner at 19:02:48
+  (health 4, then 0) and the attackers had +100 two seconds later; he
+  came back 791 blocks away.
+- **An outsider removed**: a player of neither side stood at the banner
+  for 48 seconds and was taken away at full health (back 24,847 blocks
+  off), as the rules say of spectators; nobody got points for it.
+- **The balance cap is 7,000.** The session ended at +4,340 to 0 (the
+  last check at about 20:00:10, the marker at 20:00:39), which would have
+  taken the balance from 3,280 to 7,620; it became 7,000. The battle
+  points, the banner and its holders started again from nothing, and the
+  siege showed 2 of 3 sessions done.
+
+Not seen, and so still the plugin's defaults: a reversal (the defenders
+never took the banner, so the ×3 bonus is unconfirmed), the zones' radii,
+and deaths outside the siege zone.
 
 ## Differences in the older wiki guide
 

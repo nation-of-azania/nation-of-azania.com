@@ -28,12 +28,16 @@ export const RULES = {
   /** When sessions start, in the server's time. */
   sessionHours: [13, 19, 1],
   serverTimeZone: 'Europe/Berlin',
-  /** Staying in the banner zone this long captures the banner. */
+  /**
+   * Staying in the banner zone this long captures the banner, counted from
+   * the first of SiegeWar's checks (every tick) that finds the player
+   * there, so in practice up to a tick more; seen in a battle.
+   */
   captureMinutes: 5,
-  /** Banner control earns this many points per holder every tick. */
+  /** Banner control earns this many points per holder every tick (seen in a battle: 2 holders +20, 3 holders +30). */
   tickSeconds: 20,
   pointsPerHolder: 10,
-  /** A death in the siege zone gives the other side this many. */
+  /** A death in the siege zone gives the other side this many (seen in a battle). */
   killPoints: 100,
   /** The banner control zone: a town block around the banner, in the wild. */
   bannerRadius: 16,
@@ -41,8 +45,12 @@ export const RULES = {
   siegeZoneRadius: 200,
   /** After a reversal, banner points are multiplied by the reversals × this. */
   reversalFactor: 3,
-  /** The siege balance is held within ± this. */
-  balanceCap: 20_000,
+  /**
+   * The siege balance is held within ± this: seen in a battle, where a
+   * session that would have taken it from 3,280 to 7,620 left it at
+   * 7,000 (SiegeWar's default is 20,000).
+   */
+  balanceCap: 7_000,
   /** A win by less than this is a close victory (half the plunder). */
   closeVictory: 3_500,
 } as const
@@ -51,9 +59,11 @@ export const RULES = {
  * The rules above the server's rules don't give, taken from SiegeWar's
  * defaults: said as estimates wherever they count. The session times (in
  * CET/CEST) and the balance moving by attacker − defender points each
- * session are confirmed by the leadership.
+ * session are confirmed by the leadership; the balance cap, the capture's
+ * five minutes, the banner's 10 a holder a tick and the 100 a kill were
+ * seen in a battle (docs/war-rules.md → Seen in a battle).
  */
-export const ASSUMED = ['bannerRadius', 'siegeZoneRadius', 'reversalFactor', 'balanceCap'] as const
+export const ASSUMED = ['bannerRadius', 'siegeZoneRadius', 'reversalFactor'] as const
 
 /** How fast a player covers ground, in blocks a second: sprinting on flat ground, as the game moves them. */
 export const SPRINT_BLOCKS_PER_S = 5.6

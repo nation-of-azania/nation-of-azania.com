@@ -1088,9 +1088,10 @@ which the routes insist on, so every viewer shares one copy.
   first, each with their vitals, head and name, how far from the banner,
   and for anyone outside the zone the time back, sprinting at the game's pace or by
   their own town's spawn when that is nearer (the spawn's warm-up isn't
-  counted). The foot says what is assumed: the two radii, the ×3 reversal
-  bonus and the ±20,000 cap are SiegeWar's defaults, which the rules
-  don't give (`ASSUMED` in `battle.ts`). A **nation**, chosen there or
+  counted). The foot says what is assumed: the two radii and the ×3
+  reversal bonus are SiegeWar's defaults, which the rules don't give
+  (`ASSUMED` in `battle.ts`); the ±7,000 balance cap was seen in a battle
+  (`docs/war-rules.md`). A **nation**, chosen there or
   by a click on any of its towns on the map, is who it is, how many
   residents and how many online, its part in a siege, and its online
   residents listed with health, armour and their distance and time back
