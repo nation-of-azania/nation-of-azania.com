@@ -89,14 +89,18 @@ export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: bool
     // Out of sight for long enough, the feed rests until the tab is back.
     const resting = () => hiddenSince !== null && Date.now() - hiddenSince > HIDDEN_FOR_MS
 
+    // When the last ask went out: the next goes out a beat after it, not a beat after its answer, so the asks keep
+    // time with the heads' glide (a beat long) and an answer's own delay isn't added to every reading.
+    let askedAt = 0
     const schedule = () => {
       cancelTimer?.()
       cancelTimer = null
-      if (!cancelled && !resting()) cancelTimer = steadyTimeout(poll, wait)
+      if (!cancelled && !resting()) cancelTimer = steadyTimeout(poll, Math.max(0, wait - (Date.now() - askedAt)))
     }
     const poll = async () => {
       if (cancelled || inFlight || resting()) return
       inFlight = true
+      askedAt = Date.now()
       try {
         const response = await fetch(url, { cache: 'no-store' })
         if (!response.ok) throw new Error(`The feed answered ${response.status}`)

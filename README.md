@@ -819,9 +819,11 @@ carries what's already drawn into place until the fresh render lands.
 - **Players (live).** Who is on the server and where, as the Rulercraft
   map's own feed has it, passed on through `/maps/players`
   (`src/maps/players.ts`) and kept nowhere: the CDN shares each answer
-  among everyone watching for three seconds, the browser asks again every
-  three seconds while the layer is on and the tab is in view (not at all
-  otherwise, and less and less often while the map is down), and the
+  among everyone watching for one second and never serves an older one
+  (an answer served stale while a fresh one came, as it once did, put the
+  heads ten seconds behind the Rulercraft map), the browser asks every
+  three seconds on the beat while the layer is on, in sight or for half an
+  hour out of it (less and less often while the map is down), and the
   positions live in that browser alone — never in the address, never in
   storage. Each player is a small Minecraft head (`layers/PlayersLayer.tsx`,
   plain Leaflet markers in a pane of their own, moved by one animation
