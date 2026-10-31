@@ -35,6 +35,7 @@ import type { LiveState } from './live'
 import { NationReach, type Reach } from './layers/ReachLayer'
 import { RoadsLayer } from './layers/RoadsLayer'
 import { SiegeCard } from './layers/SiegeCard'
+import { SpotMenu } from './layers/SpotMenu'
 import { SiegesLayer, type SiegeToDraw } from './layers/SiegesLayer'
 import { TownLabels, TownsLayer } from './layers/TownsLayer'
 import { EchoWash, echoesIn, echoProjection, Seams, SheetVeil } from './layers/WorldEdge'
@@ -124,6 +125,8 @@ export type SceneProps = {
   liveStore: Store<LiveState>
   /** Names beside every head at every zoom: the viewer's setting. */
   named: boolean
+  /** A player picked from the list: their card opens beside their head. */
+  pickStore: Store<{ name: string } | null>
   /**
    * The war view (panels/WarPanel.tsx), while it's on: the siege it's on,
    * whose zones are drawn stronger; the nations whose reach is named; and
@@ -168,7 +171,7 @@ function lookAt(map: L.Map, target: LookTarget, inset?: number | Insets): void {
  * this turns it into the picture and sends back what the map says.
  */
 export function MapScene(props: SceneProps) {
-  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, named, war, data } = props
+  const { initial, editor, onApi, onMove, onPointer, onEditor, live, liveStore, named, war, pickStore, data } = props
   const { world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
@@ -451,8 +454,10 @@ export function MapScene(props: SceneProps) {
               town={open.town}
             />
           ) : null}
+          {/* A spot asked about by a right click or a long press: its coordinates, the way there, and in the war view its distance to the banner. */}
+          <SpotMenu data={data} siege={war ? (sieges.find((siege) => siege.townId === war.siege) ?? null) : null} />
           {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
-          <PlayersLayer data={data} enabled={live} named={named} store={liveStore} war={war?.heads ?? null} />
+          <PlayersLayer data={data} enabled={live} named={named} pick={pickStore} store={liveStore} war={war?.heads ?? null} />
         </>
       }
       className="absolute inset-0 z-0"

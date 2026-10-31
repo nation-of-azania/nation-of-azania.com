@@ -7,7 +7,7 @@ import type { Article } from '@/payload-types'
 
 import { ComingClippings, ComingText, type Coming } from './coming'
 import { GrowthChart, GrowthChartComing } from './GrowthChart'
-import { AboutActions, AddHere, EventsList, Survey } from './islands'
+import { AboutActions, AddHere, EventsList, RulerPurse, Survey, TownBank } from './islands'
 import { AwayParts, partsWords } from './parts'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
 import { TownSiege } from './sieges'
@@ -69,10 +69,11 @@ export function TownPanel({
             tone="gazette"
           />
           <div className="min-w-0">
-            <p className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">Ruler</p>
-            <p className="truncate text-sm font-semibold text-ink-900">
+            <p className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">Ruler</p>
+            <p className="truncate text-[15px] font-semibold text-ink-900">
               {town.ruler ?? 'None recorded'}
             </p>
+            <RulerPurse townyId={town.townyId} />
           </div>
         </div>
         {town.home ? (
@@ -89,6 +90,7 @@ export function TownPanel({
               label: town.residents === 1 ? 'Resident' : 'Residents',
               value: `${town.residents}${shown.length ? ` · ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}` : ''}`,
             },
+            { label: 'Bank', value: <TownBank townyId={town.townyId} /> },
             {
               label: 'Claimed chunks',
               value: `${town.chunks.toLocaleString('en-GB')}${partsWords(away)}`,
@@ -108,11 +110,11 @@ export function TownPanel({
       >
         {record === undefined ? (
           // A line in the note's type, as the note that nothing is written yet takes: what most towns have.
-          <ComingText className="text-sm" last="88%" lines={1} />
+          <ComingText className="text-[15px]" last="88%" lines={1} />
         ) : record?.about ? (
-          <p className="az-arrive whitespace-pre-line text-sm leading-relaxed text-ink-700">{record.about}</p>
+          <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
         ) : (
-          <p className="az-arrive text-sm italic text-ink-500">
+          <p className="az-arrive text-[15px] italic text-ink-500">
             Nothing written yet. The town’s mayor can add a few lines here.
           </p>
         )}
@@ -125,7 +127,7 @@ export function TownPanel({
             <GrowthChartComing label="Claimed chunks" />
           </div>
         ) : census.length === 0 ? (
-          <p className="az-arrive text-sm italic text-ink-500">
+          <p className="az-arrive text-[15px] italic text-ink-500">
             The census starts with the next reading of the map.
           </p>
         ) : (
@@ -133,7 +135,7 @@ export function TownPanel({
             <GrowthChart label="Residents" measure="residents" points={census} />
             <GrowthChart label="Claimed chunks" measure="chunks" points={census} />
             {census.length < 3 ? (
-              <p className="text-xs text-ink-400">Recorded daily; the lines fill in day by day.</p>
+              <p className="text-[13px] text-ink-400">Recorded daily; the lines fill in day by day.</p>
             ) : null}
           </div>
         )}
@@ -153,7 +155,7 @@ export function TownPanel({
             ))}
           </ul>
         ) : (
-          <p className="px-4 text-sm italic text-ink-500">No places drawn yet.</p>
+          <p className="px-4 text-[15px] italic text-ink-500">No places drawn yet.</p>
         )}
       </PanelSection>
 

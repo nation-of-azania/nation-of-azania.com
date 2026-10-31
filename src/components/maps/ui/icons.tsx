@@ -49,6 +49,8 @@ const PATHS = {
   people: 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6M9 16h4',
   /** Crossed swords, as the siege mark wears them: the war view. */
   war: 'M5 5l11 11M14 18l4-4M16 16l3 3M19 5L8 16M6 14l4 4M8 16l-3 3',
+  /** Two heads, one before the other: the players online. */
+  players: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20a7 7 0 0 1 14 0M16 11a3 3 0 1 0-1.5-5.6M17 13.5a5.5 5.5 0 0 1 5 6.5',
   /** A heart: health. */
   heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z',
   /** A shield: armour. */

@@ -24,7 +24,7 @@ import { Swatch } from '../ui/Swatch'
 import { BeliefsSection } from './BeliefsChart'
 import { Arrival, Look, Survey } from './islands'
 import { NationPeople, Residents } from './people'
-import { EYEBROW, Facts, PanelHead, PanelSection } from './shared'
+import { EYEBROW, Facts, money, PanelHead, PanelSection } from './shared'
 import { AwayParts, partsWords } from './parts'
 import { NationSieges, TownSiege } from './sieges'
 import { StanceNote } from './Stance'
@@ -139,10 +139,10 @@ export function AbroadTownPanel({
                 <span className="font-body text-2xl font-semibold leading-none text-ink-900 tabular-nums">
                   ${site.income!.toLocaleString('en-GB')}
                 </span>
-                <span className="text-sm text-ink-500">a day to {holder ?? 'whoever takes it'}</span>
+                <span className="text-[15px] text-ink-500">a day to {holder ?? 'whoever takes it'}</span>
               </>
             ) : (
-              <span className="text-sm text-ink-500">What it pays isn’t recorded.</span>
+              <span className="text-[15px] text-ink-500">What it pays isn’t recorded.</span>
             )}
           </p>
         ) : (
@@ -156,8 +156,13 @@ export function AbroadTownPanel({
               tone="gazette"
             />
             <div className="min-w-0">
-              <p className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">Ruler</p>
-              <p className="truncate text-sm font-semibold text-ink-900">{town.ruler ?? 'None recorded'}</p>
+              <p className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">Ruler</p>
+              <p className="truncate text-[15px] font-semibold text-ink-900">{town.ruler ?? 'None recorded'}</p>
+              {town.rulerBalance !== null ? (
+                <p className="text-[13px] text-ink-500">
+                  Purse <span className="font-semibold tabular-nums text-ink-700">{money(town.rulerBalance)}</span>
+                </p>
+              ) : null}
             </div>
           </div>
         )}
@@ -173,11 +178,11 @@ export function AbroadTownPanel({
               y={64}
             />
             {site ? (
-              <p className="mt-1 text-[11px] italic leading-snug text-ink-500">
+              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
                 A site has no spawn of its own: that is the nearest anyone may use, and the walk from it.
               </p>
             ) : town.publicSpawn === false ? (
-              <p className="mt-1 text-[11px] italic leading-snug text-ink-500">
+              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
                 Its own spawn is private, for its residents: that is the nearest anyone may use, and the walk.
               </p>
             ) : null}
@@ -200,6 +205,7 @@ export function AbroadTownPanel({
               : [
                   { label: 'Nation', value: nation ? <NationLink nation={nation} /> : 'None' },
                   { label: town.residents === 1 ? 'Resident' : 'Residents', value: town.residents.toLocaleString('en-GB') },
+                  { label: 'Bank', value: town.bank === null ? 'Not shown' : <span className="tabular-nums">{money(town.bank)}</span> },
                   {
                     label: 'Claimed chunks',
                     value: `${town.chunks.toLocaleString('en-GB')}${partsWords(town.away)}`,
@@ -218,7 +224,7 @@ export function AbroadTownPanel({
 
       {site ? (
         <PanelSection title="Terms">
-          <p className="text-sm leading-relaxed text-ink-700">
+          <p className="text-[15px] leading-relaxed text-ink-700">
             {/^[aeiou]/i.test(siteTitle(site)) ? 'An' : 'A'} {siteTitle(site).toLowerCase()} the server runs
             {pays ? `, paying ${pays} to the nation that holds it` : ''}. It changes hands by siege, so whoever holds
             it is worth knowing.
@@ -230,7 +236,7 @@ export function AbroadTownPanel({
 
       {fromCapital != null && capital ? (
         <PanelSection title="Nation reach">
-          <p className="text-sm leading-relaxed text-ink-700">
+          <p className="text-[15px] leading-relaxed text-ink-700">
             {farWords(fromCapital)} from {spoken(capital.town)}, Azania’s capital:{' '}
             <strong className="font-semibold">{reachWord(fromCapital)} Azania’s reach</strong>, which is{' '}
             {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital.
@@ -240,7 +246,7 @@ export function AbroadTownPanel({
 
       {nation ? (
         <PanelSection title="Its nation">
-          <p className="text-sm leading-relaxed text-ink-700">
+          <p className="text-[15px] leading-relaxed text-ink-700">
             <NationLink nation={nation} />: {plural(nation.towns, 'town')}, {plural(nation.residents, 'resident')}.
             {nation.capital && !town.capital ? (
               <>
@@ -256,7 +262,7 @@ export function AbroadTownPanel({
         </PanelSection>
       ) : null}
 
-      <p className="mt-6 px-4 text-xs leading-relaxed text-ink-400">
+      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
         From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other
         nations’ towns.
       </p>
@@ -287,6 +293,9 @@ export function NationPanel({
     .filter((town) => isSiteKind(town.kind))
     .sort((a, b) => (b.income ?? 0) - (a.income ?? 0) || a.name.localeCompare(b.name))
   const total = sites.reduce((sum, site) => sum + (site.income ?? 0), 0)
+  // Its towns' banks together, as far as the map gives them.
+  const banked = towns.filter((town) => town.bank !== null)
+  const treasury = banked.reduce((sum, town) => sum + (town.bank ?? 0), 0)
   const ring = nationInk(nation.colour).line
   // Each nation's reach: which of Azania's towns this nation may besiege, and which of its own Azania may.
   const theirs = nation.capital
@@ -308,13 +317,13 @@ export function NationPanel({
         }
         title={spoken(nation.name)}
       >
-        <p className="mt-2 text-sm text-ink-500">
+        <p className="mt-2 text-[15px] text-ink-500">
           {plural(towns.length, 'town')}
           {sites.length ? ` and ${plural(sites.length, 'site')}` : ''} · {plural(nation.residents, 'resident')} ·{' '}
           {plural(nation.chunks, 'chunk')}
         </p>
         {fit ? (
-          <p className="mt-2 text-[11px]">
+          <p className="mt-2 text-[12px]">
             <Look className={LINK} target={{ bounds: fit }}>
               Fit to the nation
             </Look>
@@ -340,6 +349,19 @@ export function NationPanel({
             { label: 'Towns', value: towns.length.toLocaleString('en-GB') },
             { label: 'Residents', value: nation.residents.toLocaleString('en-GB') },
             { label: 'Claimed chunks', value: nation.chunks.toLocaleString('en-GB') },
+            ...(banked.length
+              ? [
+                  {
+                    label: 'Town banks',
+                    value: (
+                      <span className="tabular-nums">
+                        {money(treasury)}
+                        {banked.length < towns.length ? <span className="text-ink-500"> · {banked.length} of {towns.length} towns</span> : null}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
           ]}
         />
       </div>
@@ -350,7 +372,7 @@ export function NationPanel({
 
       {nation.capital && capital ? (
         <PanelSection title="Nation reach">
-          <div className="space-y-2 text-sm leading-relaxed text-ink-700">
+          <div className="space-y-2 text-[15px] leading-relaxed text-ink-700">
             <p>
               A nation may besiege towns within {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital. {spoken(nation.name)}’s,{' '}
               {spoken(nation.capital.name)}, is {farWords(blocksBetween(nation.capital.home, capital.home))} from{' '}
@@ -389,7 +411,7 @@ export function NationPanel({
 
       {sites.length ? (
         <PanelSection flush title="Holdings">
-          <p className="px-4 text-[13px] leading-relaxed text-ink-500">
+          <p className="px-4 text-[14px] leading-relaxed text-ink-500">
             Sites the server runs and {spoken(nation.name)} holds, each taken, and lost, by siege.
           </p>
           <ul className="mt-2 divide-y divide-sand-300/70">
@@ -403,12 +425,12 @@ export function NationPanel({
                   >
                     <SiteBadge className="h-5 w-5 shrink-0" facts={facts} ring={ring} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                      <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                         {spoken(site.name)}
                       </span>
-                      <span className="block truncate text-xs text-ink-500">{siteTitle(facts)}</span>
+                      <span className="block truncate text-[13px] text-ink-500">{siteTitle(facts)}</span>
                     </span>
-                    <span className="shrink-0 font-mono text-[12px] tracking-[0.04em] text-ink-700 tabular-nums">
+                    <span className="shrink-0 font-mono text-[13px] tracking-[0.04em] text-ink-700 tabular-nums">
                       {incomeWords(facts.income) ?? 'pays nothing'}
                     </span>
                   </Link>
@@ -417,9 +439,9 @@ export function NationPanel({
             })}
           </ul>
           {total > 0 && sites.length > 1 ? (
-            <p className="mx-4 mt-1 flex items-baseline justify-between gap-3 border-t border-sand-300 pt-2 text-sm">
+            <p className="mx-4 mt-1 flex items-baseline justify-between gap-3 border-t border-sand-300 pt-2 text-[15px]">
               <span className="text-ink-500">Together, a day</span>
-              <span className="font-mono text-[13px] font-semibold tracking-[0.04em] text-ink-900 tabular-nums">
+              <span className="font-mono text-[14px] font-semibold tracking-[0.04em] text-ink-900 tabular-nums">
                 ${total.toLocaleString('en-GB')}
               </span>
             </p>
@@ -437,11 +459,11 @@ export function NationPanel({
               >
                 <Swatch className={town.capital ? 'h-3.5 w-3.5 border-2' : undefined} colour={nation.colour} round />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                  <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                     {spoken(town.name)}
                     {town.capital ? <span className={`${EYEBROW} ml-2 align-middle`}>Capital</span> : null}
                   </span>
-                  <span className="block truncate text-xs text-ink-500">
+                  <span className="block truncate text-[13px] text-ink-500">
                     {plural(town.residents, 'resident')} · {plural(town.chunks, 'chunk')}
                     {town.ruler ? ` · ${town.ruler}` : ''}
                   </span>
@@ -454,7 +476,7 @@ export function NationPanel({
 
       <NationPeople members={members} nation={nation} />
 
-      <p className="mt-6 px-4 text-xs leading-relaxed text-ink-400">
+      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
         From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other
         nations.
       </p>
@@ -468,7 +490,7 @@ export function AbroadOffline({ what }: { what: 'town' | 'nation' }) {
     <article className="px-4 pb-6 pt-4">
       <p className={EYEBROW}>{what === 'town' ? 'A town abroad' : 'A nation'}</p>
       <h1 className="mt-1 font-display text-2xl leading-tight text-sea-950">Not to be seen just now</h1>
-      <p className="mt-2 text-sm leading-relaxed text-ink-500">
+      <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
         The rest of the world comes from the Rulercraft map, which isn’t answering, and Azania Maps hasn’t a copy of
         it saved yet. Try again in a few minutes; Azania’s own towns are on the map as ever.
       </p>

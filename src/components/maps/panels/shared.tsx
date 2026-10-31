@@ -19,7 +19,7 @@ import { Icon } from '../ui/icons'
  */
 
 export const EYEBROW =
-  'font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-saffron-600'
+  'font-label text-[11px] font-semibold uppercase tracking-[0.2em] text-saffron-600'
 
 export function PanelHead({
   eyebrow,
@@ -53,12 +53,12 @@ export function PanelSection({
   flush?: boolean
 }) {
   return (
-    <section className="mt-6 border-t border-sand-300 pt-4">
+    <section className="mt-5 border-t border-sand-300 pt-3">
       <div className={cn('flex items-baseline justify-between gap-3', flush ? 'px-4' : 'px-4')}>
         <h2 className="font-display text-lg text-sea-900">{title}</h2>
         {action}
       </div>
-      <div className={cn('mt-2', !flush && 'px-4')}>{children}</div>
+      <div className={cn('mt-1.5', !flush && 'px-4')}>{children}</div>
     </section>
   )
 }
@@ -68,10 +68,10 @@ export function Facts({ items }: { items: { label: string; value: ReactNode }[] 
     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
       {items.map((item) => (
         <div className="min-w-0" key={item.label}>
-          <dt className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
+          <dt className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
             {item.label}
           </dt>
-          <dd className="mt-0.5 break-words text-sm text-ink-900">{item.value}</dd>
+          <dd className="mt-0.5 break-words text-[15px] text-ink-900">{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -92,10 +92,10 @@ export function PlaceRow({ place, town }: { place: MapPlace; town?: MapTown | nu
         <PlaceIcon category={place.category} className="h-3.5 w-3.5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+        <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
           {place.name}
         </span>
-        <span className="block truncate text-xs text-ink-500">
+        <span className="block truncate text-[13px] text-ink-500">
           {PLACE_CATEGORIES[place.category].label}
           {town ? ` · ${spoken(town.name)}` : ''}
         </span>
@@ -106,7 +106,7 @@ export function PlaceRow({ place, town }: { place: MapPlace; town?: MapTown | nu
 
 /** The articles about something, as the papers' own clippings: kicker, title, date. */
 export function ArticleLinks({ articles, emptyNote }: { articles: Article[]; emptyNote: string }) {
-  if (articles.length === 0) return <p className="text-sm italic text-ink-500">{emptyNote}</p>
+  if (articles.length === 0) return <p className="text-[15px] italic text-ink-500">{emptyNote}</p>
   return (
     <ul className="divide-y divide-sand-300/70">
       {articles.map((article) => {
@@ -119,7 +119,7 @@ export function ArticleLinks({ articles, emptyNote }: { articles: Article[]; emp
         return (
           <li key={article.id}>
             <Link className="group block py-2.5" href={articleHref(article)}>
-              <span className="flex items-center gap-2 font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
+              <span className="flex items-center gap-2 font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
                 <Icon className="h-3 w-3 text-saffron-600" name="article" />
                 {paper === 'times'
                   ? 'The Azanian Times'
@@ -132,7 +132,7 @@ export function ArticleLinks({ articles, emptyNote }: { articles: Article[]; emp
               <span className="mt-0.5 block font-display text-base leading-snug text-sea-900 group-hover:text-sea-700">
                 {article.title}
               </span>
-              {date ? <span className="block text-xs text-ink-400">{date}</span> : null}
+              {date ? <span className="block text-[13px] text-ink-400">{date}</span> : null}
             </Link>
           </li>
         )
@@ -154,3 +154,7 @@ export function TownLink({ town, className }: { town: MapTown; className?: strin
     </Link>
   )
 }
+
+
+/** "$27,036": a sum of the server's money, to the dollar, as the panels say a town's bank or a mayor's purse. */
+export const money = (value: number): string => `$${Math.round(value).toLocaleString('en-GB')}`

@@ -736,7 +736,13 @@ carries what's already drawn into place until the fresh render lands.
   each with *Show on map*; *Fit to town* fits the town itself. `/maps/abroad/<slug>`
   and `/maps/nation/<slug>` open a town of another nation (or of none), or
   one of the server's trading outposts and landmarks, and another nation
-  (see *The world around Azania*). These pages are
+  (see *The world around Azania*). A town's panel, Azania's or abroad, says
+  its **bank** among its facts and its mayor's own **purse** beside the
+  ruler, as the Rulercraft map gives them (`bank` and `rulerBalance` on each
+  town of `/maps/world.json`; Azania's own towns are in it too, by Towny id,
+  so their panels read the figure in the browser once the world has come);
+  a nation's panel sums its towns' banks. Nobody else's balance is on the
+  map. These pages are
   rendered on the server and cached for everyone alike, a minute at a time
   (and regenerated at once after someone draws), so links unfurl and search
   engines read them; the visitor's own drawing rights are fetched in the
@@ -797,8 +803,15 @@ carries what's already drawn into place until the fresh render lands.
   trading outposts and landmarks ("trading" finds the outposts, and so
   does "spawn"), after Azania's own;
   layer toggles (Azania's own layers, then the world's) and a legend; the
-  block under the pointer (the centre, on a phone) with its nearest spawn
-  to copy; the nation at a glance on the map's own front — any siege
+  **players online** as a list (the heads button among the controls: everyone
+  on the server by nation, Azania's first, searched by typing, with the total
+  in its head; a click flies to the player and opens their card, or in the
+  war view hands them to its sidebar, and there every row carries health and
+  armour); a **spot asked about** with a right click, or a long press on a
+  phone (`layers/SpotMenu.tsx`): a small card there with the block's
+  coordinates to copy, the nearest town's `/t spawn` and the walk from it,
+  in the war view the distance to the banner and the sprint, and a way to
+  centre the map there; the nation at a glance on the map's own front — any siege
   Azania is in, first of all; the players' towns, residents and chunks
   with the census's trend; a small ledger of **Holdings**: the sites the
   nation holds, what each pays, and the day's total; Azania's
@@ -816,7 +829,9 @@ carries what's already drawn into place until the fresh render lands.
   **glides** from one reading to the next rather than jumping: at a
   steady pace over the feed's own beat, so a walk reads as a walk, each
   reading setting off from wherever the head has got to; it jumps only
-  for a teleport. Azania's residents, matched against the towns'
+  for a teleport, and while the window is out of sight (behind the game,
+  or minimised), where the browser gives no animation frames, each head
+  stands at its reading instead and glides again once the page is seen. Azania's residents, matched against the towns'
   resident lists, are ringed in saffron. Two heads that overlap stack by
   where the players stand, the southern one in front, and keep that order
   through a zoom. Every head is the player's
@@ -835,7 +850,7 @@ carries what's already drawn into place until the fresh render lands.
   the world. The layer is on by default (it is the point of a live map, and
   costs one shared request every few seconds), switched in the layers menu,
   and remembered in the address's `layers` like the others (`players`
-  among them); a quiet "N online" sits beside the readout.
+  among them); the players button's list says how many are on.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*
@@ -1025,8 +1040,9 @@ which the routes insist on, so every viewer shares one copy.
   **heads** are fighters: ringed by their side in the siege the view is
   on (attackers coral, defenders sea; worked out from the towns' resident
   lists, so an ally the map can't place is of neither), their names
-  always beside them, and their **health and armour** under the name as
-  two small bars, from the feed's own figures. The feeds go fast while
+  always beside them, and their **health and armour** under the name: the
+  two figures with a heart and a chestplate, bold and haloed, and a thick
+  health bar and an armour bar beneath, low health burning and pulsing. The feeds go fast while
   the view is on: `/maps/players/live` every second and a half (the CDN
   shares each answer for one second) and, during a battle,
   `/maps/war/live` every half minute (shared for half a minute; the
@@ -1037,8 +1053,17 @@ which the routes insist on, so every viewer shares one copy.
   the marker doesn't say.
 
   The **sidebar** (`panels/WarPanel.tsx`) takes the panel's place, dark
-  where the panels are sand, with big figures and nothing else; on a
-  phone it is the sheet. Its overview is the session clock (the hour's
+  where the panels are sand; on a phone it is the sheet. The one question
+  about every person on it is how much health and armour they have right
+  now, so that is the loudest thing wherever a player appears
+  (`ui/Vitals.tsx`): ten hearts, with halves, and ten chestplates, as the
+  game's own HUD draws them (each row one element masked with the icon ten
+  times over and filled to the share), with the figure beside in bold
+  tabular type, so nothing jitters at the feed's beat; low health burns and
+  pulses, no armour is flagged in amber, and every roster puts the lowest
+  health first (a siege's fighters can be ordered by distance instead).
+  Everything else, nations' names, counts, labels and notes, is set smaller
+  beneath, and nothing in the view is under 13 px. Its overview is the session clock (the hour's
   battle session, or when the next begins: sessions at 13:00, 19:00 and
   01:00 server time) and the sieges, Azania's and battles first, each
   with its score, then the nations in the fight and who of Azania is
@@ -1057,9 +1082,9 @@ which the routes insist on, so every viewer shares one copy.
   behind, what it takes to come level: so many kills, so many at the
   banner for the rest of the session, or taking the banner back and
   holding it so long; each side's count at the banner and in the zone;
-  and the fighters within two zones of the banner by side, each with
-  head, name, health and armour, how far from the banner, and for anyone
-  outside the zone the time back, sprinting at the game's pace or by
+  and the fighters within two zones of the banner by side, lowest health
+  first, each with their vitals, head and name, how far from the banner,
+  and for anyone outside the zone the time back, sprinting at the game's pace or by
   their own town's spawn when that is nearer (the spawn's warm-up isn't
   counted). The foot says what is assumed: the two radii, the ×3 reversal
   bonus and the ±20,000 cap are SiegeWar's defaults, which the rules
@@ -1070,8 +1095,8 @@ which the routes insist on, so every viewer shares one copy.
   to the view's banner; a **player**, chosen from any roster or by their
   head, is one head watched: the map flies to them and **follows** them,
   reading by reading, until the map is dragged or the following turned
-  off, with their vitals large, their coordinates to copy, and where they
-  stand to the banner. Escape steps back to the overview; *Leave* puts
+  off, with their vitals as large as the sidebar allows, where they stand
+  to the banner, and their coordinates to copy. Escape steps back to the overview; *Leave* puts
   the map back as it was. Nothing of a battle is kept: the figures are
   the map's readings this session, in this browser.
 

@@ -23,6 +23,7 @@ import { Notice, TextButton } from '../ui/chrome'
 import { Icon } from '../ui/icons'
 import { privateSpawnNote, useCopy } from '../ui/Readouts'
 import { EventRow } from '../ui/WhatsOn'
+import { money } from './shared'
 
 /**
  * The client islands in the server-rendered panels: whatever needs the
@@ -64,7 +65,7 @@ export function EventsList({ ids, emptyNote }: { ids: number[]; emptyNote: strin
     data.events.filter((event) => ids.includes(event.id)),
     now,
   )
-  if (events.length === 0) return <p className="px-4 text-sm italic text-ink-500">{emptyNote}</p>
+  if (events.length === 0) return <p className="px-4 text-[15px] italic text-ink-500">{emptyNote}</p>
   return (
     <ul className="divide-y divide-sand-300/70">
       {events.map((event) => (
@@ -196,7 +197,7 @@ export function Survey({
   const closed = route?.town.publicSpawn === false
   return (
     <div className={cn('space-y-1', className)}>
-      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[12px] tracking-[0.06em] text-ink-500 tabular-nums">
         <span className="inline-flex gap-x-2">
           <span>
             <span className="opacity-70">X</span> {x}
@@ -232,10 +233,10 @@ export function Survey({
         ) : null}
       </p>
       {route && command ? (
-        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] text-ink-700">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[13px] text-ink-700">
           <button
             aria-label={`Copy ${command}`}
-            className="inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+            className="inline-flex items-center gap-1 font-mono text-[12px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             onClick={() => copy(command)}
             title="Copy the command"
             type="button"
@@ -245,7 +246,7 @@ export function Survey({
           </button>
           {route.then ? <span className="text-ink-500">{route.then}</span> : null}
           {closed ? (
-            <span className="basis-full text-[11px] italic leading-snug text-ink-500">
+            <span className="basis-full text-[12px] italic leading-snug text-ink-500">
               {town
                 ? `Its spawn is private: only ${spoken(town.name)}’s residents can use it.`
                 : privateSpawnNote(route.town)}
@@ -409,5 +410,31 @@ export function AddHere({ town }: { town: MapTown }) {
         <Icon className="h-3.5 w-3.5" name="flag" /> Add an event
       </TextButton>
     </div>
+  )
+}
+
+/**
+ * A town's bank, from the world's reading in the browser (src/maps/world.ts
+ * → bank): Azania's own towns are in it too, by Towny id, and their pages
+ * are the nation's own, so the figure is fetched here rather than kept.
+ * Quiet until the world arrives, and where the map doesn't say.
+ */
+export function TownBank({ townyId }: { townyId: string | null }) {
+  const { world, worldStatus } = useMaps()
+  const town = townyId ? world?.byId.get(townyId) : null
+  if (town?.bank == null)
+    return <span className="text-ink-400">{world ? 'Not shown' : worldStatus === 'down' ? 'Not known just now' : '…'}</span>
+  return <span className="tabular-nums">{money(town.bank)}</span>
+}
+
+/** The mayor's own purse, beside their name, as the Rulercraft map gives it; nothing where it doesn't. */
+export function RulerPurse({ townyId }: { townyId: string | null }) {
+  const { world } = useMaps()
+  const town = townyId ? world?.byId.get(townyId) : null
+  if (town?.rulerBalance == null) return null
+  return (
+    <p className="text-[13px] text-ink-500">
+      Purse <span className="font-semibold tabular-nums text-ink-700">{money(town.rulerBalance)}</span>
+    </p>
   )
 }

@@ -36,10 +36,11 @@ import {
 } from '@/maps/data'
 import { boundsOf, type Bounds, type Point } from '@/maps/geo'
 import type { Insets } from '@/maps/globe'
+import type { LivePlayer } from '@/maps/players'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
 import { azaniaSide, bySiegeWeight, siegeHeadline, siegeTitle } from '@/maps/sieges'
 import { settlements, siteFacts, siteTitle } from '@/maps/sites'
-import { FLAT_MIN_ZOOM, inWorld, wrapPoint } from '@/maps/source'
+import { FLAT_MIN_ZOOM, wrapPoint } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
@@ -66,7 +67,7 @@ import { EditorPanel } from './editor/EditorPanel'
 import type { GlobeHostProps, HostApi } from './globe/GlobeHost'
 import { loadGlobe, useGlobeSupport, warmGlobe } from './globe/support'
 import type { GlobeEntry, GlobePull, LeaveRequest } from './globe/types'
-import { createStore, useHydrated, useLatest, useMediaQuery, useNamesSetting, useSearch, useStore } from './hooks'
+import { createStore, useHydrated, useLatest, useMediaQuery, useNamesSetting, useSearch } from './hooks'
 import { abroadTownTarget } from './layers/AbroadLayer'
 import type { WarHeads } from './layers/PlayersLayer'
 import { useLivePlayers } from './live'
@@ -88,7 +89,8 @@ import { Notice, TextButton } from './ui/chrome'
 import { DiplomacyButton, DrawMenu, LayerMenu, Legend, WarButton, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { DiplomacyKey } from './ui/DiplomacyKey'
 import { Icon } from './ui/icons'
-import { Coordinates, LiveCount, StatusNote, type MapStatus } from './ui/Readouts'
+import { PlayersButton } from './ui/PlayersList'
+import { StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
 import { Sheet, type SheetState } from './ui/Sheet'
 import { WhatsOnStrip } from './ui/WhatsOn'
@@ -164,8 +166,6 @@ function describe(
   }
 }
 
-type Store<T> = ReturnType<typeof createStore<T>>
-
 /**
  * A page the reader has opened that hasn't arrived yet: what it is (null
  * for the map's front), its address, whether it has been sent for (it
@@ -231,37 +231,6 @@ function standingOf(rights: MapRights, towns: MapTown[]): string {
  */
 const realPosition = (position: MapPosition | null): MapPosition | null =>
   position && { centre: wrapPoint(position.centre), zoom: position.zoom }
-
-/**
- * The block under the pointer, else the middle of the view: both change
- * with every move, so they live in small stores rather than React state,
- * and only this readout re-renders for them. In an echo of the world the
- * pointer is over nothing, and a centre there names no spot a player can
- * reach, so neither is read out.
- */
-function PointerReadout({
-  pointer,
-  centre,
-  towns,
-  bare,
-}: {
-  pointer: Store<Point | null>
-  centre: Store<MapPosition | null>
-  towns: MapTown[]
-  bare?: boolean
-}) {
-  const under = useStore(pointer)
-  const position = useStore(centre)
-  return (
-    <Coordinates
-      bare={bare}
-      className="pointer-events-auto"
-      hint={under ? 'Under the pointer' : 'Centre'}
-      point={under ?? (position && inWorld(position.centre) ? position.centre : null)}
-      towns={towns}
-    />
-  )
-}
 
 /**
  * Azania Maps: the page around the map. A panel beside it on a wide
@@ -671,6 +640,18 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const viewSiegeObject = useMemo(() => war.sieges.find((siege) => siege.townId === viewSiege) ?? null, [war.sieges, viewSiege])
   const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns), [viewSiegeObject, sideTowns])
   const pickPlayer = useCallback((name: string) => focusWar({ kind: 'player', name }), [focusWar])
+  // A player picked from the list (ui/PlayersList.tsx): in the war view the sidebar takes them; otherwise the map
+  // flies to them and their card opens beside their head.
+  const pickStore = useMemo(() => createStore<{ name: string } | null>(null), [])
+  const pickOnline = useCallback(
+    (player: LivePlayer) => {
+      if (warRef.current) return focusWar({ kind: 'player', name: player.name })
+      pickStore.set({ name: player.name })
+      look({ centre: playerPoint(player), zoom: 1, minZoom: true })
+    },
+    [warRef, focusWar, pickStore, look],
+  )
+  const homeNation = useMemo(() => homeNationOf(data.towns), [data.towns])
   const followBroken = useCallback(() => setFollowing(false), [])
   const watched = warFocus?.kind === 'player' ? warFocus.name : null
   const focusedNation = warFocus?.kind === 'nation' ? warFocus.name : null
@@ -1411,7 +1392,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   ) : (
     <>
       {viewing ? (
-        <div className="flex items-center gap-2 border-b border-saffron-400/50 bg-saffron-100/70 px-4 py-2 text-xs text-saffron-600">
+        <div className="flex items-center gap-2 border-b border-saffron-400/50 bg-saffron-100/70 px-4 py-2 text-[13px] text-saffron-600">
           <Icon className="h-3.5 w-3.5 shrink-0" name="frame" />
           <span className="min-w-0 flex-1 truncate">
             Showing an article’s highlights: {viewing.title}
@@ -1442,7 +1423,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       {wide && selection ? (
         <div className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
           <span className="mt-0.5">{back}</span>
-          <p className="min-w-0 flex-1 self-center text-[11px] uppercase tracking-[0.18em] text-ink-400">
+          <p className="min-w-0 flex-1 self-center text-[12px] uppercase tracking-[0.18em] text-ink-400">
             Azania Maps
           </p>
         </div>
@@ -1455,7 +1436,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         data-stalled={held ? '' : undefined}
       >
         {asked && held ? (
-          <div className="mx-4 mt-3 flex items-center gap-3 border border-sand-300 bg-sand-100/70 px-3 py-2 text-[13px] leading-snug text-ink-700">
+          <div className="mx-4 mt-3 flex items-center gap-3 border border-sand-300 bg-sand-100/70 px-3 py-2 text-[14px] leading-snug text-ink-700">
             <Icon className="h-4 w-4 shrink-0 text-saffron-600" name={asked.sent ? 'clock' : 'offline'} />
             <span className="min-w-0 flex-1">
               {asked.sent
@@ -1489,6 +1470,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         showPast={showPast}
         worldStatus={worldState.status}
       />
+      <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { sideOf: sideOfName } : null} />
       <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
       <WarButton on={warOn} onToggle={() => (warOn ? leaveWar() : enterWar())} />
       <Legend globe={globeSupport} />
@@ -1510,7 +1492,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const account =
     rightsStatus === 'unreachable' ? (
       <button
-        className="inline-flex max-w-[60%] items-center gap-1.5 text-left text-[11px] leading-tight text-saffron-600 hover:text-saffron-500 focus-visible:outline-saffron-500"
+        className="inline-flex max-w-[60%] items-center gap-1.5 text-left text-[12px] leading-tight text-saffron-600 hover:text-saffron-500 focus-visible:outline-saffron-500"
         onClick={retryRights}
         title="The Registry couldn’t be reached, so who you are isn’t known yet. Click to try again."
         type="button"
@@ -1522,7 +1504,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </button>
     ) : !rightsKnown ? null : rights.user ? (
       <span
-        className="inline-flex min-w-0 items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-500"
+        className="inline-flex min-w-0 items-center gap-1.5 text-[12px] uppercase tracking-[0.16em] text-ink-500"
         title={`Signed in as ${rights.user.name}: ${standingOf(rights, data.towns)}`}
       >
         <Icon className="h-3.5 w-3.5 shrink-0" name="user" />
@@ -1536,7 +1518,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       </span>
     ) : (
       <Link
-        className="text-[11px] uppercase tracking-[0.16em] text-sea-700 hover:text-sea-900"
+        className="text-[12px] uppercase tracking-[0.16em] text-sea-700 hover:text-sea-900"
         href="/login?next=/maps"
       >
         Sign in
@@ -1561,7 +1543,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       <WarHandle />
     ) : peek ? (
       <span className="min-w-0 flex-1">
-        <span className="block font-label text-[10px] uppercase tracking-[0.2em] text-saffron-600">
+        <span className="block font-label text-[11px] uppercase tracking-[0.2em] text-saffron-600">
           {peek.kind}
         </span>
         <span className="block truncate font-display text-lg leading-tight text-sea-950">
@@ -1573,7 +1555,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     ) : ourSieges.length ? (
       // A siege Azania is in leads the front, even folded away.
       <span className="min-w-0 flex-1">
-        <span className="block font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-700">
+        <span className="block font-label text-[11px] font-semibold uppercase tracking-[0.2em] text-coral-700">
           Siege{ourSieges.length > 1 ? ` · ${ourSieges.length} of Azania’s` : ''}
         </span>
         <span className="block truncate font-display text-lg leading-tight text-coral-700">
@@ -1583,7 +1565,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     ) : (
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="font-display text-lg leading-tight text-sea-950">Azania at a glance</span>
-        <span className="truncate text-xs text-ink-500">
+        <span className="truncate text-[13px] text-ink-500">
           {settlements(data.towns).length} towns
           {liveEvents
             ? ` · ${liveEvents} on now`
@@ -1667,6 +1649,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 siegeOpen={siegeOpen}
                 sieges={war.sieges}
                 onSiege={onSiegeMark}
+                pickStore={pickStore}
                 onPull={globeSupport && !editor ? onPull : undefined}
                 capitals={war.capitals}
                 radius={war.radius}
@@ -1715,12 +1698,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
             <div
               className={cn(
                 'pointer-events-none absolute left-3 z-10 flex flex-col items-start gap-2',
-                // Clear of the controls: a column of them beside a wide map, a row of three or four on a phone's.
-                wide
-                  ? 'top-3 max-w-[calc(100%-4.75rem)]'
-                  : drawShown
-                    ? 'top-16 max-w-[calc(100%-13.5rem)]'
-                    : 'top-16 max-w-[calc(100%-10.75rem)]',
+                // Clear of the controls: beside their column on a wide map; on a phone, where their row takes the
+                // width under the search, beneath that row and beside the zoom's column.
+                wide ? 'top-3 max-w-[calc(100%-4.75rem)]' : 'top-[7.25rem] max-w-[calc(100%-4.75rem)]',
               )}
             >
               {(warOn ? [] : ourSieges.slice(0, wide ? 2 : 1)).map(({ siege, side }) => (
@@ -1734,7 +1714,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                     <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight text-coral-700">
                       {siegeHeadline(siege, side)}
                     </p>
-                    <p className="truncate text-[12px] text-ink-500">
+                    <p className="truncate text-[13px] text-ink-500">
                       {siegeTitle(siege)}
                       {siege.progress ? ` · ${siege.progress.done} of ${siege.progress.of} fought` : ''}
                       {siege.battle ? ' · a battle on' : ''}
@@ -1746,7 +1726,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                 </div>
               ))}
               {!warOn && ourSieges.length > (wide ? 2 : 1) ? (
-                <p className="pointer-events-auto border border-sand-300 bg-sand-50/95 px-2.5 py-1 text-[12px] text-coral-700">
+                <p className="pointer-events-auto border border-sand-300 bg-sand-50/95 px-2.5 py-1 text-[13px] text-coral-700">
                   and {ourSieges.length - (wide ? 2 : 1)} more of Azania’s sieges: see the front
                 </p>
               ) : null}
@@ -1794,11 +1774,10 @@ export function MapsShell({ data: served, children }: ShellProps) {
 
           {/*
             The foot of the map, measured against the map's own width (a container, since the
-            panel takes its share of the window): on a wide map the readout and the count sit
-            left and the What's-on strip right, taking under half the width; the readout gives
-            way first, showing its hint and walk only on a wide map and shrinking the walk before
-            the command, and the strip's rows scroll within it. On a narrower map the two stack,
-            the strip beneath the readout, full width.
+            panel takes its share of the window): the What's-on strip at the right, taking under
+            half of a wide map's width and all of a narrower one's, its rows scrolling within it.
+            A spot's coordinates and the way there are asked for with a right click now
+            (layers/SpotMenu.tsx), and who's online is the players button's list.
           */}
           <div
             className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex flex-col items-start gap-2 @container"
@@ -1806,15 +1785,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
           >
             <StatusNote className="pointer-events-auto max-w-md" status={status} />
             {wide ? (
-              <div className="flex w-full flex-col items-start gap-2 @4xl:flex-row @4xl:items-end @4xl:justify-between @4xl:gap-3">
-                <div className="flex min-w-0 max-w-full items-center gap-2 @4xl:flex-1">
-                  <PointerReadout
-                    centre={shownStore}
-                    pointer={pointerStore}
-                    towns={data.towns}
-                  />
-                  <LiveCount className="pointer-events-auto shrink-0" store={liveStore} />
-                </div>
+              <div className="flex w-full justify-end">
                 {/* What's on steps aside for the war view: nothing a fighter needs on the map's foot. */}
                 {!warOn ? (
                   <WhatsOnStrip
@@ -1839,19 +1810,11 @@ export function MapsShell({ data: served, children }: ShellProps) {
             page={warOn ? `war:${warFocus ? `${warFocus.kind}:${'townId' in warFocus ? warFocus.townId : warFocus.name}` : ''}` : page}
             state={sheet}
           >
-            {/* One line of tools over the page: the way back, the map's centre, the account. The war sidebar has its own head. */}
+            {/* One line of tools over the page: the way back, and the account. The war sidebar has its own head. */}
             {!warOn ? (
               <div className="flex items-center gap-3 border-b border-sand-300 px-4 py-1.5">
                 {selection && !editor ? back : null}
-                <div className="min-w-0 flex-1">
-                  <PointerReadout
-                    bare
-                    centre={shownStore}
-                    pointer={pointerStore}
-                    towns={data.towns}
-                  />
-                </div>
-                <LiveCount className="shrink-0 border-0 bg-transparent px-0" store={liveStore} />
+                <div className="min-w-0 flex-1" />
                 {account}
               </div>
             ) : null}

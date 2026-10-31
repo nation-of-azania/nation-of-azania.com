@@ -4,13 +4,7 @@ import { useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { spoken, type MapTown } from '@/maps/data'
-import { spawnRoute } from '@/maps/spawn'
-import type { Point } from '@/maps/geo'
 import { formatDate } from '@/components/site/format'
-
-import { useStore, type Store } from '../hooks'
-import type { LiveState } from '../live'
-import { Icon } from './icons'
 
 /** Copies text and says so for a moment; quiet when the clipboard is out of reach. */
 export function useCopy(): [copied: boolean, copy: (text: string) => void] {
@@ -33,114 +27,6 @@ export function useCopy(): [copied: boolean, copy: (text: string) => void] {
 export const privateSpawnNote = (town: Pick<MapTown, 'name'>): string =>
   `${spoken(town.name)}’s spawn is private: only its residents can use it.`
 
-/**
- * The block under the pointer (or the middle of the view, on a phone), in
- * the survey hand of the Map block, with a Copy that puts the nearest town's
- * `/t spawn` in the clipboard — the command players actually have — and the
- * walk from there. A live region that stays quiet: coordinates change too
- * often to be read aloud, so only the Copy speaks. On the map's foot it is
- * measured against the map's width (the foot is a container): "residents
- * only" shows from 72rem of map, the hint and the walk from 80rem, and
- * when the room runs out all the same the walk shrinks first, then the
- * command, never the coordinates.
- */
-export function Coordinates({
-  point,
-  hint,
-  towns,
-  bare = false,
-  className,
-}: {
-  point: Point | null
-  hint: string
-  towns: MapTown[]
-  /** Without its own box: set in a line of other things, as on the phone's sheet. */
-  bare?: boolean
-  className?: string
-}) {
-  const [copied, copy] = useCopy()
-  if (!point) return null
-  const [x, z] = point.map(Math.round)
-  const route = spawnRoute(point, towns)
-  return (
-    <div
-      className={cn(
-        'flex min-w-0 items-center gap-x-3 whitespace-nowrap font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
-        bare ? 'overflow-hidden' : 'border border-sand-300/80 bg-sand-50/95 px-2.5 py-1.5',
-        className,
-      )}
-    >
-      {!bare ? <span className="hidden shrink-0 text-ink-400 @7xl:inline">{hint}</span> : null}
-      <span className="shrink-0">
-        <span className="opacity-60">X</span> {x} <span className="ml-1 opacity-60">Z</span> {z}
-      </span>
-      {route ? (
-        <>
-          <button
-            aria-label={`Copy ${route.command}`}
-            // The walk and the note give way before it; it gives way before the coordinates.
-            className="inline-flex min-w-0 items-center gap-1 truncate text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
-            onClick={() => copy(route.command)}
-            title={[
-              'Copy the command',
-              route.then ? `, ${route.then}` : '',
-              route.town.publicSpawn === false ? `. ${privateSpawnNote(route.town)}` : '',
-            ].join('')}
-            type="button"
-          >
-            <Icon className="h-3 w-3 shrink-0" name={copied ? 'check' : 'copy'} />
-            <span aria-live="polite" className="truncate">
-              {copied ? 'Copied' : route.command}
-            </span>
-          </button>
-          {route.then ? (
-            <span className="hidden min-w-0 shrink-[8] truncate text-ink-400 @7xl:inline">{route.then}</span>
-          ) : null}
-          {route.town.publicSpawn === false ? (
-            <span
-              className="hidden min-w-0 shrink-0 text-saffron-600 @6xl:inline"
-              title={privateSpawnNote(route.town)}
-            >
-              residents only
-            </span>
-          ) : null}
-        </>
-      ) : null}
-    </div>
-  )
-}
-
-/**
- * How many are on the server just now, in a few quiet characters beside the
- * readout, with a dot that is lit while the feed answers: shown only while
- * the players layer is on and the feed has answered at least once.
- */
-export function LiveCount({ store, className }: { store: Store<LiveState>; className?: string }) {
-  const live = useStore(store)
-  if (live.status === 'off' || live.status === 'asking') return null
-  const down = live.status === 'down'
-  const shown = live.players.length
-  const online = live.online ?? shown
-  const title = down
-    ? 'The Rulercraft map isn’t answering, so who is online isn’t known just now.'
-    : `${online} online${online !== shown ? `, ${shown} on the map` : ''}`
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap border border-sand-300/80 bg-sand-50/95 px-2 py-1.5 font-mono text-[11px] tracking-[0.06em] text-ink-700 tabular-nums',
-        className,
-      )}
-      title={title}
-    >
-      <span
-        aria-hidden="true"
-        className={cn('h-1.5 w-1.5 shrink-0 rounded-full', down ? 'bg-ink-400' : 'bg-lagoon-500')}
-      />
-      <span>{down ? 'offline' : `${online} online`}</span>
-    </span>
-  )
-}
-
 export type MapStatus = { online: boolean; checkedAt: string; townsReadAt: string | null }
 
 /** Said when the Rulercraft map isn't answering: the pictures are the last saved. */
@@ -156,7 +42,7 @@ export function StatusNote({
   return (
     <p
       className={cn(
-        'flex items-center gap-2 border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[12px] leading-snug text-saffron-600',
+        'flex items-center gap-2 border border-saffron-400/60 bg-saffron-100/95 px-2.5 py-1.5 text-[13px] leading-snug text-saffron-600',
         className,
       )}
       role="status"
