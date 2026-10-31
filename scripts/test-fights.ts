@@ -12,7 +12,9 @@
  */
 import { readFileSync } from 'node:fs'
 
+import { hourOfWeek, holdRate, recordsOf, turnout, usualHours, type SavedBattle } from '../src/maps/fighters'
 import { FAR, attended, coverageOf, fighterOf, mergeMoments, packMoments, packTimes, unpackMoments, unpackTimes, type Mark, type Moment } from '../src/maps/fights'
+import { packBits, withSlot } from '../src/lib/presence'
 
 let failed = false
 function check(ok: boolean, what: string): void {
@@ -73,6 +75,38 @@ check(funcase.stays[0]?.outcome === 'died' && funcase.deaths.length === 1 && fun
 check(of('Sllikrick').stays[0]?.outcome === 'left' && !attended(of('Sllikrick')), 'another came and went: left, under a minute in the zone')
 const piggie = of('Little__Piggie')
 check(piggie.stays.length === 1 && piggie.stays[0].outcome === 'held' && piggie.stays[0].ours, 'the third attacker joined the holders while their side held the banner: held')
+
+// Records across battles.
+const saved: SavedBattle = {
+  startedAt: fixture.start,
+  town: 'Cyprus',
+  attacker: 'The_Balkan_Kingdom',
+  defender: 'Syrian_Empire',
+  coverage: coverageOf(real),
+  result: fixture.marks[fixture.marks.length - 1],
+  sides: { attackers: ['Mutewarrior', 'Soviet_Gorge', 'Little__Piggie', 'StayedHome'], defenders: ['.FunCase2229', 'Sllikrick'] },
+  fighters: Object.keys(fixture.players).map(of),
+}
+const records = recordsOf([saved, { ...saved, startedAt: '2026-11-01T00:00:00Z', fighters: [of('Mutewarrior')] }])
+const mute = records.get('mutewarrior')!
+check(mute.could === 2 && mute.fought === 2 && mute.held === 2 && mute.won === 2 && holdRate(mute) === 1 && turnout(mute) === 1, 'two battles fought, two stays held, two sessions won on points')
+const home = records.get('stayedhome')!
+check(home.could === 2 && home.fought === 0 && turnout(home) === 0, 'one who could have fought twice and didn’t: turnout nought')
+const fun = records.get('.funcase2229')
+check(!fun || fun.fought === 0, 'under a minute in the zone isn’t fighting, even dying there')
+check(records.get('soviet_gorge')?.lastFought === fixture.start && records.get('soviet_gorge')?.side === 'attackers', 'the side last fought on, and when')
+
+// Usual hours.
+const saturday = withSlot({}, ['Night_Owl'], 23 * 12 + 2)
+const hours = usualHours([
+  { day: '2026-10-31', slots: saturday },
+  { day: '2026-10-24', slots: {} },
+  { day: '2026-10-30', slots: { Night_Owl: packBits(new Uint8Array(36)) } },
+])
+const owl = hours.get('night_owl')!
+check(owl.length === 168 && owl[hourOfWeek(Date.parse('2026-10-31T23:30:00Z'))] === 0.5, 'online one of two Saturdays at 23:00 UTC: a half')
+check(owl.filter((share) => share > 0).length === 1, 'and no other hour')
+check(hourOfWeek(Date.parse('2026-11-02T00:10:00Z')) === 0, 'Monday 00:00 UTC is the week’s first hour')
 
 if (failed) {
   console.error('\nSome checks failed.')
