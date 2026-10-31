@@ -170,7 +170,9 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   element.setAttribute('role', 'button')
   element.setAttribute('aria-label', `${player.name}, online${town ? `, of ${spoken(town.name)}` : ''}`)
   element.appendChild(headOf(player.name))
-  // The tag hung from the head: the name, and under it in the war view the health and armour, on one dark plate.
+  // The tag hung from the head: the name, and under it in the war view the health and armour as the game's HUD
+  // draws them, a row of ten hearts and a row of ten chestplates (maps.css → .az-player-row, the sidebar's own
+  // masks), each with its figure beside, on one plate tinted by the player's side.
   const tag = document.createElement('span')
   tag.className = 'az-player-tag'
   const name = document.createElement('span')
@@ -179,27 +181,17 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   tag.appendChild(name)
   const vitals = document.createElement('span')
   vitals.className = 'az-player-vitals'
-  const stats = document.createElement('span')
-  stats.className = 'az-player-stats'
   for (const kind of ['health', 'armour'] as const) {
-    const stat = document.createElement('span')
-    stat.className = 'az-player-stat'
-    stat.dataset.kind = kind
-    stat.innerHTML = kind === 'health' ? HEART : CHESTPLATE
+    const row = document.createElement('span')
+    row.className = 'az-player-row'
+    row.dataset.kind = kind
+    const icons = document.createElement('span')
+    icons.className = 'az-player-icons'
+    row.appendChild(icons)
     const figure = document.createElement('b')
     figure.className = 'az-player-figure'
-    stat.appendChild(figure)
-    stats.appendChild(stat)
-  }
-  vitals.appendChild(stats)
-  for (const kind of ['health', 'armour']) {
-    const bar = document.createElement('span')
-    bar.className = 'az-vital-track'
-    bar.dataset.kind = kind
-    const fill = document.createElement('span')
-    fill.className = 'az-vital-fill'
-    bar.appendChild(fill)
-    vitals.appendChild(bar)
+    row.appendChild(figure)
+    vitals.appendChild(row)
   }
   tag.appendChild(vitals)
   element.appendChild(tag)
@@ -212,12 +204,6 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   const icon = L.divIcon({ html: element, className: 'az-player-icon', iconSize: [BOX_PX, BOX_PX], iconAnchor: [BOX_PX / 2, BOX_PX / 2] })
   return { icon, element }
 }
-
-/** The game's own heart and chestplate, as the figures under a head wear them (the same shapes mask the sidebar's rows: maps.css). */
-const HEART =
-  "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='1' y='1' width='2' height='1'/><rect x='4' y='1' width='2' height='1'/><rect x='0' y='2' width='7' height='2'/><rect x='1' y='4' width='5' height='1'/><rect x='2' y='5' width='3' height='1'/><rect x='3' y='6' width='1' height='1'/></svg>"
-const CHESTPLATE =
-  "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='0' y='1' width='2' height='1'/><rect x='5' y='1' width='2' height='1'/><rect x='0' y='2' width='3' height='1'/><rect x='4' y='2' width='3' height='1'/><rect x='0' y='3' width='7' height='1'/><rect x='1' y='4' width='5' height='3'/></svg>"
 
 /** A siege banner on its pole, for the holder's badge. */
 const BANNER = "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='1' y='0' width='1' height='8'/><path d='M2 1h5l-1.5 1.5L7 4H2z'/></svg>"
@@ -242,12 +228,18 @@ function setCapture(element: HTMLElement, name: string, fight: WarHeads | null, 
   element.toggleAttribute('data-holder', Boolean(fight?.captures?.holders.some((holder) => holder.name === name)))
 }
 
-/** The figures and the bars under a head, set to the reading: the two values, a share each, and whether the health is low. */
+/**
+ * The hearts and chestplates under a head, set to the reading: a share
+ * each as custom properties, which the rows' gradients fill to (half a
+ * heart is half a share's icon), the figures, whether the health is low
+ * and whether there's no armour at all. Nothing is laid out again.
+ */
 function setVitals(element: HTMLElement, player: LivePlayer): void {
   const share = (value: number | null, max: number) => (value === null ? 0 : Math.max(0, Math.min(1, value / max)))
   element.style.setProperty('--az-hp', String(share(player.health, MAX_HEALTH)))
   element.style.setProperty('--az-ar', String(share(player.armor, MAX_ARMOR)))
   element.toggleAttribute('data-low', player.health !== null && player.health <= LOW_HEALTH)
+  element.toggleAttribute('data-bare', player.armor === 0)
   const [health, armour] = element.querySelectorAll<HTMLElement>('.az-player-figure')
   if (health) health.textContent = player.health === null ? '–' : String(player.health)
   if (armour) armour.textContent = player.armor === null ? '–' : String(player.armor)

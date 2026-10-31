@@ -452,14 +452,20 @@
 }
 
 /*
- * The war view's heads are fighters (layers/PlayersLayer.tsx): ringed by
- * their side in the siege the view is on, attackers in the seal's coral
- * and defenders in the sea, the tag's edge in the same colour, and on the
- * tag under the name their health and armour: the two figures with a
- * heart and a chestplate, and under those a health bar and an armour bar
- * the width of the tag. A poll writes two figures and two custom
- * properties, and nothing is laid out again. Low health burns hotter and
- * pulses. The one being watched wears a saffron ring that breathes.
+ * The war view's heads are fighters (layers/PlayersLayer.tsx): the whole
+ * head unit says its side in the siege the view is on, attackers in the
+ * seal's coral and defenders in the sea, the ring thick in the side's
+ * colour and the tag's plate tinted dark in it, so one side is told from
+ * the other across a crowded banner; anyone of neither keeps the plain
+ * ring and the dark plate. On the plate under the name, the health and
+ * armour as the game's own HUD draws them and as the Rulercraft map shows
+ * them: a row of ten hearts, with halves, and a row of ten chestplates,
+ * each row one element masked with the icon ten times over (the sidebar's
+ * own shapes, ui/Vitals.tsx) and filled to the share, the figure beside
+ * for anyone calling the exact health over voice. A poll writes two
+ * custom properties and two figures, and nothing is laid out again. Low
+ * health burns and pulses; no armour at all is flagged in amber. The one
+ * being watched wears a saffron ring that breathes.
  */
 .az-player-vitals {
   display: none;
@@ -467,87 +473,76 @@
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
-  min-width: 64px;
+  min-width: 118px;
 }
 .az-players-war .az-player-vitals {
   display: flex;
 }
-.az-player-stats {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  font-family: var(--font-mono, monospace);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-  color: #ffffff;
-  white-space: nowrap;
-}
-.az-player-stat {
-  display: inline-flex;
+.az-player-row {
+  --az-icon: 9px;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 3px;
+  gap: 5px;
 }
-.az-player-stat svg {
-  width: 13px;
-  height: 13px;
+.az-player-icons {
+  display: block;
+  width: calc(var(--az-icon) * 10);
+  height: var(--az-icon);
+  -webkit-mask: var(--az-mask) 0 0 / var(--az-icon) var(--az-icon) repeat-x;
+  mask: var(--az-mask) 0 0 / var(--az-icon) var(--az-icon) repeat-x;
+  background: linear-gradient(90deg, var(--az-on) calc(var(--az-share, 0) * 100%), var(--az-off) 0);
 }
-.az-player-stat[data-kind='health'] svg {
-  fill: #ff5a43;
+.az-player-row[data-kind='health'] {
+  --az-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect x='1' y='1' width='2' height='1'/%3E%3Crect x='4' y='1' width='2' height='1'/%3E%3Crect x='0' y='2' width='7' height='2'/%3E%3Crect x='1' y='4' width='5' height='1'/%3E%3Crect x='2' y='5' width='3' height='1'/%3E%3Crect x='3' y='6' width='1' height='1'/%3E%3C/svg%3E");
+  --az-share: var(--az-hp, 0);
+  --az-on: #ff4d3d;
+  --az-off: rgba(251, 248, 241, 0.22);
 }
-.az-player-stat[data-kind='armour'] svg {
-  fill: #a9cbe3;
+.az-player-row[data-kind='armour'] {
+  --az-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect x='0' y='1' width='2' height='1'/%3E%3Crect x='5' y='1' width='2' height='1'/%3E%3Crect x='0' y='2' width='3' height='1'/%3E%3Crect x='4' y='2' width='3' height='1'/%3E%3Crect x='0' y='3' width='7' height='1'/%3E%3Crect x='1' y='4' width='5' height='3'/%3E%3C/svg%3E");
+  --az-share: var(--az-ar, 0);
+  --az-on: #cfe3f2;
+  --az-off: rgba(251, 248, 241, 0.22);
 }
-.az-player[data-low] .az-player-stat[data-kind='health'] {
-  color: #ff6b57;
+.az-player-figure {
+  min-width: 2ch;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: #ffffff;
 }
-.az-player[data-low] .az-player-stat[data-kind='health'] svg {
-  fill: #ff4d3d;
+.az-player[data-low] .az-player-row[data-kind='health'] .az-player-figure {
+  color: #ff8a70;
+}
+.az-player[data-low] .az-player-row[data-kind='health'] .az-player-icons {
   animation: az-vital-pulse 1s ease-in-out infinite;
 }
-.az-player-vitals .az-vital-track {
-  display: block;
-  width: 100%;
-  height: 5px;
-  background: rgba(251, 248, 241, 0.18);
-}
-.az-player-vitals .az-vital-track[data-kind='armour'] {
-  height: 3px;
-}
-.az-player-vitals .az-vital-fill {
-  display: block;
-  height: 100%;
-  transition: width 400ms linear;
-}
-.az-player-vitals [data-kind='health'] .az-vital-fill {
-  width: calc(var(--az-hp, 0) * 100%);
-  background: #e0523a;
-}
-.az-player-vitals [data-kind='armour'] .az-vital-fill {
-  width: calc(var(--az-ar, 0) * 100%);
-  background: #a9cbe3;
-}
-.az-player[data-low] .az-player-vitals [data-kind='health'] .az-vital-fill {
-  background: #ff4d3d;
+.az-player[data-bare] .az-player-row[data-kind='armour'] .az-player-figure {
+  color: #f0b429;
 }
 .az-players-war .az-player[data-side='attackers'] .az-player-mark {
   box-shadow:
-    0 0 0 2px #bb4631,
-    0 0 0 3px rgba(251, 248, 241, 0.7),
+    0 0 0 3px #bb4631,
+    0 0 0 4.5px rgba(251, 248, 241, 0.85),
     0 1px 3px rgba(22, 25, 31, 0.45);
 }
 .az-players-war .az-player[data-side='defenders'] .az-player-mark {
   box-shadow:
-    0 0 0 2px #2c6b93,
-    0 0 0 3px rgba(251, 248, 241, 0.7),
+    0 0 0 3px #2c6b93,
+    0 0 0 4.5px rgba(251, 248, 241, 0.85),
     0 1px 3px rgba(22, 25, 31, 0.45);
 }
 .az-players-war .az-player[data-side='attackers'] .az-player-tag {
   --az-tag-edge: #e0644c;
+  background: rgba(112, 30, 20, 0.9);
 }
 .az-players-war .az-player[data-side='defenders'] .az-player-tag {
   --az-tag-edge: #4f9fd6;
+  background: rgba(16, 54, 88, 0.9);
 }
 .az-players-war .az-player-watched .az-player-tag {
   --az-tag-edge: #d8962c;
@@ -678,10 +673,7 @@
     animation: none;
     opacity: 0.7;
   }
-  .az-player-vitals .az-vital-fill {
-    transition: none;
-  }
-  .az-player[data-low] .az-player-stat[data-kind='health'] svg {
+  .az-player[data-low] .az-player-row[data-kind='health'] .az-player-icons {
     animation: none;
   }
 }

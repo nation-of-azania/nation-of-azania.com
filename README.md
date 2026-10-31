@@ -1041,10 +1041,16 @@ which the routes insist on, so every viewer shares one copy.
   town not in a siege fade back, and the places and events step aside. The
   **heads** are fighters: ringed by their side in the siege the view is
   on (attackers coral, defenders sea; worked out from the towns' resident
-  lists, so an ally the map can't place is of neither), their names
-  always beside them, and their **health and armour** under the name: the
-  two figures with a heart and a chestplate, bold and haloed, and a thick
-  health bar and an armour bar beneath, low health burning and pulsing; a
+  lists, so an ally the map can't place is of neither): the whole head
+  unit in the side's colour, a thick ring and the name's plate tinted dark
+  coral or dark sea, so one side is told from the other across a crowded
+  banner, their names always beside them, and under the name their
+  **health and armour as the game's HUD draws them** (and as the
+  Rulercraft map shows them): a row of ten hearts, with halves, and a row
+  of ten chestplates, the sidebar's own pixel icons, each with the figure
+  beside for anyone calling the exact health over voice; low health burns
+  and pulses, no armour is flagged in amber, and a reading writes two
+  custom properties and two figures, nothing being laid out again; a
   head capturing the banner wears a ring filling in its side's colour over
   the five minutes, and a holder the banner's badge. The players feed goes
   fast while the view is on: `/maps/players/live` every second and a half
