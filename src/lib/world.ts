@@ -2,6 +2,7 @@ import { outlinesChunks, type Outline, type Point } from '@/maps/geo'
 import {
   CAPITAL_WAR_RADIUS,
   WAR_EVERY_S,
+  WAR_LIVE_EVERY_S,
   WORLD_EVERY_S,
   type Siege,
   type War,
@@ -244,3 +245,5 @@ function keeper<T>(maxAgeMs: number, build: (file: MarkerFile) => T) {
 /** The world, read a little more often than the CDN asks, so its copy is never older than it says. */
 export const getWorld = keeper((WORLD_EVERY_S - 60) * 1000, worldOf)
 export const getWar = keeper((WAR_EVERY_S - 30) * 1000, warOf)
+/** The war view's, during a battle: read again a little sooner than the CDN asks. */
+export const getWarLive = keeper((WAR_LIVE_EVERY_S - 5) * 1000, warOf)

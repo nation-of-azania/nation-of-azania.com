@@ -3,10 +3,11 @@ import { WORLD_LIMIT } from './geo'
 /**
  * Who is on the Rulercraft server and where, as the map's live feed has it
  * (Dynmap's `up/world/<world>/<timestamp>`, which the Rulercraft map itself
- * polls every few seconds). Azania Maps passes it on through
- * /maps/players and keeps none of it: the positions live only in the
- * browser that asked. Players the server hides (vanished, invisible, in
- * another world) aren't in the feed, so they aren't here either.
+ * polls every three seconds, and which the server rewrites about every one
+ * and a half). Azania Maps passes it on through /maps/players and keeps
+ * none of it: the positions live only in the browser that asked. Players
+ * the server hides (vanished, invisible, in another world) aren't in the
+ * feed, so they aren't here either.
  */
 
 export type LivePlayer = {
@@ -15,6 +16,10 @@ export type LivePlayer = {
   x: number
   y: number
   z: number
+  /** Health, 0 to 20 (two to a heart), to the half; null when the feed doesn't say. */
+  health: number | null
+  /** Armour points, 0 to 20 (two to an armour icon); null when the feed doesn't say. */
+  armor: number | null
 }
 
 export type LivePlayers = {
@@ -30,6 +35,17 @@ export type LivePlayers = {
 
 /** How often the map in the browser asks, and the CDN refreshes the answer. */
 export const PLAYERS_EVERY_MS = 3000
+
+/**
+ * How often the war view asks instead, from /maps/players/live, which the
+ * CDN refreshes every second: in a fight, a head three seconds behind is a
+ * head in the wrong place. The server writes a reading about every 1.5 s.
+ */
+export const LIVE_PLAYERS_EVERY_MS = 1500
+
+/** The highest health and armour the feed gives: 20 each, ten hearts and ten chestplate icons. */
+export const MAX_HEALTH = 20
+export const MAX_ARMOR = 20
 
 /** A move further than this between two readings is a teleport (`/t spawn`), and a head jumps rather than glides. */
 export const TELEPORT_BLOCKS = 300
@@ -55,16 +71,22 @@ type FeedPlayer = {
   x?: unknown
   y?: unknown
   z?: unknown
+  health?: unknown
+  armor?: unknown
 }
 
 const isName = (value: unknown): value is string => typeof value === 'string' && /^\.?\w{3,16}$/.test(value)
 const isCoordinate = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= WORLD_LIMIT
 
+/** A stat of the feed's, 0 to `max`, to the half; null when it isn't one. */
+const statOf = (value: unknown, max: number): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.round(value * 2) / 2)) : null
+
 /**
- * The feed trimmed to what the map draws: name and position, for players in
- * `world`. Health, armour and the rest stay behind; anything malformed is
- * dropped rather than trusted.
+ * The feed trimmed to what the map draws: name, position, health and
+ * armour, for players in `world`. The rest stays behind; anything
+ * malformed is dropped rather than trusted.
  */
 export function readPlayers(feed: unknown, world: string): LivePlayers {
   const body = (feed ?? {}) as { timestamp?: unknown; currentcount?: unknown; players?: unknown }
@@ -78,6 +100,8 @@ export function readPlayers(feed: unknown, world: string): LivePlayers {
       x: Math.round(entry.x),
       y: typeof entry.y === 'number' && Number.isFinite(entry.y) ? Math.round(entry.y) : 64,
       z: Math.round(entry.z),
+      health: statOf(entry.health, MAX_HEALTH),
+      armor: statOf(entry.armor, MAX_ARMOR),
     })
   }
   players.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))

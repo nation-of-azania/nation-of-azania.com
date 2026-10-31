@@ -2,7 +2,8 @@ import config from '@payload-config'
 import { getPayload, type Payload } from 'payload'
 
 import { packWorld, unpackWorld, type PackedWorld, type War, type World } from '../maps/world'
-import { getWar, getWorld } from './world'
+import { demoWar, warDemo } from './warDemo'
+import { getWar, getWarLive, getWorld } from './world'
 
 /**
  * Azania Maps while the Rulercraft map is down. The rest of the world and
@@ -80,9 +81,17 @@ export async function worldReading(): Promise<Reading<World> | null> {
   return kept ? { value: kept, saved: true } : null
 }
 
-/** The war: the map's, else as last saved; null when neither can be had. */
-export async function warReading(): Promise<Reading<War> | null> {
-  const war = await getWar()
+/**
+ * The war: the map's, else as last saved; null when neither can be had.
+ * `live` reads the map more often, for the war view during a battle. On a
+ * machine running the war demo (src/lib/warDemo.ts), the demo's battle.
+ */
+export async function warReading({ live = false }: { live?: boolean } = {}): Promise<Reading<War> | null> {
+  if (warDemo()) {
+    const demo = await demoWar(Date.now())
+    if (demo) return { value: demo, saved: false }
+  }
+  const war = await (live ? getWarLive : getWar)()
   if (war) return { value: war, saved: false }
   const { war: kept } = await lastSaved()
   return kept ? { value: kept, saved: true } : null

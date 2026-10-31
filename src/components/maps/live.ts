@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo } from 'react'
 
-import { PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers } from '@/maps/players'
+import { LIVE_PLAYERS_EVERY_MS, PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers } from '@/maps/players'
 
 import { createStore, type Store } from './hooks'
 
 /**
  * Who is online, as the map in the browser has it: /maps/players asked
  * every few seconds while the players layer is on and the tab is visible,
- * and not at all otherwise. The answer lives in a small store rather than
+ * and not at all otherwise; /maps/players/live every second and a half
+ * instead in the war view (`fast`). The answer lives in a small store rather than
  * React state, so only what shows it — the heads on the map, the count —
  * follows it, and nothing else on the page re-renders for a poll. Nothing
  * is written anywhere: the positions are gone when the tab is.
@@ -23,9 +24,11 @@ export type LiveState = {
   at: number
   /** 'asking' until the first answer; 'down' while the Rulercraft map isn't answering. */
   status: 'off' | 'asking' | 'live' | 'down'
+  /** How often the feed is asked just now, in ms: a head glides from one reading to the next over this. */
+  every: number
 }
 
-const OFF: LiveState = { players: [], online: null, at: 0, status: 'off' }
+const OFF: LiveState = { players: [], online: null, at: 0, status: 'off', every: PLAYERS_EVERY_MS }
 /** While the map is down, each ask waits twice as long as the last, up to this. */
 const LONGEST_WAIT_MS = 60_000
 
@@ -40,15 +43,20 @@ const isPlayer = (value: unknown): value is LivePlayer => {
   )
 }
 
-/** The answer as the route gives it, with anything odd left out rather than trusted. */
-function readAnswer(body: unknown): LiveState {
+const stat = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+/** The answer as the route gives it, with anything odd left out rather than trusted; health and armour null where an older answer has none. */
+function readAnswer(body: unknown, every: number): LiveState {
   const answer = (body ?? {}) as Partial<LivePlayers>
-  if (answer.offline) return { players: [], online: null, at: Date.now(), status: 'down' }
+  if (answer.offline) return { players: [], online: null, at: Date.now(), status: 'down', every }
   return {
-    players: Array.isArray(answer.players) ? answer.players.filter(isPlayer) : [],
+    players: Array.isArray(answer.players)
+      ? answer.players.filter(isPlayer).map((player) => ({ ...player, health: stat(player.health), armor: stat(player.armor) }))
+      : [],
     online: typeof answer.online === 'number' ? answer.online : null,
     at: typeof answer.at === 'number' ? answer.at : Date.now(),
     status: 'live',
+    every,
   }
 }
 
@@ -58,17 +66,20 @@ function readAnswer(body: unknown): LiveState {
  * answer never stacks; waits longer and longer while the map is down. The
  * request has no query, so every viewer shares the CDN's copy.
  */
-export function useLivePlayers(enabled: boolean): Store<LiveState> {
+export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: boolean } = {}): Store<LiveState> {
   const store = useMemo(() => createStore<LiveState>(OFF), [])
   useEffect(() => {
+    const every = fast ? LIVE_PLAYERS_EVERY_MS : PLAYERS_EVERY_MS
+    const url = fast ? '/maps/players/live' : '/maps/players'
     if (!enabled) {
       store.set(OFF)
       return
     }
-    store.set({ ...OFF, status: 'asking' })
+    // Switching between the feeds keeps the heads where they are until the other answers.
+    store.set(store.get().status === 'off' ? { ...OFF, status: 'asking', every } : { ...store.get(), every })
     let cancelled = false
     let inFlight = false
-    let wait = PLAYERS_EVERY_MS
+    let wait = every
     let timer: number | undefined
     const visible = () => document.visibilityState === 'visible'
 
@@ -80,16 +91,16 @@ export function useLivePlayers(enabled: boolean): Store<LiveState> {
       if (cancelled || inFlight || !visible()) return
       inFlight = true
       try {
-        const response = await fetch('/maps/players', { cache: 'no-store' })
+        const response = await fetch(url, { cache: 'no-store' })
         if (!response.ok) throw new Error(`The feed answered ${response.status}`)
-        const next = readAnswer(await response.json())
+        const next = readAnswer(await response.json(), every)
         if (cancelled) return
         store.set(next)
-        wait = next.status === 'down' ? Math.min(Math.max(wait, PLAYERS_EVERY_MS) * 2, LONGEST_WAIT_MS) : PLAYERS_EVERY_MS
+        wait = next.status === 'down' ? Math.min(Math.max(wait, every) * 2, LONGEST_WAIT_MS) : every
       } catch {
         if (cancelled) return
-        store.set({ players: [], online: null, at: Date.now(), status: 'down' })
-        wait = Math.min(Math.max(wait, PLAYERS_EVERY_MS) * 2, LONGEST_WAIT_MS)
+        store.set({ players: [], online: null, at: Date.now(), status: 'down', every })
+        wait = Math.min(Math.max(wait, every) * 2, LONGEST_WAIT_MS)
       } finally {
         inFlight = false
         schedule()
@@ -98,7 +109,7 @@ export function useLivePlayers(enabled: boolean): Store<LiveState> {
     // Back to the tab: ask at once; away from it: stop asking.
     const onVisibility = () => {
       if (visible()) {
-        wait = PLAYERS_EVERY_MS
+        wait = every
         void poll()
       } else window.clearTimeout(timer)
     }
@@ -108,8 +119,8 @@ export function useLivePlayers(enabled: boolean): Store<LiveState> {
       cancelled = true
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisibility)
-      store.set(OFF)
+      // Nothing cleared here: turned off, the next run clears the heads; switched between feeds, they stay.
     }
-  }, [enabled, store])
+  }, [enabled, fast, store])
   return store
 }
