@@ -34,7 +34,7 @@ function Stale() {
   if (war.status !== 'down' || !war.at) return null
   const at = new Date(war.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   return (
-    <p className="mt-1 text-[11px] italic text-ink-500">
+    <p className="mt-1 text-[12px] italic text-ink-500">
       As last known, at {at}: the Rulercraft map isn’t answering just now.
     </p>
   )
@@ -51,11 +51,11 @@ function SiegeBlock({ siege, side, className }: { siege: Siege; side: SiegeSide;
       <div className="flex items-start gap-2.5">
         <SiegeBadge className="mt-0.5 h-8 w-8" side={side} siege={siege} />
         <div className="min-w-0 flex-1">
-          <p className="font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-700">
+          <p className="font-label text-[11px] font-semibold uppercase tracking-[0.2em] text-coral-700">
             {siege.battle ? 'Siege · a battle on' : 'Siege · quiet'}
           </p>
           <h2 className="font-display text-xl leading-tight text-coral-700">{siegeHeadline(siege, side)}</h2>
-          <p className="mt-0.5 text-[13px] text-ink-500">{siegeTitle(siege)}</p>
+          <p className="mt-0.5 text-[14px] text-ink-500">{siegeTitle(siege)}</p>
         </div>
       </div>
       <SiegeFigures className="mt-2" siege={siege} />
@@ -87,8 +87,8 @@ function SiegeRow({ siege, side }: { siege: Siege; side: SiegeSide }) {
     <li className="flex items-center gap-3 px-4 py-2">
       <SiegeBadge side={side} siege={siege} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-ink-900">{siegeTitle(siege)}</span>
-        <span className="block truncate text-xs text-ink-500">
+        <span className="block truncate text-[15px] font-semibold text-ink-900">{siegeTitle(siege)}</span>
+        <span className="block truncate text-[13px] text-ink-500">
           {[
             siege.town ? spoken(siege.town) : null,
             siege.progress ? `${siege.progress.done} of ${siege.progress.of} fought` : null,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { homeNationOf, sameNation } from '@/maps/abroad'
@@ -21,6 +21,7 @@ import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import type { LivePlayer } from '@/maps/players'
 import { azaniaSide, bySiegeWeight, siegeHeadline, type SiegeSide } from '@/maps/sieges'
+import { secondsLeftNow } from '@/maps/battle'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useMaps } from '../context'
@@ -29,33 +30,36 @@ import { Head } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 import { SiegeBadge } from '../ui/Siege'
-import { Vitals } from '../ui/Vitals'
+import { LOW_HEALTH, Vitals } from '../ui/Vitals'
 import { Wordmark } from '../ui/Wordmark'
 import { clockOf, sessionWords, useSecond, type WarFocus } from '../warView'
 
 /**
  * The war view's sidebar, in place of the panel while the view is on: a
- * console for the hour of a battle, dark where the panels are sand, with
- * big figures and nothing a fighter doesn't need. The overview is the
- * sieges on the server, battles first, under the session clock; a siege
- * is its live score (run on second by second between the map's readings:
- * src/maps/battle.ts), who holds the banner and at what bonus, the
- * balance and what it will be when the session ends, what the side
- * behind needs to turn it round, and the fighters about the banner, each
- * with their health and armour and the way back for anyone outside; a
- * nation is who it is, how many, and who of it is online, with their
- * distance to the banner; a player is one head watched, the map
- * following them. Every figure ticks where it's shown (../warView.ts →
- * useSecond, the live store), so a poll re-renders the roster and
- * nothing else on the page. What the rules don't give is assumed, and the
- * foot says what.
+ * console for the hour of a battle, dark where the panels are sand. The
+ * one question about every person on it is how much health and armour
+ * they have right now, so that is the loudest thing wherever a player
+ * appears: hearts and chestplates as the game draws them, with the
+ * figures in bold (ui/Vitals.tsx), the lowest health first in every
+ * roster; everything else, names of nations, counts, labels, notes, is
+ * set smaller and tighter beneath. The overview is the session clock and
+ * the sieges, battles first; a siege is its live score (run on second by
+ * second between the map's readings: src/maps/battle.ts), the banner and
+ * its bonus, the balance and what it will be when the session ends, what
+ * the side behind needs, and the fighters about the banner with the way
+ * back for anyone outside; a nation is who it is and who of it is on,
+ * each with their distance to the banner; a player is one head watched,
+ * the map following them. Every figure ticks where it's shown
+ * (../warView.ts → useSecond, the live store), so a poll re-renders a
+ * roster and nothing else on the page.
  */
 
-const EYEBROW = 'font-label text-[10px] font-semibold uppercase tracking-[0.22em] text-sand-300/70'
+const EYEBROW = 'font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-sand-200/75'
 const FIGURE = 'font-mono tabular-nums'
+const SECOND = 'text-[14px] leading-snug text-sand-200/80'
 const CHIP =
-  'inline-flex max-w-full items-center gap-1.5 border border-sand-50/15 px-2 py-0.5 text-[12px] font-semibold leading-snug text-sand-100 hover:border-sand-50/40 hover:bg-sand-50/5 focus-visible:outline-saffron-400'
-const FOOT = 'mt-5 px-4 text-[11px] leading-snug text-sand-300/55'
+  'inline-flex max-w-full items-center gap-1.5 border border-sand-50/20 px-2 py-0.5 text-[14px] font-semibold leading-snug text-sand-50 hover:border-sand-50/45 hover:bg-sand-50/5 focus-visible:outline-saffron-400'
+const FOOT = 'mt-4 px-4 text-[13px] leading-snug text-sand-300/70'
 
 const n = (value: number) => value.toLocaleString('en-GB')
 const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
@@ -64,10 +68,13 @@ const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
 type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
 
 const sideWord = (side: PlayerSide | null) => (side === 'attackers' ? 'Attacker' : side === 'defenders' ? 'Defender' : 'Other')
-const sideColour = (side: PlayerSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : 'text-sand-300/70')
+const sideColour = (side: PlayerSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : 'text-sand-200/75')
 
 /** Who a side is, by name: the attacker nation, or the defender. */
 const sideName = (siege: Siege, side: BattleSide) => spoken(side === 'attackers' ? siege.attacker : siege.defender)
+
+/** The lowest health first: the one in danger leads any roster. */
+const byHealth = (a: LivePlayer, b: LivePlayer) => (a.health ?? 99) - (b.health ?? 99) || (a.armor ?? 99) - (b.armor ?? 99)
 
 export type WarPanelProps = {
   focus: WarFocus | null
@@ -108,15 +115,12 @@ export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onL
   }
 
   return (
-    <div className="az-war flex min-h-full flex-col bg-sea-950 text-sand-100">
-      <header className="flex items-center gap-3 border-b border-sand-50/10 px-4 py-3">
+    <div className="az-war flex min-h-full flex-col bg-sea-950 text-sand-50">
+      <header className="flex items-center gap-3 border-b border-sand-50/10 px-4 py-2">
         <Wordmark small tone="dark" />
-        <span className="min-w-0 flex-1">
-          <span className={cn(EYEBROW, 'block text-coral-500')}>War view</span>
-          <SessionLine />
-        </span>
+        <SessionLine />
         <button
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-sand-50/20 px-2.5 text-[12px] font-semibold text-sand-100 hover:border-sand-50/50 hover:bg-sand-50/5 focus-visible:outline-saffron-400"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-sand-50/25 px-2.5 text-[13px] font-semibold text-sand-50 hover:border-sand-50/50 hover:bg-sand-50/5 focus-visible:outline-saffron-400"
           onClick={onLeave}
           title="Back to the map as it was"
           type="button"
@@ -125,27 +129,42 @@ export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onL
           Leave
         </button>
       </header>
-      <div className="flex-1 pb-6">{body}</div>
+      <div className="flex-1 pb-5">{body}</div>
     </div>
   )
 }
 
-/** The session's clock in the header, in a few words: the time left, or when the next begins. */
-function SessionLine() {
+/**
+ * The clock the view goes by: a battle on says its own time left, read
+ * from the map and run on, which outranks the schedule; otherwise the
+ * schedule says when the next session begins.
+ */
+function useBattleClock(): { on: boolean; headline: string; detail: string } | null {
+  const { war } = useMaps()
   const now = useSecond()
-  if (!now) return <span className="block text-[12px] text-sand-300/70">…</span>
+  if (!now) return null
+  for (const siege of war.sieges) {
+    if (!siege.battle) continue
+    const reading = war.readings[siege.townId]?.at(-1)
+    const left = reading ? secondsLeftNow(reading, now) : null
+    if (left !== null) return { on: true, headline: clockOf(left), detail: 'left in this battle' }
+  }
   const session = sessionWords(now)
+  return { on: session.on, headline: session.headline, detail: session.on ? 'left in this battle session' : session.detail }
+}
+
+/** The clock in the header, in a line: the time left, or when the next session begins. */
+function SessionLine() {
+  const clock = useBattleClock()
   return (
-    <span className="block truncate text-[12px] text-sand-300/80">
-      {session.on ? (
+    <span className="min-w-0 flex-1 truncate text-[13px] text-sand-200/80">
+      <span className="font-label font-semibold uppercase tracking-[0.14em] text-coral-400">War</span>
+      {clock ? (
         <>
-          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{session.headline}</span> left in the session
+          {' · '}
+          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clock.headline}</span> {clock.on ? 'left' : 'next'}
         </>
-      ) : (
-        <>
-          Next session <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{session.headline}</span>
-        </>
-      )}
+      ) : null}
     </span>
   )
 }
@@ -154,20 +173,20 @@ function BackButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       aria-label="Back to the overview"
-      className="-ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-sand-300/80 hover:text-sand-50 focus-visible:outline-saffron-400"
+      className="-ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center text-sand-200/80 hover:text-sand-50 focus-visible:outline-saffron-400"
       onClick={onClick}
       type="button"
     >
-      <Icon className="h-4 w-4" name="back" />
+      <Icon className="h-5 w-5" name="back" />
     </button>
   )
 }
 
 function Gone({ back, what }: { back: ReactNode; what: string }) {
   return (
-    <div className="flex items-center gap-3 px-4 pt-4">
+    <div className="flex items-center gap-3 px-4 pt-3">
       {back}
-      <p className="text-sm text-sand-300/80">{what}</p>
+      <p className="text-[15px] text-sand-200/85">{what}</p>
     </div>
   )
 }
@@ -193,28 +212,26 @@ function Overview({
   return (
     <>
       <BigClock />
-      <section className="mt-5 px-4">
+      <section className="mt-3 px-4">
         <p className={EYEBROW}>Sieges on the server{sieges.length ? ` · ${sieges.length}` : ''}</p>
         {sieges.length ? (
-          <ul className="mt-2 divide-y divide-sand-50/10 border-y border-sand-50/10">
+          <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
             {sieges.map((entry) => (
               <SiegeRow entry={entry} key={entry.siege.townId} onOpen={() => onFocus({ kind: 'siege', townId: entry.siege.townId })} />
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm leading-relaxed text-sand-300/80">
-            None just now. A siege shows here the moment SiegeWar marks one on the map; the view keeps asking.
-          </p>
+          <p className="mt-1 text-[15px] leading-snug text-sand-200/85">None just now. A siege shows here the moment SiegeWar marks one; the view keeps asking.</p>
         )}
       </section>
       {nations.length ? (
-        <section className="mt-5 px-4">
+        <section className="mt-3 px-4">
           <p className={EYEBROW}>Nations in the fight</p>
-          <ul className="mt-2 flex flex-wrap gap-1.5">
+          <ul className="mt-1 flex flex-wrap gap-1.5">
             {nations.map((name) => (
               <li key={name}>
                 <button className={CHIP} onClick={() => onFocus({ kind: 'nation', name })} type="button">
-                  <Icon className="h-3 w-3 text-sand-300/70" name="people" />
+                  <Icon className="h-3.5 w-3.5 text-sand-200/70" name="people" />
                   <span className="truncate">{spoken(name)}</span>
                 </button>
               </li>
@@ -223,28 +240,22 @@ function Overview({
         </section>
       ) : null}
       <OnlineNow onFocus={onFocus} towns={towns} />
-      <p className={FOOT}>
-        Choose a siege, a nation or a player: on the map or here. The players every 1.5 s, the war every 30 s while a
-        battle is on.
-      </p>
+      <p className={FOOT}>Choose a siege, a nation or a player, here or on the map. Players every 1.5 s; the war every 30 s in a battle.</p>
     </>
   )
 }
 
-/** The session's clock, large: a fighter reads it across the room. */
+/** The clock, large: a fighter reads it across the room. */
 function BigClock() {
-  const now = useSecond()
-  const session = now ? sessionWords(now) : null
+  const clock = useBattleClock()
   return (
-    <div className="border-b border-sand-50/10 px-4 pb-4 pt-4">
-      <p className={cn(FIGURE, 'text-[44px] font-semibold leading-none tracking-tight text-sand-50')} aria-live="off">
-        {session ? (session.on ? session.headline : session.headline.replace(/^in /, '')) : '--:--'}
+    <div className="border-b border-sand-50/10 px-4 pb-3 pt-3">
+      <p className={cn(FIGURE, 'text-[38px] font-semibold leading-none tracking-tight text-sand-50')} aria-live="off">
+        {clock ? (clock.on ? clock.headline : clock.headline.replace(/^in /, '')) : '--:--'}
       </p>
-      <p className="mt-1.5 text-[13px] text-sand-300/80">
-        {session ? (session.on ? session.detail : `until ${session.detail}`) : 'Reading the clock…'}
-      </p>
-      <p className="mt-0.5 text-[11px] text-sand-300/50">
-        Sessions at {RULES.sessionHours.map((hour) => `${String(hour).padStart(2, '0')}:00`).join(', ')} server time, an hour each.
+      <p className="mt-1 text-[14px] text-sand-200/85">
+        {clock ? (clock.on ? clock.detail : `until ${clock.detail}`) : 'Reading the clock…'}
+        <span className="text-sand-300/60"> · sessions at {RULES.sessionHours.map((hour) => `${String(hour).padStart(2, '0')}:00`).join(', ')} server time</span>
       </p>
     </div>
   )
@@ -260,23 +271,23 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
   const score = assessed?.score ?? null
   return (
     <li>
-      <button className="flex w-full items-start gap-3 px-1 py-2.5 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
+      <button className="flex w-full items-start gap-3 px-1 py-2 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
         <SiegeBadge className="mt-0.5 h-7 w-7" side={side} siege={siege} />
         <span className="min-w-0 flex-1">
-          <span className={cn('block font-display text-[17px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</span>
-          <span className="mt-0.5 block truncate text-[12px] text-sand-300/70">
+          <span className={cn('block font-display text-[18px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</span>
+          <span className={cn(SECOND, 'mt-0.5 block truncate')}>
             {[siege.town ? spoken(siege.town) : null, siege.progress ? `${siege.progress.done} of ${siege.progress.of} fought` : null, siege.battle ? 'a battle on' : 'quiet']
               .filter(Boolean)
               .join(' · ')}
           </span>
           {score ? (
-            <span className={cn(FIGURE, 'mt-1 flex items-baseline gap-2 text-[15px] font-semibold')}>
+            <span className={cn(FIGURE, 'mt-1 flex items-baseline gap-2 text-[17px] font-semibold')}>
               <span className="text-(--az-atk)">{n(score.attacker)}</span>
-              <span className="text-[10px] font-normal uppercase tracking-[0.16em] text-sand-300/60">atk · def</span>
+              <span className="text-[12px] font-normal uppercase tracking-[0.14em] text-sand-200/70">atk · def</span>
               <span className="text-(--az-def)">{n(score.defender)}</span>
               {siege.balance !== null ? (
-                <span className="ml-auto text-[12px] font-normal text-sand-300/70">
-                  balance <span className="font-semibold text-sand-100">{signed(siege.balance)}</span>
+                <span className="ml-auto text-[13px] font-normal text-sand-200/80">
+                  balance <span className="font-semibold text-sand-50">{signed(siege.balance)}</span>
                 </span>
               ) : null}
             </span>
@@ -287,30 +298,32 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
   )
 }
 
-/** Who is online just now, Azania's own counted, each a row that watches them. */
+/** Who of Azania is online just now, the lowest health first, each a row that watches them. */
 function OnlineNow({ towns, onFocus }: { towns: SideTown[]; onFocus: (focus: WarFocus) => void }) {
   const { data, liveStore } = useMaps()
   const live = useStore(liveStore)
   const home = homeNationOf(data.towns)
   if (live.status === 'off') return null
-  const ours = live.players.filter((player) => {
-    const town = townOfName(player.name, towns)
-    return town && sameNation(town.nation, home)
-  })
+  const ours = live.players
+    .filter((player) => {
+      const town = townOfName(player.name, towns)
+      return town && sameNation(town.nation, home)
+    })
+    .sort(byHealth)
   return (
-    <section className="mt-5 px-4">
+    <section className="mt-3 px-4">
       <p className={EYEBROW}>
-        Online now{live.status === 'live' ? ` · ${live.online ?? live.players.length}` : live.status === 'down' ? ' · the map isn’t answering' : ''}
-        {ours.length ? ` · ${ours.length} of Azania` : ''}
+        Azania online · {ours.length}
+        {live.status === 'live' ? ` of ${live.online ?? live.players.length} on the server` : live.status === 'down' ? ' · the map isn’t answering' : ''}
       </p>
       {ours.length ? (
-        <ul className="mt-2 divide-y divide-sand-50/10 border-y border-sand-50/10">
+        <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
           {ours.map((player) => (
             <FighterRow key={player.name} onOpen={() => onFocus({ kind: 'player', name: player.name })} player={player} side={null} />
           ))}
         </ul>
       ) : live.status === 'live' ? (
-        <p className="mt-2 text-sm text-sand-300/70">Nobody of Azania is on just now.</p>
+        <p className="mt-1 text-[15px] text-sand-200/85">Nobody of Azania is on just now.</p>
       ) : null}
     </section>
   )
@@ -344,36 +357,34 @@ function SiegeView({
   ]
   return (
     <>
-      <div className="flex items-start gap-3 px-4 pt-4">
-        <span className="mt-1">{back}</span>
+      <div className="flex items-start gap-2 px-4 pt-3">
+        <span className="mt-0.5">{back}</span>
         <SiegeBadge className="mt-0.5 h-8 w-8" side={side} siege={siege} />
         <div className="min-w-0 flex-1">
-          <p className={cn(EYEBROW, siege.battle ? 'text-coral-500' : null)}>{siege.battle ? 'Siege · a battle on' : 'Siege · quiet'}</p>
-          <h2 className={cn('font-display text-xl leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</h2>
-          <p className="mt-0.5 text-[12px] text-sand-300/70">
-            {siege.town ? `${spoken(siege.town)} · ` : ''}
-            {siege.progress ? `${siege.progress.done} of ${siege.progress.of} sessions fought` : siege.status ?? ''}
+          <h2 className={cn('font-display text-[20px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</h2>
+          <p className={cn(SECOND, 'mt-0.5')}>
+            <span className={cn('font-semibold', siege.battle ? 'text-coral-400' : null)}>{siege.battle ? 'A battle on' : 'Quiet'}</span>
+            {siege.town ? ` · ${spoken(siege.town)}` : ''}
+            {siege.progress ? ` · ${siege.progress.done} of ${siege.progress.of} fought` : ''}
           </p>
+          {/* The two sides, each a button to its nation. */}
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {nations.map(({ side: which, name }) => (
+              <li key={which}>
+                <button className={CHIP} onClick={() => onFocus({ kind: 'nation', name })} type="button">
+                  <span className={cn('h-2 w-2 shrink-0 rounded-full', which === 'attackers' ? 'bg-(--az-atk)' : 'bg-(--az-def)')} />
+                  <span className="truncate">{spoken(name)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
-
-      {/* The two sides, each a button to its nation. */}
-      <ul className="mt-3 flex flex-wrap gap-1.5 px-4">
-        {nations.map(({ side: which, name }) => (
-          <li key={which}>
-            <button className={CHIP} onClick={() => onFocus({ kind: 'nation', name })} type="button">
-              <span className={cn('h-2 w-2 shrink-0 rounded-full', which === 'attackers' ? 'bg-(--az-atk)' : 'bg-(--az-def)')} />
-              <span className={cn('text-[10px] uppercase tracking-[0.14em]', sideColour(which))}>{which === 'attackers' ? 'atk' : 'def'}</span>
-              <span className="truncate">{spoken(name)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
 
       {assessed ? (
         <Scoreboard assessed={assessed} now={now} ours={ours} siege={siege} />
       ) : (
-        <div className="mx-4 mt-4 border border-sand-50/10 px-3 py-3 text-sm leading-relaxed text-sand-300/80">
+        <div className="mx-4 mt-3 border border-sand-50/10 px-3 py-2 text-[15px] leading-snug text-sand-200/85">
           {siege.battle ? 'The battle’s first reading is on its way.' : 'No battle on just now: the score waits for the next session.'}
           {siege.balance !== null ? (
             <span className="mt-1 block">
@@ -384,36 +395,17 @@ function SiegeView({
         </div>
       )}
 
-      {/* Each side at the banner and in the zone. */}
-      <div className="mx-4 mt-4 grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-1 border-y border-sand-50/10 py-2 text-[13px]">
-        <span />
-        <span className={cn(EYEBROW, 'text-(--az-atk)')}>Attackers</span>
-        <span className={cn(EYEBROW, 'text-(--az-def)')}>Defenders</span>
-        <span className="text-sand-300/70">At the banner</span>
-        <span className={cn(FIGURE, 'text-lg font-semibold leading-tight text-sand-50')}>{about.atBanner.attackers}</span>
-        <span className={cn(FIGURE, 'text-lg font-semibold leading-tight text-sand-50')}>{about.atBanner.defenders}</span>
-        <span className="text-sand-300/70">In the zone</span>
-        <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.attackers}</span>
-        <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.defenders}</span>
-        {about.inZone.other ? (
-          <span className="col-span-3 text-[11px] text-sand-300/60">
-            and {about.inZone.other} in the zone of neither side{about.atBanner.other ? `, ${about.atBanner.other} at the banner` : ''}
-          </span>
-        ) : null}
-      </div>
-
       <Fighters about={about} onFocus={onFocus} siege={siege} towns={towns} />
 
       <p className={FOOT}>
         {ASSUMED.length ? 'The zones (16 and 200 blocks), the ×3 for taking the banner back and the ±20,000 cap are SiegeWar’s defaults, which the rules don’t give. ' : ''}
-        The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. A sprint is{' '}
-        {SPRINT_BLOCKS_PER_S} blocks a second.
+        The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. A sprint is {SPRINT_BLOCKS_PER_S} blocks a second.
       </p>
     </>
   )
 }
 
-/** The live score, the banner, the time, the balance now and to come, and the verdict: the heart of the view. */
+/** The live score, the banner, the time, the balance now and to come, and the verdict, in the room they need and no more. */
 function Scoreboard({
   siege,
   assessed,
@@ -434,45 +426,44 @@ function Scoreboard({
   const sourceWords = { observed: 'seen in the points', inferred: 'from the hands it changed', assumed: 'assumed' }[multiplier.source]
   const ahead: BattleSide | null = projected?.balance ? (projected.balance > 0 ? 'attackers' : 'defenders') : null
   return (
-    <div className="mt-4 border-y border-sand-50/10 bg-sand-50/[0.03] px-4 py-3">
+    <div className="mt-3 border-y border-sand-50/10 bg-sand-50/[0.03] px-4 py-2.5">
       {/* The score, big, each side in its colour; the lead between. */}
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className={cn(EYEBROW, 'text-(--az-atk)')}>Attackers</p>
-          <p className={cn(FIGURE, 'text-[40px] font-semibold leading-none tracking-tight', lead >= 0 ? 'text-sand-50' : 'text-sand-300/70')}>
+          <p className={cn(FIGURE, 'text-[34px] font-semibold leading-none tracking-tight', lead >= 0 ? 'text-sand-50' : 'text-sand-200/60')}>
             {score ? n(score.attacker) : '–'}
           </p>
         </div>
-        <div className="shrink-0 pb-1 text-center">
-          <p className={cn(FIGURE, 'text-[13px] font-semibold', lead > 0 ? 'text-(--az-atk)' : lead < 0 ? 'text-(--az-def)' : 'text-sand-300/70')}>
+        <div className="shrink-0 pb-0.5 text-center">
+          <p className={cn(FIGURE, 'text-[15px] font-semibold', lead > 0 ? 'text-(--az-atk)' : lead < 0 ? 'text-(--az-def)' : 'text-sand-200/75')}>
             {lead === 0 ? 'level' : `${signed(Math.abs(lead))} ${lead > 0 ? 'atk' : 'def'}`}
           </p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-sand-300/50">this session</p>
+          <p className="text-[12px] uppercase tracking-[0.14em] text-sand-300/60">this session</p>
         </div>
         <div className="min-w-0 text-right">
           <p className={cn(EYEBROW, 'text-(--az-def)')}>Defenders</p>
-          <p className={cn(FIGURE, 'text-[40px] font-semibold leading-none tracking-tight', lead <= 0 ? 'text-sand-50' : 'text-sand-300/70')}>
+          <p className={cn(FIGURE, 'text-[34px] font-semibold leading-none tracking-tight', lead <= 0 ? 'text-sand-50' : 'text-sand-200/60')}>
             {score ? n(score.defender) : '–'}
           </p>
         </div>
       </div>
-      <div aria-hidden="true" className="mt-2 flex h-1.5 overflow-hidden bg-sand-50/10">
+      <div aria-hidden="true" className="mt-1.5 flex h-1.5 overflow-hidden bg-sand-50/10">
         <span className="h-full bg-(--az-atk)" style={{ width: `${share * 100}%` }} />
         <span className="h-full bg-(--az-def)" style={{ width: `${(1 - share) * 100}%` }} />
       </div>
 
       {/* The banner and the clock, side by side. */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div>
-          <p className={EYEBROW}>Banner</p>
-          <p className={cn('mt-0.5 text-[15px] font-semibold leading-tight', holder ? sideColour(holder) : 'text-sand-300/70')}>
-            {holder ? `${holder === 'attackers' ? 'Attackers' : 'Defenders'} hold it` : 'Nobody holds it'}
+      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+        <div className="min-w-0">
+          <p className={cn('text-[16px] font-semibold leading-tight', holder ? sideColour(holder) : 'text-sand-200/85')}>
+            {holder ? `${holder === 'attackers' ? 'Attackers' : 'Defenders'} hold the banner` : 'Nobody holds the banner'}
           </p>
-          <p className="mt-0.5 text-[12px] text-sand-300/70">
+          <p className={cn(SECOND, 'mt-0.5')}>
             {holder ? (
               <>
                 {reading.banner.holders} holder{reading.banner.holders === 1 ? '' : 's'} ·{' '}
-                <span className={cn(FIGURE, 'font-semibold text-sand-100')}>×{multiplier.value}</span> {sourceWords}
+                <span className={cn(FIGURE, 'font-semibold text-sand-50')}>×{multiplier.value}</span> {sourceWords}
               </>
             ) : (
               `${RULES.captureMinutes} min in the zone takes it`
@@ -480,9 +471,9 @@ function Scoreboard({
           </p>
         </div>
         <div className="text-right">
-          <p className={EYEBROW}>Time left</p>
-          <p className={cn(FIGURE, 'mt-0.5 text-[22px] font-semibold leading-none text-sand-50')}>{secondsLeft === null ? '–' : clockOf(secondsLeft)}</p>
-          <span aria-hidden="true" className="mt-1.5 block h-1 bg-sand-50/10">
+          <p className={cn(FIGURE, 'text-[24px] font-semibold leading-none text-sand-50')}>{secondsLeft === null ? '–' : clockOf(secondsLeft)}</p>
+          <p className="mt-0.5 text-[12px] uppercase tracking-[0.14em] text-sand-300/60">left</p>
+          <span aria-hidden="true" className="mt-1 block h-1 bg-sand-50/10">
             <span className="block h-full bg-sand-50/60" style={{ width: `${Math.max(0, Math.min(1, elapsed)) * 100}%` }} />
           </span>
         </div>
@@ -490,38 +481,33 @@ function Scoreboard({
 
       {/* The balance, now and at the session's end. */}
       {projected && siege.balance !== null ? (
-        <div className="mt-3 border-t border-sand-50/10 pt-3">
-          <div className="flex items-end gap-3">
-            <div>
-              <p className={EYEBROW}>Balance</p>
-              <p className={cn(FIGURE, 'text-[20px] font-semibold leading-none', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
-                {signed(siege.balance)}
-              </p>
-            </div>
-            <Icon className="mb-1 h-4 w-4 shrink-0 text-sand-300/50" name="arrow" />
-            <div>
-              <p className={EYEBROW}>After this session</p>
-              <p className={cn(FIGURE, 'text-[28px] font-semibold leading-none', ahead === 'attackers' ? 'text-(--az-atk)' : ahead === 'defenders' ? 'text-(--az-def)' : 'text-sand-50')}>
-                {projected.balance === null ? '–' : signed(projected.balance)}
-              </p>
-            </div>
-            <div className="ml-auto text-right text-[11px] leading-snug text-sand-300/60">
-              {projected.sessionsLeft === null ? null : projected.sessionsLeft === 0 ? 'the last session' : `${projected.sessionsLeft} more session${projected.sessionsLeft === 1 ? '' : 's'}`}
-              <span className="block">if the banner stays as it is</span>
-            </div>
-          </div>
-          {paced?.balance != null && paced.balance !== projected.balance ? (
-            <p className="mt-1.5 text-[12px] text-sand-300/70">
-              At this battle’s pace of kills: <span className={cn(FIGURE, 'font-semibold text-sand-100')}>{signed(paced.balance)}</span>
-            </p>
-          ) : null}
+        <div className="mt-2.5 border-t border-sand-50/10 pt-2">
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className={EYEBROW}>Balance</span>
+            <span className={cn(FIGURE, 'text-[18px] font-semibold leading-none', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
+              {signed(siege.balance)}
+            </span>
+            <Icon className="h-4 w-4 shrink-0 self-center text-sand-300/60" name="arrow" />
+            <span className={cn(FIGURE, 'text-[24px] font-semibold leading-none', ahead === 'attackers' ? 'text-(--az-atk)' : ahead === 'defenders' ? 'text-(--az-def)' : 'text-sand-50')}>
+              {projected.balance === null ? '–' : signed(projected.balance)}
+            </span>
+            <span className={EYEBROW}>after this session</span>
+          </p>
+          <p className="mt-1 text-[13px] leading-snug text-sand-200/75">
+            {projected.sessionsLeft === null ? '' : projected.sessionsLeft === 0 ? 'The last session' : `${projected.sessionsLeft} more session${projected.sessionsLeft === 1 ? '' : 's'}`}
+            {projected.sessionsLeft === null ? 'If' : ' · if'} the banner stays as it is
+            {paced?.balance != null && paced.balance !== projected.balance ? (
+              <>
+                ; at this pace of kills <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{signed(paced.balance)}</span>
+              </>
+            ) : null}
+            .
+          </p>
         </div>
       ) : null}
 
       <Verdict ahead={ahead} behind={behind} holder={holder} ours={ours} secondsLeft={secondsLeft} sessionsLeft={projected?.sessionsLeft ?? null} siege={siege} />
-      <p className="mt-2 text-[10px] text-sand-300/40">
-        Read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago.
-      </p>
+      <p className="mt-1.5 text-[12px] text-sand-300/55">Read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago.</p>
     </div>
   )
 }
@@ -565,19 +551,13 @@ function Verdict({
     )
   }
   return (
-    <div
-      className={cn(
-        'mt-3 border-l-4 py-1 pl-3',
-        good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40',
-      )}
-    >
-      <p className={cn('text-[15px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
+    <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
+      <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
         {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}
-        {good ? ': hold on.' : bad ? '.' : '.'}
+        {good ? ': hold on.' : '.'}
       </p>
-      <p className="mt-0.5 text-[13px] leading-snug text-sand-200/90">
-        {who(behind.side)} {bad ? 'must' : 'would'} make up <span className={cn(FIGURE, 'font-semibold')}>{n(behind.deficit)}</span> to come level:{' '}
-        {ways.join(', or ')}.
+      <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
+        {who(behind.side)} {bad ? 'must' : 'would'} make up <span className={cn(FIGURE, 'font-semibold')}>{n(behind.deficit)}</span> to come level: {ways.join(', or ')}.
       </p>
     </div>
   )
@@ -598,17 +578,64 @@ function Fighters({
   towns: SideTown[]
   onFocus: (focus: WarFocus) => void
 }) {
+  // The lowest health first, as the fight wants it; or the nearest the banner, as the ground does.
+  const [order, setOrder] = useState<'health' | 'distance'>('health')
+  const counts = (
+    <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-0.5 text-[14px]">
+      <span />
+      <span className={cn(EYEBROW, 'text-(--az-atk)')}>Attackers</span>
+      <span className={cn(EYEBROW, 'text-(--az-def)')}>Defenders</span>
+      <span className="text-sand-200/80">At the banner</span>
+      <span className={cn(FIGURE, 'text-[17px] font-semibold leading-tight text-sand-50')}>{about.atBanner.attackers}</span>
+      <span className={cn(FIGURE, 'text-[17px] font-semibold leading-tight text-sand-50')}>{about.atBanner.defenders}</span>
+      <span className="text-sand-200/80">In the zone</span>
+      <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.attackers}</span>
+      <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.defenders}</span>
+      {about.inZone.other ? (
+        <span className="col-span-3 text-[13px] text-sand-200/70">
+          and {about.inZone.other} in the zone of neither side{about.atBanner.other ? `, ${about.atBanner.other} at the banner` : ''}
+        </span>
+      ) : null}
+    </div>
+  )
   if (!about.near.length)
-    return <p className="mt-4 px-4 text-sm text-sand-300/70">Nobody within {RULES.siegeZoneRadius * 2} blocks of the banner just now.</p>
-  const groups = SIDE_ORDER.map((side) => ({ side, entries: about.near.filter((entry) => entry.side === side) })).filter((group) => group.entries.length)
+    return (
+      <section className="mx-4 mt-3 border-y border-sand-50/10 py-2">
+        {counts}
+        <p className="mt-2 text-[15px] text-sand-200/85">Nobody within {RULES.siegeZoneRadius * 2} blocks of the banner just now.</p>
+      </section>
+    )
+  const sorted = order === 'health' ? [...about.near].sort((a, b) => byHealth(a.player, b.player) || a.distance - b.distance) : about.near
+  const groups = SIDE_ORDER.map((side) => ({ side, entries: sorted.filter((entry) => entry.side === side) })).filter((group) => group.entries.length)
   return (
-    <section className="mt-4">
+    <section className="mt-3">
+      <div className="mx-4 border-y border-sand-50/10 py-2">{counts}</div>
+      <div className="mt-2 flex items-center justify-between gap-3 px-4">
+        <p className={EYEBROW}>Fighters · {about.near.length}</p>
+        <div className="flex text-[13px]" role="group" aria-label="Order">
+          {(['health', 'distance'] as const).map((choice) => (
+            <button
+              aria-pressed={order === choice}
+              className={cn(
+                'border px-2 py-0.5 font-semibold focus-visible:outline-saffron-400',
+                order === choice ? 'border-sand-50/60 bg-sand-50/10 text-sand-50' : 'border-sand-50/15 text-sand-200/75 hover:text-sand-50',
+                choice === 'distance' ? '-ml-px' : null,
+              )}
+              key={choice}
+              onClick={() => setOrder(choice)}
+              type="button"
+            >
+              {choice === 'health' ? 'Lowest health' : 'Nearest'}
+            </button>
+          ))}
+        </div>
+      </div>
       {groups.map(({ side, entries }) => (
         <div className="px-4" key={side}>
-          <p className={cn(EYEBROW, 'mt-3', sideColour(side))}>
+          <p className={cn(EYEBROW, 'mt-2', sideColour(side))}>
             {side === 'other' ? 'Of neither side' : `${sideWord(side)}s · ${sideName(siege, side)}`} · {entries.length}
           </p>
-          <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
+          <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
             {entries.map((entry) => (
               <FighterRow
                 key={entry.player.name}
@@ -625,7 +652,7 @@ function Fighters({
   )
 }
 
-/** One fighter in a roster: head, name, health and armour, and where they are to the banner. */
+/** One fighter in a roster: their health and armour first, then head, name, and where they are to the banner. */
 function FighterRow({
   player,
   side,
@@ -637,15 +664,16 @@ function FighterRow({
   where?: ReactNode
   onOpen: () => void
 }) {
+  const low = player.health !== null && player.health <= LOW_HEALTH
   return (
-    <li>
-      <button className="flex w-full items-center gap-2.5 py-1.5 pl-1 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
+    <li className={low ? 'border-l-4 border-coral-500 -ml-4 pl-3' : undefined}>
+      <button className="flex w-full items-center gap-2.5 py-1.5 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
         <span className={cn('az-war-head shrink-0', side ? `az-war-head-${side}` : null)}>
-          <Head name={player.name} px={26} />
+          <Head name={player.name} px={30} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-[13px] font-semibold tracking-[0.02em] text-sand-50">{player.name}</span>
-          {where ? <span className="block truncate text-[11px] leading-tight text-sand-300/70">{where}</span> : null}
+          <span className={cn('block truncate font-mono text-[15px] font-semibold tracking-[0.02em]', low ? 'text-coral-300' : 'text-sand-50')}>{player.name}</span>
+          {where ? <span className={cn(SECOND, 'block')}>{where}</span> : null}
         </span>
         <Vitals armor={player.armor} className="shrink-0" health={player.health} />
       </button>
@@ -655,12 +683,12 @@ function FighterRow({
 
 /** Where a fighter is to the banner: at it, in the zone, or outside with the time back. */
 function Whereabouts({ entry, siege, towns }: { entry: AtSiege; siege: Siege; towns: SideTown[] }) {
-  if (entry.atBanner) return <span className="text-coral-300">at the banner</span>
+  if (entry.atBanner) return <span className="font-semibold text-coral-300">at the banner</span>
   if (entry.inZone) return <>in the zone · {n(entry.distance)} blocks</>
   const back = wayBack(entry.player, siege, towns)
   return (
     <>
-      {n(entry.distance)} blocks away · back in <span className={cn(FIGURE, 'text-sand-100')}>{clockOf(back.seconds)}</span>
+      {n(entry.distance)} blocks away · back in <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.seconds)}</span>
       {back.via === 'spawn' ? ' by /t spawn' : ''}
     </>
   )
@@ -696,7 +724,7 @@ function NationView({
   const nation = world?.reading.nations.find((candidate) => sameNation(candidate.name, name)) ?? null
   const residents = nation?.residents ?? people.length
   const onlineNames = new Set(live.players.map((player) => player.name.toLowerCase()))
-  const online = live.players.filter((player) => people.some((person) => person.toLowerCase() === player.name.toLowerCase()))
+  const online = live.players.filter((player) => people.some((person) => person.toLowerCase() === player.name.toLowerCase())).sort(byHealth)
   const offline = people.filter((person) => !onlineNames.has(person.toLowerCase()))
   const ours = sameNation(name, home)
   const part = siege ? sideOf({ name: '', nation: name }, siege) : null
@@ -706,43 +734,41 @@ function NationView({
   const colour = nation?.colour ?? null
   return (
     <>
-      <div className="flex items-start gap-3 px-4 pt-4">
-        <span className="mt-1">{back}</span>
+      <div className="flex items-start gap-2 px-4 pt-3">
+        <span className="mt-0.5">{back}</span>
         <div className="min-w-0 flex-1">
-          <p className={cn(EYEBROW, ours ? 'text-saffron-300' : null)}>
-            <span aria-hidden="true" className="mr-1.5 inline-block h-2.5 w-2.5 border align-middle" style={{ background: colour ?? 'transparent', borderColor: colour ?? 'rgba(251,248,241,.4)' }} />
-            {ours ? 'Nation · Azania’s own' : 'Nation'}
-          </p>
-          <h2 className="font-display text-2xl leading-tight text-sand-50">{spoken(name)}</h2>
-          <p className={cn(FIGURE, 'mt-1 text-[13px] text-sand-300/80')}>
-            <span className="text-[20px] font-semibold text-sand-50">{n(residents)}</span> resident{residents === 1 ? '' : 's'} ·{' '}
-            <span className={cn('text-[20px] font-semibold', online.length ? 'text-lagoon-300' : 'text-sand-50')}>{online.length}</span> online
+          <h2 className={cn('font-display text-[22px] leading-tight', ours ? 'text-saffron-300' : 'text-sand-50')}>
+            <span aria-hidden="true" className="mr-2 inline-block h-3 w-3 border align-baseline" style={{ background: colour ?? 'transparent', borderColor: colour ?? 'rgba(251,248,241,.4)' }} />
+            {spoken(name)}
+          </h2>
+          <p className="mt-0.5 text-[15px] text-sand-200/90">
+            {n(residents)} resident{residents === 1 ? '' : 's'} · <span className={cn('font-semibold', online.length ? 'text-lagoon-300' : 'text-sand-50')}>{online.length} online</span>
             {members.length ? ` · ${members.length} town${members.length === 1 ? '' : 's'}` : ''}
+            {ours ? ' · Azania’s own' : ''}
           </p>
+          {theirSieges.length ? (
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {theirSieges.map((candidate) => {
+                const which = sideOf({ name: '', nation: name }, candidate)
+                return (
+                  <li key={candidate.townId}>
+                    <button className={CHIP} onClick={() => onFocus({ kind: 'siege', townId: candidate.townId })} type="button">
+                      <Icon className="h-3.5 w-3.5 text-coral-400" name="war" />
+                      <span className="truncate">
+                        {which === 'attackers' ? 'Besieging' : which === 'defenders' ? 'Defending' : 'In the siege of'} {candidate.town ? spoken(candidate.town) : 'a town'}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
         </div>
       </div>
-      {theirSieges.length ? (
-        <ul className="mt-3 flex flex-wrap gap-1.5 px-4">
-          {theirSieges.map((candidate) => {
-            const which = sideOf({ name: '', nation: name }, candidate)
-            return (
-              <li key={candidate.townId}>
-                <button className={CHIP} onClick={() => onFocus({ kind: 'siege', townId: candidate.townId })} type="button">
-                  <Icon className="h-3 w-3 text-coral-400" name="war" />
-                  <span className="truncate">
-                    {which === 'attackers' ? 'Besieging' : which === 'defenders' ? 'Defending' : 'In the siege of'}{' '}
-                    {candidate.town ? spoken(candidate.town) : 'a town'}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
-      <section className="mt-4 px-4">
+      <section className="mt-3 px-4">
         <p className={EYEBROW}>Online · {online.length}</p>
         {online.length ? (
-          <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
+          <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
             {online.map((player) => (
               <FighterRow
                 key={player.name}
@@ -754,28 +780,22 @@ function NationView({
             ))}
           </ul>
         ) : (
-          <p className="mt-1 text-sm text-sand-300/70">
+          <p className="mt-1 text-[15px] text-sand-200/85">
             {live.status === 'live' ? `Nobody of ${spoken(name)} is on just now.` : live.status === 'down' ? 'The map isn’t answering, so who is on isn’t known.' : 'Asking who is on…'}
           </p>
         )}
       </section>
       {offline.length ? (
-        <details className="mt-3 px-4 text-[12px] text-sand-300/70">
-          <summary className="cursor-pointer select-none">
-            {offline.length} offline
-          </summary>
-          <p className="mt-1 font-mono text-[11px] leading-relaxed tracking-[0.02em] text-sand-300/60">{offline.join(' · ')}</p>
+        <details className="mt-2 px-4 text-[14px] text-sand-200/80">
+          <summary className="cursor-pointer select-none">{offline.length} offline</summary>
+          <p className="mt-1 font-mono text-[13px] leading-relaxed tracking-[0.02em] text-sand-200/70">{offline.join(' · ')}</p>
         </details>
       ) : people.length === 0 ? (
-        <p className="mt-3 px-4 text-[12px] text-sand-300/60">
+        <p className="mt-2 px-4 text-[14px] text-sand-200/75">
           {world ? 'Towny’s list of its names hasn’t been read yet.' : 'The rest of the world is still on its way; its names come with it.'}
         </p>
       ) : null}
-      {nation?.capital ? (
-        <p className={FOOT}>
-          Its reach is {n(war.radius)} blocks from {spoken(nation.capital.town)}, its capital: the ring on the map.
-        </p>
-      ) : null}
+      {nation?.capital ? <p className={FOOT}>Its reach is {n(war.radius)} blocks from {spoken(nation.capital.town)}, its capital: the ring on the map.</p> : null}
     </>
   )
 }
@@ -783,12 +803,12 @@ function NationView({
 /** A player's distance to the view's banner, and the time back: as a nation's roster says it. */
 function ToBanner({ player, siege, towns }: { player: LivePlayer; siege: Siege; towns: SideTown[] }) {
   const distance = Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1]))
-  if (distance <= RULES.bannerRadius) return <span className="text-coral-300">at the banner</span>
-  if (distance <= RULES.siegeZoneRadius) return <>in the siege zone · {n(distance)} blocks</>
+  if (distance <= RULES.bannerRadius) return <span className="font-semibold text-coral-300">at the banner</span>
+  if (distance <= RULES.siegeZoneRadius) return <>in the zone · {n(distance)} blocks</>
   const back = wayBack(player, siege, towns)
   return (
     <>
-      {n(distance)} blocks from the banner · <span className={cn(FIGURE, 'text-sand-100')}>{clockOf(back.seconds)}</span> back
+      {n(distance)} blocks away · back in <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.seconds)}</span>
       {back.via === 'spawn' ? ' by /t spawn' : ''}
     </>
   )
@@ -824,21 +844,22 @@ function PlayerView({
   const backWay = player && siege && distance !== null && distance > RULES.siegeZoneRadius ? wayBack(player, siege, towns) : null
   return (
     <>
-      <div className="flex items-start gap-3 px-4 pt-4">
-        <span className="mt-2">{back}</span>
+      <div className="flex items-start gap-2 px-4 pt-3">
+        <span className="mt-1.5">{back}</span>
         <span className={cn('az-war-head mt-0.5 shrink-0', side ? `az-war-head-${side}` : null)}>
-          <Head name={name} px={48} />
+          <Head name={name} px={44} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className={cn(EYEBROW, sideColour(side))}>{side ? sideWord(side) : 'Player'}{player ? '' : ' · offline'}</p>
-          <h2 className="truncate font-mono text-xl font-semibold leading-tight tracking-[0.02em] text-sand-50">{name}</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-sand-300/80">
+          <h2 className="truncate font-mono text-[20px] font-semibold leading-tight tracking-[0.02em] text-sand-50">{name}</h2>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-sand-200/85">
+            <span className={cn('font-semibold', sideColour(side))}>{side ? sideWord(side) : 'Player'}</span>
+            {player ? null : <span>· offline</span>}
             {town?.nation ? (
               <button className={CHIP} onClick={() => onFocus({ kind: 'nation', name: town.nation! })} type="button">
                 {spoken(town.nation)}
               </button>
             ) : (
-              <span>{town ? 'of no nation' : 'of no town the map knows'}</span>
+              <span>· {town ? 'of no nation' : 'of no town the map knows'}</span>
             )}
             {town ? <span>of {spoken(town.name)}</span> : null}
           </p>
@@ -847,57 +868,54 @@ function PlayerView({
 
       {player ? (
         <>
-          <div className="mx-4 mt-4 border-y border-sand-50/10 py-3">
-            <Vitals armor={player.armor} health={player.health} large />
+          {/* The one player's own vitals, as large as the room allows: what the view is for. */}
+          <div className="mx-4 mt-3 border-y border-sand-50/10 py-3">
+            <Vitals armor={player.armor} className="w-full" health={player.health} size="large" />
           </div>
           <div className="mt-3 px-4">
-            <p className={EYEBROW}>Where</p>
-            <p className={cn(FIGURE, 'mt-0.5 flex items-baseline gap-3 text-[15px] text-sand-50')}>
+            {siege && distance !== null ? (
+              <p className="text-[16px] leading-snug text-sand-50">
+                {distance <= RULES.bannerRadius ? (
+                  <span className="font-semibold text-coral-300">At the banner</span>
+                ) : distance <= RULES.siegeZoneRadius ? (
+                  <>
+                    In the siege zone, <span className={cn(FIGURE, 'font-semibold')}>{n(distance)}</span> blocks from the banner
+                  </>
+                ) : (
+                  <>
+                    <span className={cn(FIGURE, 'font-semibold')}>{n(distance)}</span> blocks from the banner, outside the zone
+                  </>
+                )}
+                {backWay ? (
+                  <span className="block text-[15px] text-sand-200/85">
+                    Back in <span className={cn(FIGURE, 'text-[20px] font-semibold text-sand-50')}>{clockOf(backWay.seconds)}</span>{' '}
+                    {backWay.via === 'spawn' ? `by /t spawn and a ${n(backWay.blocks)}-block sprint` : 'sprinting straight there'}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            <p className={cn(FIGURE, 'mt-2 flex items-baseline gap-3 text-[15px] text-sand-200/90')}>
               <span>
-                <span className="text-sand-300/50">X</span> {Math.round(player.x)} <span className="ml-1 text-sand-300/50">Y</span> {Math.round(player.y)}{' '}
-                <span className="ml-1 text-sand-300/50">Z</span> {Math.round(player.z)}
+                <span className="text-sand-300/60">X</span> {Math.round(player.x)} <span className="ml-1 text-sand-300/60">Y</span> {Math.round(player.y)}{' '}
+                <span className="ml-1 text-sand-300/60">Z</span> {Math.round(player.z)}
               </span>
               <button
                 aria-label={`Copy ${place}`}
-                className="inline-flex items-center gap-1 text-[11px] text-sand-300/80 underline decoration-dotted underline-offset-2 hover:text-sand-50"
+                className="inline-flex items-center gap-1 text-[13px] text-sand-200/85 underline decoration-dotted underline-offset-2 hover:text-sand-50"
                 onClick={() => place && copy(place)}
                 type="button"
               >
-                <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+                <Icon className="h-3.5 w-3.5" name={copied ? 'check' : 'copy'} />
                 <span aria-live="polite">{copied ? 'Copied' : 'Copy'}</span>
               </button>
             </p>
-            {siege && distance !== null ? (
-              <div className="mt-3">
-                <p className={EYEBROW}>To the banner{siege.town ? ` at ${spoken(siege.town)}` : ''}</p>
-                <p className="mt-0.5 text-[15px] leading-snug text-sand-50">
-                  {distance <= RULES.bannerRadius ? (
-                    <span className="font-semibold text-coral-300">At the banner</span>
-                  ) : distance <= RULES.siegeZoneRadius ? (
-                    <>
-                      In the siege zone, <span className={cn(FIGURE, 'font-semibold')}>{n(distance)}</span> blocks from the banner
-                    </>
-                  ) : (
-                    <>
-                      <span className={cn(FIGURE, 'font-semibold')}>{n(distance)}</span> blocks away, outside the zone
-                    </>
-                  )}
-                </p>
-                {backWay ? (
-                  <p className="mt-1 text-[13px] text-sand-300/80">
-                    Back in <span className={cn(FIGURE, 'text-[18px] font-semibold text-sand-50')}>{clockOf(backWay.seconds)}</span>{' '}
-                    {backWay.via === 'spawn' ? `by /t spawn and a ${n(backWay.blocks)}-block sprint` : 'sprinting straight there'}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
-          <div className="mt-4 px-4">
+          <div className="mt-3 px-4">
             <button
               aria-pressed={follow}
               className={cn(
-                'inline-flex items-center gap-2 border px-3 py-2 text-[13px] font-semibold transition-colors focus-visible:outline-saffron-400',
-                follow ? 'border-saffron-400 bg-saffron-400 text-sea-950' : 'border-sand-50/25 text-sand-100 hover:border-sand-50/50 hover:bg-sand-50/5',
+                'inline-flex items-center gap-2 border px-3 py-2 text-[15px] font-semibold transition-colors focus-visible:outline-saffron-400',
+                follow ? 'border-saffron-400 bg-saffron-400 text-sea-950' : 'border-sand-50/30 text-sand-50 hover:border-sand-50/60 hover:bg-sand-50/5',
               )}
               onClick={() => onFollow(!follow)}
               type="button"
@@ -905,13 +923,13 @@ function PlayerView({
               <Icon className="h-4 w-4" name="crosshair" />
               {follow ? 'Following on the map' : 'Follow on the map'}
             </button>
-            <p className="mt-1.5 text-[11px] text-sand-300/60">
+            <p className="mt-1 text-[13px] text-sand-200/70">
               {follow ? 'The map moves with each reading; a drag of the map lets go.' : 'Keeps them in the middle of the map as they move.'}
             </p>
           </div>
         </>
       ) : (
-        <p className="mt-4 px-4 text-sm leading-relaxed text-sand-300/80">
+        <p className="mt-3 px-4 text-[15px] leading-snug text-sand-200/85">
           {live.status === 'live' ? 'Not on the server just now, or hidden from its map.' : live.status === 'down' ? 'The map isn’t answering, so where they are isn’t known.' : 'Asking the map…'}
         </p>
       )}
@@ -922,14 +940,13 @@ function PlayerView({
 /** The sheet's folded line on a phone while the view is on: the clock, and the siege that leads. */
 export function WarHandle() {
   const { war, data } = useMaps()
-  const now = useSecond()
-  const session = now ? sessionWords(now) : null
+  const clock = useBattleClock()
   const home = homeNationOf(data.towns)
   const first = bySiegeWeight(war.sieges.map((siege) => ({ siege, side: azaniaSide(siege, { nation: home, towns: data.towns }) })))[0]
   return (
     <span className="min-w-0 flex-1">
-      <span className="block font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-400">
-        War view{session ? ` · ${session.on ? `${session.headline} left` : `next session ${session.headline}`}` : ''}
+      <span className="block font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-coral-400">
+        War view{clock ? ` · ${clock.on ? `${clock.headline} left` : `next session ${clock.headline}`}` : ''}
       </span>
       <span className="block truncate font-display text-lg leading-tight text-sand-50">
         {first ? siegeHeadline(first.siege, first.side) : 'No siege on the server'}

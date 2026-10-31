@@ -239,7 +239,7 @@ export function Search({
           aria-label="Search Azania Maps"
           autoComplete="off"
           autoFocus={autoFocus}
-          className="h-10 w-full border border-sand-300 bg-sand-50 pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-400 focus:border-sea-700 focus:outline-none"
+          className="h-10 w-full border border-sand-300 bg-sand-50 pl-9 pr-3 text-[15px] text-ink-900 placeholder:text-ink-400 focus:border-sea-700 focus:outline-none"
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
           onChange={(event) => {
             setQuery(event.target.value)
@@ -281,7 +281,7 @@ export function Search({
           <li
             aria-selected={index === active}
             className={cn(
-              'flex cursor-pointer items-center gap-3 px-3 py-2 text-sm',
+              'flex cursor-pointer items-center gap-3 px-3 py-2 text-[15px]',
               index === active ? 'bg-sea-100/70' : 'hover:bg-sand-100',
             )}
             id={`${listId}-${index}`}
@@ -296,13 +296,13 @@ export function Search({
             <span className="flex w-5 shrink-0 justify-center">{result.icon}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-semibold text-ink-900">{result.title}</span>
-              <span className="block truncate text-xs text-ink-500">{result.subtitle}</span>
+              <span className="block truncate text-[13px] text-ink-500">{result.subtitle}</span>
             </span>
           </li>
         ))}
       </ul>
       {open && query.trim().length > 0 && results.length === 0 ? (
-        <p className="absolute left-0 right-0 top-full z-30 mt-1 border border-sand-300 bg-sand-50 px-3 py-2 text-xs text-ink-500 shadow-[0_8px_24px_rgba(22,25,31,0.14)]">
+        <p className="absolute left-0 right-0 top-full z-30 mt-1 border border-sand-300 bg-sand-50 px-3 py-2 text-[13px] text-ink-500 shadow-[0_8px_24px_rgba(22,25,31,0.14)]">
           Nothing on the map by that name.
         </p>
       ) : null}

@@ -66,7 +66,7 @@ function CopyCommand({ name }: { name: string }) {
     <button
       aria-label={`Copy ${command}`}
       className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[10.5px] tracking-[0.04em] focus-visible:outline-saffron-500',
+        'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[12px] tracking-[0.04em] focus-visible:outline-saffron-500',
         copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
       )}
       onClick={() => copy(command)}
@@ -85,10 +85,10 @@ function PersonRow({ name, ruler, online }: { name: string; ruler: boolean; onli
     <li className="flex items-center gap-2.5 py-1">
       <Head name={name} px={24} />
       <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate font-mono text-[13px] tracking-[0.02em] text-ink-900">{name}</span>
+        <span className="truncate font-mono text-[14px] tracking-[0.02em] text-ink-900">{name}</span>
         {ruler ? <span className={cn(EYEBROW, 'shrink-0')}>Ruler</span> : null}
         {online ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-lagoon-600" title="Online now">
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-lagoon-600" title="Online now">
             <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-lagoon-500" />
             online
           </span>
@@ -105,7 +105,7 @@ function CopyAll({ names, what, className }: { names: string[]; what: 'names' | 
   const text = (what === 'names' ? names : names.map(outlawCommand)).join('\n')
   return (
     <TextButton
-      className={cn('px-2 py-1 text-[12px]', className)}
+      className={cn('px-2 py-1 text-[13px]', className)}
       disabled={names.length === 0}
       onClick={() => copy(text)}
       title={what === 'names' ? 'Copy every name, one a line' : `Copy ${outlawCommand('<name>')} for everyone, one a line`}
@@ -124,7 +124,7 @@ function SearchField({ value, onChange, label }: { value: string; onChange: (val
       <span className="sr-only">{label}</span>
       <Icon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" name="search" />
       <input
-        className={cn(FIELD, 'py-1.5 pl-8 text-[13px]')}
+        className={cn(FIELD, 'py-1.5 pl-8 text-[14px]')}
         id={id}
         onChange={(event) => onChange(event.target.value)}
         placeholder={label}
@@ -173,13 +173,13 @@ export function Residents({ town }: { town: Pick<AbroadFacts, 'name' | 'people' 
       title={`Residents · ${(people.length || town.residents).toLocaleString('en-GB')}`}
     >
       {people.length === 0 ? (
-        <p className="text-sm italic text-ink-500">{NOT_READ}</p>
+        <p className="text-[15px] italic text-ink-500">{NOT_READ}</p>
       ) : (
         <>
-          <p className="text-[13px] leading-relaxed text-ink-500">
+          <p className="text-[14px] leading-relaxed text-ink-500">
             As Towny lists them{town.ruler ? ', the ruler first' : ''}
             {here ? `; ${here} online now` : ''}. Each name’s{' '}
-            <code className="font-mono text-[12px] text-ink-700">{outlawCommand('name')}</code> is a click away.
+            <code className="font-mono text-[13px] text-ink-700">{outlawCommand('name')}</code> is a click away.
           </p>
           {people.length >= SEARCH_FROM ? (
             <div className="mt-2">
@@ -191,11 +191,11 @@ export function Residents({ town }: { town: Pick<AbroadFacts, 'name' | 'people' 
               <PersonRow key={name} name={name} online={online.has(name.toLowerCase())} ruler={isRuler(name, town.ruler)} />
             ))}
           </ul>
-          {q && found.length === 0 ? <p className="mt-1 text-sm italic text-ink-500">Nobody by that name here.</p> : null}
+          {q && found.length === 0 ? <p className="mt-1 text-[15px] italic text-ink-500">Nobody by that name here.</p> : null}
           {!q && found.length > SHOWN ? (
             <button
               aria-expanded={all}
-              className="mt-1.5 inline-flex items-center gap-1 text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900 focus-visible:outline-saffron-500"
+              className="mt-1.5 inline-flex items-center gap-1 text-[13px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900 focus-visible:outline-saffron-500"
               onClick={() => setAll((value) => !value)}
               type="button"
             >
@@ -258,12 +258,12 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
       title={`People · ${(everyone.length || nation.residents).toLocaleString('en-GB')}`}
     >
       <div className="px-4">
-        <p className="text-[13px] leading-relaxed text-ink-500">
+        <p className="text-[14px] leading-relaxed text-ink-500">
           {everyone.length ? (
             <>
               {count(everyone.length, 'resident')} in {count(towns.length, 'town')}, as Towny lists them
               {here ? `; ${here} online now` : ''}. Each name’s{' '}
-              <code className="font-mono text-[12px] text-ink-700">{outlawCommand('name')}</code> is a click away, and a
+              <code className="font-mono text-[13px] text-ink-700">{outlawCommand('name')}</code> is a click away, and a
               town’s whole list within it.
             </>
           ) : (
@@ -276,7 +276,7 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
           </div>
         ) : null}
         {unread && everyone.length ? (
-          <p className="mt-1.5 text-[11px] italic leading-snug text-ink-500">
+          <p className="mt-1.5 text-[12px] italic leading-snug text-ink-500">
             {unread === 1 ? 'One town’s names haven’t' : `${unread} towns’ names haven’t`} been read yet; they come with the
             map’s next reading.
           </p>
@@ -294,11 +294,11 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
                 <summary className="flex cursor-pointer select-none items-center gap-3 px-4 py-2 hover:bg-sand-100 focus-visible:outline-saffron-500 [&::-webkit-details-marker]:hidden">
                   <Swatch className={town.capital ? 'h-3.5 w-3.5 border-2' : undefined} colour={nation.colour} round />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink-900">
+                    <span className="block truncate text-[15px] font-semibold text-ink-900">
                       {spoken(town.name)}
                       {town.capital ? <span className={`${EYEBROW} ml-2 align-middle`}>Capital</span> : null}
                     </span>
-                    <span className="block truncate text-xs text-ink-500">
+                    <span className="block truncate text-[13px] text-ink-500">
                       {town.people.length
                         ? `${count(q ? found.length : town.people.length, q ? 'match' : 'resident')}${
                             town.people.some((name) => online.has(name.toLowerCase()))
@@ -322,25 +322,25 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
                           <PersonRow key={name} name={name} online={online.has(name.toLowerCase())} ruler={isRuler(name, town.ruler)} />
                         ))}
                       </ul>
-                      <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-ink-500">
+                      <p className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-ink-500">
                         <span className="mr-1">{spoken(town.name)}’s list:</span>
                         <CopyAll names={town.people} what="names" />
                         <CopyAll names={town.people} what="commands" />
                       </p>
                     </>
                   ) : (
-                    <p className="py-2 text-[13px] italic text-ink-500">{NOT_READ}</p>
+                    <p className="py-2 text-[14px] italic text-ink-500">{NOT_READ}</p>
                   )}
                 </div>
               </details>
             </li>
           ))}
           {listed.length === 0 ? (
-            <li className="px-4 py-2 text-sm italic text-ink-500">Nobody by that name in {spoken(nation.name)}.</li>
+            <li className="px-4 py-2 text-[15px] italic text-ink-500">Nobody by that name in {spoken(nation.name)}.</li>
           ) : null}
         </ul>
       ) : null}
-      <p className="mt-2 px-4 text-[11px] leading-snug text-ink-400">
+      <p className="mt-2 px-4 text-[12px] leading-snug text-ink-400">
         Towny takes one name a command: paste a name’s line in chat. The whole list, a line each, is for notes or a macro.
       </p>
     </PanelSection>

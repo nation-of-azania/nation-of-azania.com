@@ -47,7 +47,7 @@ function LiveWords({ store }: { store: Store<LiveState> }) {
         : live.status === 'asking'
           ? 'asking…'
           : null
-  return words ? <span className="ml-auto text-xs text-ink-500">{words}</span> : null
+  return words ? <span className="ml-auto text-[13px] text-ink-500">{words}</span> : null
 }
 
 /** One of the layers beyond the nation's own: a checkbox, its name, a few words of state, and a line saying what it is. */
@@ -76,7 +76,7 @@ function ExtraRow({
         <span>{label}</span>
         {state}
       </label>
-      <p className="px-2 pb-1 pl-9 text-[11px] leading-snug text-ink-400">{note}</p>
+      <p className="px-2 pb-1 pl-9 text-[12px] leading-snug text-ink-400">{note}</p>
     </>
   )
 }
@@ -126,7 +126,7 @@ export function LayerMenu({
   const changed = (Object.keys(DEFAULT_EXTRAS) as ExtraLayer[]).some((layer) => extras[layer] !== DEFAULT_EXTRAS[layer])
   const worldWords = extras.world ? WORLD_WORDS[worldStatus] : undefined
   return (
-    <Popover icon="layers" label="Layers" pressed={layers.length < 4 || changed} width="w-64">
+    <Popover icon="layers" label="Layers" pressed={layers.length < 4 || changed} width="w-72">
       <p className={cn(EYEBROW, 'px-2 pt-1')}>Azania</p>
       <ul className="mt-1.5">
         {(Object.keys(MAP_LAYERS) as MapLayer[]).map((layer) => (
@@ -141,7 +141,7 @@ export function LayerMenu({
               <span>{LAYER_WORDS[layer]}</span>
             </label>
             {layer === 'events' && layers.includes('events') ? (
-              <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 pl-9 text-xs text-ink-500 hover:bg-sand-100">
+              <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 pl-9 text-[13px] text-ink-500 hover:bg-sand-100">
                 <input
                   checked={showPast}
                   className="h-3.5 w-3.5 accent-sea-800"
@@ -162,7 +162,7 @@ export function LayerMenu({
             label="Other nations"
             note="Every town on the server in its nation’s colour; Azania stays in full."
             onChange={(on) => onExtra('world', on)}
-            state={worldWords ? <span className="ml-auto text-xs text-ink-500">{worldWords}</span> : null}
+            state={worldWords ? <span className="ml-auto text-[13px] text-ink-500">{worldWords}</span> : null}
           />
         </li>
         <li>
@@ -182,7 +182,7 @@ export function LayerMenu({
             state={extras.players ? <LiveWords store={liveStore} /> : null}
           />
           {extras.players ? (
-            <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 pl-9 text-xs text-ink-500 hover:bg-sand-100">
+            <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 pl-9 text-[13px] text-ink-500 hover:bg-sand-100">
               <input
                 checked={named}
                 className="h-3.5 w-3.5 accent-sea-800"
@@ -218,14 +218,14 @@ export function Legend({ globe }: { globe: boolean }) {
     (Object.entries(PLACE_CATEGORIES).find(([, c]) => c.group === group)?.[0] ??
       'other') as keyof typeof PLACE_CATEGORIES
   return (
-    <Popover icon="info" label="Legend" width="w-72">
+    <Popover icon="info" label="Legend" width="w-[23rem] max-w-[calc(100vw-1.5rem)]">
       <div className="max-h-[70vh] overflow-y-auto px-1 pb-1">
         <p className={cn(EYEBROW, 'px-1 pt-1')}>Roads</p>
         <ul className="mt-1.5 space-y-1">
           {(Object.keys(ROAD_KINDS) as (keyof typeof ROAD_KINDS)[]).map((kind) => {
             const style = ROAD_STYLES[kind]
             return (
-              <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]" key={kind}>
+              <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]" key={kind}>
                 <svg aria-hidden="true" className="h-3 w-12 shrink-0" viewBox="0 0 48 12">
                   {style.casing ? (
                     <line
@@ -270,7 +270,7 @@ export function Legend({ globe }: { globe: boolean }) {
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Places</p>
         <ul className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1">
           {groups.map((group) => (
-            <li className="flex items-center gap-2 px-1 py-0.5 text-[13px]" key={group}>
+            <li className="flex items-center gap-2 px-1 py-0.5 text-[14px]" key={group}>
               <span
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-sand-50"
                 style={{ background: GROUP_COLOURS[group] }}
@@ -283,7 +283,7 @@ export function Legend({ globe }: { globe: boolean }) {
         </ul>
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Towns and events</p>
         <ul className="mt-1.5 space-y-1">
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
               <rect
                 fill={GROUND.sea700}
@@ -298,19 +298,19 @@ export function Legend({ globe }: { globe: boolean }) {
             </svg>
             <span>A town’s claims (Towny)</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <PartSample role="outpost" />
             </svg>
             <span>A town’s outpost: claims apart from the town, with a spawn of their own (/t outpost), striped in its nation’s colour</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <PartSample role="detached" />
             </svg>
             <span>Claims detached from a town: joined to neither the town nor an outpost</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <defs>
                 <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
@@ -332,14 +332,14 @@ export function Legend({ globe }: { globe: boolean }) {
             </svg>
             <span>A site Azania holds: a quarry, a wasteland, a treasure ship</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.saffron} strokeWidth={2} width={12} x={8} y={4} />
               <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.whitewash} strokeWidth={2} width={12} x={28} y={4} />
             </svg>
             <span>A player online now: Azania’s own ringed in saffron</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <EventMark phase="upcoming" scale={0.8} x={14} y={10} />
               <EventMark phase="past" scale={0.8} x={34} y={10} />
@@ -349,20 +349,20 @@ export function Legend({ globe }: { globe: boolean }) {
         </ul>
         <p className={cn(EYEBROW, 'mt-3 px-1')}>The world</p>
         <ul className="mt-1.5 space-y-1">
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
               <rect fill={NATION_SAMPLE.line} fillOpacity={0.12} height={12} stroke={NATION_SAMPLE.line} strokeWidth={1} width={19} x={3} y={2} />
               <rect fill={OTHER_SAMPLE.line} fillOpacity={0.12} height={12} stroke={OTHER_SAMPLE.line} strokeWidth={1} width={19} x={26} y={2} />
             </svg>
             <span>Another nation’s towns, in its own colour</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
               <rect fill={NO_NATION.line} fillOpacity={0.08} height={12} stroke={NO_NATION.line} strokeDasharray="3 2" strokeWidth={1} width={40} x={4} y={2} />
             </svg>
             <span>A town of no nation</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
               <circle cx={14} cy={8} fill={GROUND.whitewash} r={5.5} stroke={NATION_SAMPLE.line} strokeWidth={1.25} />
               <circle cx={14} cy={8} fill={NATION_SAMPLE.line} r={3} />
@@ -370,13 +370,13 @@ export function Legend({ globe }: { globe: boolean }) {
             </svg>
             <span>A nation’s capital, and a town</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <SiteMark facts={{ kind: 'quarry', resource: 'Iron' }} ring={NATION_SAMPLE.line} scale={0.7} x={24} y={10} />
             </svg>
             <span>A site another nation holds, rimmed in its colour</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <rect
                 fill={SERVER_INKS.trading.edge}
@@ -394,26 +394,26 @@ export function Legend({ globe }: { globe: boolean }) {
             </svg>
             <span>A trading outpost, the server’s own: trade with it at its prices. Nobody holds one, and it’s no town’s outpost</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <TradingMark kind="landmark" scale={0.7} x={24} y={10} />
             </svg>
             <span>One of the server’s landmarks, nobody’s either</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
               <SiegeMarkGlyph battle breathe={false} scale={0.8} side={null} x={13} y={12} />
               <SiegeMarkGlyph battle={false} breathe={false} scale={0.8} side={null} x={35} y={12} />
             </svg>
             <span>A siege, at its banner: a battle on, and quiet. Always shown</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
               <SiegeMarkGlyph battle breathe={false} scale={0.7} side="defending" x={24} y={12} />
             </svg>
             <span>A siege Azania is in, ringed in saffron</span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
               <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.whitewash} strokeOpacity={0.7} strokeWidth={4} />
               <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
@@ -423,7 +423,7 @@ export function Legend({ globe }: { globe: boolean }) {
               capital, as far as a nation may besiege; it ends at the world’s edge
             </span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
               <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.06} r={11} stroke={GROUND.coralDeep} strokeDasharray="4 3" strokeWidth={1.5} />
               <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.2} r={3.5} stroke={GROUND.coralDeep} strokeWidth={1.5} />
@@ -433,7 +433,7 @@ export function Legend({ globe }: { globe: boolean }) {
               within the siege zone, where a death costs a side a hundred points
             </span>
           </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.coral} strokeWidth={2} width={12} x={8} y={2} />
               <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={12} x={28} y={2} />
@@ -443,7 +443,7 @@ export function Legend({ globe }: { globe: boolean }) {
             <span>And its fighters: ringed by their side, attackers coral and defenders sea, health and armour beneath</span>
           </li>
           {globe ? (
-            <li className="flex items-center gap-3 px-1 py-0.5 text-[13px]">
+            <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
               <Icon className="mx-3.5 h-5 w-5 shrink-0 text-sea-800" name="globe" />
               <span>Zoom out past the whole world and the map becomes a globe</span>
             </li>
@@ -452,13 +452,13 @@ export function Legend({ globe }: { globe: boolean }) {
         <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>
         <ul className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1">
           {STANCE_ORDER.map((stance) => (
-            <li className="flex items-center gap-1.5 px-1 py-0.5 text-[13px]" key={stance}>
+            <li className="flex items-center gap-1.5 px-1 py-0.5 text-[14px]" key={stance}>
               <StanceSwatch stance={stance} />
               <span className="truncate">{stanceLabel(stance)}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-1.5 px-1 text-[12px] leading-snug text-ink-500">
+        <p className="mt-1.5 px-1 text-[13px] leading-snug text-ink-500">
           The land is veiled and each nation washed in its stance; a friend’s or foe’s name wears a pennant, and a siege one is in is ringed in its colour. Set from a nation’s page by Azania’s diplomats.
         </p>
       </div>
@@ -617,7 +617,7 @@ export function DrawMenu({
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-sea-700" name={item.icon} />
                   <span>
                     <span className="block font-semibold text-ink-900">{item.label}</span>
-                    <span className="block text-xs text-ink-500">{item.hint}</span>
+                    <span className="block text-[13px] text-ink-500">{item.hint}</span>
                   </span>
                 </button>
               </li>

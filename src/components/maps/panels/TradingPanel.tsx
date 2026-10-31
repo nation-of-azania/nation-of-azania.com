@@ -67,7 +67,7 @@ export function TradingPanel({
         }
         title={spoken(place.name)}
       >
-        <div className="mt-2 space-y-1.5 text-sm leading-relaxed text-ink-700">
+        <div className="mt-2 space-y-1.5 text-[15px] leading-relaxed text-ink-700">
           {about.map((line) => (
             <p key={line}>{line}</p>
           ))}
@@ -76,7 +76,7 @@ export function TradingPanel({
           <>
             <Survey className="mt-3" fit={place.fit} fitLabel={fitWords(kind, place.name)} point={place.home} route={route} y={64} />
             {route ? (
-              <p className="mt-1 text-[11px] italic leading-snug text-ink-500">
+              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
                 No <span className="font-mono not-italic">/t spawn</span> leads here: that is the nearest town’s anyone
                 may use, and the walk from it.
               </p>
@@ -108,10 +108,10 @@ export function TradingPanel({
                 >
                   <TradingBadge className="h-5 w-5 shrink-0" kind="trading" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                    <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                       {spoken(other.name)}
                     </span>
-                    <span className="block truncate text-xs text-ink-500">
+                    <span className="block truncate text-[13px] text-ink-500">
                       {farWords(other.blocks)}
                       {other.direction ? ` ${other.direction}` : ''}
                     </span>
@@ -123,7 +123,7 @@ export function TradingPanel({
         </PanelSection>
       ) : null}
 
-      <p className="mt-6 px-4 text-xs leading-relaxed text-ink-400">
+      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
         Its claim from Towny and its name from the server’s own marker, as the Rulercraft map has them, read every
         quarter of an hour.
       </p>

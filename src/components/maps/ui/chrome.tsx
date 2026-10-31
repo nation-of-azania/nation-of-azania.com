@@ -55,7 +55,7 @@ export function TextButton({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold tracking-wide transition-colors focus-visible:outline-saffron-500 disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[14px] font-semibold tracking-wide transition-colors focus-visible:outline-saffron-500 disabled:cursor-not-allowed disabled:opacity-50',
         tones[tone],
         className,
       )}
@@ -122,7 +122,7 @@ export function Popover({
       {open ? (
         <div
           className={cn(
-            'absolute top-full z-20 mt-1.5 border border-sand-300 bg-sand-50 p-2 text-sm text-ink-900 shadow-[0_8px_24px_rgba(22,25,31,0.14)]',
+            'absolute top-full z-20 mt-1.5 border border-sand-300 bg-sand-50 p-2 text-[15px] text-ink-900 shadow-[0_8px_24px_rgba(22,25,31,0.14)]',
             width,
             align === 'right' ? 'right-0' : 'left-0',
           )}
@@ -136,12 +136,12 @@ export function Popover({
 }
 
 export const EYEBROW =
-  'font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-saffron-600'
+  'font-label text-[11px] font-semibold uppercase tracking-[0.2em] text-saffron-600'
 
 export const FIELD =
-  'w-full border border-sand-300 bg-sand-50 px-3 py-2 text-sm text-ink-900 transition-colors placeholder:text-ink-400 focus:border-sea-700 focus:outline-none aria-invalid:border-coral-600'
+  'w-full border border-sand-300 bg-sand-50 px-3 py-2 text-[15px] text-ink-900 transition-colors placeholder:text-ink-400 focus:border-sea-700 focus:outline-none aria-invalid:border-coral-600'
 
-export const LABEL = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500'
+export const LABEL = 'text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-500'
 
 /** A labelled field, in the resident area's hand. */
 export function Field({
@@ -166,7 +166,7 @@ export function Field({
         ) : null}
       </span>
       <div className="mt-1.5">{children}</div>
-      {error ? <p className="mt-1.5 text-xs font-medium text-coral-700">{error}</p> : null}
+      {error ? <p className="mt-1.5 text-[13px] font-medium text-coral-700">{error}</p> : null}
     </label>
   )
 }
@@ -195,7 +195,7 @@ export function Notice({
   }
   return (
     <p
-      className={cn('border px-3 py-2 text-[13px] leading-relaxed', tones[tone], className)}
+      className={cn('border px-3 py-2 text-[14px] leading-relaxed', tones[tone], className)}
       role={!live ? undefined : tone === 'warning' ? 'alert' : 'status'}
     >
       {children}

@@ -73,7 +73,7 @@ export function DiplomacyKey({
         const n = stance === 'neutral' ? neutral : (named.get(stance)?.length ?? 0)
         if (stance !== 'neutral' && !n) return null
         return (
-          <li className="inline-flex items-center gap-1 text-[11px] text-ink-700" key={stance}>
+          <li className="inline-flex items-center gap-1 text-[12px] text-ink-700" key={stance}>
             <StanceSwatch className="h-2.5 w-3.5" stance={stance} />
             <span className="sr-only">{stanceLabel(stance)}</span>
             <span className="font-mono tabular-nums">{n ?? '·'}</span>
@@ -93,11 +93,11 @@ export function DiplomacyKey({
           <li className="flex items-start gap-2.5 py-1.5" key={stance}>
             <StanceSwatch className="mt-[3px]" stance={stance} />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: colour.text }}>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: colour.text }}>
                 {stanceLabel(stance)}
               </p>
               {stance === 'neutral' ? (
-                <p className="text-[12px] leading-snug text-ink-500">
+                <p className="text-[13px] leading-snug text-ink-500">
                   {neutral === null ? 'Every other nation' : neutral === 1 ? 'The one other nation' : `The ${neutral} other nations`}
                 </p>
               ) : (
@@ -106,7 +106,7 @@ export function DiplomacyKey({
                     <li key={relation.nation}>
                       {slug ? (
                         <button
-                          className="group inline-flex max-w-full items-center gap-1 border border-transparent px-1 py-0.5 text-left text-[12px] font-semibold leading-snug text-ink-900 hover:border-sand-300 hover:bg-sand-100 focus-visible:outline-saffron-500"
+                          className="group inline-flex max-w-full items-center gap-1 border border-transparent px-1 py-0.5 text-left text-[13px] font-semibold leading-snug text-ink-900 hover:border-sand-300 hover:bg-sand-100 focus-visible:outline-saffron-500"
                           onClick={() => select({ kind: 'nation', slug })}
                           title={relation.note ? `${relation.note} · Open ${spoken(relation.nation)}` : `Open ${spoken(relation.nation)} on the map`}
                           type="button"
@@ -116,7 +116,7 @@ export function DiplomacyKey({
                         </button>
                       ) : (
                         <span
-                          className="inline-flex items-center gap-1 px-1 py-0.5 text-[12px] font-semibold leading-snug text-ink-400"
+                          className="inline-flex items-center gap-1 px-1 py-0.5 text-[13px] font-semibold leading-snug text-ink-400"
                           title={`${spoken(relation.nation)} isn’t on the Rulercraft map just now${relation.note ? ` · ${relation.note}` : ''}`}
                         >
                           <span className="truncate">{spoken(relation.nation)}</span>
@@ -148,11 +148,11 @@ export function DiplomacyKey({
 
   const foot =
     relations.length === 0 ? (
-      <p className="mt-1.5 text-[12px] leading-snug text-ink-500">
+      <p className="mt-1.5 text-[13px] leading-snug text-ink-500">
         No stances set yet, so every nation is neutral.{diplomat ? ' Open a nation and set where Azania stands with it.' : ''}
       </p>
     ) : diplomat ? (
-      <p className="mt-1.5 border-t border-sand-300/60 pt-1.5 text-[11px] leading-snug text-ink-400">
+      <p className="mt-1.5 border-t border-sand-300/60 pt-1.5 text-[12px] leading-snug text-ink-400">
         You can set a stance from any nation’s page.
       </p>
     ) : null

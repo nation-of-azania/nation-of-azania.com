@@ -25,7 +25,7 @@ import { PanelSection } from './shared'
 /** What a view is, said once wherever views are listed. */
 export function ViewsExplainer({ className }: { className?: string }) {
   return (
-    <p className={cn('text-[13px] leading-relaxed text-ink-500', className)}>
+    <p className={cn('text-[14px] leading-relaxed text-ink-500', className)}>
       A map view is a framed piece of the map with highlights drawn on it, for an article’s{' '}
       <strong className="font-semibold text-ink-700">Map</strong> block. Readers see it in the
       article, or through its link; it isn’t drawn on the public map.
@@ -36,7 +36,7 @@ export function ViewsExplainer({ className }: { className?: string }) {
 /** How a view is put in an article, for those who have one. */
 function RegistryNote() {
   return (
-    <p className="mt-4 text-xs leading-relaxed text-ink-500">
+    <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
       To use one: in the Registry, add a <strong>Map</strong> block to an article and choose the
       view by its title.{' '}
       <a
@@ -102,8 +102,8 @@ function ViewRow({ view }: { view: MapViewData }) {
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-4 w-4 shrink-0 text-saffron-600" name="frame" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-ink-900">{view.title}</span>
-          <span className="block text-xs text-ink-500">
+          <span className="block truncate text-[15px] font-semibold text-ink-900">{view.title}</span>
+          <span className="block text-[13px] text-ink-500">
             {VIEW_ASPECTS[view.aspect].label} · {view.span.toLocaleString('en-GB')} blocks across ·{' '}
             {highlights} highlight{highlights === 1 ? '' : 's'}
             {town ? ` · ${town.name.replace(/_/g, ' ')}` : ''}
@@ -157,7 +157,7 @@ export function ViewRows({
           </TextButton>
         </Notice>
       ) : !list ? (
-        <p className="text-sm text-ink-500">Fetching…</p>
+        <p className="text-[15px] text-ink-500">Fetching…</p>
       ) : list.length === 0 ? (
         <Notice>
           {everyone ? 'No views drawn yet.' : 'None of yours yet.'} Choose “New map view” to draw
@@ -207,7 +207,7 @@ export function YourViews() {
     >
       <ViewsExplainer />
       {rights.anywhere ? (
-        <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-[15px]">
           <input
             checked={everyone}
             className="h-4 w-4 accent-sea-800"

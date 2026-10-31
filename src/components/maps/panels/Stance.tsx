@@ -65,12 +65,12 @@ export function StanceNote({
         <div className="flex items-start gap-2.5">
           <StanceSwatch className="mt-1" stance={stance} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-snug" style={{ color: colour.text }}>
+            <p className="text-[15px] font-semibold leading-snug" style={{ color: colour.text }}>
               {STANCE_WORDS[stance](spoken(nation))}
             </p>
-            {relation?.note ? <p className="mt-0.5 text-[13px] leading-snug text-ink-700">{relation.note}</p> : null}
+            {relation?.note ? <p className="mt-0.5 text-[14px] leading-snug text-ink-700">{relation.note}</p> : null}
             {maps ? (
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
                 <LayerToggle className={LINK} layer="diplomacy" off="Hide the diplomacy layer" on="Show on the map" />
                 {mayEdit ? (
                   <button className={cn('inline-flex items-center gap-1', LINK)} onClick={() => setEditing(true)} type="button">
@@ -130,7 +130,7 @@ function StanceForm({ nation, relation, onDone }: { nation: string; relation: Re
           return (
             <label
               className={cn(
-                'flex cursor-pointer items-center gap-1.5 border px-2 py-1.5 text-[12px] font-semibold transition-colors has-focus-visible:outline-2 has-focus-visible:outline-saffron-500 motion-reduce:transition-none',
+                'flex cursor-pointer items-center gap-1.5 border px-2 py-1.5 text-[13px] font-semibold transition-colors has-focus-visible:outline-2 has-focus-visible:outline-saffron-500 motion-reduce:transition-none',
                 picked ? 'border-sea-800 bg-sand-100 text-ink-900' : 'border-sand-300 bg-sand-50 text-ink-700 hover:border-sea-700',
               )}
               key={choice}
@@ -167,7 +167,7 @@ function StanceForm({ nation, relation, onDone }: { nation: string; relation: Re
           value={note}
         />
       </label>
-      <p className="mt-1.5 text-[11px] leading-snug text-ink-500">
+      <p className="mt-1.5 text-[12px] leading-snug text-ink-500">
         {stance === 'neutral'
           ? `Neutral takes ${spoken(nation)} off the list: every nation not named is neutral.`
           : 'Shown to everyone, on the map and on the nation’s page.'}
@@ -199,7 +199,7 @@ export function DiplomatHint({ relations }: { relations: number }) {
   if (relations > 0 || rightsStatus !== 'known' || !rights.diplomacy) return null
   return (
     <PanelSection title="Diplomacy">
-      <p className="text-sm leading-relaxed text-ink-700">
+      <p className="text-[15px] leading-relaxed text-ink-700">
         No stances are set yet, so every nation is neutral. Open another nation, from the map or the search, and set where
         Azania stands with it; the map’s diplomacy layer draws it for everyone.
       </p>

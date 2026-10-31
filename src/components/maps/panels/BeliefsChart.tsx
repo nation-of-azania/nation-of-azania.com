@@ -240,11 +240,11 @@ function BeliefFigure({ label, what, shares, towns }: { label: string; what: 'cu
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">{label}</h3>
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-500">{label}</h3>
         {sentence ? (
-          <p className="mt-1 text-sm text-ink-700">{sentence}</p>
+          <p className="mt-1 text-[15px] text-ink-700">{sentence}</p>
         ) : (
-          <ul className="mt-1 text-[13px]">
+          <ul className="mt-1 text-[14px]">
             {slices.map((slice) =>
               slice.kind === 'others' ? (
                 <li key={slice.key}>
@@ -264,7 +264,7 @@ function BeliefFigure({ label, what, shares, towns }: { label: string; what: 'cu
                       </span>
                       <Figures slice={slice} total={total} />
                     </summary>
-                    <ul className="mb-1 ml-[5px] border-l border-sand-300 pl-4 text-xs text-ink-700">
+                    <ul className="mb-1 ml-[5px] border-l border-sand-300 pl-4 text-[13px] text-ink-700">
                       {slice.folded.map((share) => (
                         <li className="flex items-center gap-2 py-0.5" key={share.name!.toLowerCase()}>
                           <span className="min-w-0 flex-1 truncate">{spoken(share.name!)}</span>
@@ -302,8 +302,8 @@ function Key({ slice }: { slice: Slice }) {
 function Figures({ slice, total }: { slice: Pick<Slice, 'residents' | 'towns'>; total: number }) {
   return (
     <>
-      <span className="shrink-0 whitespace-nowrap text-xs text-ink-500">{peopleWords(slice)}</span>
-      <span className="w-9 shrink-0 text-right text-xs text-ink-700 tabular-nums">{percent(slice.residents, total)}</span>
+      <span className="shrink-0 whitespace-nowrap text-[13px] text-ink-500">{peopleWords(slice)}</span>
+      <span className="w-9 shrink-0 text-right text-[13px] text-ink-700 tabular-nums">{percent(slice.residents, total)}</span>
     </>
   )
 }
@@ -319,12 +319,12 @@ export function BeliefsSection({ beliefs, towns }: { beliefs: Beliefs; towns: nu
   return (
     <PanelSection title="Culture and religion">
       {!chosen(beliefs.cultures) && !chosen(beliefs.religions) ? (
-        <p className="text-sm italic text-ink-500">
+        <p className="text-[15px] italic text-ink-500">
           {towns === 1 ? 'Its town hasn’t' : `None of its ${towns} towns has`} chosen a culture or a religion yet.
         </p>
       ) : (
         <>
-          <p className="text-[13px] leading-relaxed text-ink-500">
+          <p className="text-[14px] leading-relaxed text-ink-500">
             Shares of the people, by what each town’s mayor chose in game.
           </p>
           <div className="mt-3 space-y-5">

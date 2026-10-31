@@ -40,7 +40,7 @@ export function Wordmark({
         <span
           className={cn(
             'font-mark uppercase leading-none tracking-[0.3em]',
-            small ? 'text-[11px]' : 'text-base',
+            small ? 'text-[12px]' : 'text-base',
           )}
         >
           Azania<span className={dark ? 'text-saffron-300' : 'text-saffron-600'}> Maps</span>

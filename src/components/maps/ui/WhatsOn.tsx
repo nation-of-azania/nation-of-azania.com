@@ -82,12 +82,12 @@ export function EventRow({
         <span
           className={cn(
             'block truncate font-semibold text-ink-900',
-            compact ? 'text-[13px]' : 'text-sm',
+            compact ? 'text-[14px]' : 'text-[15px]',
           )}
         >
           {event.title}
         </span>
-        <span className="block truncate text-xs text-ink-500">
+        <span className="block truncate text-[13px] text-ink-500">
           {phase === 'now' ? (
             <span className="font-semibold text-coral-700">{PHASE_WORDS.now}</span>
           ) : (
@@ -143,7 +143,7 @@ export function WhatsOnStrip({
       >
         <Icon className="h-4 w-4 text-coral-700" name="flag" />
         <span className={EYEBROW}>What’s on</span>
-        <span className="text-xs text-ink-500">
+        <span className="text-[13px] text-ink-500">
           {live ? `${live} happening now · ` : ''}
           {events.length} coming
         </span>

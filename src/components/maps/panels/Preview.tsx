@@ -130,15 +130,15 @@ function Unknown({ kind }: { kind: string }) {
       <header className="px-4 pt-4">
         <p className={EYEBROW}>{kind}</p>
         <ComingText className="mt-1 font-display text-2xl leading-tight" lines={1} />
-        <ComingText className="mt-3 text-sm leading-relaxed" lines={2} />
+        <ComingText className="mt-3 text-[15px] leading-relaxed" lines={2} />
       </header>
       <div aria-hidden="true" className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 px-4">
         {['4.5rem', '6rem', '5rem', '3.5rem'].map((width) => (
           <div key={width}>
-            <p className="font-label text-[10px]">
+            <p className="font-label text-[11px]">
               <ComingWords width="4rem" />
             </p>
-            <p className="mt-0.5 text-sm">
+            <p className="mt-0.5 text-[15px]">
               <ComingWords width={width} />
             </p>
           </div>
@@ -146,7 +146,7 @@ function Unknown({ kind }: { kind: string }) {
       </div>
       <section className="mt-6 border-t border-sand-300 px-4 pt-4">
         <ComingText className="font-display text-lg" lines={1} />
-        <ComingText className="mt-2 text-sm leading-relaxed" lines={3} />
+        <ComingText className="mt-2 text-[15px] leading-relaxed" lines={3} />
       </section>
     </article>
   )

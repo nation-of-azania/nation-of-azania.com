@@ -50,7 +50,7 @@ export function AwayParts({
   const title = outposts.length ? (detached.length ? 'Outposts and detached claims' : outposts.length > 1 ? 'Outposts' : 'Outpost') : 'Detached claims'
   return (
     <PanelSection title={title}>
-      <p className="text-[13px] leading-relaxed text-ink-500">
+      <p className="text-[14px] leading-relaxed text-ink-500">
         {outposts.length
           ? `Claims apart from the ${of} itself, each with a spawn of its own that its residents reach by /t outpost.`
           : null}
@@ -73,16 +73,16 @@ export function AwayParts({
             where ?? `X ${Math.round(part.centre[0])} Z ${Math.round(part.centre[1])}`,
           ]
           return (
-            <li className="flex items-center gap-3 py-2 text-sm" key={`${part.role}-${part.centre[0]},${part.centre[1]}-${index}`}>
+            <li className="flex items-center gap-3 py-2 text-[15px]" key={`${part.role}-${part.centre[0]},${part.centre[1]}-${index}`}>
               <svg aria-hidden="true" className="h-4 w-10 shrink-0" viewBox="0 0 48 20">
                 <PartSample role={part.role === 'outpost' ? 'outpost' : 'detached'} />
               </svg>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-ink-900">{name}</span>
-                <span className="block text-xs leading-snug text-ink-500">{facts.filter(Boolean).join(' · ')}</span>
+                <span className="block text-[13px] leading-snug text-ink-500">{facts.filter(Boolean).join(' · ')}</span>
               </span>
               <Look
-                className="shrink-0 text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+                className="shrink-0 text-[13px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
                 target={{ bounds: part.bounds }}
               >
                 Show on map

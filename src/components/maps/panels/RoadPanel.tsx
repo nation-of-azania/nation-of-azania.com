@@ -15,7 +15,7 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
         eyebrow={`${ROAD_KINDS[road.kind].label} · ${town ? 'town road' : 'national'}`}
         title={road.name ?? 'Unnamed road'}
       >
-        <p className="mt-2 text-sm text-ink-700">
+        <p className="mt-2 text-[15px] text-ink-700">
           {length.toLocaleString('en-GB')} blocks, {road.shape === 'curved' ? 'curving' : 'straight'}{' '}
           through {road.line.length} point{road.line.length === 1 ? '' : 's'}
           {road.shape === 'curved' && road.corners.length
@@ -41,14 +41,14 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
             {
               label: 'Runs',
               value: (
-                <span className="font-mono text-[12px] tabular-nums">
+                <span className="font-mono text-[13px] tabular-nums">
                   {start[0]}, {start[1]} → {end[0]}, {end[1]}
                 </span>
               ),
             },
           ]}
         />
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
           <Look
             className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             target={{ centre: start, zoom: 1, minZoom: true }}

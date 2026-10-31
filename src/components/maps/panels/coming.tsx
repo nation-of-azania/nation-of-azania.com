@@ -74,9 +74,9 @@ export function ComingClippings({ count = 1 }: { count?: number }) {
     <ul aria-hidden="true" className="divide-y divide-sand-300/70">
       {Array.from({ length: count }, (_, index) => (
         <li className="py-2.5" key={index}>
-          <Bar block className="font-label text-[10px]" width="9rem" />
+          <Bar block className="font-label text-[11px]" width="9rem" />
           <Bar block className="mt-0.5 font-display text-base leading-snug" width={index % 2 ? '68%' : '86%'} />
-          <Bar block className="text-xs" width="5.5rem" />
+          <Bar block className="text-[13px]" width="5.5rem" />
         </li>
       ))}
     </ul>

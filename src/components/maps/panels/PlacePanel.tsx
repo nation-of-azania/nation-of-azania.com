@@ -50,7 +50,7 @@ export function PlacePanel({
         title={place.name}
       >
         {place.description ? (
-          <p className="mt-3 text-sm leading-relaxed text-ink-700">{place.description}</p>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-700">{place.description}</p>
         ) : null}
         <Survey className="mt-3" point={place.point} y={place.y} />
         {/* For those who may: the way in, right under the name. */}

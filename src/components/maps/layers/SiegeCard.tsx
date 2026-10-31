@@ -99,12 +99,12 @@ export function SiegeCard({
       <div className="flex items-start gap-2.5 px-3 pt-2.5">
         <SiegeBadge className="mt-0.5 h-7 w-7" side={side} siege={siege} />
         <div className="min-w-0 flex-1">
-          <p className="font-label text-[10px] font-semibold uppercase tracking-[0.2em] text-coral-700">
+          <p className="font-label text-[11px] font-semibold uppercase tracking-[0.2em] text-coral-700">
             {siege.battle ? 'Siege · a battle on' : 'Siege · quiet'}
           </p>
           <p className="font-display text-base leading-tight text-sea-950 [overflow-wrap:anywhere]">{siegeTitle(siege)}</p>
           {side ? (
-            <p className="mt-0.5 text-[12px] font-semibold leading-snug text-coral-700">{siegeHeadline(siege, side)}</p>
+            <p className="mt-0.5 text-[13px] font-semibold leading-snug text-coral-700">{siegeHeadline(siege, side)}</p>
           ) : null}
         </div>
         <button
@@ -121,7 +121,7 @@ export function SiegeCard({
         <SiegeFigures className="mt-1.5 border-t border-sand-300/70 px-3 py-2" siege={siege} />
       </div>
       {town ? (
-        <p className="border-t border-sand-300/70 px-3 py-2 text-[12px]">
+        <p className="border-t border-sand-300/70 px-3 py-2 text-[13px]">
           <button
             className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             onClick={() => onOpen(town)}

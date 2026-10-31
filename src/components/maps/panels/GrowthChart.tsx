@@ -83,14 +83,14 @@ export function GrowthChart({
   return (
     <figure className={cn('min-w-0', className)}>
       <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+        <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-500">
           {label}
         </span>
-        <span className="text-sm text-ink-700">
+        <span className="text-[15px] text-ink-700">
           <span className="font-semibold text-ink-900">
             {shown ? compact(shown[measure]) : compact(latest)}
           </span>
-          <span className="ml-1.5 text-xs text-ink-500">
+          <span className="ml-1.5 text-[13px] text-ink-500">
             {shown
               ? dayLabel(shown.date)
               : points.length > 1
@@ -214,10 +214,10 @@ export function GrowthChartComing({ label, className }: { label: string; classNa
   return (
     <figure aria-hidden="true" className={cn('min-w-0', className)}>
       <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+        <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-500">
           {label}
         </span>
-        <span className="text-sm">
+        <span className="text-[15px]">
           <ComingWords width="6.5rem" />
         </span>
       </figcaption>
@@ -264,7 +264,7 @@ export function StatTile({
       : ''
   return (
     <div className="border border-sand-300 bg-sand-50 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">{label}</p>
       <div className="mt-1 flex items-end justify-between gap-2">
         <p className="font-body text-2xl font-semibold leading-none text-ink-900">
           {value.toLocaleString('en-GB')}

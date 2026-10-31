@@ -64,16 +64,16 @@ export function SitePanel({
               <span className="font-body text-2xl font-semibold leading-none text-saffron-600 tabular-nums">
                 ${facts.income!.toLocaleString('en-GB')}
               </span>
-              <span className="text-sm text-ink-500">a day to the nation that holds it</span>
+              <span className="text-[15px] text-ink-500">a day to the nation that holds it</span>
             </>
           ) : (
-            <span className="text-sm text-ink-500">What it pays isn’t recorded.</span>
+            <span className="text-[15px] text-ink-500">What it pays isn’t recorded.</span>
           )}
         </p>
         {town.home ? (
           <>
             <Survey className="mt-3" fit={main} fitLabel="Fit to the site" point={town.home} y={64} />
-            <p className="mt-1 text-[11px] italic leading-snug text-ink-500">
+            <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
               A site has no spawn of its own: that is the nearest town’s, and the walk from it.
             </p>
           </>
@@ -104,13 +104,13 @@ export function SitePanel({
       </div>
 
       <PanelSection title="Terms">
-        <div className="space-y-1.5 text-sm leading-relaxed text-ink-700">
+        <div className="space-y-1.5 text-[15px] leading-relaxed text-ink-700">
           {terms.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
         {facts.note ? (
-          <p className="mt-3 text-xs italic leading-relaxed text-ink-500">
+          <p className="mt-3 text-[13px] italic leading-relaxed text-ink-500">
             As the map puts it: “{facts.note}”
           </p>
         ) : null}
@@ -125,11 +125,11 @@ export function SitePanel({
       >
         {record === undefined ? (
           // Two lines in the note's type, as the note that nothing is written yet takes: what most sites have.
-          <ComingText className="text-sm" lines={2} />
+          <ComingText className="text-[15px]" lines={2} />
         ) : record?.about ? (
-          <p className="az-arrive whitespace-pre-line text-sm leading-relaxed text-ink-700">{record.about}</p>
+          <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
         ) : (
-          <p className="az-arrive text-sm italic text-ink-500">
+          <p className="az-arrive text-[15px] italic text-ink-500">
             Nothing written yet. The nation’s cartographers can add a few lines here.
           </p>
         )}
@@ -149,7 +149,7 @@ export function SitePanel({
             ))}
           </ul>
         ) : (
-          <p className="px-4 text-sm italic text-ink-500">No places drawn yet.</p>
+          <p className="px-4 text-[15px] italic text-ink-500">No places drawn yet.</p>
         )}
       </PanelSection>
 

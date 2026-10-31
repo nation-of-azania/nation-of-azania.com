@@ -70,7 +70,7 @@ function Balance({ siege }: { siege: Siege }) {
           />
         ) : null}
       </span>
-      <span className="mt-0.5 flex justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
+      <span className="mt-0.5 flex justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
         <abbr className="min-w-0 truncate no-underline" style={{ color: GROUND.coral }} title={spoken(siege.attacker)}>
           {attacker}
         </abbr>
@@ -84,7 +84,7 @@ function Balance({ siege }: { siege: Siege }) {
 
 // The figures' column may narrow below its longest word or line: text in it wraps, anywhere if it must, rather than widen the card.
 const ROW = 'grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 py-1'
-const LABEL = 'font-label text-[10px] uppercase tracking-[0.16em] text-ink-500 pt-0.5'
+const LABEL = 'font-label text-[11px] uppercase tracking-[0.16em] text-ink-500 pt-0.5'
 
 export function SiegeFigures({ siege, className }: { siege: Siege; className?: string }) {
   const kind = siegeKind(siege)
@@ -94,7 +94,7 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
   const points = pointsOf(siege)
   const chest = chestWords(siege)
   return (
-    <div className={cn('text-[13px] leading-snug text-ink-700 [overflow-wrap:anywhere]', className)}>
+    <div className={cn('text-[14px] leading-snug text-ink-700 [overflow-wrap:anywhere]', className)}>
       {kind ? <p className="mb-1.5">{kind}</p> : null}
       <dl className="divide-y divide-sand-300/60">
         {progress && siege.progress ? (
@@ -140,9 +140,9 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
         ) : null}
       </dl>
       {siege.lines.length ? (
-        <details className="mt-1.5 text-[11px] text-ink-500">
+        <details className="mt-1.5 text-[12px] text-ink-500">
           <summary className="cursor-pointer select-none">As SiegeWar puts it</summary>
-          <ul className="mt-1 space-y-0.5 font-mono text-[10.5px] tracking-[0.02em]">
+          <ul className="mt-1 space-y-0.5 font-mono text-[12px] tracking-[0.02em]">
             {siege.lines.map((line) => (
               <li key={line.label}>
                 {line.label}: {line.value}

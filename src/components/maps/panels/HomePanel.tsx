@@ -49,7 +49,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
         <h1 className="mt-1 font-display text-2xl leading-tight text-sea-950">
           Azania at a glance
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-ink-500">
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
           Azania’s towns as Towny has them, with the places, roads and events the nation keeps
           itself. Click anything on the map, or search.
         </p>
@@ -61,7 +61,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
         <StatTile label="Residents" measure="residents" points={census} value={residents} />
         <StatTile label="Chunks" measure="chunks" points={census} value={chunks} />
       </div>
-      <p className="mt-2 px-4 text-[11px] text-ink-400">
+      <p className="mt-2 px-4 text-[12px] text-ink-400">
         {since
           ? `Recorded daily from the Rulercraft map since ${since}.`
           : 'Recorded daily from the Rulercraft map.'}
@@ -73,7 +73,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
       {/* A ledger, not a dashboard: what the nation holds and what each pays, with the day's total under a rule. */}
       {sites.length ? (
         <PanelSection flush title="Holdings">
-          <p className="px-4 text-[13px] leading-relaxed text-ink-500">
+          <p className="px-4 text-[14px] leading-relaxed text-ink-500">
             Sites the server runs and Azania holds, paying the nation for as long as it does.
           </p>
           <ul className="mt-2 divide-y divide-sand-300/70">
@@ -87,12 +87,12 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
                   >
                     <SiteBadge className="h-5 w-5 shrink-0" facts={facts} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                      <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                         {spoken(site.name)}
                       </span>
-                      <span className="block truncate text-xs text-ink-500">{siteTitle(facts)}</span>
+                      <span className="block truncate text-[13px] text-ink-500">{siteTitle(facts)}</span>
                     </span>
-                    <span className="shrink-0 font-mono text-[12px] tracking-[0.04em] text-saffron-600 tabular-nums">
+                    <span className="shrink-0 font-mono text-[13px] tracking-[0.04em] text-saffron-600 tabular-nums">
                       {incomeWords(facts.income) ?? 'pays nothing'}
                     </span>
                   </Link>
@@ -101,11 +101,11 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
             })}
           </ul>
           {total > 0 ? (
-            <p className="mx-4 mt-1 flex items-baseline justify-between gap-3 border-t border-sand-300 pt-2 text-sm">
+            <p className="mx-4 mt-1 flex items-baseline justify-between gap-3 border-t border-sand-300 pt-2 text-[15px]">
               <span className="text-ink-500">
                 Together, a day
               </span>
-              <span className="font-mono text-[13px] font-semibold tracking-[0.04em] text-ink-900 tabular-nums">
+              <span className="font-mono text-[14px] font-semibold tracking-[0.04em] text-ink-900 tabular-nums">
                 ${total.toLocaleString('en-GB')}
               </span>
             </p>
@@ -118,7 +118,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
         <PanelSection
           action={
             <LayerToggle
-              className="text-[12px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+              className="text-[13px] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
               layer="diplomacy"
               off="Hide on the map"
               on="Show on the map"
@@ -136,15 +136,15 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
                 >
                   <StanceSwatch className="h-3.5 w-5" stance={relation.stance} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                    <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                       {spoken(relation.nation)}
                     </span>
                     {relation.note ? (
-                      <span className="block truncate text-xs text-ink-500">{relation.note}</span>
+                      <span className="block truncate text-[13px] text-ink-500">{relation.note}</span>
                     ) : null}
                   </span>
                   <span
-                    className="shrink-0 font-label text-[10px] font-semibold uppercase tracking-[0.16em]"
+                    className="shrink-0 font-label text-[11px] font-semibold uppercase tracking-[0.16em]"
                     style={{ color: STANCE_COLOURS[relation.stance].text }}
                   >
                     {stanceLabel(relation.stance)}
@@ -153,7 +153,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
               </li>
             ))}
           </ul>
-          <p className="mt-1 px-4 text-[11px] text-ink-400">Every other nation is neutral.</p>
+          <p className="mt-1 px-4 text-[12px] text-ink-400">Every other nation is neutral.</p>
         </PanelSection>
       ) : (
         <DiplomatHint relations={relations.length} />
@@ -184,10 +184,10 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
               >
                 <Icon className="h-4 w-4 shrink-0 text-sea-800" name="town" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-sea-800">
+                  <span className="block truncate text-[15px] font-semibold text-ink-900 group-hover:text-sea-800">
                     {spoken(town.name)}
                   </span>
-                  <span className="block truncate text-xs text-ink-500">
+                  <span className="block truncate text-[13px] text-ink-500">
                     {town.residents} resident{town.residents === 1 ? '' : 's'} ·{' '}
                     {town.chunks.toLocaleString('en-GB')} chunks
                     {town.ruler ? ` · ${town.ruler}` : ''}
@@ -199,7 +199,7 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
         </ul>
       </PanelSection>
 
-      <p className="mt-6 px-4 text-xs leading-relaxed text-ink-400">
+      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
         Pictures from the Rulercraft map; towns from Towny. Places, roads and events are drawn by
         Azania’s mayors and cartographers.{' '}
         <Link

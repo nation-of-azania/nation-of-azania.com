@@ -55,9 +55,9 @@ export function EventPanel({
             </>
           ) : null}
         </p>
-        <p className="mt-0.5 text-xs text-ink-500">In your own time zone.</p>
+        <p className="mt-0.5 text-[13px] text-ink-500">In your own time zone.</p>
         {event.description ? (
-          <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-700">
+          <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-700">
             {event.description}
           </p>
         ) : null}
@@ -86,8 +86,8 @@ export function EventPanel({
           ]}
         />
         {article === undefined && event.article != null ? (
-          <p aria-hidden="true" className="mt-4 border-l-2 border-saffron-400 pl-3 text-sm">
-            <span className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
+          <p aria-hidden="true" className="mt-4 border-l-2 border-saffron-400 pl-3 text-[15px]">
+            <span className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
               Announced in
             </span>
             <span className="mt-0.5 block font-display text-base leading-snug">
@@ -95,8 +95,8 @@ export function EventPanel({
             </span>
           </p>
         ) : article ? (
-          <p className="az-arrive mt-4 border-l-2 border-saffron-400 pl-3 text-sm">
-            <span className="font-label text-[10px] uppercase tracking-[0.18em] text-ink-500">
+          <p className="az-arrive mt-4 border-l-2 border-saffron-400 pl-3 text-[15px]">
+            <span className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
               Announced in
             </span>
             <Link

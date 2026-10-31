@@ -172,6 +172,19 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   element.appendChild(name)
   const vitals = document.createElement('span')
   vitals.className = 'az-player-vitals'
+  const stats = document.createElement('span')
+  stats.className = 'az-player-stats'
+  for (const kind of ['health', 'armour'] as const) {
+    const stat = document.createElement('span')
+    stat.className = 'az-player-stat'
+    stat.dataset.kind = kind
+    stat.innerHTML = kind === 'health' ? HEART : CHESTPLATE
+    const figure = document.createElement('b')
+    figure.className = 'az-player-figure'
+    stat.appendChild(figure)
+    stats.appendChild(stat)
+  }
+  vitals.appendChild(stats)
   for (const kind of ['health', 'armour']) {
     const bar = document.createElement('span')
     bar.className = 'az-vital-track'
@@ -187,12 +200,21 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   return { icon, element }
 }
 
-/** The bars under a head, set to the reading: a share each, and whether the health is low. */
+/** The game's own heart and chestplate, as the figures under a head wear them (the same shapes mask the sidebar's rows: maps.css). */
+const HEART =
+  "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='1' y='1' width='2' height='1'/><rect x='4' y='1' width='2' height='1'/><rect x='0' y='2' width='7' height='2'/><rect x='1' y='4' width='5' height='1'/><rect x='2' y='5' width='3' height='1'/><rect x='3' y='6' width='1' height='1'/></svg>"
+const CHESTPLATE =
+  "<svg viewBox='0 0 8 8' aria-hidden='true'><rect x='0' y='1' width='2' height='1'/><rect x='5' y='1' width='2' height='1'/><rect x='0' y='2' width='3' height='1'/><rect x='4' y='2' width='3' height='1'/><rect x='0' y='3' width='7' height='1'/><rect x='1' y='4' width='5' height='3'/></svg>"
+
+/** The figures and the bars under a head, set to the reading: the two values, a share each, and whether the health is low. */
 function setVitals(element: HTMLElement, player: LivePlayer): void {
   const share = (value: number | null, max: number) => (value === null ? 0 : Math.max(0, Math.min(1, value / max)))
   element.style.setProperty('--az-hp', String(share(player.health, MAX_HEALTH)))
   element.style.setProperty('--az-ar', String(share(player.armor, MAX_ARMOR)))
   element.toggleAttribute('data-low', player.health !== null && player.health <= LOW_HEALTH)
+  const [health, armour] = element.querySelectorAll<HTMLElement>('.az-player-figure')
+  if (health) health.textContent = player.health === null ? '–' : String(player.health)
+  if (armour) armour.textContent = player.armor === null ? '–' : String(player.armor)
 }
 
 export function PlayersLayer({
@@ -201,6 +223,7 @@ export function PlayersLayer({
   enabled,
   named,
   war = null,
+  pick = null,
 }: {
   store: Store<LiveState>
   data: MapData
@@ -208,6 +231,8 @@ export function PlayersLayer({
   /** Names beside every head, at every zoom (the viewer's setting). */
   named: boolean
   war?: WarHeads | null
+  /** A player chosen elsewhere (the player list): their card opens as if their head were clicked. */
+  pick?: Store<{ name: string } | null> | null
 }) {
   const { map } = useLeaflet()
   const towns = useMemo(() => settlements(data.towns), [data.towns])
@@ -304,7 +329,10 @@ export function PlayersLayer({
       const { players, every } = store.get()
       const seen = new Set<string>()
       const now = performance.now()
-      const jump = reduced()
+      // A page out of sight gets no animation frames (the window behind the game, or minimised, while the feed
+      // goes on: ../steady.ts), so each head stands at its reading at once; the glide is back once it's seen.
+      const hidden = document.hidden
+      const jump = reduced() || hidden
       const fight = warRef.current
       for (const player of players) {
         seen.add(player.name)
@@ -318,7 +346,7 @@ export function PlayersLayer({
           entry.to = to
           entry.since = now
           entry.over = every
-          entry.still = false
+          entry.still = hidden
           if (jump || far) entry.marker.setLatLng(toLatLng(to))
           setVitals(entry.element, player)
           if (fight) entry.element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
@@ -371,6 +399,15 @@ export function PlayersLayer({
       setChosen(null)
     }
   }, [enabled, store, map, townsRef, chosenRef, warRef, placeCardRef])
+
+  // A player picked from the list: the card opens beside their head, as a click would open it; the war view takes its own.
+  useEffect(() => {
+    if (!pick) return
+    return pick.subscribe(() => {
+      const chosen = pick.get()
+      if (chosen && !warRef.current) setChosen(chosen.name)
+    })
+  }, [pick, warRef])
 
   // The war view's sides and its watched player, on the heads already standing; and a drag ends the following.
   const sideOf = war?.sideOf
@@ -476,8 +513,8 @@ function PlayerCard({
           <PlayerHead key={name} name={name} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight text-sea-950">{name}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-ink-500">
+          <p className="truncate text-[15px] font-semibold leading-tight text-sea-950">{name}</p>
+          <p className="mt-0.5 text-[12px] leading-snug text-ink-500">
             {town ? (
               <>
                 <span className="font-semibold text-saffron-600">Azanian</span> · of {spoken(town.name)}
@@ -496,7 +533,7 @@ function PlayerCard({
           <Icon className="h-3.5 w-3.5" name="close" />
         </button>
       </div>
-      <div className="mt-2 border-t border-sand-300/70 px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-ink-500 tabular-nums">
+      <div className="mt-2 border-t border-sand-300/70 px-3 py-2 font-mono text-[12px] tracking-[0.06em] text-ink-500 tabular-nums">
         <p className="flex items-baseline gap-x-3">
           <span>
             <span className="opacity-70">X</span> {x} <span className="ml-1 opacity-70">Y</span> {y}{' '}
@@ -514,10 +551,10 @@ function PlayerCard({
           </button>
         </p>
         {route ? (
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-body text-[12px] tracking-normal text-ink-700">
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-body text-[13px] tracking-normal text-ink-700">
             <button
               aria-label={`Copy ${route.command}`}
-              className="inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+              className="inline-flex items-center gap-1 font-mono text-[12px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
               onClick={() => copyWay(route.command)}
               title="Copy the command"
               type="button"
