@@ -37,8 +37,9 @@ type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
 const namer = (siege: Siege, ours: BattleSide | null) => (side: BattleSide) =>
   ours === side ? 'Azania' : spoken(side === 'attackers' ? siege.attacker : siege.defender)
 
-const timeOf = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-const dayOf = (ms: number) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short' })
+// The viewer's own time, on the 24-hour clock the rest of Azania Maps uses ("19:00").
+const timeOf = (ms: number) => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const dayOf = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { weekday: 'short' })
 
 export type OutlookProps = {
   siege: Siege

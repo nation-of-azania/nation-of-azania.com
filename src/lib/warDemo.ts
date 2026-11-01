@@ -235,7 +235,7 @@ export async function demoFighters(now: number): Promise<(FighterRecord & { hour
 
 /**
  * The demo siege's sessions already fought, for /maps/battles on one's own
- * machine: the two before this hour's, each run by the same script (the
+ * machine: the one before this hour's, run by the same script (the
  * attackers take the banner, the defenders take it back at half past), a
  * point a minute.
  */
@@ -243,10 +243,12 @@ export async function demoBattles(now: number) {
   const cast = await currentScene()
   if (!cast) return []
   const thisHour = Math.floor(now / HOUR) * HOUR
-  return [2, 1].map((ago, index) => {
+  // As many as the demo's marker says were fought before this one (1 of 3).
+  return [1].map((ago, index) => {
     const start = thisHour - ago * 6 * HOUR
+    // To the session's last second: the script starts again on the hour.
     const points = Array.from({ length: 61 }, (_, minute): [number, number, number, string] => {
-      const siege = siegeAt(cast.siege, start + minute * 60_000)
+      const siege = siegeAt(cast.siege, start + Math.min(minute * 60_000, HOUR - 1000))
       const read = (value: string | undefined) => Math.abs(Number.parseInt((value ?? '0').replace(/[^\d-]/g, ''), 10)) || 0
       const banner = siege.bannerControl?.startsWith('Attackers') ? 'a' : siege.bannerControl?.startsWith('Defenders') ? 'd' : ''
       return [minute, read(siege.battlePoints?.attacker), read(siege.battlePoints?.defender), banner]

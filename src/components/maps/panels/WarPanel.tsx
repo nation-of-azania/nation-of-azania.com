@@ -611,8 +611,14 @@ function Scoreboard({
           <p className={cn(SECOND, 'mt-0.5')}>
             {holder ? (
               <>
-                {reading.banner.holders} holder{reading.banner.holders === 1 ? '' : 's'} ·{' '}
-                <span className={cn(FIGURE, 'font-semibold text-sand-50')}>×{multiplier.value}</span> {sourceWords}
+                {reading.banner.holders} holder{reading.banner.holders === 1 ? '' : 's'}
+                {/* No reversal bonus on Rulercraft (docs/war-rules.md): a multiplier is worth saying only when the points show one. */}
+                {multiplier.value !== 1 ? (
+                  <>
+                    {' '}
+                    · <span className={cn(FIGURE, 'font-semibold text-sand-50')}>×{multiplier.value}</span> {sourceWords}
+                  </>
+                ) : null}
               </>
             ) : (
               `${RULES.captureMinutes} min in the zone takes it`
@@ -712,7 +718,7 @@ function CapturesNow({
   const under = captures ? [...captures.under].sort((a, b) => a[1].since - b[1].since) : []
   if (!under.length) return null
   const meaning = (side: BattleSide) =>
-    holder === null ? 'takes the banner' : holder === side ? `joins the holders · +${RULES.pointsPerHolder} a check` : `retakes it · ×${multiplierNext}, assumed`
+    holder === null ? 'takes the banner' : holder === side ? `joins the holders · +${RULES.pointsPerHolder} a check` : multiplierNext === 1 ? 'retakes it' : `retakes it · ×${multiplierNext}`
   return (
     <div className="mt-2.5 border-t border-sand-50/10 pt-2">
       {/* Its own eyebrow, not EYEBROW's: two colour utilities on one element and the stylesheet's order would pick. */}
