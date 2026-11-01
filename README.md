@@ -858,8 +858,9 @@ carries what's already drawn into place until the fresh render lands.
   counted over the last 60 days and shared at the CDN a quarter of an
   hour; asked for only when something on the page wants it, never on a
   page load and never polled: `components/maps/fighters.ts`), shown
-  wherever a player is chosen (`ui/Fighter.tsx`): how many of the battles
-  they could have fought they did, their tries at the banner and how each
+  wherever a player is chosen (`ui/Fighter.tsx`): how many of the battle
+  sessions they could have fought they did (and how many for allies),
+  their tries at the banner and how each
   ended (held, died, left, cut short), their deaths in the zone and those
   the points confirm, minutes in the zone and at the banner, sessions won
   and lost, their score (the chance they take the banner when they try,
@@ -872,8 +873,10 @@ carries what's already drawn into place until the fresh render lands.
   siege lists **who to expect** on each side, that side's residents with
   those on now first and then by how likely they are to be fighting at
   the session's time, each with their score: the danger on the enemy's
-  side and the turnout on one's own; residents only, since an ally fights
-  without living there. Its overview ranks the fighters by score, those
+  side and the turnout on one's own; and under them the residents of each
+  of the side's known allies, each as likely as their hours and turnout
+  say, scaled by the share of their fighting they've done for allies (an
+  alliance alone brings nobody). Its overview ranks the fighters by score, those
   with two battles or more, and every roster's row carries the score of
   anyone who has fought. A player's card on the normal map says their
   record in a line.
@@ -882,8 +885,9 @@ carries what's already drawn into place until the fresh render lands.
   what the other side would need from now (`src/maps/outlook.ts`, pure;
   `panels/Outlook.tsx` draws it): the least holders at the banner for the
   rest of the session that would turn it, against how many they have
-  online ("8 holders from now would win the siege; they have only 5
-  online: out of reach, 114 kills short"), whether the leader could leave
+  online, allies counted as SiegeWar counts them and said apart ("8
+  holders from now would win the siege; they have only 3 online + 2
+  allies: out of reach, 114 kills short"), whether the leader could leave
   the banner and still win even if every one of the other side online took
   it, and, past the ±7,000 cap, whose points count for nothing. A fold
   beneath (open by itself between sessions) holds the session's points as
@@ -892,7 +896,8 @@ carries what's already drawn into place until the fresh render lands.
   siege, the siege's story session by session (`GET /maps/battles`, the
   tracker's last fortnight: each session's result and the balance after it,
   within the cap; the one on now as projected), and the **sessions ahead**:
-  for each, how many of each side's residents are likely to fight at its
+  for each, how many of each side's residents, and of its allies' for the
+  share of their fighting done for allies, are likely to fight at its
   hour (their usual hours times their turnout), roughly what that does to
   the balance (about 1,650 a fighter more than the other side), and the
   lead the side the forecast leaves losing would need going into the other
@@ -1110,7 +1115,10 @@ which the routes insist on, so every viewer shares one copy.
   town not in a siege fade back, and the places and events step aside. The
   **heads** are fighters: ringed by their side in the siege the view is
   on (attackers coral, defenders sea; worked out from the towns' resident
-  lists, so an ally the map can't place is of neither): the whole head
+  lists and the alliances the map knows, `src/maps/alliances.ts`, since
+  SiegeWar counts a mutual ally's soldiers for the side: an ally of a
+  side's nation wears the side's ring dashed and "ally · Imperial Avalonia"
+  on the tag, and one the map can't place is of neither): the whole head
   unit in the side's colour, a thick ring and the name's plate tinted dark
   coral or dark sea, so one side is told from the other across a crowded
   banner, their names always beside them, and under the name their
@@ -1176,9 +1184,19 @@ which the routes insist on, so every viewer shares one copy.
   banner, retakes it with the bonus, or joins the holders, "any second"
   once the countdown is out, since the server may need one check more;
   the holders by name when those seen capturing since the view opened are
-  as many as the marker counts; each side's count at the banner and in the zone;
+  as many as the marker counts; each side's count at the banner and in the zone,
+  with the allies among them said apart; the **sieges sharing fighters**,
+  when another battle is on in which a side's nation or an ally of it
+  fights (`sharedSieges`): for each side, that siege, who fights there
+  (their own nation, or the ally named), how many of the side's people,
+  residents and allies, stand in its zone now, how that battle goes for
+  them (ahead, or short of so many holders), and, the line to read, when
+  the side could leave the banner here and still win while its people are
+  short over there, or the other way about, so a fighter knows which siege
+  to be at; each row switches the view to that siege;
   and the fighters within two zones of the banner by side, lowest health
-  first, each with their vitals, head and name, how far from the banner,
+  first, each with their vitals, head and name (an ally with the dashed
+  ring and "ally · Sea Drifters"), how far from the banner,
   and for anyone outside the zone the time back, sprinting at the game's pace or by
   their own town's spawn when that is nearer (the spawn's warm-up isn't
   counted). The foot says what is assumed: the two radii are SiegeWar's
@@ -1188,9 +1206,12 @@ which the routes insist on, so every viewer shares one copy.
   The defenders' points, which SiegeWar writes with a minus, are read as
   points earned. A **nation**, chosen there or
   by a click on any of its towns on the map, is who it is, how many
-  residents and how many online, its part in a siege, and its online
-  residents listed with health, armour and their distance and time back
-  to the view's banner; a **player**, chosen from any roster or by their
+  residents and how many online, its part in a siege (its own, or as an
+  ally), its online residents listed with health, armour and their
+  distance and time back to the view's banner, and its **allies** as far
+  as they're known, each with how: set in Azania's diplomacy, told by the
+  diplomats (with their note), or seen fighting together (who, in how many
+  battles, and when last); a nation's page abroad has the same list; a **player**, chosen from any roster or by their
   head, is one head watched: the map flies to them and **follows** them,
   reading by reading, until the map is dragged or the following turned
   off, with their vitals as large as the sidebar allows, where they stand
@@ -1204,7 +1225,11 @@ which the routes insist on, so every viewer shares one copy.
   `src/lib/warDemo.ts`) answers the war and the players routes with a
   siege of a real nearby town by Azania, real residents of either side
   moving about the banner, and a score, a banner and a clock that run on
-  an hourly script.
+  an hourly script; a second siege runs beside it, of the defenders'
+  ally's town by a nation the demo's diplomats call Azania's ally, so both
+  sides share fighters with it, and the records route serves the two
+  alliances. The demo runs on the world as last saved while the Rulercraft
+  map can't be read.
 - **Nation reach** (shown with the diplomacy layer, and in the war view). A nation may besiege towns only
   within 12,320 blocks of its capital (`CAPITAL_WAR_RADIUS`, about Africa's
   width), and this is that circle (`layers/ReachLayer.tsx`): Azania's about

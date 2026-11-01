@@ -929,7 +929,6 @@ function SharedSiegeRow({
   const theirBadgeSide = azaniaSide(other, { nation: homeNationOf(data.towns), towns: data.towns })
   // Who fights over there: the side's own nation, or its ally, named.
   const allyName = entry.as === 'ally' ? spoken(nationOfSide(other, entry.side) ?? other.defender) : null
-  const fighters = allyName ? `their ally ${allyName}` : who(side)
   const verb = entry.side === 'attackers' ? 'attacking' : 'defending'
   const town = other.town ? spoken(other.town) : 'a town'
   const status = !assessed
@@ -947,8 +946,9 @@ function SharedSiegeRow({
   const hereNeed = outlook ? outlook.needs[outlook.final ? 'siege' : 'session'][side] : null
   const hereWords = hereNeed ? holdersWords(hereNeed, banner, side) : null
   let hint: string | null = null
-  if (canLeaveHere && needWords) hint = `${who(side)} can leave this banner; at ${town} ${fighters} need${allyName ? 's' : ''} ${needWords}.`
-  else if (canLeaveThere && hereWords) hint = `At ${town} ${fighters} could leave the banner${there.names.length ? ` (${n(there.names.length)} of ${who(side)}’s there)` : ''}; here ${who(side)} need${who(side) === 'Azania' ? 's' : ''} ${hereWords}.`
+  if (canLeaveHere && needWords) hint = `${who(side)} can leave this banner; at ${town} ${allyName ? `their ally ${allyName} needs` : 'they need'} ${needWords}.`
+  else if (canLeaveThere && hereWords)
+    hint = `At ${town} ${allyName ? `their ally ${allyName}` : 'they'} could leave the banner${there.names.length ? ` (${n(there.names.length)} of ${who(side)}’s there)` : ''}; here ${who(side)} needs ${hereWords}.`
   return (
     <li>
       <button className="flex w-full items-start gap-2.5 py-1.5 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={() => onFocus({ kind: 'siege', townId: other.townId })} type="button">
