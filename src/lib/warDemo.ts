@@ -232,3 +232,37 @@ export async function demoFighters(now: number): Promise<(FighterRecord & { hour
     }
   })
 }
+
+/**
+ * The demo siege's sessions already fought, for /maps/battles on one's own
+ * machine: the two before this hour's, each run by the same script (the
+ * attackers take the banner, the defenders take it back at half past), a
+ * point a minute.
+ */
+export async function demoBattles(now: number) {
+  const cast = await currentScene()
+  if (!cast) return []
+  const thisHour = Math.floor(now / HOUR) * HOUR
+  return [2, 1].map((ago, index) => {
+    const start = thisHour - ago * 6 * HOUR
+    const points = Array.from({ length: 61 }, (_, minute): [number, number, number, string] => {
+      const siege = siegeAt(cast.siege, start + minute * 60_000)
+      const read = (value: string | undefined) => Math.abs(Number.parseInt((value ?? '0').replace(/[^\d-]/g, ''), 10)) || 0
+      const banner = siege.bannerControl?.startsWith('Attackers') ? 'a' : siege.bannerControl?.startsWith('Defenders') ? 'd' : ''
+      return [minute, read(siege.battlePoints?.attacker), read(siege.battlePoints?.defender), banner]
+    })
+    const [, attacker, defender] = points[points.length - 1]
+    return {
+      townId: cast.siege.townId,
+      town: cast.siege.town,
+      attacker: cast.siege.attacker,
+      defender: cast.siege.defender,
+      startedAt: new Date(start).toISOString(),
+      session: index,
+      coverage: 1,
+      fought: 9,
+      result: { banner: 'defenders', holders: DEFENDER_HOLDERS, attacker, defender },
+      points,
+    }
+  })
+}
