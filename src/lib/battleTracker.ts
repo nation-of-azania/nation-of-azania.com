@@ -3,7 +3,7 @@ import type { Payload } from 'payload'
 
 import { sameNation } from '../maps/abroad'
 import { alliedBy, allySide, type Allied } from '../maps/alliances'
-import { RULES, bannerOf, secondsLeftOf, sideOf } from '../maps/battle'
+import { RULES, bannerOf, claimsNear, secondsLeftOf, sideOf } from '../maps/battle'
 import {
   FAR,
   KEEP_WITHIN,
@@ -21,6 +21,7 @@ import {
   type Mark,
   type Moment,
 } from '../maps/fights'
+import { inOutlines, type Outline } from '../maps/geo'
 import type { LiveSiege } from '../maps/players'
 import { pointsOf } from '../maps/sieges'
 import type { Siege, World, WorldTown } from '../maps/world'
@@ -90,6 +91,8 @@ type Battle = {
   players: Map<string, Moment[]>
   marks: Mark[]
   online: Set<string>
+  /** The towns' claims by the banner, where SiegeWar doesn't count a capture. */
+  claims: Outline[]
 }
 
 /** When a battle's session began, from its marker's time left: to the minute, so every stint names the same session. */
@@ -177,6 +180,8 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   if (!(await takeLease(until))) return { status: 'busy', battles: [], readings: 0 }
 
   const read = feed()
+  // The world as the map has it: who lives where (sides), and the towns' claims by each banner.
+  const world = await getWorld()
   const battles = new Map<string, Battle>()
   const latest = new Map<string, Siege>(sieges.map((siege) => [siege.townId, siege]))
   let readings = 0
@@ -199,7 +204,7 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
         const key = battleKey(siege, start)
         let battle = battles.get(key)
         if (!battle) {
-          battle = { key, siege, start, readings: [], players: new Map(), marks: [], online: new Set() }
+          battle = { key, siege, start, readings: [], players: new Map(), marks: [], online: new Set(), claims: claimsNear(siege.at, world?.towns ?? []) }
           battles.set(key, battle)
         }
         battle.siege = siege
@@ -215,7 +220,9 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
           const moments = battle.players.get(player.name)
           if (d <= KEEP_WITHIN) {
             const list = moments ?? []
-            list.push({ t, d: Math.round(d), h: player.health, a: player.armor })
+            // On a town's claims within the banner's reach: SiegeWar counts no capture there, so it's kept as just outside the banner zone.
+            const onClaims = d <= RULES.bannerRadius && battle.claims.length > 0 && inOutlines([player.x, player.z], battle.claims)
+            list.push({ t, d: onClaims ? RULES.bannerRadius + 1 : Math.round(d), h: player.health, a: player.armor })
             battle.players.set(player.name, list)
           } else if (moments?.length && moments[moments.length - 1].d !== FAR) {
             moments.push({ t, d: FAR, h: player.health, a: player.armor })
@@ -254,7 +261,6 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   await spend(began, (Date.now() - began) / 1000)
   await keepFollows(follows)
 
-  const world = await getWorld()
   const saved: string[] = []
   // Payload (and with it the database) only now, with something to save: a battle wakes the database anyway.
   const payload = battles.size || done.length ? await payloadOf() : null

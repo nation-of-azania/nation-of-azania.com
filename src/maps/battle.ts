@@ -1,6 +1,6 @@
 import { sameNation } from './abroad'
 import { allySide, type Allied } from './alliances'
-import type { Point } from './geo'
+import { inOutlines, type Outline, type Point } from './geo'
 import type { LivePlayer } from './players'
 import { pointsOf } from './sieges'
 import type { Siege, WorldTown } from './world'
@@ -40,8 +40,13 @@ export const RULES = {
   pointsPerHolder: 10,
   /** A death in the siege zone gives the other side this many (seen in a battle). */
   killPoints: 100,
-  /** The banner control zone: a town block around the banner, in the wild. */
-  bannerRadius: 16,
+  /**
+   * The banner control zone: this far from the banner across the ground and
+   * up or down, in the wild, not on a town's claims. The server says it as a
+   * capture starts ("Remain within 18 blocks of the banner, but staying out
+   * of the town, for 5 minutes"); SiegeWar's default is a town block, 16.
+   */
+  bannerRadius: 18,
   /** The siege zone: no teleporting in, deaths count. */
   siegeZoneRadius: 200,
   /**
@@ -67,9 +72,10 @@ export const RULES = {
  * session are confirmed by the leadership; the balance cap, the capture's
  * five minutes, the banner's 10 a holder a tick, the 100 a kill and no
  * bonus for taking the banner back were seen in battles (docs/war-rules.md
- * → Seen in a battle).
+ * → Seen in a battle); the banner zone's 18 blocks, in the wild, the
+ * server says in game.
  */
-export const ASSUMED = ['bannerRadius', 'siegeZoneRadius'] as const
+export const ASSUMED = ['siegeZoneRadius'] as const
 
 /** How fast a player covers ground, in blocks a second: sprinting on flat ground, as the game moves them. */
 export const SPRINT_BLOCKS_PER_S = 5.6
@@ -494,6 +500,32 @@ export const sideOf = (
 
 const distance = ([ax, az]: Point, [bx, bz]: Point) => Math.hypot(ax - bx, az - bz)
 
+/** The towns' claims that reach within `within` blocks of a banner: the few a banner zone could overlap. */
+export function claimsNear(banner: Point, towns: (Pick<WorldTown, 'name'> & { claims?: Outline[] })[], within = RULES.bannerRadius + 16): Outline[] {
+  const [bx, bz] = banner
+  const near: Outline[] = []
+  for (const town of towns)
+    for (const outline of town.claims ?? []) {
+      if (!outline.x.length) continue
+      const minX = Math.min(...outline.x)
+      const maxX = Math.max(...outline.x)
+      const minZ = Math.min(...outline.z)
+      const maxZ = Math.max(...outline.z)
+      if (maxX >= bx - within && minX <= bx + within && maxZ >= bz - within && minZ <= bz + within) near.push(outline)
+    }
+  return near
+}
+
+/**
+ * In the banner control zone, as far as the map can tell: within
+ * RULES.bannerRadius of the banner across the ground, and not on a town's
+ * claims (`claims`, claimsNear), where SiegeWar doesn't count a capture.
+ * The map gives no banner height, so the zone's limit up and down isn't
+ * checked.
+ */
+export const inBannerZone = (at: Point, banner: Point, claims: Outline[] = []): boolean =>
+  distance(at, banner) <= RULES.bannerRadius && !(claims.length && inOutlines(at, claims))
+
 /** A player at a siege: who, which side, how far from the banner, and whether in its zones. */
 export type AtSiege = {
   player: LivePlayer
@@ -511,11 +543,12 @@ export type AtSiege = {
 export function playersAtSiege(
   siege: Siege,
   players: LivePlayer[],
-  towns: Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>[],
+  towns: (Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'> & { claims?: Outline[] })[],
   within = RULES.siegeZoneRadius * 2,
   allied?: Allied,
 ) {
   const near: AtSiege[] = []
+  const claims = claimsNear(siege.at, towns)
   for (const player of players) {
     const far = distance([player.x, player.z], siege.at)
     if (far > within) continue
@@ -523,7 +556,7 @@ export function playersAtSiege(
       player,
       ...allegianceOf(townOfName(player.name, towns), siege, allied),
       distance: Math.round(far),
-      atBanner: far <= RULES.bannerRadius,
+      atBanner: inBannerZone([player.x, player.z], siege.at, claims),
       inZone: far <= RULES.siegeZoneRadius,
     })
   }
@@ -621,8 +654,9 @@ export function sessionClock(now: number): { on: boolean; start: number; end: nu
  * that started them completes, so their side takes the banner (they its
  * only holder; the enemy's holders lose it) or they join its holders.
  * Anyone of neither side is the server's to remove, and captures nothing.
- * The zone's radius is SiegeWar's default, an estimate (ASSUMED); the
- * holders are those seen completing a capture since the view opened.
+ * The zone is RULES.bannerRadius across the ground, off any town's claims
+ * (`claims`, claimsNear); the holders are those seen completing a capture
+ * since the view opened.
  */
 export type Captures = {
   /** When the last live reading was taken in, and who of either side stood in the banner zone in it. */
@@ -654,6 +688,7 @@ export function stepCaptures(
   banner: Point,
   phase: number | null,
   sideOfName: (name: string) => PlayerSide | null,
+  claims: Outline[] = [],
 ): Captures {
   // A gap of more than two checks (the tab asleep, the feed down): what happened in it is unknown, so no capture runs on through it.
   const gap = captures.at > 0 && reading.at - captures.at > 2 * TICK_MS
@@ -664,7 +699,7 @@ export function stepCaptures(
   const base = gap ? { ...captures, under: new Map<string, { side: BattleSide; since: number }>() } : captures
   const inZone = new Map<string, BattleSide>()
   for (const player of reading.players) {
-    if (player.health === 0 || distance([player.x, player.z], banner) > RULES.bannerRadius) continue
+    if (player.health === 0 || !inBannerZone([player.x, player.z], banner, claims)) continue
     const side = sideOfName(player.name)
     if (side === 'attackers' || side === 'defenders') inZone.set(player.name, side)
   }

@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 
 import type { Allied } from '@/maps/alliances'
 import { allegianceOf, NO_CAPTURES, sessionClock, stepCaptures, townOfName, type Captures, type PlayerSide } from '@/maps/battle'
+import type { Outline } from '@/maps/geo'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useLatest, type Store } from './hooks'
@@ -135,11 +136,15 @@ export const timeOf = (ms: number): string => new Date(ms).toLocaleTimeString('e
  * every second and a half re-renders nothing. Starts afresh for another
  * siege, and when a battle ends.
  */
+const NO_CLAIMS: Outline[] = []
+
 export function useCaptures(
   store: Store<LiveState>,
   siege: Pick<Siege, 'townId' | 'at' | 'battle'> | null,
   phase: number | null,
   sideOfName: (name: string) => PlayerSide | null,
+  /** The towns' claims near the banner (battle.ts → claimsNear), where a capture doesn't count. */
+  claims: Outline[] = NO_CLAIMS,
 ): Captures {
   // Keyed by the siege they were run for: another siege, or none, shows none until its own come.
   const [shown, setShown] = useState<{ key: string | null; captures: Captures }>({ key: null, captures: NO_CAPTURES })
@@ -148,6 +153,7 @@ export function useCaptures(
   const bannerZ = siege?.at[1] ?? 0
   const phaseRef = useLatest(phase)
   const sideRef = useLatest(sideOfName)
+  const claimsRef = useLatest(claims)
   useEffect(() => {
     if (!townId) return
     let captures = NO_CAPTURES
@@ -155,7 +161,7 @@ export function useCaptures(
     const take = () => {
       const { players, at, status } = store.get()
       if (status !== 'live' || at <= captures.at) return
-      captures = stepCaptures(captures, { at, players }, [bannerX, bannerZ], phaseRef.current, sideRef.current)
+      captures = stepCaptures(captures, { at, players }, [bannerX, bannerZ], phaseRef.current, sideRef.current, claimsRef.current)
       const next = [
         [...captures.under].map(([name, capture]) => `${name}:${capture.since}`).join(),
         captures.holders.map((holder) => holder.name).join(),
@@ -166,6 +172,6 @@ export function useCaptures(
     }
     take()
     return store.subscribe(take)
-  }, [store, townId, bannerX, bannerZ, phaseRef, sideRef])
+  }, [store, townId, bannerX, bannerZ, phaseRef, sideRef, claimsRef])
   return shown.key === townId ? shown.captures : NO_CAPTURES
 }

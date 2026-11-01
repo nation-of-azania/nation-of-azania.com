@@ -8,6 +8,8 @@
  *   pnpm test:battle
  */
 import {
+  claimsNear,
+  inBannerZone,
   RULES,
   assessBattle,
   bannerOf,
@@ -286,6 +288,19 @@ check(!summer.on && summer.start === Date.UTC(2026, 6, 4, 11), 'clock: 13:00 CES
   check(run(0, 330_000, (t) => [at('A')]).under.has('A') === false, 'a holder captures no more')
   const gap = run(0, 100_000, (t) => [at('A')])
   check(stepCaptures(gap, { at: base + 400_000, players: [at('A')] }, [0, 0], phase, sideOfName).under.get('A')?.since === base + 391_000, 'after a gap in the readings a capture starts afresh')
+}
+
+// The banner zone, as the server tells it in game: 18 blocks, off the town's claims.
+{
+  const banner: [number, number] = [100, 100]
+  // A town whose claims end 8 blocks west of the banner (a chunk, x 76–92), and one far off.
+  const near = { name: 'Next door', claims: [{ x: [76, 92, 92, 76], z: [96, 96, 112, 112] }] }
+  const far = { name: 'Far', claims: [{ x: [1000, 1016, 1016, 1000], z: [0, 0, 16, 16] }] }
+  const claims = claimsNear(banner, [near, far])
+  check(RULES.bannerRadius === 18, 'the banner zone is 18 blocks, as the server says when a capture starts')
+  check(claims.length === 1, 'only the claims that reach the banner zone are looked at')
+  check(inBannerZone([117, 100], banner) && !inBannerZone([119, 100], banner), '17 blocks off is in the zone, 19 out')
+  check(inBannerZone([94, 100], banner, claims) && !inBannerZone([90, 100], banner, claims), 'within 18 blocks but on the town’s claims: no capture counts there')
 }
 
 if (failed) {

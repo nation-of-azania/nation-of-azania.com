@@ -182,7 +182,7 @@ changed it.
 | Time to capture the banner | 5 minutes in the zone, from the first 20-second check that finds the player there | the rules; seen in a battle (plugin default 7) |
 | Banner control points | 10 per holder every 20 seconds (30 a minute) | the rules; seen in a battle |
 | Points for a kill | 100 to the other side, per death in the siege zone | the rules; seen in a battle (plugin default 150) |
-| Banner control zone | a town block's width (16 blocks) around the banner, horizontally and vertically, in the wild, at or above the banner's height | **assumed** |
+| Banner control zone | 18 blocks around the banner, horizontally and vertically, in the wild (not on a town's claims) | told in game (plugin default 16) |
 | Siege zone | 200 blocks around the banner, horizontally: no teleporting in, deaths cost points | **assumed** |
 | Banner control reversal bonus | none: after a reversal, still 10 a holder every 20 seconds | seen in a battle (plugin default on, ×3) |
 | Siege balance cap | ±7,000 | seen in a battle (plugin default ±20,000) |
@@ -321,8 +321,21 @@ American Syndicate), laid during the session:
   at 00:05:35 teleported away two seconds later (thousands of blocks off,
   at full health), and the attackers went on earning for two holders.
 
-Not seen, and so still the plugin's defaults: the zones' radii, and deaths
-outside the siege zone.
+**Told in game** (a player's chat as a capture starts, forwarded on 1
+November 2026): "Banner control session started. Remain within 18 blocks
+of the banner, but staying out of the town, for 5 minutes. If your session
+succeeds, you will gain banner control for your side (or be added to the
+banner control list)." So the banner zone is 18 blocks, not SiegeWar's
+default 16, and a capture counts only off the town's claims (SiegeWar's
+`banner_control_session_check_wilderness`). In SiegeWar's code the 18 holds
+up and down as well as across the ground; the map gives no banner height,
+so Azania Maps checks the ground only, and leaves out readings on any town's
+claims (src/maps/battle.ts → inBannerZone). The five minutes are confirmed
+the same way. It fits the captures logged so far: at SiegeWar's checks the
+capturers stood within about 15 blocks.
+
+Not seen, and so still the plugin's default: the siege zone's radius (200),
+and deaths outside the siege zone.
 
 ## Differences in the older wiki guide
 

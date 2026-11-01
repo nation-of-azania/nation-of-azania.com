@@ -17,7 +17,7 @@ import {
 import { cn } from '@/blocks/components/shared'
 import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, sameNation, worldSlug, type Abroad } from '@/maps/abroad'
 import { alliedBy } from '@/maps/alliances'
-import { RULES, tickPhaseOf } from '@/maps/battle'
+import { RULES, claimsNear, tickPhaseOf } from '@/maps/battle'
 import {
   heartland,
   townFit,
@@ -658,7 +658,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns, allied), [viewSiegeObject, sideTowns, allied])
   // The captures of the view's siege, run on the live positions SiegeWar's way (battle.ts → stepCaptures), on the checks the points show.
   const viewPhase = useMemo(() => tickPhaseOf(viewSiege ? (war.readings[viewSiege] ?? []) : []), [war.readings, viewSiege])
-  const captures = useCaptures(liveStore, warOn ? viewSiegeObject : null, viewPhase, sideOfName)
+  // The towns' claims by the banner: SiegeWar counts a capture only in the wild (battle.ts → inBannerZone).
+  const viewClaims = useMemo(() => (viewSiegeObject ? claimsNear(viewSiegeObject.at, sideTowns) : []), [viewSiegeObject, sideTowns])
+  const captures = useCaptures(liveStore, warOn ? viewSiegeObject : null, viewPhase, sideOfName, viewClaims)
   // How the players have been moving, for their own pace back to the banner and the lock after a death (./motion.ts).
   useMotionTracking(liveStore, warOn)
   const pickPlayer = useCallback((name: string) => focusWar({ kind: 'player', name }), [focusWar])
