@@ -128,7 +128,9 @@ export const progressWords = (siege: Siege): string | null =>
 /** A battle's points, a side each, as numbers ("+260" is 260). */
 export function pointsOf(siege: Siege): { attacker: number; defender: number } | null {
   if (!siege.battlePoints) return null
-  const read = (value: string) => Number.parseInt(value.replace(/[^\d-]/g, ''), 10)
+  // SiegeWar writes the attackers' points with a plus and the defenders' with a minus ("+730 / -1530"), each side's
+  // sign the way it moves the balance; both are points earned (seen in a battle, 1 November 2026).
+  const read = (value: string) => Math.abs(Number.parseInt(value.replace(/[^\d-]/g, ''), 10))
   const attacker = read(siege.battlePoints.attacker)
   const defender = read(siege.battlePoints.defender)
   return Number.isFinite(attacker) && Number.isFinite(defender) ? { attacker, defender } : null

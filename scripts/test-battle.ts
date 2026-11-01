@@ -75,7 +75,7 @@ check(secondsLeftOf('N/A') === null && secondsLeftOf(null) === null, 'time left:
 
 // The rates.
 check(bannerRate(1, 1) === 0.5, 'one holder earns 10 points per 20 s: half a point a second')
-check(reversalMultiplier(0) === 1 && reversalMultiplier(1) === 3 && reversalMultiplier(2) === 6, 'reversal bonus: ×1, then ×3, ×6')
+check(reversalMultiplier(0) === 1 && reversalMultiplier(1) === 1 && reversalMultiplier(2) === 1, 'reversal bonus: none on Rulercraft, as seen in a battle')
 
 // The score run on between readings.
 const at = Date.UTC(2026, 10, 1, 12, 30)
@@ -163,8 +163,9 @@ check(assessed?.score?.attacker === 690, 'assessed: the score run on')
 check(assessed?.projected?.balance === 1250 + 690 + 2580 - 200, 'assessed: the projection from the reading')
 check(assessed?.behind?.side === 'defenders' && assessed.behind.deficit === 4320, 'assessed: the defenders are behind by the projected balance')
 check(assessed?.behind?.kills === 44, 'assessed: 4,320 points is 44 kills')
-// 28:55 left, less the 5 minutes the capture takes: 71 ticks; retaken at ×3, a holder earns 30 a tick, 2,130 in all: three holders.
-check(assessed?.behind?.holdersNeeded === 3, 'assessed: or three holders after taking the banner back, the capture’s minutes left out')
+// 28:55 left, less the 5 minutes the capture takes: 71 ticks; with no bonus for taking it back, a holder earns 10 a tick,
+// 710 in all: seven holders for 4,320.
+check(assessed?.behind?.holdersNeeded === 7, 'assessed: or seven holders after taking the banner back, the capture’s minutes left out')
 // The defenders holding already lose no time to a capture: 86 ticks at ×1, 860 a holder, for a 1,000-point gap: two holders.
 const holding = assessBattle(
   siege({ balance: -1000, bannerControl: 'Defenders (1)', battlePoints: { attacker: '0', defender: '0' } }),
@@ -176,7 +177,7 @@ check(holding?.behind === null || holding?.behind?.side === 'attackers', 'assess
 check(assessed?.behind?.minutesRetaken !== null && (assessed?.behind?.minutesRetaken ?? 0) > 5, 'assessed: taking it back takes the capture and the holding')
 check(assessBattle(siege(), [], at, { attackers: 0, defenders: 0 }) === null, 'assessed: nothing without a reading')
 const fromStart = assessBattle(siege(), steps([null, 'attackers', 'defenders']), at + 90_000, { attackers: 1, defenders: 1 })
-check(fromStart?.multiplier.value === 3 && fromStart.multiplier.source === 'inferred', 'assessed: a reversal seen from the session start infers ×3')
+check(fromStart?.multiplier.value === 1 && fromStart.multiplier.source === 'inferred', 'assessed: a reversal seen from the session start infers no bonus (none on Rulercraft)')
 
 // Sides and zones.
 const towns = [

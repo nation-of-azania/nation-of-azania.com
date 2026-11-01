@@ -184,7 +184,7 @@ changed it.
 | Points for a kill | 100 to the other side, per death in the siege zone | the rules; seen in a battle (plugin default 150) |
 | Banner control zone | a town block's width (16 blocks) around the banner, horizontally and vertically, in the wild, at or above the banner's height | **assumed** |
 | Siege zone | 200 blocks around the banner, horizontally: no teleporting in, deaths cost points | **assumed** |
-| Banner control reversal bonus | on, ×3 | **assumed** |
+| Banner control reversal bonus | none: after a reversal, still 10 a holder every 20 seconds | seen in a battle (plugin default on, ×3) |
 | Siege balance cap | ±7,000 | seen in a battle (plugin default ±20,000) |
 | End of a session | the balance moves by attacker points − defender points; the siege goes to the side the balance favours after the last session | confirmed by the leadership ("winner takes all" off) |
 
@@ -196,11 +196,12 @@ enemy's holders lose it. Holders keep it until the enemy takes the banner
 or the session ends, wherever they go and even if they die. Every 20
 seconds the holding side earns 10 points per holder.
 
-**Reversal bonus.** Taking the banner from the enemy is a reversal. After
-the first, the holding side's banner points are multiplied by 3; after the
-second, by 6; and so on (the number of reversals × 3), for whichever side
-holds it. Retaking the banner is therefore worth far more than holding it
-from the start.
+**Reversal bonus.** Taking the banner from the enemy is a reversal. In
+SiegeWar's defaults, after the first the holding side's banner points are
+multiplied by 3, after the second by 6, and so on. **Rulercraft has it
+off**: in the battle at South_America_Quarry (below), the defenders who
+took the banner back earned 10 a holder every 20 seconds, as anyone
+holding it does. Retaking the banner is worth no more than holding it.
 
 **Deaths.** A player of either side who dies in the siege zone during a
 session gives the other side the kill points, whether an enemy killed them
@@ -264,9 +265,40 @@ armour.
   points, the banner and its holders started again from nothing, and the
   siege showed 2 of 3 sessions done.
 
-Not seen, and so still the plugin's defaults: a reversal (the defenders
-never took the banner, so the ×3 bonus is unconfirmed), the zones' radii,
-and deaths outside the siege zone.
+Logged the same way through the battle session of 1 November 2026, 01:00
+CET (00:00–01:00 UTC), with two battles on: the last of Cyprus's three,
+and the first of Sul America's siege of South_America_Quarry (held by the
+American Syndicate), laid during the session:
+
+- **Defenders' points are written with a minus.** The marker reads
+  "+730 / -1530" for 730 to the attackers and 1,530 to the defenders; the
+  balance after the session was 730 − 1,530 = −800. The sign is the way the
+  points move the balance; both are points earned. (Azania Maps read the
+  minus as negative points until then.)
+- **No reversal bonus.** At South_America_Quarry the attackers held the
+  banner from 00:13:50 with one holder (+10 a tick to 730), the defenders
+  took it back at 00:38:20 with one holder and earned 10 a tick, 20 with
+  two from 00:44:48: no ×3.
+- **A kill is 100, again**: four attackers died in the siege zone (00:38:40,
+  00:47:52, 00:53:10, 00:59:22, by health and respawn on the live feed),
+  and each time the defenders' points jumped by 100 on top of the tick.
+- **A siege laid in a session's first ten minutes fights that session**:
+  South_America_Quarry's banner went up at 00:08:35, its battle began at
+  once (51.6 minutes left), and the session counted as its first (0/3 →
+  1/3).
+- **Allies fight.** The two players who took South_America_Quarry's banner
+  back for the defenders live in Imperial Avalonia's town, not the American
+  Syndicate's. Who lives where can't say who fights for whom; the tracker
+  tells it from their play (src/maps/fights.ts → sideShown).
+- **Cyprus fell.** Its last session ended at +4,750 to 0 with the balance at
+  the cap of +7,000, and SiegeWar removed the siege's marker at 01:00:33:
+  the attackers won.
+- **Holders who leave keep it**: Cyprus's two attackers who took the banner
+  at 00:05:35 teleported away two seconds later (thousands of blocks off,
+  at full health), and the attackers went on earning for two holders.
+
+Not seen, and so still the plugin's defaults: the zones' radii, and deaths
+outside the siege zone.
 
 ## Differences in the older wiki guide
 

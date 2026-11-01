@@ -50,6 +50,11 @@ check(JSON.stringify(bannerOf(siege!)) === '{"side":"attackers","holders":3}', '
 check(JSON.stringify(pointsOf(siege!)) === '{"attacker":1460,"defender":0}', 'the points, the escaped plus read as a plus (not 431460)')
 check(readingOf(siege!, siege!.markedAt).secondsLeft === 1908, '31.8 minutes left')
 
+// The defenders' points as SiegeWar writes them, with a minus (South_America_Quarry, 1 November 2026, 01:00:18 UTC).
+const quarry = siegeUpdatesOf([{ ...real, id: 'quarry', desc: real.desc.replace('Battle Points: &#43;1460 / 0', 'Battle Points: &#43;730 / -1530').replace('Banner Control: Attackers (3)', 'Banner Control: Defenders (2)') }]).rewritten[0]
+check(JSON.stringify(pointsOf(quarry!)) === '{"attacker":730,"defender":1530}', 'the defenders’ points, written with a minus, read as points earned')
+check(JSON.stringify(bannerOf(quarry!)) === '{"side":"defenders","holders":2}', 'two defenders hold the banner')
+
 const gone = siegeUpdatesOf([{ msg: 'markerdeleted', set: 'siegewar.markerset', id: real.id, timestamp: 3 }])
 check(gone.ended[0] === real.id && gone.rewritten.length === 0, 'a deleted marker is a siege ended')
 check(siegeUpdatesOf(null).rewritten.length === 0 && siegeUpdatesOf([{ set: 'siegewar.markerset' }]).rewritten.length === 0, 'nothing odd is trusted')

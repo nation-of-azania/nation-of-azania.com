@@ -51,13 +51,33 @@ export type Outcome = 'held' | 'died' | 'left' | 'cut'
  * minutes there, and either way it's held, or ended by a death, by walking
  * out, or by the readings (the session's end, a gap).
  */
-export type Stay = { from: number; to: number; outcome: Outcome; ours: boolean }
+export type Stay = {
+  from: number
+  to: number
+  outcome: Outcome
+  ours: boolean
+  /**
+   * They were one of the banner's holders already (they'd taken it and
+   * their side still held it): standing there, not trying anything; left
+   * out of their tries.
+   */
+  holder?: boolean
+}
+
+/** Their tries at the banner: stays that weren't a holder's. */
+export const triesOf = (stays: Stay[]): Stay[] => stays.filter((stay) => !stay.holder)
 export type Death = { at: number; confirmed: boolean }
 export type FighterSide = 'attackers' | 'defenders' | 'other'
 
 export type Fighter = {
   name: string
   side: FighterSide
+  /**
+   * Their side was told by their play, not where they live: one who lives
+   * with neither side, whose stay at the banner turned it, or whose death
+   * the other side scored (an ally, a mercenary).
+   */
+  ally?: boolean
   /** Seconds in the siege zone and in the banner zone, between readings close enough to know. */
   zone: number
   banner: number
@@ -110,16 +130,47 @@ export function deathsOf(moments: Moment[], marks: Mark[], side: FighterSide): D
   return deaths
 }
 
-/** Whether the side that didn't die gained a kill's worth of points soon after `at`. */
-function killConfirmed(marks: Mark[], side: FighterSide, at: number): boolean {
-  const gainer = opposite(side)
+/** The sides that gained a kill's worth of points soon after `at`. */
+function killGainers(marks: Mark[], at: number): Set<BattleSide> {
+  const gainers = new Set<BattleSide>()
   const before = [...marks].reverse().find((mark) => mark.t <= at)
-  if (!before) return false
-  return marks.some((mark) => {
-    if (mark.t <= at || mark.t > at + FIGHT.confirmWithinSeconds) return false
-    const gained = gainer ? [mark[gainer === 'attackers' ? 'attacker' : 'defender'] - before[gainer === 'attackers' ? 'attacker' : 'defender']] : [mark.attacker - before.attacker, mark.defender - before.defender]
-    return gained.some((points) => points >= RULES.killPoints)
-  })
+  if (!before) return gainers
+  for (const mark of marks) {
+    if (mark.t <= at || mark.t > at + FIGHT.confirmWithinSeconds) continue
+    if (mark.attacker - before.attacker >= RULES.killPoints) gainers.add('attackers')
+    if (mark.defender - before.defender >= RULES.killPoints) gainers.add('defenders')
+  }
+  return gainers
+}
+
+/** Whether the side that didn't die (either, for one of neither side) gained a kill's worth of points soon after `at`. */
+function killConfirmed(marks: Mark[], side: FighterSide, at: number): boolean {
+  const gainers = killGainers(marks, at)
+  const gainer = opposite(side)
+  return gainer ? gainers.has(gainer) : gainers.size > 0
+}
+
+/**
+ * The side a player's play shows them on: a stay at the banner long enough
+ * to take it, as the banner turned to a side or its holders grew by one
+ * (within a check or two of its end); or a death the other side alone
+ * scored. Null when nothing shows it, or the signs disagree.
+ */
+export function sideShown(stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): BattleSide | null {
+  const shown = new Set<BattleSide>()
+  for (const stay of stays) {
+    if (stay.to - stay.from < RULES.captureMinutes * 60 - RULES.tickSeconds) continue
+    for (let i = 1; i < marks.length; i++) {
+      const [before, mark] = [marks[i - 1], marks[i]]
+      if (mark.t < stay.from || mark.t > stay.to + 2 * RULES.tickSeconds || !mark.banner) continue
+      if (before.banner !== mark.banner || mark.holders > before.holders) shown.add(mark.banner)
+    }
+  }
+  for (const death of deaths) {
+    const gainers = killGainers(marks, death.at)
+    if (gainers.size === 1) shown.add(opposite([...gainers][0])!)
+  }
+  return shown.size === 1 ? [...shown][0] : null
 }
 
 /**
@@ -128,6 +179,14 @@ function killConfirmed(marks: Mark[], side: FighterSide, at: number): boolean {
  * marks.
  */
 export function fighterOf(name: string, side: FighterSide, readings: number[], moments: Moment[], marks: Mark[]): Fighter {
+  const fighter = fighterAs(name, side, readings, moments, marks)
+  if (side !== 'other') return fighter
+  // One who lives with neither side: told by their play, if it shows.
+  const shown = sideShown(fighter.stays, fighter.deaths, marks)
+  return shown ? { ...fighterAs(name, shown, readings, moments, marks), ally: true } : fighter
+}
+
+function fighterAs(name: string, side: FighterSide, readings: number[], moments: Moment[], marks: Mark[]): Fighter {
   const at = new Map(moments.map((moment) => [moment.t, moment]))
   const deaths = deathsOf(moments, marks, side)
   const ours: BattleSide | null = side === 'other' ? null : side
@@ -136,7 +195,10 @@ export function fighterOf(name: string, side: FighterSide, readings: number[], m
   let first: number | null = null
   let last: number | null = null
   const stays: Stay[] = []
-  let open: { from: number; lastIn: number; ours: boolean } | null = null
+  let open: { from: number; lastIn: number; ours: boolean; holder: boolean } | null = null
+  // One of the banner's holders, by a stay of theirs that took it or joined its holders: until their side loses the
+  // banner, wherever they go and even if they die (SiegeWar's source; docs/war-rules.md → Banner control).
+  let holding = false
 
   const close = (end: number, cut: boolean) => {
     if (!open) return
@@ -148,7 +210,8 @@ export function fighterOf(name: string, side: FighterSide, readings: number[], m
       (ours !== null && !open.ours && bannerAt(marks, open.from) !== ours && bannerAt(marks, open.lastIn + RULES.tickSeconds) === ours)
     const died = deaths.some((death) => death.at >= open!.from && death.at <= end + FIGHT.respawnWithinSeconds)
     const outcome: Outcome = took ? 'held' : died ? 'died' : cut ? 'cut' : 'left'
-    stays.push({ from: open.from, to: open.lastIn, outcome, ours: open.ours })
+    stays.push({ from: open.from, to: open.lastIn, outcome, ours: open.ours, ...(open.holder ? { holder: true } : {}) })
+    if (took && ours !== null) holding = true
     open = null
   }
 
@@ -157,6 +220,7 @@ export function fighterOf(name: string, side: FighterSide, readings: number[], m
     const next = readings[i + 1]
     const moment = at.get(t)
     const gap = next === undefined || next - t > FIGHT.gapSeconds
+    if (holding && bannerAt(marks, t) !== ours) holding = false
     if (inZone(moment)) {
       first ??= t
       last = t
@@ -164,7 +228,7 @@ export function fighterOf(name: string, side: FighterSide, readings: number[], m
     }
     if (atBanner(moment)) {
       if (!gap) banner += next - t
-      if (!open) open = { from: t, lastIn: t, ours: ours !== null && bannerAt(marks, t) === ours }
+      if (!open) open = { from: t, lastIn: t, ours: ours !== null && bannerAt(marks, t) === ours, holder: holding }
       else open.lastIn = t
     } else if (open && t - open.lastIn > FIGHT.graceSeconds) {
       close(t, false)

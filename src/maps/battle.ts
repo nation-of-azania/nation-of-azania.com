@@ -43,8 +43,12 @@ export const RULES = {
   bannerRadius: 16,
   /** The siege zone: no teleporting in, deaths count. */
   siegeZoneRadius: 200,
-  /** After a reversal, banner points are multiplied by the reversals × this. */
-  reversalFactor: 3,
+  /**
+   * Taking the banner back earns no bonus on Rulercraft (SiegeWar's default
+   * is ×3 a reversal): seen in a battle, where the defenders who took it back
+   * earned 10 a holder a tick, as anyone holding it does.
+   */
+  reversalFactor: 1,
   /**
    * The siege balance is held within ± this: seen in a battle, where a
    * session that would have taken it from 3,280 to 7,620 left it at
@@ -60,10 +64,11 @@ export const RULES = {
  * defaults: said as estimates wherever they count. The session times (in
  * CET/CEST) and the balance moving by attacker − defender points each
  * session are confirmed by the leadership; the balance cap, the capture's
- * five minutes, the banner's 10 a holder a tick and the 100 a kill were
- * seen in a battle (docs/war-rules.md → Seen in a battle).
+ * five minutes, the banner's 10 a holder a tick, the 100 a kill and no
+ * bonus for taking the banner back were seen in battles (docs/war-rules.md
+ * → Seen in a battle).
  */
-export const ASSUMED = ['bannerRadius', 'siegeZoneRadius', 'reversalFactor'] as const
+export const ASSUMED = ['bannerRadius', 'siegeZoneRadius'] as const
 
 /** How fast a player covers ground, in blocks a second: sprinting on flat ground, as the game moves them. */
 export const SPRINT_BLOCKS_PER_S = 5.6
@@ -99,12 +104,12 @@ export function secondsLeftOf(text: string | null | undefined): number | null {
   return found ? Math.round(total) : null
 }
 
-/** Points a second the banner earns its side: holders × 10 every 20 s, times the reversal bonus. */
+/** Points a second the banner earns its side: holders × 10 every 20 s, times any reversal bonus (none on Rulercraft). */
 export const bannerRate = (holders: number, multiplier: number): number =>
   (holders * RULES.pointsPerHolder * multiplier) / RULES.tickSeconds
 
-/** The reversal bonus after this many reversals: none before the first, then the reversals × 3. */
-export const reversalMultiplier = (reversals: number): number => (reversals > 0 ? reversals * RULES.reversalFactor : 1)
+/** The reversal bonus after this many reversals: none on Rulercraft (RULES.reversalFactor), kept should that change. */
+export const reversalMultiplier = (reversals: number): number => (reversals > 0 ? RULES.reversalFactor : 1)
 
 /** A reading of a battle at one moment: what the marker said, at the time the map wrote it. */
 export type BattleReading = {

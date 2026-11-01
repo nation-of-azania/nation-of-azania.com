@@ -455,7 +455,7 @@ function SiegeView({
       <Fighters about={about} onFocus={onFocus} siege={siege} towns={towns} />
 
       <p className={FOOT}>
-        {ASSUMED.length ? 'The zones (16 and 200 blocks) and the ×3 for taking the banner back are SiegeWar’s defaults, which the rules don’t give; the balance is held within ±7,000, as seen in a battle. ' : ''}
+        {ASSUMED.length ? 'The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles. ' : ''}
         The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. A sprint is {SPRINT_BLOCKS_PER_S} blocks a second.
       </p>
     </>

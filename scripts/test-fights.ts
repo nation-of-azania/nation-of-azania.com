@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs'
 
 import { hourOfWeek, holdRate, recordsOf, turnout, usualHours, type SavedBattle } from '../src/maps/fighters'
-import { FAR, attended, coverageOf, fighterOf, mergeMoments, packMoments, packTimes, unpackMoments, unpackTimes, type Mark, type Moment } from '../src/maps/fights'
+import { FAR, attended, coverageOf, fighterOf, mergeMoments, packMoments, packTimes, triesOf, unpackMoments, unpackTimes, type Mark, type Moment } from '../src/maps/fights'
 import { packBits, withSlot } from '../src/lib/presence'
 
 let failed = false
@@ -75,6 +75,23 @@ check(funcase.stays[0]?.outcome === 'died' && funcase.deaths.length === 1 && fun
 check(of('Sllikrick').stays[0]?.outcome === 'left' && !attended(of('Sllikrick')), 'another came and went: left, under a minute in the zone')
 const piggie = of('Little__Piggie')
 check(piggie.stays.length === 1 && piggie.stays[0].outcome === 'held' && piggie.stays[0].ours, 'the third attacker joined the holders while their side held the banner: held')
+
+// Another real battle, contested: South_America_Quarry's first session (1 November 2026, 00:00 UTC), the siege laid at
+// 00:08 within the session. The attackers took the banner at 00:13:50; two players who live with neither side (an
+// ally's, Imperial_Avalonia) took it back for the defenders at 00:38:20 and joined as the second holder at 00:44:48;
+// four attackers' deaths each gave the defenders a hundred, their points written with a minus.
+const quarry = JSON.parse(readFileSync(new URL('./fixtures/battle-south-america-quarry-2026-11-01-0000.json', import.meta.url), 'utf8')) as Fixture
+const quarryReadings = unpackTimes(quarry.readings)
+const inQuarry = (name: string) => fighterOf(name, quarry.players[name].side, quarryReadings, unpackMoments(quarry.players[name].moments), quarry.marks)
+const mano = inQuarry('Mano3543')
+check(mano.stays[0].outcome === 'held' && mano.deaths.length === 2 && mano.deaths.every((death) => death.confirmed), 'the attackers’ taker held it, then died twice, both confirmed by the defenders’ points')
+check(inQuarry('axoolle').deaths.filter((death) => death.confirmed).length === 2, 'another attacker’s two deaths, confirmed')
+const pandaz = inQuarry('Its_Pandaz')
+check(pandaz.side === 'defenders' && pandaz.ally === true, 'one of neither side who took the banner for the defenders is a defender by their play')
+check(triesOf(pandaz.stays).length === 1 && triesOf(pandaz.stays)[0].outcome === 'held' && pandaz.stays.slice(1).every((stay) => stay.holder), 'took it once; the stays after, as its holder, are no tries')
+const quade = inQuarry('quadecaelite68')
+check(quade.side === 'defenders' && quade.ally === true && triesOf(quade.stays).filter((stay) => stay.outcome === 'held').length === 1, 'the other joined the holders: a defender by play, one try held')
+check(inQuarry('Averycooper').side === 'other' && !inQuarry('Averycooper').ally, 'one whose play shows no side stays of neither')
 
 // Records across battles.
 const saved: SavedBattle = {

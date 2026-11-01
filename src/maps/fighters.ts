@@ -1,4 +1,4 @@
-import { attended, type Fighter, type FighterSide, type Mark } from './fights'
+import { attended, triesOf, type Fighter, type FighterSide, type Mark } from './fights'
 
 /**
  * Each player's record across the battles the tracker read
@@ -27,7 +27,7 @@ export type FighterRecord = {
   /** Minutes in the siege zone and at the banner, across the battles fought. */
   minutes: number
   bannerMinutes: number
-  /** Stays in the banner zone and how they ended. */
+  /** Tries at the banner (stays that weren't a holder's) and how they ended. */
   stays: number
   held: number
   died: number
@@ -86,7 +86,7 @@ export function recordsOf(battles: SavedBattle[]): Map<string, FighterRecord> {
       record.fought++
       record.minutes += fighter.zone / 60
       record.bannerMinutes += fighter.banner / 60
-      for (const stay of fighter.stays) {
+      for (const stay of triesOf(fighter.stays)) {
         record.stays++
         record[stay.outcome]++
       }
