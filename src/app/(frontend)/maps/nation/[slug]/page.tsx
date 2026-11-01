@@ -13,10 +13,10 @@ import { mapsMetadata } from '../../metadata'
 
 /**
  * Another nation: /maps/nation/<slug>, its slug from its Towny name. Cached
- * for everyone alike, a minute at a time (see ../../layout.tsx), each
+ * for everyone alike, a quarter of an hour at a time (see ../../layout.tsx), each
  * rendered when first asked for. Azania's own nation is the map's front.
  */
-export const revalidate = 60
+export const revalidate = 900
 export const dynamicParams = true
 export const generateStaticParams = async () => []
 

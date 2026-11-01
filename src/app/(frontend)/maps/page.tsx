@@ -17,8 +17,8 @@ export async function generateMetadata(): Promise<Metadata> {
   })
 }
 
-/** Cached for everyone alike, a minute at a time (see ../layout.tsx). */
-export const revalidate = 60
+/** Cached for everyone alike, a quarter of an hour at a time (see ../layout.tsx). */
+export const revalidate = 900
 
 /** The map's front: the nation at a glance, what's on, the towns. */
 export default async function MapsPage() {

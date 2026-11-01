@@ -350,7 +350,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The war view (panels/WarPanel.tsx), on by its button or by the address: the feeds go fast while it is.
   const warOn = extras.war
   const warRef = useLatest(warOn)
-  // The players online are polled only while their layer is on and the tab is seen; every second and a half in the war view.
+  // The players online are polled only while their layer is on and the tab is seen; every two seconds in the war view.
   const live = extras.players
   const liveStore = useLivePlayers(live, { fast: warOn })
   // Names beside the heads at every zoom: the viewer's own setting, kept in their browser.

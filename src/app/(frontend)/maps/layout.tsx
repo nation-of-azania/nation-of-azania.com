@@ -13,13 +13,16 @@ import { syncIfStale } from '@/lib/towns'
  * Azania Maps (/maps): the map fills the viewport, and the pages beneath
  * this layout — the front, a town, a place, a road, an event — render into
  * its panel. The pages are the same for everyone and cached, regenerated
- * a minute after they're last asked for (and at once after someone draws,
- * see ./revalidate); the visitor's own drawing rights are fetched in the
- * browser. Each regeneration has the towns re-read from the Rulercraft
+ * a quarter of an hour after they're last asked for (and at once after
+ * someone draws, see ./revalidate, after a change to the diplomacy, and
+ * when the watch sees Azania's towns change, src/lib/towns.ts): what moves
+ * by the minute, the players and the war, the browser fetches itself, and
+ * every regeneration is the server's compute, which the free plan meters.
+ * The visitor's own drawing rights are fetched in the browser. Each regeneration has the towns re-read from the Rulercraft
  * map, after answering, if the last reading is a quarter of an hour old.
  */
 
-export const revalidate = 60
+export const revalidate = 900
 
 /**
  * The viewer's appearance setting (src/components/maps/hooks.ts →

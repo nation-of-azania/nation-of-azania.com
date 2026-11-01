@@ -4,9 +4,10 @@ import type { Siege } from './world'
 /**
  * Who is on the Rulercraft server and where, as the map's live feed has it
  * (Dynmap's `up/world/<world>/<timestamp>`, which the Rulercraft map itself
- * polls every three seconds, and which the server rewrites about every one
- * and a half). Azania Maps passes it on through /maps/players and keeps
- * none of it: the positions live only in the browser that asked. Players
+ * polls every few seconds, and which the server rewrites about every one
+ * and a half). The browser reads it through the site's /maps/feed rewrite
+ * (src/maps/feed.ts) and nothing keeps it: the positions live only in the
+ * browser that asked. Players
  * the server hides (vanished, invisible, in another world) aren't in the
  * feed, so they aren't here either.
  */
@@ -49,15 +50,20 @@ export type LivePlayers = {
   offline?: boolean
 }
 
-/** How often the map in the browser asks, and the CDN refreshes the answer. */
-export const PLAYERS_EVERY_MS = 3000
+/**
+ * How often the map in the browser asks the live feed (through the /maps/feed
+ * rewrite, src/components/maps/live.ts). Each ask is one of the CDN's
+ * requests, of which the free plan has a million a month, so not more often
+ * than the heads need.
+ */
+export const PLAYERS_EVERY_MS = 4000
 
 /**
- * How often the war view asks instead, from /maps/players/live, which the
- * CDN refreshes every second: in a fight, a head three seconds behind is a
- * head in the wrong place. The server writes a reading about every 1.5 s.
+ * How often the war view asks instead: in a fight, a head four seconds
+ * behind is a head in the wrong place. The Rulercraft map moves its own
+ * heads about every two seconds, so asking more often gains nothing.
  */
-export const LIVE_PLAYERS_EVERY_MS = 1500
+export const LIVE_PLAYERS_EVERY_MS = 2000
 
 /** The highest health and armour the feed gives: 20 each, ten hearts and ten chestplate icons. */
 export const MAX_HEALTH = 20

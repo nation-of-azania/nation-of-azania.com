@@ -11,12 +11,12 @@ import { findTown, getArticlesAbout, getMapData, getTownCensus, getTownRecord } 
 import { mapsMetadata } from '../../metadata'
 
 /**
- * Cached for everyone alike, a minute at a time (see ../layout.tsx): none
+ * Cached for everyone alike, a quarter of an hour at a time (see ../layout.tsx): none
  * is built ahead, each is rendered when first asked for and kept. A site
  * the server runs and Azania holds has the same address as a town and its
  * own panel.
  */
-export const revalidate = 60
+export const revalidate = 900
 export const dynamicParams = true
 export const generateStaticParams = async () => []
 

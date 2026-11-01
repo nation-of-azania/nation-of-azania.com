@@ -16,12 +16,12 @@ import { mapsMetadata } from '../../metadata'
  * A town of another nation, or of none: /maps/abroad/<slug>, its slug from
  * its Towny name, or one of the server's own places, a trading outpost or
  * a landmark, its slug from the server's name for it. Cached for everyone
- * alike, a minute at a time (see ../../layout.tsx): none is built ahead,
+ * alike, a quarter of an hour at a time (see ../../layout.tsx): none is built ahead,
  * each is rendered when first asked for and kept. A town that has since
  * joined Azania goes to its own page, and the server's old spawn town to
  * the map's front.
  */
-export const revalidate = 60
+export const revalidate = 900
 export const dynamicParams = true
 export const generateStaticParams = async () => []
 

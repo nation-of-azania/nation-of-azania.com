@@ -6,6 +6,10 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(__filename)
 
+/** The Rulercraft map and its world, as src/maps/source.ts names them (DYNMAP_URL, DYNMAP_WORLD). */
+const RULERCRAFT_MAP = 'https://map.rulercraft.com'
+const RULERCRAFT_WORLD = 'RulerEarth'
+
 const nextConfig: NextConfig = {
   // No "X-Powered-By: Next.js, Payload" header: the stack stays invisible.
   poweredByHeader: false,
@@ -14,12 +18,26 @@ const nextConfig: NextConfig = {
   // served by a catch-all page, which a route can't share a segment with. So
   // they are rewritten, before anything else matches, to the feed route
   // under the reserved `feeds` prefix (src/app/(frontend)/feeds).
+  //
+  // And the Rulercraft map's live feed (who is online and where, and every
+  // siege marker's rewrite) is passed through as /maps/feed/<since>: the map
+  // sends no CORS header, so the browser can't read it from this site, but a
+  // rewrite to another host is the same site to the browser, and Vercel's
+  // network forwards it without running a function of this site's, so
+  // watching the map costs no compute (src/components/maps/live.ts,
+  // src/maps/feed.ts). Only the one world's feed, from a time in digits.
   rewrites: async () => ({
     beforeFiles: [
       { source: '/feed.xml', destination: '/feeds' },
       { source: '/:path*/feed.xml', destination: '/feeds/:path*' },
+      { source: '/maps/feed/:since(\\d{1,15})', destination: `${RULERCRAFT_MAP}/up/world/${RULERCRAFT_WORLD}/:since` },
     ],
   }),
+  // Where the browser reads the live feed from: through the rewrite above, or, with the war demo on one's own machine
+  // (src/lib/warDemo.ts), from the site's own /maps/players, which makes the demo's battle up.
+  env: {
+    NEXT_PUBLIC_MAPS_LIVE: process.env.MAPS_WAR_DEMO === '1' && !process.env.VERCEL ? 'site' : 'feed',
+  },
   images: {
     qualities: [75],
     localPatterns: [

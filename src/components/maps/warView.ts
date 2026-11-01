@@ -128,16 +128,16 @@ export function sessionWords(now: number): { on: boolean; seconds: number; headl
 /** The viewer's own time, on the 24-hour clock the rest of Azania Maps uses ("19:00"). */
 export const timeOf = (ms: number): string => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
+const NO_CLAIMS: Outline[] = []
+
 /**
  * The captures under way at the war view's siege, and the holders seen
  * capturing (src/maps/battle.ts → stepCaptures), run on every live reading
  * of the players while a battle is on. Kept outside React, and given to it
  * only when someone starts, stops or completes a capture, so a reading
- * every second and a half re-renders nothing. Starts afresh for another
- * siege, and when a battle ends.
+ * every two seconds re-renders nothing. Starts afresh for another siege,
+ * and when a battle ends.
  */
-const NO_CLAIMS: Outline[] = []
-
 export function useCaptures(
   store: Store<LiveState>,
   siege: Pick<Siege, 'townId' | 'at' | 'battle'> | null,

@@ -2,16 +2,22 @@
 
 import { useEffect, useMemo } from 'react'
 
+import { feedReader } from '@/maps/feed'
 import { LIVE_PLAYERS_EVERY_MS, PLAYERS_EVERY_MS, type LivePlayer, type LivePlayers, type LiveSiege } from '@/maps/players'
+import { DYNMAP_WORLD } from '@/maps/source'
 
 import { createStore, type Store } from './hooks'
 import { HIDDEN_FOR_MS, steadyTimeout } from './steady'
 
 /**
- * Who is online, as the map in the browser has it: /maps/players asked
- * every few seconds while the players layer is on, in sight or (for a
- * while) out of it, and not at all otherwise; /maps/players/live every
- * second and a half instead in the war view (`fast`). The answer lives in a small store rather than
+ * Who is online, as the map in the browser has it: the Rulercraft map's
+ * live feed, read by the browser itself through the site's /maps/feed
+ * rewrite (next.config.ts) and made sense of here (src/maps/feed.ts), so
+ * watching costs the site's functions nothing; every few seconds while the
+ * players layer is on, in sight or (for a while) out of it, and not at all
+ * otherwise; more often in the war view (`fast`). With the war demo on
+ * one's own machine it's the site's /maps/players instead, which makes the
+ * demo's battle up. The answer lives in a small store rather than
  * React state, so only what shows it — the heads on the map, the count —
  * follows it, and nothing else on the page re-renders for a poll. Nothing
  * is written anywhere: the positions are gone when the tab is.
@@ -86,14 +92,16 @@ function readAnswer(body: unknown, every: number): LiveState {
  * stacks; waits longer and longer while the map is down. It goes on while
  * the tab is out of sight (behind the game, or shared in a call), on a
  * clock a hidden tab doesn't slow (./steady.ts), for up to HIDDEN_FOR_MS,
- * and asks at once when it's back in sight. The request has no query, so
- * every viewer shares the CDN's copy.
+ * and asks at once when it's back in sight.
  */
 export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: boolean } = {}): Store<LiveState> {
   const store = useMemo(() => createStore<LiveState>(OFF), [])
   useEffect(() => {
     const every = fast ? LIVE_PLAYERS_EVERY_MS : PLAYERS_EVERY_MS
-    const url = fast ? '/maps/players/live' : '/maps/players'
+    // The feed itself through the rewrite, read from where the last reading left off; or the site's own, for the demo.
+    const direct = process.env.NEXT_PUBLIC_MAPS_LIVE !== 'site'
+    const reader = feedReader(DYNMAP_WORLD)
+    const urlOf = (now: number) => (direct ? `/maps/feed/${reader.since(now)}` : fast ? '/maps/players/live' : '/maps/players')
     if (!enabled) {
       store.set(OFF)
       return
@@ -121,9 +129,11 @@ export function useLivePlayers(enabled: boolean, { fast = false }: { fast?: bool
       inFlight = true
       askedAt = Date.now()
       try {
-        const response = await fetch(url, { cache: 'no-store' })
+        const now = Date.now()
+        const response = await fetch(urlOf(now), { cache: 'no-store' })
         if (!response.ok) throw new Error(`The feed answered ${response.status}`)
-        const next = readAnswer(await response.json(), every)
+        const body: unknown = await response.json()
+        const next = readAnswer(direct ? reader.take(body, now) : body, every)
         if (cancelled) return
         store.set(next)
         wait = next.status === 'down' ? Math.min(Math.max(wait, every) * 2, LONGEST_WAIT_MS) : every

@@ -11,7 +11,11 @@ import {
   type WorldTown,
 } from '@/maps/world'
 
+import { plain, siegeOf } from '@/maps/feed'
+
 import { readMarkerFile, townsOf, type MarkerFile, type Town } from './dynmap'
+
+export { siegeOf }
 
 /**
  * The world around Azania and its wars, read from the Rulercraft map's
@@ -150,67 +154,6 @@ export function worldOf(file: MarkerFile): World {
       }))
       .sort((a, b) => b.residents - a.residents || a.name.localeCompare(b.name)),
     towns,
-  }
-}
-
-/** Plain text out of a marker's HTML. */
-const plain = (html: string): string =>
-  html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, decimal) => String.fromCodePoint(Number(decimal)))
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-/**
- * A siege out of SiegeWar's map marker (its Dynmap integration): keyed by
- * the besieged town's Towny id, labelled "Siege: <attacker> vs <defender>",
- * a crossed-swords icon while a battle is on and a fire while it's quiet,
- * standing at the siege banner, its description lines of "Label: value"
- * ("Town: …", "Siege Progress: 2/7", "Siege Balance: -40", …). Null for a
- * marker that isn't one.
- */
-export function siegeOf(
-  townId: string,
-  marker: { label?: string; desc?: string; icon?: string; x?: number; z?: number },
-  towns: Map<string, { name: string; nation: string | null }>,
-): Siege | null {
-  const title = /^Siege:\s*(.+?)\s+vs\.?\s+(.+)$/i.exec(plain(marker.label ?? ''))
-  if (!title || typeof marker.x !== 'number' || typeof marker.z !== 'number') return null
-  const lines = (marker.desc ?? '')
-    .split(/<br\s*\/?>|<hr\s*\/?>/i)
-    .map(plain)
-    .map((line) => /^([^:]{1,40}):\s*(.*)$/.exec(line))
-    .filter((match): match is RegExpExecArray => match !== null && match[1].trim().toLowerCase() !== 'siege')
-    .map((match) => ({ label: match[1].trim(), value: match[2].trim() }))
-  const value = (label: string) =>
-    lines.find((line) => line.label.toLowerCase() === label)?.value || null
-  const progress = /(\d+)\s*\/\s*(\d+)/.exec(value('siege progress') ?? '')
-  const balance = Number.parseInt(value('siege balance') ?? '', 10)
-  const points = /^(.+?)\s*\/\s*(.+)$/.exec(value('battle points') ?? '')
-  const known = towns.get(townId)
-  return {
-    townId,
-    town: value('town') ?? known?.name ?? null,
-    townNation: known?.nation ?? null,
-    attacker: title[1].trim(),
-    defender: title[2].trim(),
-    at: [Math.round(marker.x), Math.round(marker.z)] as Point,
-    battle: marker.icon === 'siegewar.battle',
-    type: value('type'),
-    status: value('siege status'),
-    progress: progress ? { done: Number(progress[1]), of: Number(progress[2]) } : null,
-    balance: Number.isFinite(balance) ? balance : null,
-    bannerControl: value('banner control'),
-    battlePoints: points ? { attacker: points[1].trim(), defender: points[2].trim() } : null,
-    battleTimeLeft: value('battle time left'),
-    warChest: value('war chest'),
-    lines,
   }
 }
 

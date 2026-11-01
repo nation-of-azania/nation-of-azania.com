@@ -8,6 +8,7 @@
  *   pnpm test:live-sieges
  */
 import { siegeUpdatesOf } from '../src/lib/livePlayers'
+import { FIRST_LOOK_BACK_MS, SIEGE_FORGOTTEN_MS, feedReader } from '../src/maps/feed'
 import { bannerOf, readingOf } from '../src/maps/battle'
 import { pointsOf } from '../src/maps/sieges'
 
@@ -58,6 +59,23 @@ check(JSON.stringify(bannerOf(quarry!)) === '{"side":"defenders","holders":2}', 
 const gone = siegeUpdatesOf([{ msg: 'markerdeleted', set: 'siegewar.markerset', id: real.id, timestamp: 3 }])
 check(gone.ended[0] === real.id && gone.rewritten.length === 0, 'a deleted marker is a siege ended')
 check(siegeUpdatesOf(null).rewritten.length === 0 && siegeUpdatesOf([{ set: 'siegewar.markerset' }]).rewritten.length === 0, 'nothing odd is trusted')
+
+// One reader of the feed, as the browser and the battle tracker each keep (src/maps/feed.ts).
+{
+  const reader = feedReader('RulerEarth')
+  const now = real.timestamp + 1000
+  check(reader.since(now) === now - FIRST_LOOK_BACK_MS, 'a first reading asks twenty seconds back: past one rewrite of every siege')
+  const player = { type: 'player', world: 'RulerEarth', account: 'Luixtiter', name: '<span>Luix</span>', x: 17464.4, y: 58, z: -5302, health: 20, armor: 2 }
+  const first = reader.take({ timestamp: now - 500, currentcount: 18, players: [player, { ...player, account: 'Elsewhere', world: 'RulerNether' }], updates: [real] }, now)
+  check(first.players.length === 1 && first.players[0].name === 'Luixtiter' && first.players[0].x === 17464 && first.online === 18, 'players of the world only, by their account name, rounded')
+  check(first.sieges?.length === 1 && first.sieges[0].markedAt === real.timestamp, 'the siege its marker rewrite carried comes with them')
+  check(reader.since(now + 3000) === now - 500, 'the next asks from where the map’s own clock left off')
+  const second = reader.take({ timestamp: now + 2500, players: [player], updates: [] }, now + 3000)
+  check(second.sieges?.length === 1, 'a reading that carries no rewrite keeps the siege it had')
+  const later = reader.take({ timestamp: now + SIEGE_FORGOTTEN_MS * 2, players: [], updates: [] }, real.timestamp + SIEGE_FORGOTTEN_MS + 1000)
+  check(!later.sieges, 'a siege not rewritten for a minute is let go')
+  check(reader.take({ updates: 'nonsense' }, now).players.length === 0, 'an odd answer is no players, not an error')
+}
 
 if (failed) {
   console.error('\nSome checks failed.')

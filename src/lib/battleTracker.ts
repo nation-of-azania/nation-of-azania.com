@@ -44,14 +44,19 @@ import { getWorld } from './world'
  * through a battle anyway.
  *
  * What it costs: a function kept alive through battle sessions, a small
- * read of the map every three seconds (about as often as the Rulercraft
+ * read of the map every five seconds (less often than the Rulercraft
  * map's own page reads it), and a write every five minutes. Held to
  * MONTHLY_HOURS of reading a month, a third of what the free plan's
  * memory-time allows, so it can't crowd out the rest of the site.
  */
 
-/** A reading this often: SiegeWar looks every 20 seconds, so this sees every look and most of what happens between. */
-export const READ_EVERY_MS = 3000
+/**
+ * A reading this often: SiegeWar looks every 20 seconds, so this sees every
+ * look four times over, and a death and its respawn within one or two
+ * readings (src/maps/fights.ts → FIGHT.respawnWithinSeconds). Each reading is
+ * the server's compute, which the free plan meters, so not more often.
+ */
+export const READ_EVERY_MS = 5000
 /** At most this many hours of reading a month (reset each month, UTC). */
 export const MONTHLY_HOURS = 60
 /** The readings are kept this long for working a battle out again; what was made of them, for good. */

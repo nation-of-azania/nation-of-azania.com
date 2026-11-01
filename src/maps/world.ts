@@ -25,13 +25,15 @@ export const WAR_EVERY_S = 180
 
 /**
  * How often the war view asks for the sieges during a battle, from
- * /maps/war/live: the score moves every 20 seconds and SiegeWar rewrites
- * its marker every 15. The marker file is some 5 MB the Rulercraft map
- * sends uncompressed, so not more often than this, and only while someone
- * has the war view open on a battle; between readings the view runs the
- * score on itself (src/maps/battle.ts).
+ * /maps/war/live: the live feed the browser reads every few seconds carries
+ * every siege's marker as SiegeWar rewrites it (every 15 seconds, the whole
+ * score), so this is only a check on what the feed missed. The marker file
+ * is some 5 MB the Rulercraft map sends uncompressed, and each reading of it
+ * is the server's compute, which the free plan meters: every two minutes,
+ * and only while someone has the war view open on a battle; between
+ * readings the view runs the score on itself (src/maps/battle.ts).
  */
-export const WAR_LIVE_EVERY_S = 30
+export const WAR_LIVE_EVERY_S = 120
 
 /**
  * What a place in the world is: a Towny town or one of the server's sites

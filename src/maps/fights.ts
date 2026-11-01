@@ -360,7 +360,7 @@ export function coverageOf(readings: number[], sessionSeconds = RULES.sessionMin
 }
 
 // Compact storage: a player's moments as one base64 string of 5 bytes each (seconds as 2, distance, health ×2, armour),
-// some 8 KB for an hour in the zone at a reading every three seconds.
+// some 5 KB for an hour in the zone at a reading every five seconds.
 
 const NONE = 255
 

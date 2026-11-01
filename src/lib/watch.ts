@@ -1,6 +1,7 @@
 import type { Payload } from 'payload'
 
 import { abroadOf, homeNationOf, type Abroad } from '../maps/abroad'
+import { sessionClock } from '../maps/battle'
 import { nearestEnd, scheduleOf, SESSION_MS, timeLeftMs } from '../maps/sessions'
 import type { HomeSide } from '../maps/sieges'
 import { abroadHref, MAPS_PATH, townHref } from '../maps/url'
@@ -38,8 +39,15 @@ import { getWorld, warOf } from './world'
  * alone, whether there's anything to do (src/lib/quietWatch.ts).
  */
 
-/** However often it's asked, the watch runs at most this often. */
+/** However often it's asked, the watch runs at most this often during a battle session, when the battle tracker needs a run every five minutes. */
 const WATCH_EVERY_MS = 4 * 60 * 1000
+/**
+ * And at most this often outside one: its schedule asks every quarter of an
+ * hour then (README → The watch's schedule), and a run is the server's
+ * compute, which the free plan meters, so a second caller's asks (GitHub's
+ * schedule, a visitor) between them cost next to nothing.
+ */
+const WATCH_OFF_SESSION_EVERY_MS = 12 * 60 * 1000
 /** A marker file older than this says nothing of the sieges now: the map's server isn't writing it. */
 const STALE_FILE_MS = 15 * 60 * 1000
 /** Told in one run at most; the rest wait for the next, so a war breaking out doesn't trip Discord's limits. */
@@ -113,7 +121,8 @@ function marksNow(file: MarkerFile, fresh: boolean, interest: QuietNote['interes
 export async function watchMap(payloadOf: () => Promise<Payload>, { force = false }: { force?: boolean } = {}): Promise<WatchResult> {
   const now = new Date()
   const note = await readNote()
-  if (!force && note && now.getTime() - note.claimedAt < WATCH_EVERY_MS) {
+  const every = sessionClock(now.getTime()).on ? WATCH_EVERY_MS : WATCH_OFF_SESSION_EVERY_MS
+  if (!force && note && now.getTime() - note.claimedAt < every) {
     return { status: 'skipped', note: 'The map was watched a moment ago.', database: 'not asked' }
   }
   // Claim the run in the note before the slow part, so requests arriving meanwhile skip without waking the database.
