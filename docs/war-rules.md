@@ -196,6 +196,28 @@ enemy's holders lose it. Holders keep it until the enemy takes the banner
 or the session ends, wherever they go and even if they die. Every 20
 seconds the holding side earns 10 points per holder.
 
+**Who fights for whom.** SiegeWar decides a player's side in a siege
+from where they live and their nation's alliances (its source,
+`SiegeSide.getPlayerSiegeSide`), defenders first:
+
+1. A resident of the besieged town, with the town's battle-points right,
+   defends.
+2. A soldier (the nation's battle-points right) of the besieged town's
+   nation, or of a nation **mutually allied** with it, defends. A town of
+   no nation has no nation soldiers and no allies: only its own residents
+   defend it.
+3. Otherwise, a soldier of the attacking nation, or of a nation mutually
+   allied with it, attacks.
+4. Anyone else is nobody's: they can't take the banner, and their death
+   scores nothing.
+
+So an ally of both sides defends. Allied nations' fighters can move between
+their sieges in the same session and score at either. The Rulercraft map
+shows no alliances. Azania Maps learns them from the battles (a player of
+one nation taking the banner for another's side), from Azania's diplomacy,
+and from a list the diplomats keep (Settings → Azania Maps → Alliances;
+src/maps/alliances.ts).
+
 **Reversal bonus.** Taking the banner from the enemy is a reversal. In
 SiegeWar's defaults, after the first the holding side's banner points are
 multiplied by 3, after the second by 6, and so on. **Rulercraft has it
@@ -289,7 +311,9 @@ American Syndicate), laid during the session:
 - **Allies fight.** The two players who took South_America_Quarry's banner
   back for the defenders live in Imperial Avalonia's town, not the American
   Syndicate's. Who lives where can't say who fights for whom; the tracker
-  tells it from their play (src/maps/fights.ts → sideShown).
+  tells it from their play (src/maps/fights.ts → sideShownBy), and from
+  that, that Imperial Avalonia and the American Syndicate are allied (see
+  Who fights for whom, above).
 - **Cyprus fell.** Its last session ended at +4,750 to 0 with the balance at
   the cap of +7,000, and SiegeWar removed the siege's marker at 01:00:33:
   the attackers won.
