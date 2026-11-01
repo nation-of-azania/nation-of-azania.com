@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { minecraftHeadUrl } from '@/components/site/format'
-import { captureEndsAt, type Captures, type PlayerSide } from '@/maps/battle'
+import { captureEndsAt, type Captures } from '@/maps/battle'
 import { spoken, type MapData, type MapTown } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import { isBedrockName, MAX_ARMOR, MAX_HEALTH, TELEPORT_BLOCKS, townOfPlayer, type LivePlayer } from '@/maps/players'
@@ -20,6 +20,7 @@ import { monogramOf } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 import { LOW_HEALTH } from '../ui/Vitals'
+import type { Allegiance } from '../warView'
 
 /**
  * Who is online and where, live: each player a small Minecraft head on the
@@ -35,9 +36,10 @@ import { LOW_HEALTH } from '../ui/Vitals'
  * world, never in an echo of it.
  *
  * In the war view (`war`) the heads are fighters: ringed by their side in
- * the siege the view is on (attackers coral, defenders sea), with health
- * and armour drawn under the name as two small bars, and a click gives
- * the player to the sidebar rather than opening the card. The one being
+ * the siege the view is on (attackers coral, defenders sea; an ally of a
+ * side's nation in a dashed ring of the same, their nation named on the
+ * tag), with health and armour drawn under the name as two small bars,
+ * and a click gives the player to the sidebar rather than opening the card. The one being
  * watched wears a ring that breathes, and, while the view follows them,
  * the map pans with each reading to keep them in the middle: the pan
  * takes as long as the reading does, so the ground moves as they do. A
@@ -93,8 +95,8 @@ type Entry = {
 
 /** What the war view asks of the heads. */
 export type WarHeads = {
-  /** A player's side in the siege the view is on; null for someone it can't place. */
-  sideOf: (name: string) => PlayerSide | null
+  /** A player's part in the siege the view is on, their side and whose ally they are (../warView.ts); null for someone it can't place. */
+  allegiance: (name: string) => Allegiance | null
   /** The player the sidebar is watching, and whether the map follows them. */
   watch: string | null
   follow: boolean
@@ -181,6 +183,10 @@ function iconFor(player: LivePlayer, town: MapTown | null): { icon: L.DivIcon; e
   name.className = 'az-player-name'
   name.textContent = player.name
   tag.appendChild(name)
+  // Whose ally they are, in the war view, when they fight for a side as one (setPart); empty, and so unseen, otherwise.
+  const ally = document.createElement('span')
+  ally.className = 'az-player-ally'
+  tag.appendChild(ally)
   const vitals = document.createElement('span')
   vitals.className = 'az-player-vitals'
   for (const kind of ['health', 'armour'] as const) {
@@ -228,6 +234,20 @@ function setCapture(element: HTMLElement, name: string, fight: WarHeads | null, 
     element.style.removeProperty('--az-cap')
   }
   element.toggleAttribute('data-holder', Boolean(fight?.captures?.holders.some((holder) => holder.name === name)))
+}
+
+/**
+ * A head's part in the view's siege: its side, for the ring and the tag's
+ * colour, and, for an ally of the side's nation, the dashed ring and the
+ * line under the name saying whose ally they are ("ally · Imperial
+ * Avalonia"). Cleared when the view has no siege.
+ */
+function setPart(element: HTMLElement, name: string, fight: WarHeads | null): void {
+  const part = fight?.allegiance(name) ?? null
+  element.setAttribute('data-side', part?.side ?? '')
+  element.toggleAttribute('data-ally', Boolean(part?.ally))
+  const line = element.querySelector<HTMLElement>('.az-player-ally')
+  if (line) line.textContent = part?.ally ? `ally · ${spoken(part.ally)}` : ''
 }
 
 /**
@@ -379,7 +399,7 @@ export function PlayersLayer({
           entry.still = hidden
           if (jump || far) entry.marker.setLatLng(toLatLng(to))
           setVitals(entry.element, player)
-          if (fight) entry.element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
+          if (fight) setPart(entry.element, player.name, fight)
           if (fight?.follow && fight.watch === player.name) follow(to, every, jump || far)
           continue
         }
@@ -387,7 +407,7 @@ export function PlayersLayer({
         const { icon, element } = iconFor(player, town)
         setVitals(element, player)
         if (fight) {
-          element.setAttribute('data-side', fight.sideOf(player.name) ?? '')
+          setPart(element, player.name, fight)
           element.classList.toggle('az-player-watched', fight.watch === player.name)
           setCapture(element, player.name, fight, Date.now())
         }
@@ -456,15 +476,15 @@ export function PlayersLayer({
   }, [captures, phase, warRef])
 
   // The war view's sides and its watched player, on the heads already standing; and a drag ends the following.
-  const sideOf = war?.sideOf
+  const allegiance = war?.allegiance
   const watch = war?.watch ?? null
   const following = Boolean(war?.follow)
   useEffect(() => {
     for (const [name, entry] of entries.current) {
-      entry.element.setAttribute('data-side', sideOf ? (sideOf(name) ?? '') : '')
-      entry.element.classList.toggle('az-player-watched', Boolean(sideOf) && name === watch)
+      setPart(entry.element, name, allegiance ? warRef.current : null)
+      entry.element.classList.toggle('az-player-watched', Boolean(allegiance) && name === watch)
     }
-  }, [sideOf, watch])
+  }, [allegiance, watch, warRef])
   useEffect(() => {
     if (!following) return
     const broken = () => warRef.current?.onFollowBroken()

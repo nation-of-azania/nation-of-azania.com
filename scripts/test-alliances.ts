@@ -11,8 +11,20 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { ALLIANCE_DAYS, alliancesOf, alliancesSeen, alliedBy, alliesOf, allySide, defendingNation, sharedSieges, type AllianceBattle } from '../src/maps/alliances'
-import { allegianceOf, sideOf } from '../src/maps/battle'
+import {
+  ALLIANCE_DAYS,
+  alliancesOf,
+  alliancesSeen,
+  alliancesWith,
+  alliedBy,
+  alliesOf,
+  allySide,
+  defendingNation,
+  mergeAlliances,
+  sharedSieges,
+  type AllianceBattle,
+} from '../src/maps/alliances'
+import { allegianceOf, sideAtSiege, sideOf } from '../src/maps/battle'
 import { allyShare, recordsOf, type SavedBattle } from '../src/maps/fighters'
 import { fighterOf, killsBetween, unpackMoments, unpackTimes, type Fighter, type Mark, type Moment } from '../src/maps/fights'
 import { forecastSiege } from '../src/maps/outlook'
@@ -121,6 +133,27 @@ check(all.length === 3, 'one alliance a pair: Azania’s ally, and two told (one
 const both2 = all.find((alliance) => alliedBy([alliance])('Imperial_Avalonia', 'American_Syndicate'))
 check(both2?.sources.join() === 'told,seen' && both2?.note === 'their Discord' && Boolean(both2?.seen), 'told and seen: both kept, the diplomats’ first')
 check(all.some((alliance) => alliance.sources[0] === 'diplomacy' && alliedBy([alliance])('Azania', 'Lusitania')), 'Azania’s own ally, by its diplomacy')
+
+// Lists joined, as the map joins Azania's diplomacy (which it has at once) with what /maps/fighters serves.
+const ours = alliancesOf({ azania: ['Azania'], relations: [{ nation: 'Lusitania', stance: 'ally', note: 'Treaty of Oasis' }] })
+const served = alliancesOf({ told: [{ a: 'Azania', b: 'Lusitania' }], seen })
+const joined = mergeAlliances(ours, served)
+check(joined.length === 2, 'joined: a pair once, however many lists name it')
+const lusitania = joined.find((alliance) => alliedBy([alliance])('Azania', 'Lusitania'))
+check(lusitania?.sources.join() === 'told,diplomacy' && lusitania?.note === 'Treaty of Oasis', 'joined: every way it’s known, the most certain first, the note kept')
+check(mergeAlliances([], ours).length === 1 && mergeAlliances().length === 0, 'joined: an empty list adds nothing')
+check(alliancesWith('Lusitania', joined).map((one) => one.ally).join() === 'Azania', 'a nation’s alliances, with the ally named from its side')
+
+// A side's people at another siege: residents and allies on that side of this one, in that one's zone.
+const far = (name: string, x: number) => ({ name, x, y: 64, z: 0, health: 20, armor: 0 })
+const towns = [
+  { name: 'Quarry', nation: 'American_Syndicate', people: ['Syn'], home: null },
+  { name: 'Avalon', nation: 'Imperial_Avalonia', people: ['Its_Pandaz'], home: null },
+  { name: 'Rio', nation: 'Sul_America', people: ['Sul'], home: null },
+]
+const at = sideAtSiege(quarry, 'defenders', { at: [1000, 0] }, [far('Syn', 1100), far('Its_Pandaz', 1050), far('Sul', 1000), far('Nobody', 1000)], towns, allied)
+check(at.names.join() === 'Its_Pandaz,Syn' && at.allies === 1, 'the defenders’ people at the other siege: a resident and an ally, the nearer first; the enemy and a stranger not')
+check(sideAtSiege(quarry, 'defenders', { at: [1000, 0] }, [far('Syn', 1300)], towns, allied).names.length === 0, 'outside its zone: not there')
 
 // Sieges sharing fighters.
 const other = siege({ townId: 'avalon', town: 'Avalon', townNation: 'Imperial_Avalonia', attacker: 'Somebody', defender: 'Imperial_Avalonia' })

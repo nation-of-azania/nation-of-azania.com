@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
-import { NO_CAPTURES, sessionClock, stepCaptures, type Captures, type PlayerSide } from '@/maps/battle'
-import type { Siege } from '@/maps/world'
+import type { Allied } from '@/maps/alliances'
+import { allegianceOf, NO_CAPTURES, sessionClock, stepCaptures, townOfName, type Captures, type PlayerSide } from '@/maps/battle'
+import type { Siege, WorldTown } from '@/maps/world'
 
 import { useLatest, type Store } from './hooks'
 import type { LiveState } from './live'
@@ -11,9 +12,36 @@ import type { LiveState } from './live'
 /**
  * The war view's own state and small hooks (the view itself is
  * ./panels/WarPanel.tsx, and the shell turns it on): what the sidebar is
- * looking at, a clock that ticks for the score, and the words for the
- * session's clock.
+ * looking at, each player's part in the view's siege, a clock that ticks
+ * for the score, and the words for the session's clock.
  */
+
+/**
+ * A player's part in the siege the view is on, for the heads on the map,
+ * the lists and the edge arrows: their side, and, when they fight on it
+ * as an ally of its nation rather than a resident (src/maps/alliances.ts),
+ * their own nation, to say whose ally they are.
+ */
+export type Allegiance = { side: PlayerSide; ally: string | null }
+
+/** A town as the parts are read from it: the world's reading or, before it comes, Azania's own. */
+export type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
+
+/** Each player's part in a siege, by name (battle.ts → allegianceOf); null for everyone when there's no siege. */
+export function allegiancesFor(siege: Siege | null, towns: SideTown[], allied: Allied): (name: string) => Allegiance | null {
+  if (!siege) return () => null
+  return (name) => {
+    const town = townOfName(name, towns)
+    const { side, ally } = allegianceOf(town, siege, allied)
+    return { side, ally: ally ? (town?.nation ?? null) : null }
+  }
+}
+
+/** A player's side alone, for the captures (battle.ts → stepCaptures). */
+export function sidesFor(siege: Siege | null, towns: SideTown[], allied: Allied): (name: string) => PlayerSide | null {
+  const of = allegiancesFor(siege, towns, allied)
+  return (name) => of(name)?.side ?? null
+}
 
 /**
  * What the war sidebar shows: a siege, with its battle; a nation, who it
@@ -93,9 +121,11 @@ export function sessionWords(now: number): { on: boolean; seconds: number; headl
     return { on: true, seconds, headline: clockOf(seconds), detail: 'left in this battle session' }
   }
   const seconds = (session.start - now) / 1000
-  const at = new Date(session.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  return { on: false, seconds, headline: `in ${spanWords(seconds)}`, detail: `the next battle session, at ${at}` }
+  return { on: false, seconds, headline: `in ${spanWords(seconds)}`, detail: `the next battle session, at ${timeOf(session.start)}` }
 }
+
+/** The viewer's own time, on the 24-hour clock the rest of Azania Maps uses ("19:00"). */
+export const timeOf = (ms: number): string => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
 /**
  * The captures under way at the war view's siege, and the holders seen

@@ -524,17 +524,46 @@
 .az-player[data-bare] .az-player-row[data-kind='armour'] .az-player-figure {
   color: #f0b429;
 }
-.az-players-war .az-player[data-side='attackers'] .az-player-mark {
+.az-players-war .az-player[data-side='attackers'] {
+  --az-side-ink: #bb4631;
+}
+.az-players-war .az-player[data-side='defenders'] {
+  --az-side-ink: #2c6b93;
+}
+.az-players-war .az-player[data-side='attackers'] .az-player-mark,
+.az-players-war .az-player[data-side='defenders'] .az-player-mark {
   box-shadow:
-    0 0 0 3px #bb4631,
+    0 0 0 3px var(--az-side-ink),
     0 0 0 4.5px rgba(251, 248, 241, 0.85),
     0 1px 3px rgba(22, 25, 31, 0.45);
 }
-.az-players-war .az-player[data-side='defenders'] .az-player-mark {
+/*
+ * An ally of a side's nation (src/maps/alliances.ts): the same ring, dashed,
+ * so a glance tells an ally from a resident, with the side's cream halo
+ * showing through the gaps; the tag says whose ally they are.
+ */
+.az-players-war .az-player[data-side='attackers'][data-ally] .az-player-mark,
+.az-players-war .az-player[data-side='defenders'][data-ally] .az-player-mark {
   box-shadow:
-    0 0 0 3px #2c6b93,
     0 0 0 4.5px rgba(251, 248, 241, 0.85),
     0 1px 3px rgba(22, 25, 31, 0.45);
+  outline: 3px dashed var(--az-side-ink);
+  outline-offset: 0;
+}
+.az-player-ally {
+  display: block;
+  margin-top: -1px;
+  font-family: var(--font-label, inherit);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(251, 248, 241, 0.85);
+}
+.az-player-ally:empty {
+  display: none;
 }
 .az-players-war .az-player[data-side='attackers'] .az-player-tag {
   --az-tag-edge: #e0644c;
@@ -991,6 +1020,12 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
 .az-edge .az-player-mark {
   box-shadow: 0 0 0 2px var(--az-edge-ink);
 }
+/* An ally's head on the border: the ring dashed, as on the map. */
+.az-edge-ally .az-player-mark {
+  box-shadow: 0 0 0 1px rgba(14, 18, 26, 0.6);
+  outline: 2px dashed var(--az-edge-ink);
+  outline-offset: 0;
+}
 .az-edge-chevron {
   position: absolute;
   left: 50%;
@@ -1125,16 +1160,39 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
     animation: none;
   }
 }
-/* A head in the sidebar's rosters, ringed by its side as on the map. */
+/*
+ * The sides' colours on the panels' sand too (the players docked in a wide
+ * war view: ui/PlayersList.tsx): the deep ones, which read on sand; the
+ * dark appearance's sea takes the lifted ones the sidebar has.
+ */
+.az-maps {
+  --az-atk: #bb4631;
+  --az-def: #2c6b93;
+}
+.az-maps[data-theme='dark'],
+html[data-az-theme='dark'] .az-maps:not([data-theme]) {
+  --az-atk: #f08b74;
+  --az-def: #8cc0e8;
+}
+/* A head in the sidebar's rosters, ringed by its side as on the map; an ally of the side's nation in a dashed ring. */
 .az-war-head {
   display: inline-block;
   padding: 3px;
 }
-.az-war-head-attackers .az-player-mark {
-  box-shadow: 0 0 0 2px var(--az-atk);
+.az-war-head-attackers {
+  --az-side: var(--az-atk);
 }
+.az-war-head-defenders {
+  --az-side: var(--az-def);
+}
+.az-war-head-attackers .az-player-mark,
 .az-war-head-defenders .az-player-mark {
-  box-shadow: 0 0 0 2px var(--az-def);
+  box-shadow: 0 0 0 2px var(--az-side);
+}
+.az-war-head-ally .az-player-mark {
+  box-shadow: none;
+  outline: 2px dashed var(--az-side, rgba(251, 248, 241, 0.35));
+  outline-offset: 0;
 }
 .az-war-head-other .az-player-mark {
   box-shadow: 0 0 0 2px rgba(251, 248, 241, 0.35);

@@ -146,6 +146,43 @@ export function alliancesOf({
   return alliances.sort((a, b) => a.nations[0].localeCompare(b.nations[0]) || a.nations[1].localeCompare(b.nations[1]))
 }
 
+/**
+ * Several lists of alliances as one, each pair of nations once: the ways
+ * each is known joined (the most certain first), what was seen kept (the
+ * latest), the first note kept. For the map, which knows Azania's own
+ * diplomacy before /maps/fighters has answered, and joins the two.
+ */
+export function mergeAlliances(...lists: Alliance[][]): Alliance[] {
+  const byPair = new Map<string, Alliance>()
+  for (const list of lists)
+    for (const alliance of list) {
+      const key = pairKey(alliance.nations[0], alliance.nations[1])
+      const known = byPair.get(key)
+      if (!known) {
+        byPair.set(key, { ...alliance, nations: [alliance.nations[0], alliance.nations[1]], sources: [...alliance.sources] })
+        continue
+      }
+      for (const source of alliance.sources) if (!known.sources.includes(source)) known.sources.push(source)
+      if (alliance.seen && (!known.seen || alliance.seen.last > known.seen.last)) known.seen = alliance.seen
+      if (alliance.note && !known.note) known.note = alliance.note
+    }
+  const merged = [...byPair.values()]
+  for (const alliance of merged) alliance.sources.sort((a, b) => SOURCE_ORDER.indexOf(a) - SOURCE_ORDER.indexOf(b))
+  return merged.sort((a, b) => a.nations[0].localeCompare(b.nations[0]) || a.nations[1].localeCompare(b.nations[1]))
+}
+
+/** A nation's alliances, each with the ally's name as the list spells it, for saying how each is known. */
+export const alliancesWith = (nation: string | null | undefined, alliances: Alliance[]): { ally: string; alliance: Alliance }[] =>
+  nation
+    ? alliances.flatMap((alliance) =>
+        sameNation(alliance.nations[0], nation)
+          ? [{ ally: alliance.nations[1], alliance }]
+          : sameNation(alliance.nations[1], nation)
+            ? [{ ally: alliance.nations[0], alliance }]
+            : [],
+      )
+    : []
+
 /** Whether two nations are allied, by a list of alliances: a lookup made once. */
 export type Allied = (a: string | null | undefined, b: string | null | undefined) => boolean
 

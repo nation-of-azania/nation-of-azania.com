@@ -16,6 +16,7 @@ import {
 
 import { cn } from '@/blocks/components/shared'
 import { abroadOf, abroadTownPage, homeNationOf, isOldSpawnTown, nationFit, sameNation, worldSlug, type Abroad } from '@/maps/abroad'
+import { alliedBy } from '@/maps/alliances'
 import { RULES, tickPhaseOf } from '@/maps/battle'
 import {
   heartland,
@@ -61,8 +62,10 @@ import {
   type MapSelection,
 } from '@/maps/url'
 
+import { alliancesKnown } from './alliances'
 import { api, ApiError, messageOf } from './api'
 import { MapsContext, type EditorUpdate, type MapsActions, type RightsStatus } from './context'
+import { useFighters } from './fighters'
 import { EditorPanel } from './editor/EditorPanel'
 import type { GlobeHostProps, HostApi } from './globe/GlobeHost'
 import { loadGlobe, useGlobeSupport, warmGlobe } from './globe/support'
@@ -73,7 +76,7 @@ import type { WarHeads } from './layers/PlayersLayer'
 import { useLivePlayers } from './live'
 import type { LookTarget, SceneApi, SceneProps } from './MapScene'
 import { Preview } from './panels/Preview'
-import { playerPoint, sidesFor, WarHandle, WarPanel } from './panels/WarPanel'
+import { playerPoint, WarHandle, WarPanel } from './panels/WarPanel'
 import {
   emptyEvent,
   emptyPlace,
@@ -98,7 +101,7 @@ import { Wordmark } from './ui/Wordmark'
 import { SiegeBadge } from './ui/Siege'
 import { useWar } from './war'
 import { useMotionTracking } from './motion'
-import { useCaptures, type WarFocus } from './warView'
+import { allegiancesFor, sidesFor, useCaptures, type WarFocus } from './warView'
 import { useWorld } from './world'
 
 import './maps.css'
@@ -597,10 +600,13 @@ export function MapsShell({ data: served, children }: ShellProps) {
     if (globeFlag.current) leaveGlobe()
     if (!wide) setSheet('half')
   }, [extras, leaveGlobe, wide, setEditor])
+  // Whether the players docked at the map's edge (a wide war view) are unfolded: kept here, so the zoom sits beside them.
+  const [dockOpen, setDockOpen] = useState(false)
   const leaveWar = useCallback(() => {
     setExtras({ ...extras, war: false })
     setWarFocus(null)
     setFollowing(false)
+    setDockOpen(false)
   }, [extras])
   // Opened, by the button or by the address, the view goes straight to the battle Azania is in, if there is one,
   // once the war has answered; otherwise to the overview, or to the nation whose page was open. Arriving by an
@@ -642,8 +648,14 @@ export function MapsShell({ data: served, children }: ShellProps) {
     () => world?.reading.towns ?? data.towns.map((town) => ({ name: town.name, nation: town.nation, people: town.names, home: town.home })),
     [world, data.towns],
   )
+  const homeNation = useMemo(() => homeNationOf(data.towns), [data.towns])
   const viewSiegeObject = useMemo(() => war.sieges.find((siege) => siege.townId === viewSiege) ?? null, [war.sieges, viewSiege])
-  const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns), [viewSiegeObject, sideTowns])
+  // Who is allied with whom (./alliances.ts): Azania's own diplomacy at once, the rest with the records, asked for as the view opens,
+  // since SiegeWar counts a mutual ally's soldiers for either side and the map would otherwise call them nobody's.
+  const fighters = useFighters(warOn)
+  const allied = useMemo(() => alliedBy(alliancesKnown(homeNation, data.relations, fighters.alliances)), [homeNation, data.relations, fighters.alliances])
+  const allegianceOfName = useMemo(() => allegiancesFor(viewSiegeObject, sideTowns, allied), [viewSiegeObject, sideTowns, allied])
+  const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns, allied), [viewSiegeObject, sideTowns, allied])
   // The captures of the view's siege, run on the live positions SiegeWar's way (battle.ts → stepCaptures), on the checks the points show.
   const viewPhase = useMemo(() => tickPhaseOf(viewSiege ? (war.readings[viewSiege] ?? []) : []), [war.readings, viewSiege])
   const captures = useCaptures(liveStore, warOn ? viewSiegeObject : null, viewPhase, sideOfName)
@@ -661,7 +673,6 @@ export function MapsShell({ data: served, children }: ShellProps) {
     },
     [warRef, focusWar, pickStore, look],
   )
-  const homeNation = useMemo(() => homeNationOf(data.towns), [data.towns])
   const followBroken = useCallback(() => setFollowing(false), [])
   const watched = warFocus?.kind === 'player' ? warFocus.name : null
   const focusedNation = warFocus?.kind === 'nation' ? warFocus.name : null
@@ -669,7 +680,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const sheetCover = !wide && hydrated ? (sheet === 'half' ? window.innerHeight * 0.5 : sheet === 'full' ? window.innerHeight - 72 : 0) : 0
   const warHeads = useMemo<WarHeads>(
     () => ({
-      sideOf: sideOfName,
+      allegiance: allegianceOfName,
       watch: watched,
       follow: following,
       onPick: pickPlayer,
@@ -678,7 +689,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
       captures: captures.at ? captures : null,
       phase: viewPhase,
     }),
-    [sideOfName, watched, following, pickPlayer, followBroken, sheetCover, captures, viewPhase],
+    [allegianceOfName, watched, following, pickPlayer, followBroken, sheetCover, captures, viewPhase],
   )
   const warScene = useMemo<SceneProps['war']>(
     () =>
@@ -1501,7 +1512,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         worldStatus={worldState.status}
       />
       {/* On a wide war view the list is docked at the map's edge instead (below). */}
-      {warOn && wide ? null : <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { sideOf: sideOfName } : null} />}
+      {warOn && wide ? null : <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { allegiance: allegianceOfName } : null} />}
       <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
       <WarButton on={warOn} onToggle={() => (warOn ? leaveWar() : enterWar())} />
       <Legend globe={globeSupport} />
@@ -1786,29 +1797,48 @@ export function MapsShell({ data: served, children }: ShellProps) {
               ) : null}
             </div>
             <div className="flex items-start gap-2">{controls}</div>
-            {warOn && wide ? (
-              <PlayersDock
-                className="pointer-events-auto"
-                home={homeNation}
-                onPick={pickOnline}
-                store={liveStore}
-                towns={sideTowns}
-                war={{ sideOf: sideOfName, watch: warFocus }}
-              />
-            ) : null}
-            <ZoomButtons
-              globe={
-                globeSupport
-                  ? {
-                      on: globe,
-                      disabled: Boolean(editor),
-                      onToggle: () => (globe ? leaveGlobe() : enterGlobe('curl')),
-                      onWarm: warmGlobe,
-                    }
-                  : null
-              }
-              onZoom={onGlobeZoom}
-            />
+            {/* The players docked in a wide war view: folded, a tab over the zoom; unfolded, the list, with the zoom seated beside it rather than dropped beneath. */}
+            {(() => {
+              const zoom = (
+                <ZoomButtons
+                  globe={
+                    globeSupport
+                      ? {
+                          on: globe,
+                          disabled: Boolean(editor),
+                          onToggle: () => (globe ? leaveGlobe() : enterGlobe('curl')),
+                          onWarm: warmGlobe,
+                        }
+                      : null
+                  }
+                  onZoom={onGlobeZoom}
+                />
+              )
+              if (!(warOn && wide)) return zoom
+              const dock = (
+                <PlayersDock
+                  className="pointer-events-auto"
+                  home={homeNation}
+                  onOpen={setDockOpen}
+                  onPick={pickOnline}
+                  open={dockOpen}
+                  store={liveStore}
+                  towns={sideTowns}
+                  war={{ allegiance: allegianceOfName, watch: warFocus }}
+                />
+              )
+              return dockOpen ? (
+                <div className="flex items-start gap-2">
+                  <div className="flex flex-col items-end gap-2">{zoom}</div>
+                  {dock}
+                </div>
+              ) : (
+                <>
+                  {dock}
+                  {zoom}
+                </>
+              )
+            })()}
           </div>
 
           {/*

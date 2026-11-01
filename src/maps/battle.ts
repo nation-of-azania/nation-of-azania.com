@@ -537,6 +537,32 @@ export function playersAtSiege(
 }
 
 /**
+ * A side's people at another siege: of everyone on `side` of `siege` (its
+ * residents and, by `allied`, its allies), those standing in the siege
+ * zone of `other` now, nearest its banner first, and how many of them
+ * are allies. For the war view's note of the sieges a side shares its
+ * fighters with (src/maps/alliances.ts → sharedSieges).
+ */
+export function sideAtSiege(
+  siege: Pick<Siege, 'attacker' | 'defender' | 'town' | 'townNation'>,
+  side: BattleSide,
+  other: Pick<Siege, 'at'>,
+  players: LivePlayer[],
+  towns: Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>[],
+  allied?: Allied,
+): { names: string[]; allies: number } {
+  const there: { name: string; ally: boolean; far: number }[] = []
+  for (const player of players) {
+    const far = distance([player.x, player.z], other.at)
+    if (far > RULES.siegeZoneRadius) continue
+    const part = allegianceOf(townOfName(player.name, towns), siege, allied)
+    if (part.side === side) there.push({ name: player.name, ally: part.ally, far })
+  }
+  there.sort((a, b) => a.far - b.far)
+  return { names: there.map((one) => one.name), allies: there.filter((one) => one.ally).length }
+}
+
+/**
  * How long a player is from the banner, in seconds: sprinting there from
  * where they stand, or teleporting to their own town's spawn first when
  * that's nearer and outside the siege zone (where nobody may teleport).

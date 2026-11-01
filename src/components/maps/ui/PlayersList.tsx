@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from 'react'
 
-import type { WarFocus } from '../warView'
+import type { Allegiance, WarFocus } from '../warView'
 
 import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
-import { townOfName, type PlayerSide } from '@/maps/battle'
+import { townOfName } from '@/maps/battle'
 import { spoken } from '@/maps/data'
 import type { LivePlayer } from '@/maps/players'
 import type { WorldTown } from '@/maps/world'
@@ -26,11 +26,15 @@ import { Vitals } from './Vitals'
  * flies the map to the player and picks them (in the war view, the
  * sidebar takes them; otherwise their card opens). In the war view every
  * row carries health and armour, the loudest thing on it, and a ring in
- * the player's side's colour.
+ * the player's side's colour: dashed for an ally of the side's nation,
+ * whose row says whose ally they are.
  */
 
 /** A town as the sides and nations are read from it: the world's reading, or Azania's own before it comes. */
 export type NamedTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
+
+/** The war view, while it's on: each player's part in the siege it's on, for the ring and the ally's line. */
+export type WarList = { allegiance: (name: string) => Allegiance | null }
 
 const matches = (name: string, query: string) => name.replace(/^\./, '').toLowerCase().includes(query)
 
@@ -45,8 +49,7 @@ export function PlayersButton({
   towns: NamedTown[]
   /** Azania's Towny nation, whose people lead the list. */
   home: string | null
-  /** The war view, while it's on: each player's side, for the ring. */
-  war: { sideOf: (name: string) => PlayerSide | null } | null
+  war: WarList | null
   onPick: (player: LivePlayer) => void
 }) {
   return (
@@ -71,7 +74,9 @@ export function PlayersButton({
  * The list docked at the map's right edge in the war view: a slim tab
  * ("Players · 17") folded against the edge, which opens to the list
  * beside the map's controls and folds again by its own ×, so the list is
- * a glance away without ever lying over the map unasked. A phone keeps
+ * a glance away without ever lying over the map unasked. Whether it's
+ * open is the shell's to keep (`open`, `onOpen`), which seats the zoom
+ * buttons beside the open list rather than beneath it. A phone keeps
  * the button and its popover, the sheet already taking the foot.
  */
 export function PlayersDock({
@@ -79,17 +84,20 @@ export function PlayersDock({
   towns,
   home,
   war,
+  open,
+  onOpen,
   onPick,
   className,
 }: {
   store: Store<LiveState>
   towns: NamedTown[]
   home: string | null
-  war: { sideOf: (name: string) => PlayerSide | null; watch: WarFocus | null } | null
+  war: (WarList & { watch: WarFocus | null }) | null
+  open: boolean
+  onOpen: (open: boolean) => void
   onPick: (player: LivePlayer) => void
   className?: string
 }) {
-  const [open, setOpen] = useState(false)
   const live = useStore(store)
   const count = live.status === 'live' ? (live.online ?? live.players.length) : null
   if (!open)
@@ -97,7 +105,7 @@ export function PlayersDock({
       <button
         aria-expanded={false}
         className={cn('az-dock-tab', className)}
-        onClick={() => setOpen(true)}
+        onClick={() => onOpen(true)}
         title="Who’s online"
         type="button"
       >
@@ -112,7 +120,7 @@ export function PlayersDock({
         <button
           aria-label="Fold the list away"
           className="-mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-ink-500 hover:text-ink-900 focus-visible:outline-saffron-500"
-          onClick={() => setOpen(false)}
+          onClick={() => onOpen(false)}
           type="button"
         >
           <Icon className="h-3.5 w-3.5" name="close" />
@@ -133,7 +141,7 @@ export function PlayersList({
   store: Store<LiveState>
   towns: NamedTown[]
   home: string | null
-  war: { sideOf: (name: string) => PlayerSide | null } | null
+  war: WarList | null
   onPick: (player: LivePlayer) => void
 }) {
   const live = useStore(store)
@@ -199,7 +207,7 @@ export function PlayersList({
             </p>
             <ul className="mb-1 divide-y divide-sand-300/60">
               {group.players.map((player) => {
-                const side = war?.sideOf(player.name) ?? null
+                const part = war?.allegiance(player.name) ?? null
                 return (
                   <li key={player.name}>
                     <button
@@ -207,10 +215,17 @@ export function PlayersList({
                       onClick={() => onPick(player)}
                       type="button"
                     >
-                      <span className={cn('az-war-head shrink-0', side ? `az-war-head-${side}` : null)}>
+                      <span className={cn('az-war-head shrink-0', part ? `az-war-head-${part.side}` : null, part?.ally ? 'az-war-head-ally' : null)}>
                         <Head name={player.name} px={26} />
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-ink-900">{player.name}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-ink-900">{player.name}</span>
+                        {part?.ally ? (
+                          <span className={cn('block truncate text-[12px] font-semibold', part.side === 'attackers' ? 'text-(--az-atk)' : 'text-(--az-def)')}>
+                            ally · {spoken(part.ally)}
+                          </span>
+                        ) : null}
+                      </span>
                       {war ? <Vitals armor={player.armor} className="shrink-0" health={player.health} size="list" /> : null}
                     </button>
                   </li>

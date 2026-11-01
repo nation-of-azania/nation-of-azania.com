@@ -3,19 +3,22 @@
 import { useEffect, useState } from 'react'
 
 import type { PlayerSide } from '@/maps/battle'
+import { spoken } from '@/maps/data'
 import type { LivePlayer } from '@/maps/players'
 
 import { useLatest, type Store } from '../hooks'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import type { LiveState } from '../live'
 import { Head } from '../ui/Head'
+import type { Allegiance } from '../warView'
 
 /**
  * The fighters off the edge of the map, in the war view: for each player
  * of either side of the siege the view is on who stands beyond the page
  * (and for the one being watched, whatever their side), a small marker
  * on the map's border pointing their way, with their head, a chevron in
- * their side's colour and how far they are from the middle of the view.
+ * their side's colour (an ally's head in a dashed ring of it, their nation
+ * in the tooltip) and how far they are from the middle of the view.
  * The nearest first, at most a few, so a panned-away map says where the
  * fight went without a crowd; placed again as the map moves, by one
  * handler on the map's own events, and never while nobody is off the edge.
@@ -26,23 +29,24 @@ const MOST = 8
 /** The markers sit this far inside the map's edge, clear of the controls' column on the right. */
 const INSET = { top: 28, right: 28, bottom: 28, left: 28 }
 
-type Arrow = { name: string; side: PlayerSide | null; x: number; y: number; angle: number; blocks: number; watched: boolean }
+type Arrow = { name: string; side: PlayerSide | null; ally: string | null; x: number; y: number; angle: number; blocks: number; watched: boolean }
 
 export function EdgeArrows({
   store,
-  sideOf,
+  allegiance,
   watch,
   onPick,
 }: {
   store: Store<LiveState>
-  sideOf: (name: string) => PlayerSide | null
+  /** A player's part in the view's siege: their side, and whose ally they are. */
+  allegiance: (name: string) => Allegiance | null
   watch: string | null
   onPick: (name: string) => void
 }) {
   const { map } = useLeaflet()
   const [arrows, setArrows] = useState<Arrow[]>([])
   // The players are read from the store as each placing runs, so a poll places the arrows and re-renders nothing else.
-  const sideRef = useLatest(sideOf)
+  const sideRef = useLatest(allegiance)
   const watchRef = useLatest(watch)
 
   useEffect(() => {
@@ -58,7 +62,8 @@ export function EdgeArrows({
       const found: (Arrow & { distance: number })[] = []
       const middle = map.containerPointToLatLng(centre)
       for (const player of players as LivePlayer[]) {
-        const theirSide = side(player.name)
+        const part = side(player.name)
+        const theirSide = part?.side ?? null
         const isWatched = watched !== null && player.name.toLowerCase() === watched.toLowerCase()
         if (!isWatched && theirSide !== 'attackers' && theirSide !== 'defenders') continue
         const p = map.latLngToContainerPoint(toLatLng([player.x, player.z]))
@@ -73,7 +78,7 @@ export function EdgeArrows({
         const x = centre.x + dx * scale
         const y = centre.y + dy * scale
         const blocks = Math.round(Math.hypot(player.x - middle.lng, player.z - middle.lat))
-        found.push({ name: player.name, side: theirSide, x, y, angle: (Math.atan2(dy, dx) * 180) / Math.PI, blocks, watched: isWatched, distance: Math.hypot(dx, dy) })
+        found.push({ name: player.name, side: theirSide, ally: part?.ally ?? null, x, y, angle: (Math.atan2(dy, dx) * 180) / Math.PI, blocks, watched: isWatched, distance: Math.hypot(dx, dy) })
       }
       found.sort((a, b) => Number(b.watched) - Number(a.watched) || a.distance - b.distance)
       setArrows(spread(found.slice(0, MOST), box))
@@ -93,20 +98,20 @@ export function EdgeArrows({
   // The sides or the watched player changed: placed again.
   useEffect(() => {
     map.fire('viewreset')
-  }, [map, sideOf, watch])
+  }, [map, allegiance, watch])
 
   if (!arrows.length) return null
   return (
     <div aria-label="Fighters off the edge of the map" className="pointer-events-none absolute inset-0 z-[480]">
       {arrows.map((arrow) => (
         <button
-          aria-label={`${arrow.name}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
-          className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null)}
+          aria-label={`${arrow.name}${arrow.ally ? `, an ally of ${spoken(arrow.ally)}` : ''}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
+          className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null, arrow.ally ? 'az-edge-ally' : null)}
           data-watched={arrow.watched ? '' : undefined}
           key={arrow.name}
           onClick={() => onPick(arrow.name)}
           style={{ transform: `translate(${arrow.x.toFixed(0)}px, ${arrow.y.toFixed(0)}px) translate(-50%, -50%)` }}
-          title={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view`}
+          title={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view${arrow.ally ? ` · ally, of ${spoken(arrow.ally)}` : ''}`}
           type="button"
         >
           <span aria-hidden="true" className="az-edge-chevron" style={{ transform: `rotate(${arrow.angle.toFixed(0)}deg)` }} />

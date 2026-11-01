@@ -4,13 +4,17 @@ import { useMemo, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
+import { alliesOf, defendingNation } from '@/maps/alliances'
 import { assessBattle, RULES, type BattleReading, type BattleSide } from '@/maps/battle'
 import { spoken } from '@/maps/data'
+import { allyShare } from '@/maps/fighters'
 import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type SiegeForecast, type Target } from '@/maps/outlook'
 import type { Siege, WorldTown } from '@/maps/world'
 
+import { useAlliances } from '../alliances'
 import { resultOf, sessionsOf, useBattles, type TrackedBattle } from '../battles'
 import { useFighters } from '../fighters'
+import { timeOf } from '../warView'
 
 /**
  * The outlook on a battle and its siege, in the war view's siege
@@ -21,7 +25,9 @@ import { useFighters } from '../fighters'
  * siege's story across its sessions (/maps/battles), and the sessions
  * still to come, forecast by who usually turns up at their hours. The
  * score, the banner, the captures and the vitals keep the room; this is
- * a glance and a fold.
+ * a glance and a fold. A side's allies count in all of it, as SiegeWar
+ * counts them (src/maps/alliances.ts), and are said apart wherever a side
+ * is counted: "3 online + 2 allies".
  */
 
 const EYEBROW = 'font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-sand-200/75'
@@ -37,9 +43,20 @@ type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
 const namer = (siege: Siege, ours: BattleSide | null) => (side: BattleSide) =>
   ours === side ? 'Azania' : spoken(side === 'attackers' ? siege.attacker : siege.defender)
 
-// The viewer's own time, on the 24-hour clock the rest of Azania Maps uses ("19:00").
-const timeOf = (ms: number) => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const dayOf = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { weekday: 'short' })
+
+/** How many of a side are online: its residents, and its allies (whom SiegeWar counts for it too). */
+export type OnlineCount = Record<BattleSide, { residents: number; allies: number }>
+
+/** The counts as the outlook reckons with them: residents and allies together. */
+export const totalOnline = (online: OnlineCount): Record<BattleSide, number> => ({
+  attackers: online.attackers.residents + online.attackers.allies,
+  defenders: online.defenders.residents + online.defenders.allies,
+})
+
+/** "5 online", or "3 online + 2 allies". */
+export const onlineWords = ({ residents, allies }: OnlineCount[BattleSide]): string =>
+  allies ? `${n(residents)} online + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : `${n(residents)} online`
 
 export type OutlookProps = {
   siege: Siege
@@ -50,14 +67,14 @@ export type OutlookProps = {
   phase: number | null
   /** Which side is Azania's, for the words. */
   ours: BattleSide | null
-  /** How many of each side are online, from the live feed. */
-  online: Record<BattleSide, number> | null
+  /** How many of each side are online, from the live feed, residents and allies apart. */
+  online: OnlineCount | null
   towns: SideTown[]
 }
 
 /** The outlook itself, worked out once per tick. */
 function useOutlook({ siege, assessed, now, phase, online }: OutlookProps): BattleOutlook | null {
-  return useMemo(() => (assessed ? outlookOf(siege, assessed.reading, now, phase, online) : null), [siege, assessed, now, phase, online])
+  return useMemo(() => (assessed ? outlookOf(siege, assessed.reading, now, phase, online ? totalOnline(online) : null) : null), [siege, assessed, now, phase, online])
 }
 
 /**
@@ -78,6 +95,13 @@ export function OutlookSummary(props: OutlookProps) {
   const good = ours !== null && ours === ahead
   const bad = ours !== null && ours === behind
   const balance = assessed.projected.balance
+  // "the 5 Azanians online", or, with allies among them, "the 5 on Azania's side online (3 + 2 allies)".
+  const everyone = (side: BattleSide) => {
+    const count = online![side]
+    const total = count.residents + count.allies
+    if (!count.allies) return `the ${n(total)} ${who(side) === 'Azania' ? 'Azanians' : who(side)} online`
+    return `the ${n(total)} on ${who(side)}’s side online (${n(count.residents)} + ${n(count.allies)} ${count.allies === 1 ? 'ally' : 'allies'})`
+  }
   return (
     <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
       <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
@@ -110,11 +134,11 @@ export function OutlookSummary(props: OutlookProps) {
               {online ? (
                 need.enough ? (
                   <>
-                    ; they have <span className={cn(FIGURE, 'font-semibold')}>{n(online[behind])}</span> online.
+                    ; they have <span className={cn(FIGURE, 'font-semibold')}>{onlineWords(online[behind])}</span>.
                   </>
                 ) : (
                   <>
-                    ; they have only <span className={cn(FIGURE, 'font-semibold')}>{n(online[behind])}</span> online: out of reach,{' '}
+                    ; they have only <span className={cn(FIGURE, 'font-semibold')}>{onlineWords(online[behind])}</span>: out of reach,{' '}
                     <span className={cn(FIGURE, 'font-semibold')}>{n(need.kills)}</span> kills short.
                   </>
                 )
@@ -129,14 +153,12 @@ export function OutlookSummary(props: OutlookProps) {
         <p className="mt-0.5 text-[14px] leading-snug text-sand-200/85">
           {outlook.safeToLeave.safe ? (
             <>
-              {who(outlook.safeToLeave.side)} could leave the banner: every one of the {n(online[other(outlook.safeToLeave.side)])}{' '}
-              {who(other(outlook.safeToLeave.side)) === 'Azania' ? 'Azanians' : other(outlook.safeToLeave.side)} online taking it would still leave{' '}
+              {who(outlook.safeToLeave.side)} could leave the banner: every one of {everyone(other(outlook.safeToLeave.side))} taking it would still leave{' '}
               <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(outlook.safeToLeave.margin)}</span> to spare.
             </>
           ) : (
             <>
-              {who(outlook.safeToLeave.side)} can’t leave the banner: the {n(online[other(outlook.safeToLeave.side)])}{' '}
-              {who(other(outlook.safeToLeave.side)) === 'Azania' ? 'Azanians' : other(outlook.safeToLeave.side)} online taking it would overturn the{' '}
+              {who(outlook.safeToLeave.side)} can’t leave the banner: {everyone(other(outlook.safeToLeave.side))} taking it would overturn the{' '}
               {outlook.final ? 'siege' : 'session'}.
             </>
           )}
@@ -163,21 +185,38 @@ export function OutlookDetails(props: OutlookProps) {
   const outlook = useOutlook(props)
   const battles = useBattles(true)
   const fighters = useFighters(true)
+  const { alliances } = useAlliances(true)
   const who = namer(siege, ours)
   const past = useMemo(() => sessionsOf(battles, siege), [battles, siege])
   // The sessions still to come, after the one on now: their starts, and who of each side usually turns up at them.
   const left = siege.progress ? Math.max(0, siege.progress.of - siege.progress.done - (siege.battle ? 1 : 0)) : 0
+  // Who may fight for each side: its residents, and the residents of its known allies, each ally counted for the share of
+  // their fighting they've done for allies (a town of no nation has no allies: alliances.ts → defendingNation).
+  const sides = useMemo(() => {
+    const residents = (nation: string | null) =>
+      nation
+        ? towns
+            .filter((town) => sameNation(town.nation, nation))
+            .flatMap((town) => town.people)
+            .map((name) => fighters.byName.get(name.toLowerCase()))
+            .filter((record): record is NonNullable<typeof record> => Boolean(record))
+        : []
+    const of = (nation: string | null, allied: string | null) => {
+      const own = residents(nation)
+      const allyNations = alliesOf(allied, alliances)
+      const allies = allyNations.flatMap((ally) => residents(ally).map((record) => ({ ...record, share: allyShare(record) })))
+      return {
+        people: [...own, ...allies],
+        rests: { residents: own.filter((one) => one.hours).length, allies: allies.filter((one) => one.hours && one.share > 0).length, allyNations },
+      }
+    }
+    return { attackers: of(siege.attacker, siege.attacker), defenders: of(siege.defender, defendingNation(siege)) }
+  }, [siege, towns, fighters.byName, alliances])
   const forecast = useMemo<SiegeForecast | null>(() => {
     if (!left || !now) return null
     const from = siege.battle ? (assessed?.projected?.balance ?? siege.balance ?? 0) : (siege.balance ?? 0)
-    const residents = (nation: string) =>
-      towns
-        .filter((town) => sameNation(town.nation, nation))
-        .flatMap((town) => town.people)
-        .map((name) => fighters.byName.get(name.toLowerCase()))
-        .filter((record): record is NonNullable<typeof record> => Boolean(record))
-    return forecastSiege(from, sessionsAfter(now, left), { attackers: residents(siege.attacker), defenders: residents(siege.defender) })
-  }, [left, now, siege, assessed, towns, fighters.byName])
+    return forecastSiege(from, sessionsAfter(now, left), { attackers: sides.attackers.people, defenders: sides.defenders.people })
+  }, [left, now, siege, assessed, sides])
   const open = !siege.battle
   return (
     <details className="az-outlook mt-2.5 border-t border-sand-50/10 pt-1.5" open={open}>
@@ -197,7 +236,7 @@ export function OutlookDetails(props: OutlookProps) {
         {assessed && outlook ? <WhatItTakes outlook={outlook} siege={siege} who={who} online={props.online} /> : null}
         <SiegeStory assessed={assessed} forecast={forecast} past={past} siege={siege} who={who} battlesStatus={battles.status} />
         {forecast ? (
-          <SessionsAhead forecast={forecast} siege={siege} who={who} known={fighters.status} />
+          <SessionsAhead forecast={forecast} rests={{ attackers: sides.attackers.rests, defenders: sides.defenders.rests }} siege={siege} who={who} known={fighters.status} />
         ) : siege.progress && left === 0 ? (
           <p className="text-[14px] leading-snug text-sand-200/80">
             {siege.battle ? 'The last session: the siege is decided at its end.' : 'Every session fought: the siege is decided.'}
@@ -313,7 +352,7 @@ function SessionChart({ assessed, readings }: { assessed: NonNullable<ReturnType
 }
 
 /** What each side needs from now, for the session and, when it's another, for the siege. */
-function WhatItTakes({ outlook, siege, who, online }: { outlook: BattleOutlook; siege: Siege; who: (side: BattleSide) => string; online: Record<BattleSide, number> | null }) {
+function WhatItTakes({ outlook, siege, who, online }: { outlook: BattleOutlook; siege: Siege; who: (side: BattleSide) => string; online: OnlineCount | null }) {
   const targets: Target[] = outlook.final ? ['siege'] : ['session', 'siege']
   const words = (target: Target) => (target === 'session' ? 'This session' : outlook.final ? 'The siege' : 'The siege, after all sessions')
   return (
@@ -339,7 +378,7 @@ function WhatItTakes({ outlook, siege, who, online }: { outlook: BattleOutlook; 
                         ) : (
                           <>
                             <span className={cn(FIGURE, 'font-semibold')}>{n(need.holders)}</span> holder{need.holders === 1 ? '' : 's'} from now
-                            {online ? (need.enough ? ` (${n(online[side])} online)` : ` (only ${n(online[side])} online)`) : ''}
+                            {online ? (need.enough ? ` (${onlineWords(online[side])})` : ` (only ${onlineWords(online[side])})`) : ''}
                           </>
                         )}{' '}
                         · or <span className={cn(FIGURE, 'font-semibold')}>{n(need.kills)}</span> kills
@@ -482,9 +521,32 @@ function SiegeStory({
   )
 }
 
+/** What a side's forecast rests on: its residents with usual hours known, and its allies' (those who've fought for allies), by nation. */
+type Rests = { residents: number; allies: number; allyNations: string[] }
+
+/** "4 of Sul America's residents and 2 of its allies' (Imperial Avalonia)". */
+function restsWords(name: string, rests: Rests): string {
+  const own = `${n(rests.residents)} of ${name}’s residents`
+  if (!rests.allyNations.length) return own
+  const allies = rests.allyNations.map(spoken).join(', ')
+  return rests.allies ? `${own} and ${n(rests.allies)} of its allies’ (${allies})` : `${own}, none of its allies’ (${allies}) having fought for an ally yet`
+}
+
 /** The sessions still to come: who's likely to show up at each, what it does to the balance, and the lead the loser would need. */
-function SessionsAhead({ forecast, siege, who, known }: { forecast: SiegeForecast; siege: Siege; who: (side: BattleSide) => string; known: string }) {
-  const rests = forecast.known.attackers + forecast.known.defenders
+function SessionsAhead({
+  forecast,
+  rests,
+  siege,
+  who,
+  known,
+}: {
+  forecast: SiegeForecast
+  rests: Record<BattleSide, Rests>
+  siege: Siege
+  who: (side: BattleSide) => string
+  known: string
+}) {
+  const counted = forecast.known.attackers + forecast.known.defenders
   const flooded = forecast.winner ? forecast.sessions.filter((session) => session.favoured === forecast.winner) : []
   const first = forecast.lead ? forecast.sessions.find((session) => session.favoured === forecast.winner) : null
   const words: ReactNode[] = []
@@ -510,10 +572,10 @@ function SessionsAhead({ forecast, siege, who, known }: { forecast: SiegeForecas
   return (
     <div>
       <p className={EYEBROW}>Sessions ahead · {forecast.sessions.length}</p>
-      {rests === 0 ? (
+      {counted === 0 ? (
         <p className="mt-1 text-[14px] leading-snug text-sand-200/80">
           {known === 'ready'
-            ? 'No usual hours known for either side’s residents yet: the tracker’s records are young. The sessions are listed above.'
+            ? 'No usual hours known for either side’s residents or allies yet: the tracker’s records are young. The sessions are listed above.'
             : known === 'down'
               ? 'The records couldn’t be read just now.'
               : 'Reading the records…'}
@@ -545,9 +607,10 @@ function SessionsAhead({ forecast, siege, who, known }: { forecast: SiegeForecas
           </ul>
           {words.length ? <p className="mt-1.5 text-[15px] leading-snug text-sand-100">{words}</p> : null}
           <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-            Rough: about {n(POINTS_PER_EXTRA_FIGHTER)} to the balance for each fighter more than the other side brings, if they hold the banner; rests on the
-            usual hours of {forecast.known.attackers} of {who('attackers')}’s and {forecast.known.defenders} of {who('defenders')}’s residents
-            {siege.townNation && !sameNation(siege.townNation, siege.defender) ? `, ${spoken(siege.townNation)}’s not among them` : ''}; allies can’t be known.
+            Rough: about {n(POINTS_PER_EXTRA_FIGHTER)} to the balance for each fighter more than the other side brings, if they hold the banner. Rests on the
+            usual hours of {restsWords(who('attackers'), rests.attackers)}, and of {restsWords(who('defenders'), rests.defenders)}
+            {siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''}. An ally counts for
+            the share of their fighting done for allies, as SiegeWar counts a mutual ally’s soldiers for the side; an ally the map doesn’t know of isn’t counted.
           </p>
         </>
       )}

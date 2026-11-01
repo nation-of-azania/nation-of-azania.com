@@ -54,7 +54,7 @@ export const ENOUGH = 2
 const TRACKED_FROM = '1 November'
 
 /** "3 days ago", "today", "6 weeks ago". */
-function agoWords(iso: string, now: number): string {
+export function agoWords(iso: string, now: number): string {
   const days = Math.floor((now - new Date(iso).getTime()) / 86_400_000)
   if (days <= 0) return 'today'
   if (days === 1) return 'yesterday'
@@ -71,7 +71,7 @@ export function ScoreBadge({ record, tone, className }: { record: FighterEntry; 
     <span
       className={cn('inline-flex items-baseline gap-1 border px-1.5 py-0.5', t.line, thin ? t.faint : t.ink, className)}
       title={`Score ${score} of 100: the chance they take the banner when they try, times the chance they turn up; ${
-        thin ? `rests on ${record.fought === 0 ? 'no battle' : 'one battle'} fought, so says little yet` : `from ${record.fought} battles`
+        thin ? `rests on ${record.fought === 0 ? 'no battle session' : 'one battle session'} fought, so says little yet` : `from ${record.fought} battle sessions`
       }`}
     >
       <span className={cn(FIGURE, 'text-[15px] leading-none')}>{score}</span>
@@ -176,8 +176,18 @@ export function FighterCard({
   const thin = record.fought < ENOUGH
   const tries = record.held + record.died + record.left
   const lines: ReactNode[] = []
+  // Sessions, not battles: one at an ally's siege, or at one of their nation's two at once, isn't absent from the other.
+  const extras = [
+    record.battles > record.fought ? `${n(record.battles)} battles` : null,
+    record.allied ? `${n(record.allied)} for allies` : null,
+  ].filter(Boolean)
   lines.push(
-    <Line key="turnout" tone={tone} figure={n(record.fought)} words={record.could ? `of ${n(record.could)} battle${record.could === 1 ? '' : 's'} they could, fought` : 'battles fought'} />,
+    <Line
+      key="turnout"
+      tone={tone}
+      figure={n(record.fought)}
+      words={`${record.could ? `of ${n(record.could)} battle session${record.could === 1 ? '' : 's'} they could, fought` : 'battle sessions fought'}${extras.length ? ` · ${extras.join(' · ')}` : ''}`}
+    />,
   )
   if (record.fought) {
     lines.push(
@@ -223,7 +233,7 @@ export function FighterCard({
       <dl className="mt-1.5 space-y-1">{lines}</dl>
       {thin ? (
         <p className={cn('mt-1.5 text-[13px] leading-snug', t.faint)}>
-          {record.fought === 0 ? 'Never fought one: ' : 'One battle: '}too few to judge by.
+          {record.fought === 0 ? 'Never fought one: ' : 'One session: '}too few to judge by.
         </p>
       ) : null}
       {record.hours ? <Usual hours={record.hours} now={now} tone={tone} days={state.days} /> : null}
@@ -274,13 +284,18 @@ export function recordWords(record: FighterEntry | null, state: FightersState): 
   if (state.battles === 0) return 'No battles tracked yet'
   if (!record) return 'No battle in 60 days'
   const tries = record.held + record.died + record.left
-  return `${record.fought} of ${record.could} fought${tries ? ` · ${record.held} of ${tries} held` : ''}`
+  return `${record.fought} of ${record.could} sessions fought${tries ? ` · ${record.held} of ${tries} held` : ''}`
 }
 
 /** Who to expect: a resident ranked by being on now, then by how likely they are to be fighting at `at`. */
 export type Expected = { name: string; online: boolean; expected: number | null; record: FighterEntry | null }
 
-export function rankExpected(names: string[], state: FightersState, online: Set<string>, at: number): Expected[] {
+/**
+ * `share` scales how likely each is, 0 to 1: for an ally's residents, the
+ * share of their fighting done for allies (src/maps/fighters.ts →
+ * allyShare), since an alliance alone brings nobody.
+ */
+export function rankExpected(names: string[], state: FightersState, online: Set<string>, at: number, share?: (record: FighterEntry) => number): Expected[] {
   const seen = new Set<string>()
   const out: Expected[] = []
   for (const name of names) {
@@ -288,7 +303,8 @@ export function rankExpected(names: string[], state: FightersState, online: Set<
     if (seen.has(key)) continue
     seen.add(key)
     const record = state.byName.get(key) ?? null
-    out.push({ name, online: online.has(key), expected: record ? expectedAt(record, at) : null, record })
+    const likely = record ? expectedAt(record, at) : null
+    out.push({ name, online: online.has(key), expected: likely === null ? null : Math.round(likely * (share ? share(record!) : 1) * 100) / 100, record })
   }
   return out.sort(
     (a, b) =>

@@ -21,6 +21,7 @@ import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { SiteBadge } from '../layers/SiteMark'
 import { Swatch } from '../ui/Swatch'
+import { NationAllies } from './Allies'
 import { BeliefsSection } from './BeliefsChart'
 import { Arrival, Look, Survey } from './islands'
 import { NationPeople, Residents } from './people'
@@ -367,6 +368,9 @@ export function NationPanel({
       </div>
 
       <NationSieges nation={nation.name} />
+
+      {/* Its allies, as far as they're known (./Allies.tsx): who may turn up for it, or for whom it may. */}
+      <NationAllies nation={nation.name} />
 
       <BeliefsSection beliefs={nation.beliefs} towns={towns.length} />
 

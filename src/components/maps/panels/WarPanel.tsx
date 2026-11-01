@@ -4,17 +4,21 @@ import { useMemo, useState, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { homeNationOf, sameNation } from '@/maps/abroad'
+import { alliesOf, allySide, defendingNation, sharedSieges, type Allied } from '@/maps/alliances'
 import {
+  allegianceOf,
   ASSUMED,
   assessBattle,
   captureEndsAt,
   playersAtSiege,
   reversalMultiplier,
   RULES,
-  sideOf,
+  sideAtSiege,
   SPRINT_BLOCKS_PER_S,
+  tickPhaseOf,
   townOfName,
   type AtSiege,
+  type Banner,
   type BattleReading,
   type BattleSide,
   type PlayerSide,
@@ -25,14 +29,17 @@ import type { Point } from '@/maps/geo'
 import type { LivePlayer } from '@/maps/players'
 import { azaniaSide, bySiegeWeight, siegeHeadline, type SiegeSide } from '@/maps/sieges'
 import { secondsLeftNow, sessionClock } from '@/maps/battle'
-import { fighterScore } from '@/maps/fighters'
-import type { Siege, WorldTown } from '@/maps/world'
+import { allyShare, fighterScore } from '@/maps/fighters'
+import { outlookOf, type BattleOutlook, type Target } from '@/maps/outlook'
+import type { Siege } from '@/maps/world'
 
+import { useAlliances } from '../alliances'
 import { useMaps } from '../context'
-import { recordOf, useFighters } from '../fighters'
+import { recordOf, useFighters, type FightersState } from '../fighters'
 import { useStore } from '../hooks'
-import { FighterCard, OnlineDot, rankExpected, ScoreBadge, ENOUGH } from '../ui/Fighter'
-import { OutlookDetails, OutlookSummary } from './Outlook'
+import { FighterCard, OnlineDot, rankExpected, ScoreBadge, ENOUGH, type Expected } from '../ui/Fighter'
+import { AlliesList } from './Allies'
+import { OutlookDetails, OutlookSummary, totalOnline, type OnlineCount } from './Outlook'
 import { returnFor, useMotion } from '../motion'
 import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
@@ -41,7 +48,7 @@ import { useCopy } from '../ui/Readouts'
 import { SiegeBadge } from '../ui/Siege'
 import { LOW_HEALTH, Vitals } from '../ui/Vitals'
 import { Wordmark } from '../ui/Wordmark'
-import { clockOf, sessionWords, useSecond, type WarFocus } from '../warView'
+import { clockOf, sessionWords, timeOf, useSecond, type SideTown, type WarFocus } from '../warView'
 
 /**
  * The war view's sidebar, in place of the panel while the view is on: a
@@ -61,6 +68,13 @@ import { clockOf, sessionWords, useSecond, type WarFocus } from '../warView'
  * the map following them. Every figure ticks where it's shown
  * (../warView.ts → useSecond, the live store), so a poll re-renders a
  * roster and nothing else on the page.
+ *
+ * A side's allies (src/maps/alliances.ts; ../alliances.ts brings them)
+ * are counted with it everywhere SiegeWar would count them, and told apart
+ * everywhere: a dashed ring, "ally · Imperial Avalonia" on their row, and
+ * the counts split. The sieges a side shares its fighters with get a
+ * section of their own, the heart of it: whether the side can leave the
+ * banner here to help there, or the other way about.
  */
 
 const EYEBROW = 'font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-sand-200/75'
@@ -73,17 +87,27 @@ const FOOT = 'mt-4 px-4 text-[13px] leading-snug text-sand-300/70'
 const n = (value: number) => value.toLocaleString('en-GB')
 const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
 
-/** A town as the sums want it, from the world's reading or, before it comes, Azania's own. */
-type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
-
 const sideWord = (side: PlayerSide | null) => (side === 'attackers' ? 'Attacker' : side === 'defenders' ? 'Defender' : 'Other')
 const sideColour = (side: PlayerSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : 'text-sand-200/75')
 
 /** Who a side is, by name: the attacker nation, or the defender. */
 const sideName = (siege: Siege, side: BattleSide) => spoken(side === 'attackers' ? siege.attacker : siege.defender)
 
+/** The nation whose allies fight on a side: the attacker, or the besieged town's nation (none for a town of no nation). */
+const nationOfSide = (siege: Siege, side: BattleSide): string | null => (side === 'attackers' ? siege.attacker : defendingNation(siege))
+
 /** The lowest health first: the one in danger leads any roster. */
 const byHealth = (a: LivePlayer, b: LivePlayer) => (a.health ?? 99) - (b.health ?? 99) || (a.armor ?? 99) - (b.armor ?? 99)
+
+/** How many of each side are online at all, wherever they stand, residents and allies apart: what the outlook reckons a need against. */
+function onlineOf(siege: Siege, players: LivePlayer[], towns: SideTown[], allied: Allied): OnlineCount {
+  const count: OnlineCount = { attackers: { residents: 0, allies: 0 }, defenders: { residents: 0, allies: 0 } }
+  for (const player of players) {
+    const { side, ally } = allegianceOf(townOfName(player.name, towns), siege, allied)
+    if (side !== 'other') count[side][ally ? 'allies' : 'residents']++
+  }
+  return count
+}
 
 export type WarPanelProps = {
   focus: WarFocus | null
@@ -103,6 +127,8 @@ export type WarPanelProps = {
 export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onLeave, captures, phase = null }: WarPanelProps) {
   const { data, world, war } = useMaps()
   const home = useMemo(() => homeNationOf(data.towns), [data.towns])
+  // The records, and the alliances with them, asked for as the view opens: every side below counts its allies.
+  useAlliances(true)
   // The towns the sides are read from: the world's reading, Azania's own among them; until it comes, Azania's alone.
   const towns = useMemo<SideTown[]>(
     () => world?.reading.towns ?? data.towns.map((town) => ({ name: town.name, nation: town.nation, people: town.names, home: town.home })),
@@ -426,7 +452,8 @@ function TopFighters({ onFocus }: { onFocus: (focus: WarFocus) => void }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-sand-50">{record.name}</span>
                   <span className="block text-[13px] text-sand-200/70">
-                    {record.fought} of {record.could} fought · {record.held} of {record.held + record.died + record.left} held
+                    {record.fought} of {record.could} sessions fought · {record.held} of {record.held + record.died + record.left} held
+                    {record.allied ? ` · ${record.allied} for allies` : ''}
                     {record.side && record.side !== 'other' ? ` · last ${record.side === 'attackers' ? 'attacking' : 'defending'}` : ''}
                   </span>
                 </span>
@@ -462,18 +489,14 @@ function SiegeView({
   const { war, liveStore } = useMaps()
   const live = useStore(liveStore)
   const now = useSecond()
-  const about = useMemo(() => playersAtSiege(siege, live.players, towns), [siege, live.players, towns])
-  // How many of each side are online at all, wherever they stand: what the outlook reckons a need against.
-  const online = useMemo(() => {
-    const count = { attackers: 0, defenders: 0 }
-    for (const player of live.players) {
-      const side = sideOf(townOfName(player.name, towns), siege)
-      if (side === 'attackers' || side === 'defenders') count[side]++
-    }
-    return live.status === 'live' ? count : null
-  }, [live.players, live.status, towns, siege])
+  const { allied } = useAlliances(false)
+  const about = useMemo(() => playersAtSiege(siege, live.players, towns, undefined, allied), [siege, live.players, towns, allied])
+  // How many of each side are online at all, wherever they stand, allies counted as SiegeWar counts them and said apart.
+  const online = useMemo(() => (live.status === 'live' ? onlineOf(siege, live.players, towns, allied) : null), [live.players, live.status, towns, siege, allied])
   const readings = war.readings[siege.townId] ?? []
   const assessed = siege.battle && now ? assessBattle(siege, readings, now, { attackers: about.atBanner.attackers, defenders: about.atBanner.defenders }) : null
+  // The outlook on it, for the sieges sharing its fighters: whether a side could leave the banner here (./Outlook.tsx draws the rest).
+  const outlook = assessed && now ? outlookOf(siege, assessed.reading, now, phase, online ? totalOnline(online) : null) : null
   // Azania's side as the sums name it, for the verdict: which side the reader is on.
   const ours: BattleSide | null = side === 'attacking' ? 'attackers' : side === 'defending' ? 'defenders' : null
   const nations = [
@@ -522,6 +545,10 @@ function SiegeView({
         </div>
       )}
 
+      {now ? (
+        <SharedSieges allied={allied} banner={assessed?.reading.banner ?? null} now={now} onFocus={onFocus} ours={ours} outlook={outlook} siege={siege} towns={towns} />
+      ) : null}
+
       <Fighters about={about} onFocus={onFocus} siege={siege} towns={towns} />
 
       <ExpectedFighters onFocus={onFocus} siege={siege} towns={towns} />
@@ -556,8 +583,8 @@ function Scoreboard({
   captures?: Captures
   phase: number | null
   onFocus: (focus: WarFocus) => void
-  /** How many of each side are online, for the outlook; null while the feed hasn't answered. */
-  online: Record<BattleSide, number> | null
+  /** How many of each side are online, residents and allies apart, for the outlook; null while the feed hasn't answered. */
+  online: OnlineCount | null
   readings: BattleReading[]
   towns: SideTown[]
 }) {
@@ -775,6 +802,179 @@ function LockWords() {
   )
 }
 
+/* The sieges a side shares its fighters with: the heart of the allies' business. */
+
+/**
+ * For each side of this siege, the other battles on now in which its
+ * nation or an ally of it fights (alliances.ts → sharedSieges), how many
+ * of the side's people, residents and allies, stand in that siege's zone,
+ * and how that battle goes for them: ahead, or short of holders. The thing
+ * to read is the line under a row, when there is one: this side could
+ * leave the banner here and still win (the outlook's safeToLeave) while
+ * its people over there are short, or the other way about; a fighter
+ * swaps sieges on that. Each row is a button to that siege. Nothing when
+ * no other battle is on.
+ */
+function SharedSieges({
+  siege,
+  towns,
+  allied,
+  outlook,
+  banner,
+  ours,
+  now,
+  onFocus,
+}: {
+  siege: Siege
+  towns: SideTown[]
+  allied: Allied
+  /** This siege's outlook, while a battle is on: whether a side could leave the banner. */
+  outlook: BattleOutlook | null
+  /** This siege's banner, as last read: how many a side needs is said as how many more. */
+  banner: Banner | null
+  ours: BattleSide | null
+  now: number
+  onFocus: (focus: WarFocus) => void
+}) {
+  const { war, liveStore } = useMaps()
+  const live = useStore(liveStore)
+  const sides = (['attackers', 'defenders'] as const)
+    .map((side) => ({ side, shared: sharedSieges(siege, side, war.sieges, allied) }))
+    .filter((entry) => entry.shared.length)
+  if (!sides.length) return null
+  const who = (side: BattleSide) => (ours === side ? 'Azania' : sideName(siege, side))
+  return (
+    <section className="mt-3 px-4">
+      <p className={EYEBROW}>Sieges sharing fighters</p>
+      {sides.map(({ side, shared }) => (
+        <div className="mt-1.5" key={side}>
+          <p className={cn('text-[13px] font-semibold', sideColour(side))}>
+            {who(side)} <span className="font-normal text-sand-200/75">· {side === 'attackers' ? 'attacking' : 'defending'} here</span>
+          </p>
+          <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+            {shared.map((entry) => (
+              <SharedSiegeRow
+                allied={allied}
+                banner={banner}
+                entry={entry}
+                key={entry.siege.townId}
+                onFocus={onFocus}
+                ours={ours}
+                outlook={outlook}
+                players={live.players}
+                side={side}
+                siege={siege}
+                towns={towns}
+                who={who}
+                now={now}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+        SiegeWar counts a mutual ally’s soldiers for the side, so a side’s people are its residents and its known allies; “there” is who of them stands
+        in that siege’s zone now.
+      </p>
+    </section>
+  )
+}
+
+/** "2 more holders", or "3 holders to take the banner": what a side needs from now, said against the banner as it stands. */
+function holdersWords(need: BattleOutlook['needs'][Target][BattleSide], banner: Banner | null, side: BattleSide): string | null {
+  if (need.already || need.holders === null) return null
+  const holds = banner?.side === side
+  const more = holds ? Math.max(1, need.holders - (banner?.holders ?? 0)) : need.holders
+  return holds ? `${n(more)} more holder${more === 1 ? '' : 's'}` : `${n(more)} holder${more === 1 ? '' : 's'} to take the banner`
+}
+
+function SharedSiegeRow({
+  siege,
+  side,
+  entry,
+  towns,
+  allied,
+  outlook,
+  banner,
+  ours,
+  who,
+  now,
+  players,
+  onFocus,
+}: {
+  siege: Siege
+  side: BattleSide
+  entry: ReturnType<typeof sharedSieges>[number]
+  towns: SideTown[]
+  allied: Allied
+  outlook: BattleOutlook | null
+  banner: Banner | null
+  ours: BattleSide | null
+  who: (side: BattleSide) => string
+  now: number
+  players: LivePlayer[]
+  onFocus: (focus: WarFocus) => void
+}) {
+  const { war, data } = useMaps()
+  const other = entry.siege
+  // Who of this side stands over there, and how that battle goes for the side they'd fight on.
+  const there = sideAtSiege(siege, side, other, players, towns, allied)
+  const readings = war.readings[other.townId] ?? []
+  const about = playersAtSiege(other, players, towns, undefined, allied)
+  const assessed = other.battle ? assessBattle(other, readings, now, { attackers: about.atBanner.attackers, defenders: about.atBanner.defenders }) : null
+  const theirs = assessed ? outlookOf(other, assessed.reading, now, tickPhaseOf(readings), totalOnline(onlineOf(other, players, towns, allied))) : null
+  const target: Target = theirs?.final ? 'siege' : 'session'
+  const need = theirs?.needs[target][entry.side] ?? null
+  const needWords = need ? holdersWords(need, assessed?.reading.banner ?? null, entry.side) : null
+  const theirBadgeSide = azaniaSide(other, { nation: homeNationOf(data.towns), towns: data.towns })
+  // Who fights over there: the side's own nation, or its ally, named.
+  const allyName = entry.as === 'ally' ? spoken(nationOfSide(other, entry.side) ?? other.defender) : null
+  const fighters = allyName ? `their ally ${allyName}` : who(side)
+  const verb = entry.side === 'attackers' ? 'attacking' : 'defending'
+  const town = other.town ? spoken(other.town) : 'a town'
+  const status = !assessed
+    ? 'no reading of it yet'
+    : !need
+      ? 'between sessions'
+      : need.already
+        ? `ahead there${theirs?.safeToLeave?.side === entry.side && theirs.safeToLeave.safe ? ', could leave that banner' : ''}`
+        : need.holders === null
+          ? `can’t turn it in the time left there · ${n(need.kills)} kills short`
+          : `needs ${needWords} there · or ${n(need.kills)} kill${need.kills === 1 ? '' : 's'}`
+  // The hint: leave here to help there, or the other way about.
+  const canLeaveHere = outlook?.safeToLeave?.side === side && outlook.safeToLeave.safe
+  const canLeaveThere = theirs?.safeToLeave?.side === entry.side && theirs.safeToLeave.safe
+  const hereNeed = outlook ? outlook.needs[outlook.final ? 'siege' : 'session'][side] : null
+  const hereWords = hereNeed ? holdersWords(hereNeed, banner, side) : null
+  let hint: string | null = null
+  if (canLeaveHere && needWords) hint = `${who(side)} can leave this banner; at ${town} ${fighters} need${allyName ? 's' : ''} ${needWords}.`
+  else if (canLeaveThere && hereWords) hint = `At ${town} ${fighters} could leave the banner${there.names.length ? ` (${n(there.names.length)} of ${who(side)}’s there)` : ''}; here ${who(side)} need${who(side) === 'Azania' ? 's' : ''} ${hereWords}.`
+  return (
+    <li>
+      <button className="flex w-full items-start gap-2.5 py-1.5 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={() => onFocus({ kind: 'siege', townId: other.townId })} type="button">
+        <SiegeBadge className="mt-0.5 h-7 w-7" side={theirBadgeSide} siege={other} />
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-[16px] leading-tight text-sand-50">{town}</span>
+          <span className={cn(SECOND, 'block')}>
+            {allyName ? `${allyName}, their ally, ${verb}` : `${who(side)} ${verb} there too`} · {status}
+          </span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className={cn(FIGURE, 'block text-[20px] font-semibold leading-none', there.names.length ? 'text-sand-50' : 'text-sand-200/60')}>{there.names.length}</span>
+          <span className="block text-[11px] uppercase tracking-[0.12em] text-sand-300/60">
+            there{there.allies ? ` · ${there.allies} ${there.allies === 1 ? 'ally' : 'allies'}` : ''}
+          </span>
+        </span>
+      </button>
+      {hint ? (
+        <p className={cn('mb-1.5 border-l-4 py-0.5 pl-3 text-[15px] font-semibold leading-snug', ours === side ? 'border-lagoon-400 text-lagoon-300' : 'border-sand-300/40 text-sand-50')}>
+          {hint}
+        </p>
+      ) : null}
+    </li>
+  )
+}
+
 /* The fighters about a banner, by side, each a row that watches them. */
 
 const SIDE_ORDER: PlayerSide[] = ['attackers', 'defenders', 'other']
@@ -792,6 +992,11 @@ function Fighters({
 }) {
   // The lowest health first, as the fight wants it; or the nearest the banner, as the ground does.
   const [order, setOrder] = useState<'health' | 'distance'>('health')
+  // The allies among those counted in the zone: counted with their side, as SiegeWar counts them, and said apart.
+  const allies = {
+    attackers: about.near.filter((entry) => entry.inZone && entry.side === 'attackers' && entry.ally).length,
+    defenders: about.near.filter((entry) => entry.inZone && entry.side === 'defenders' && entry.ally).length,
+  }
   const counts = (
     <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-0.5 text-[14px]">
       <span />
@@ -803,6 +1008,13 @@ function Fighters({
       <span className="text-sand-200/80">In the zone</span>
       <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.attackers}</span>
       <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{about.inZone.defenders}</span>
+      {allies.attackers || allies.defenders ? (
+        <>
+          <span className="text-sand-200/80">of them allies</span>
+          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{allies.attackers}</span>
+          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{allies.defenders}</span>
+        </>
+      ) : null}
       {about.inZone.other ? (
         <span className="col-span-3 text-[13px] text-sand-200/70">
           and {about.inZone.other} in the zone of neither side{about.atBanner.other ? `, ${about.atBanner.other} at the banner` : ''}
@@ -842,37 +1054,49 @@ function Fighters({
           ))}
         </div>
       </div>
-      {groups.map(({ side, entries }) => (
-        <div className="px-4" key={side}>
-          <p className={cn(EYEBROW, 'mt-2', sideColour(side))}>
-            {side === 'other' ? 'Of neither side' : `${sideWord(side)}s · ${sideName(siege, side)}`} · {entries.length}
-          </p>
-          <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
-            {entries.map((entry) => (
-              <FighterRow
-                key={entry.player.name}
-                onOpen={() => onFocus({ kind: 'player', name: entry.player.name })}
-                player={entry.player}
-                side={entry.side}
-                where={<Whereabouts entry={entry} siege={siege} towns={towns} />}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
+      {groups.map(({ side, entries }) => {
+        const allied = entries.filter((entry) => entry.ally).length
+        return (
+          <div className="px-4" key={side}>
+            <p className={cn(EYEBROW, 'mt-2', sideColour(side))}>
+              {side === 'other' ? 'Of neither side' : `${sideWord(side)}s · ${sideName(siege, side)}`} · {entries.length}
+              {allied ? ` (${allied} ${allied === 1 ? 'ally' : 'allies'})` : ''}
+            </p>
+            <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+              {entries.map((entry) => (
+                <FighterRow
+                  ally={entry.ally ? (townOfName(entry.player.name, towns)?.nation ?? null) : null}
+                  key={entry.player.name}
+                  onOpen={() => onFocus({ kind: 'player', name: entry.player.name })}
+                  player={entry.player}
+                  side={entry.side}
+                  where={<Whereabouts entry={entry} siege={siege} towns={towns} />}
+                />
+              ))}
+            </ul>
+          </div>
+        )
+      })}
     </section>
   )
 }
 
-/** One fighter in a roster: their health and armour first, then head, name, and where they are to the banner. */
+/**
+ * One fighter in a roster: their health and armour first, then head, name,
+ * and where they are to the banner. An ally of their side's nation wears
+ * the dashed ring, and their row says whose ally: "ally · Imperial Avalonia".
+ */
 function FighterRow({
   player,
   side,
+  ally = null,
   where,
   onOpen,
 }: {
   player: LivePlayer
   side: PlayerSide | null
+  /** Their own nation, when they fight on `side` as its ally. */
+  ally?: string | null
   where?: ReactNode
   onOpen: () => void
 }) {
@@ -883,7 +1107,7 @@ function FighterRow({
   return (
     <li className={low ? 'border-l-4 border-coral-500 -ml-4 pl-3' : undefined}>
       <button className="flex w-full items-center gap-2.5 py-1.5 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
-        <span className={cn('az-war-head shrink-0', side ? `az-war-head-${side}` : null)}>
+        <span className={cn('az-war-head shrink-0', side ? `az-war-head-${side}` : null, ally ? 'az-war-head-ally' : null)}>
           <Head name={player.name} px={30} />
         </span>
         <span className="min-w-0 flex-1">
@@ -891,7 +1115,17 @@ function FighterRow({
             <span className={cn('truncate font-mono text-[15px] font-semibold tracking-[0.02em]', low ? 'text-coral-300' : 'text-sand-50')}>{player.name}</span>
             {record?.fought ? <ScoreBadge className="shrink-0 scale-90" record={record} tone="war" /> : null}
           </span>
-          {where ? <span className={cn(SECOND, 'block')}>{where}</span> : null}
+          {where || ally ? (
+            <span className={cn(SECOND, 'block')}>
+              {ally ? (
+                <span className={cn('font-semibold', sideColour(side))} title={`Of ${spoken(ally)}, allied with this side’s nation: SiegeWar counts them for it`}>
+                  ally · {spoken(ally)}
+                </span>
+              ) : null}
+              {ally && where ? ' · ' : null}
+              {where}
+            </span>
+          ) : null}
         </span>
         <Vitals armor={player.armor} className="shrink-0" health={player.health} />
       </button>
@@ -968,7 +1202,7 @@ function Locked({ back, lead = true }: { back: Return; lead?: boolean }) {
   )
 }
 
-/* A nation: who it is, how many, who's online. */
+/* A nation: who it is, how many, who's online, and who its allies are. */
 
 function NationView({
   name,
@@ -985,8 +1219,9 @@ function NationView({
   back: ReactNode
   onFocus: (focus: WarFocus) => void
 }) {
-  const { world, war, liveStore } = useMaps()
+  const { world, war, liveStore, now } = useMaps()
   const live = useStore(liveStore)
+  const { alliances, allied, status: alliancesStatus } = useAlliances(false)
   const members = useMemo(() => towns.filter((town) => sameNation(town.nation, name)), [towns, name])
   const people = useMemo(() => members.flatMap((town) => town.people), [members])
   const nation = world?.reading.nations.find((candidate) => sameNation(candidate.name, name)) ?? null
@@ -995,10 +1230,18 @@ function NationView({
   const online = live.players.filter((player) => people.some((person) => person.toLowerCase() === player.name.toLowerCase())).sort(byHealth)
   const offline = people.filter((person) => !onlineNames.has(person.toLowerCase()))
   const ours = sameNation(name, home)
-  const part = siege ? sideOf({ name: '', nation: name }, siege) : null
-  const theirSieges = war.sieges.filter(
-    (candidate) => sameNation(candidate.attacker, name) || sameNation(candidate.defender, name) || sameNation(candidate.townNation, name),
-  )
+  // Its part in the view's siege: a side of it, as a resident or, by an alliance, as its ally.
+  const allegiance = siege ? allegianceOf({ name: '', nation: name }, siege, allied) : null
+  const part = allegiance?.side ?? null
+  // Its sieges: those it fights itself, and those its allies fight, in which SiegeWar would count its soldiers.
+  const theirSieges = war.sieges
+    .map((candidate) => {
+      const own = sameNation(candidate.attacker, name) || sameNation(candidate.defender, name) || sameNation(candidate.townNation, name)
+      const which = own ? allegianceOf({ name: '', nation: name }, candidate).side : (allySide(name, candidate, allied) ?? null)
+      return which && which !== 'other' ? { candidate, which, ally: !own } : null
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  const allyCount = alliesOf(name, alliances).length
   const colour = nation?.colour ?? null
   return (
     <>
@@ -1016,29 +1259,31 @@ function NationView({
           </p>
           {theirSieges.length ? (
             <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {theirSieges.map((candidate) => {
-                const which = sideOf({ name: '', nation: name }, candidate)
-                return (
-                  <li key={candidate.townId}>
-                    <button className={CHIP} onClick={() => onFocus({ kind: 'siege', townId: candidate.townId })} type="button">
-                      <Icon className="h-3.5 w-3.5 text-coral-400" name="war" />
-                      <span className="truncate">
-                        {which === 'attackers' ? 'Besieging' : which === 'defenders' ? 'Defending' : 'In the siege of'} {candidate.town ? spoken(candidate.town) : 'a town'}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
+              {theirSieges.map(({ candidate, which, ally }) => (
+                <li key={candidate.townId}>
+                  <button className={CHIP} onClick={() => onFocus({ kind: 'siege', townId: candidate.townId })} type="button">
+                    <Icon className="h-3.5 w-3.5 text-coral-400" name="war" />
+                    <span className="truncate">
+                      {which === 'attackers' ? 'Besieging' : 'Defending'} {candidate.town ? spoken(candidate.town) : 'a town'}
+                      {ally ? ' as an ally' : ''}
+                    </span>
+                  </button>
+                </li>
+              ))}
             </ul>
           ) : null}
         </div>
       </div>
       <section className="mt-3 px-4">
-        <p className={EYEBROW}>Online · {online.length}</p>
+        <p className={EYEBROW}>
+          Online · {online.length}
+          {allegiance?.ally && siege ? <span className="normal-case tracking-normal text-sand-200/75"> · allies of the {allegiance.side} here</span> : null}
+        </p>
         {online.length ? (
           <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
             {online.map((player) => (
               <FighterRow
+                ally={allegiance?.ally ? name : null}
                 key={player.name}
                 onOpen={() => onFocus({ kind: 'player', name: player.name })}
                 player={player}
@@ -1052,6 +1297,19 @@ function NationView({
             {live.status === 'live' ? `Nobody of ${spoken(name)} is on just now.` : live.status === 'down' ? 'The map isn’t answering, so who is on isn’t known.' : 'Asking who is on…'}
           </p>
         )}
+      </section>
+      {/* Its allies, and how each is known (./Allies.tsx): whose soldiers SiegeWar would count for it, and for whom it would count its. */}
+      <section className="mt-3 px-4">
+        <p className={EYEBROW}>Allies{allyCount ? ` · ${allyCount}` : ''}</p>
+        <AlliesList
+          alliances={alliances}
+          className="mt-0.5"
+          nation={name}
+          now={now}
+          onPick={(ally) => onFocus({ kind: 'nation', name: ally })}
+          status={alliancesStatus}
+          tone="war"
+        />
       </section>
       {offline.length ? (
         <details className="mt-2 px-4 text-[14px] text-sand-200/80">
@@ -1110,12 +1368,16 @@ function PlayerView({
   const live = useStore(liveStore)
   const motion = useMotion()
   const fighters = useFighters(false)
+  const { allied } = useAlliances(false)
   const lockSeconds = fighters.lock?.quickest ?? fighters.lockDefault
   const now = useSecond()
   const [copied, copy] = useCopy()
   const player = live.players.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase()) ?? null
   const town = townOfName(name, towns)
-  const side = siege ? sideOf(town, siege) : null
+  const allegiance = siege ? allegianceOf(town, siege, allied) : null
+  const side = allegiance?.side ?? null
+  // Whose ally they are, when they fight on their side as one: the side's nation.
+  const allyOf = allegiance?.ally && siege && side !== 'other' && side ? nationOfSide(siege, side) : null
   const place = player ? `${Math.round(player.x)} ${Math.round(player.y)} ${Math.round(player.z)}` : null
   const distance = player && siege ? Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1])) : null
   const backWay = player && siege ? returnFor(motion, name, [player.x, player.z], siege.at, town?.home ?? null, now || motion.at, lockSeconds) : null
@@ -1123,13 +1385,16 @@ function PlayerView({
     <>
       <div className="flex items-start gap-2 px-4 pt-3">
         <span className="mt-1.5">{back}</span>
-        <span className={cn('az-war-head mt-0.5 shrink-0', side ? `az-war-head-${side}` : null)}>
+        <span className={cn('az-war-head mt-0.5 shrink-0', side ? `az-war-head-${side}` : null, allyOf ? 'az-war-head-ally' : null)}>
           <Head name={name} px={44} />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-mono text-[20px] font-semibold leading-tight tracking-[0.02em] text-sand-50">{name}</h2>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-sand-200/85">
-            <span className={cn('font-semibold', sideColour(side))}>{side ? sideWord(side) : 'Player'}</span>
+            <span className={cn('font-semibold', sideColour(side))}>
+              {side ? sideWord(side) : 'Player'}
+              {allyOf ? ` · ally of ${spoken(allyOf)}` : ''}
+            </span>
             {player ? null : <span>· offline</span>}
             {town?.nation ? (
               <button className={CHIP} onClick={() => onFocus({ kind: 'nation', name: town.nation! })} type="button">
@@ -1244,94 +1509,48 @@ function PlayerRecord({ name }: { name: string }) {
  * Who to expect at the siege the view is on: each side's residents, those
  * on now first (the live feed), then by how likely they are to be fighting
  * at the session's time (their usual hours times their turnout), each
- * with their score. A read of the danger on the enemy's side and of the
- * turnout on one's own. Residents only: an ally fights for a side without
- * living in it, and can't be known in advance.
+ * with their score; and under them the residents of each of the side's
+ * known allies, as likely as their usual hours and turnout say, scaled by
+ * the share of their fighting they've done for allies (an alliance alone
+ * brings nobody). A read of the danger on the enemy's side and of the
+ * turnout on one's own.
  */
 function ExpectedFighters({ siege, towns, onFocus }: { siege: Siege; towns: SideTown[]; onFocus: (focus: WarFocus) => void }) {
   const { liveStore } = useMaps()
   const live = useStore(liveStore)
   const now = useSecond()
   const fighters = useFighters(true)
-  const [opened, setOpened] = useState<BattleSide | null>(null)
+  const { alliances } = useAlliances(false)
+  const [opened, setOpened] = useState<string | null>(null)
   const online = useMemo(() => new Set(live.players.map((player) => player.name.toLowerCase())), [live.players])
   if (!now) return null
   // At the session on now, or the next; the clock is 0 only on the server, which never renders the war view.
   const clock = sessionClock(now)
   const at = siege.battle || clock.on ? now : clock.start
-  const when = siege.battle || clock.on ? 'this session' : `the next session, ${new Date(clock.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
-  const sides: { side: BattleSide; nation: string }[] = [
-    { side: 'attackers', nation: siege.attacker },
-    { side: 'defenders', nation: siege.defender },
-  ]
-  const SHOWN = 6
+  const when = siege.battle || clock.on ? 'this session' : `the next session, ${timeOf(clock.start)}`
+  const peopleOf = (nation: string | null) => (nation ? towns.filter((town) => sameNation(town.nation, nation)).flatMap((town) => town.people) : [])
+  // Each side's residents, then each of its allies' (a town of no nation has no allies: alliances.ts → defendingNation).
+  const groups = (['attackers', 'defenders'] as const).flatMap((side) => {
+    const nation = side === 'attackers' ? siege.attacker : siege.defender
+    const own = { key: side, side, nation, ally: false, ranked: rankExpected(peopleOf(nation), fighters, online, at) }
+    const allies = alliesOf(nationOfSide(siege, side), alliances).map((ally) => ({
+      key: `${side}:${ally}`,
+      side,
+      nation: ally,
+      ally: true,
+      ranked: rankExpected(peopleOf(ally), fighters, online, at, allyShare),
+    }))
+    return [own, ...allies]
+  })
   return (
     <section className="mt-4 px-4">
       <p className={EYEBROW}>Who to expect · {when}</p>
-      {sides.map(({ side, nation }) => {
-        const names = towns.filter((town) => sameNation(town.nation, nation)).flatMap((town) => town.people)
-        const ranked = rankExpected(names, fighters, online, at)
-        const all = opened === side
-        const shown = all ? ranked : ranked.slice(0, SHOWN)
-        return (
-          <div className="mt-2" key={side}>
-            <p className={cn(EYEBROW, sideColour(side))}>
-              {sideWord(side)}s · {spoken(nation)}
-              {ranked.length ? ` · ${ranked.filter((entry) => entry.online).length} on now of ${ranked.length}` : ''}
-            </p>
-            {ranked.length ? (
-              <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
-                {shown.map((entry) => (
-                  <li key={entry.name}>
-                    <button
-                      className="flex w-full items-center gap-2.5 py-1 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400"
-                      onClick={() => onFocus({ kind: 'player', name: entry.name })}
-                      type="button"
-                    >
-                      <span className={cn('az-war-head shrink-0', `az-war-head-${side}`)}>
-                        <Head name={entry.name} px={24} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className={cn('block truncate font-mono text-[14px] font-semibold tracking-[0.02em]', entry.online ? 'text-sand-50' : 'text-sand-200/80')}>
-                          {entry.name}
-                        </span>
-                        <span className={cn('flex items-center gap-1.5 text-[13px]', entry.online ? 'text-lagoon-300' : 'text-sand-200/70')}>
-                          {entry.online ? (
-                            <>
-                              <OnlineDot /> on now
-                            </>
-                          ) : entry.expected !== null ? (
-                            `${Math.round(entry.expected * 100)}% likely`
-                          ) : fighters.status === 'ready' ? (
-                            'no record'
-                          ) : (
-                            '…'
-                          )}
-                          {entry.record?.fought ? ` · ${entry.record.fought} of ${entry.record.could} fought` : ''}
-                        </span>
-                      </span>
-                      {entry.record ? <ScoreBadge record={entry.record} tone="war" /> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-0.5 text-[14px] text-sand-200/80">{towns.length ? 'No residents the map knows.' : 'The world is still on its way.'}</p>
-            )}
-            {ranked.length > SHOWN ? (
-              <button
-                className="mt-1 text-[13px] text-sand-200/80 underline decoration-dotted underline-offset-2 hover:text-sand-50 focus-visible:outline-saffron-400"
-                onClick={() => setOpened(all ? null : side)}
-                type="button"
-              >
-                {all ? 'Fewer' : `All ${ranked.length}`}
-              </button>
-            ) : null}
-          </div>
-        )
-      })}
+      {groups.map((group) => (
+        <ExpectedGroup fighters={fighters} group={group} key={group.key} onFocus={onFocus} onOpen={(open) => setOpened(open ? group.key : null)} open={opened === group.key} towns={towns} />
+      ))}
       <p className="mt-1.5 text-[12px] leading-snug text-sand-300/70">
-        Residents only: an ally fights without living there, and can’t be known in advance.{' '}
+        Each side’s residents, and the residents of its known allies, whom SiegeWar counts for the side too: an ally for the share of their fighting done
+        for allies. An ally the map doesn’t know of can’t be counted; the records say what they have.{' '}
         {fighters.status === 'ready' && fighters.battles === 0
           ? 'No battles recorded yet: the tracker reads every battle from 1 November, and the likelihoods come with them.'
           : fighters.status === 'down'
@@ -1339,6 +1558,84 @@ function ExpectedFighters({ siege, towns, onFocus }: { siege: Siege; towns: Side
             : ''}
       </p>
     </section>
+  )
+}
+
+/** One side's residents, or one of its allies', ranked: who's on, how likely the rest are, each with their score. */
+function ExpectedGroup({
+  group,
+  fighters,
+  open,
+  onOpen,
+  towns,
+  onFocus,
+}: {
+  group: { side: BattleSide; nation: string; ally: boolean; ranked: Expected[] }
+  fighters: FightersState
+  open: boolean
+  onOpen: (open: boolean) => void
+  towns: SideTown[]
+  onFocus: (focus: WarFocus) => void
+}) {
+  const SHOWN = 6
+  const { side, nation, ally, ranked } = group
+  const shown = open ? ranked : ranked.slice(0, SHOWN)
+  return (
+    <div className="mt-2">
+      <p className={cn(EYEBROW, sideColour(side))}>
+        {ally ? `Allies · ${spoken(nation)}` : `${sideWord(side)}s · ${spoken(nation)}`}
+        {ranked.length ? ` · ${ranked.filter((entry) => entry.online).length} on now of ${ranked.length}` : ''}
+      </p>
+      {ranked.length ? (
+        <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+          {shown.map((entry) => (
+            <li key={entry.name}>
+              <button
+                className="flex w-full items-center gap-2.5 py-1 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400"
+                onClick={() => onFocus({ kind: 'player', name: entry.name })}
+                type="button"
+              >
+                <span className={cn('az-war-head shrink-0', `az-war-head-${side}`, ally ? 'az-war-head-ally' : null)}>
+                  <Head name={entry.name} px={24} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={cn('block truncate font-mono text-[14px] font-semibold tracking-[0.02em]', entry.online ? 'text-sand-50' : 'text-sand-200/80')}>
+                    {entry.name}
+                  </span>
+                  <span className={cn('flex items-center gap-1.5 text-[13px]', entry.online ? 'text-lagoon-300' : 'text-sand-200/70')}>
+                    {entry.online ? (
+                      <>
+                        <OnlineDot /> on now
+                      </>
+                    ) : entry.expected !== null ? (
+                      `${Math.round(entry.expected * 100)}% likely`
+                    ) : fighters.status === 'ready' ? (
+                      'no record'
+                    ) : (
+                      '…'
+                    )}
+                    {entry.record?.fought ? ` · ${entry.record.fought} of ${entry.record.could} sessions` : ''}
+                    {ally && entry.record?.fought ? ` · ${entry.record.allied} for allies` : ''}
+                  </span>
+                </span>
+                {entry.record ? <ScoreBadge record={entry.record} tone="war" /> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-0.5 text-[14px] text-sand-200/80">{towns.length ? 'No residents the map knows.' : 'The world is still on its way.'}</p>
+      )}
+      {ranked.length > SHOWN ? (
+        <button
+          className="mt-1 text-[13px] text-sand-200/80 underline decoration-dotted underline-offset-2 hover:text-sand-50 focus-visible:outline-saffron-400"
+          onClick={() => onOpen(!open)}
+          type="button"
+        >
+          {open ? 'Fewer' : `All ${ranked.length}`}
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -1358,12 +1655,6 @@ export function WarHandle() {
       </span>
     </span>
   )
-}
-
-/** A player's side, for the heads on the map: by their town's and nation's part in the view's siege. */
-export function sidesFor(siege: Siege | null, towns: SideTown[]): (name: string) => PlayerSide | null {
-  if (!siege) return () => null
-  return (name) => sideOf(townOfName(name, towns), siege)
 }
 
 /** Where a player stands, for the map to fly to. */
