@@ -62,6 +62,8 @@ export type Stay = {
    * out of their tries.
    */
   holder?: boolean
+  /** The readings began, or came back after a gap, with them already there: they may have stepped in earlier. */
+  early?: boolean
 }
 
 /** Their tries at the banner: stays that weren't a holder's. */
@@ -113,32 +115,78 @@ export function bannerAt(marks: Mark[], t: number): BattleSide | null {
   return side
 }
 
+/** A capture completes this long after it begins: five minutes, from a check before to a couple after (and the marker's rewriting). */
+const CAPTURE_FROM = RULES.captureMinutes * 60 - RULES.tickSeconds
+const CAPTURE_TO = RULES.captureMinutes * 60 + 3 * RULES.tickSeconds
+
+/**
+ * The side whose capture the marks show completing as a stay in the banner
+ * zone would complete one: the banner turned that side's, or its holders
+ * grew, five minutes after the player stepped in, or after the banner last
+ * changed hands while they stayed (a holder whose side loses it starts
+ * again); by the time they left, give or take a check. `side` narrows it to
+ * one side (null: either). A stay the readings may have caught late
+ * (`early`) could have begun earlier, so any completion up to five minutes
+ * after it was first seen counts. Null when the marks show none: they left
+ * too soon, or weren't counted (on a town's claims, flying, too high or
+ * low, of neither side).
+ */
+export function captureCompleted(marks: Mark[], side: BattleSide | null, stay: Pick<Stay, 'from' | 'to' | 'early'>): BattleSide | null {
+  const starts = [stay.from]
+  for (let i = 1; i < marks.length; i++) if (marks[i].t > stay.from && marks[i].t <= stay.to && marks[i].banner !== marks[i - 1].banner) starts.push(marks[i].t)
+  for (let i = 1; i < marks.length; i++) {
+    const [before, mark] = [marks[i - 1], marks[i]]
+    if (!mark.banner || (side && mark.banner !== side)) continue
+    if (mark.t > stay.to + 2 * RULES.tickSeconds || mark.t < stay.from) continue
+    if (before.banner === mark.banner && mark.holders <= before.holders) continue
+    const timely = starts.some((start, index) => {
+      const after = mark.t - start
+      return after <= CAPTURE_TO && (after >= CAPTURE_FROM || (index === 0 && stay.early))
+    })
+    if (timely) return mark.banner
+  }
+  return null
+}
+
 const opposite = (side: FighterSide): BattleSide | null => (side === 'attackers' ? 'defenders' : side === 'defenders' ? 'attackers' : null)
 
 /**
  * A player's deaths, from their moments: a reading at no health, or a
  * jump no one runs (FIGHT.jumpBlocksPerSecond) that lands them at full
- * health from less. Only in or from the siege zone, where deaths count.
+ * health from less, or from full health when the other side scored a
+ * kill just then. Only in or from the siege zone, where deaths count.
  * Confirmed when the other side's points rose by a kill's worth soon after.
  */
 export function deathsOf(moments: Moment[], marks: Mark[], side: FighterSide): Death[] {
   const deaths: Death[] = []
+  // Deaths from full health, struck down between two readings: told only by a kill the other side scored, kept for last.
+  const blows: number[] = []
   for (let i = 0; i < moments.length; i++) {
     const before = moments[i]
     const after = moments[i + 1]
     if (!inZone(before)) continue
     let at: number | null = null
     if (before.h === 0) at = before.t
-    else if (after && after.t - before.t <= FIGHT.respawnWithinSeconds && before.h !== null && before.h < 20 && after.h === 20) {
+    else if (after && after.t - before.t <= FIGHT.respawnWithinSeconds && before.h !== null && after.h === 20) {
       const speed = Math.abs(after.d - before.d) / Math.max(1, after.t - before.t)
-      if (speed >= FIGHT.jumpBlocksPerSecond || after.d === FAR) at = before.t
+      const jumped = speed >= FIGHT.jumpBlocksPerSecond || after.d === FAR
+      if (jumped && before.h < 20) at = before.t
+      // From full health a jump could be a teleport (a town's residents may go to their spawn by the banner): a death only
+      // away from the banner, as a respawn is, and when the other side scored a kill just then. Seen at Pataliputra: a
+      // defender struck down at the banner between two readings, respawning at the town's spawn a hundred blocks off.
+      else if (jumped && side !== 'other' && after.d > before.d && killConfirmed(marks, side, before.t)) blows.push(before.t)
     }
     if (at === null) continue
     // A reading at no health and the respawn right after are one death.
     if (deaths.length && at - deaths[deaths.length - 1].at <= FIGHT.respawnWithinSeconds) continue
     deaths.push({ at, confirmed: killConfirmed(marks, side, at) })
   }
-  return deaths
+  // A blow whose kill another death of theirs explains (within the time a kill is confirmed in) was something else.
+  for (const at of blows) {
+    if (deaths.some((death) => Math.abs(death.at - at) <= FIGHT.confirmWithinSeconds)) continue
+    deaths.push({ at, confirmed: true })
+  }
+  return deaths.sort((a, b) => a.at - b.at)
 }
 
 /**
@@ -193,16 +241,14 @@ function killConfirmed(marks: Mark[], side: FighterSide, at: number): boolean {
  * the other side alone scored. Null when nothing shows it, or the signs
  * disagree.
  */
-export function sideShownBy(stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): { side: BattleSide; by: 'banner' | 'kill' } | null {
+export function sideShownBy(stays: Pick<Stay, 'from' | 'to' | 'early'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): { side: BattleSide; by: 'banner' | 'kill' } | null {
   const byBanner = new Set<BattleSide>()
   const byKill = new Set<BattleSide>()
+  // A capture that completed as theirs would have (captureCompleted): one that merely happened while they stood there, someone
+  // else's, says nothing of them.
   for (const stay of stays) {
-    if (stay.to - stay.from < RULES.captureMinutes * 60 - RULES.tickSeconds) continue
-    for (let i = 1; i < marks.length; i++) {
-      const [before, mark] = [marks[i - 1], marks[i]]
-      if (mark.t < stay.from || mark.t > stay.to + 2 * RULES.tickSeconds || !mark.banner) continue
-      if (before.banner !== mark.banner || mark.holders > before.holders) byBanner.add(mark.banner)
-    }
+    const side = captureCompleted(marks, null, stay)
+    if (side) byBanner.add(side)
   }
   for (const death of deaths) {
     const gainers = killGainers(marks, death.at)
@@ -214,7 +260,7 @@ export function sideShownBy(stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Dea
 }
 
 /** The side a player's play shows them on (sideShownBy), without what showed it. */
-export const sideShown = (stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): BattleSide | null =>
+export const sideShown = (stays: Pick<Stay, 'from' | 'to' | 'early'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): BattleSide | null =>
   sideShownBy(stays, deaths, marks)?.side ?? null
 
 /**
@@ -252,7 +298,7 @@ function fighterAs(name: string, side: FighterSide, readings: number[], moments:
   let first: number | null = null
   let last: number | null = null
   const stays: Stay[] = []
-  let open: { from: number; lastIn: number; ours: boolean; holder: boolean } | null = null
+  let open: { from: number; lastIn: number; ours: boolean; holder: boolean; early: boolean } | null = null
   // One of the banner's holders, by a stay of theirs that took it or joined its holders: until their side loses the
   // banner, wherever they go and even if they die (SiegeWar's source; docs/war-rules.md → Banner control).
   let holding = false
@@ -260,14 +306,15 @@ function fighterAs(name: string, side: FighterSide, readings: number[], moments:
   const close = (end: number, cut: boolean) => {
     if (!open) return
     const stayed = open.lastIn - open.from
-    // Held: long enough to take it (the readings' first and last in it are up to a check inside SiegeWar's five
-    // minutes), or the banner became their side's while they were in it.
-    const took =
-      stayed >= RULES.captureMinutes * 60 - RULES.tickSeconds ||
-      (ours !== null && !open.ours && bannerAt(marks, open.from) !== ours && bannerAt(marks, open.lastIn + RULES.tickSeconds) === ours)
+    // Held: their capture completed, as the marks show it when there are any (the banner turned their side's, or its
+    // holders grew, five minutes after they stepped in: captureCompleted), so one who walks off a few seconds before
+    // the completing check hasn't; without marks, long enough to (the readings' first and last in it are up to a check
+    // inside SiegeWar's five minutes).
+    const stay = { from: open.from, to: open.lastIn, early: open.early }
+    const took = marks.length ? captureCompleted(marks, ours, stay) !== null : stayed >= RULES.captureMinutes * 60 - RULES.tickSeconds
     const died = deaths.some((death) => death.at >= open!.from && death.at <= end + FIGHT.respawnWithinSeconds)
     const outcome: Outcome = took ? 'held' : died ? 'died' : cut ? 'cut' : 'left'
-    stays.push({ from: open.from, to: open.lastIn, outcome, ours: open.ours, ...(open.holder ? { holder: true } : {}) })
+    stays.push({ from: open.from, to: open.lastIn, outcome, ours: open.ours, ...(open.holder ? { holder: true } : {}), ...(open.early ? { early: true } : {}) })
     if (took && ours !== null) holding = true
     open = null
   }
@@ -285,7 +332,9 @@ function fighterAs(name: string, side: FighterSide, readings: number[], moments:
     }
     if (atBanner(moment)) {
       if (!gap) banner += next - t
-      if (!open) open = { from: t, lastIn: t, ours: ours !== null && bannerAt(marks, t) === ours, holder: holding }
+      // Caught already there by the first reading, or the first after a gap: they may have stepped in earlier.
+      const early = i === 0 || t - readings[i - 1] > FIGHT.gapSeconds
+      if (!open) open = { from: t, lastIn: t, ours: ours !== null && bannerAt(marks, t) === ours, holder: holding, early }
       else open.lastIn = t
     } else if (open && t - open.lastIn > FIGHT.graceSeconds) {
       close(t, false)

@@ -193,7 +193,9 @@ export function OutlookDetails(props: OutlookProps) {
   const sessionStart = siege.battle && clock.on ? clock.start : null
   const { finished: past, current } = useMemo(() => splitSessions(sessionsOf(battles, siege), sessionStart), [battles, siege, sessionStart])
   // The sessions still to come, after the one on now: their starts, and who of each side usually turns up at them.
-  const left = siege.progress ? Math.max(0, siege.progress.of - siege.progress.done - (siege.battle ? 1 : 0)) : 0
+  // A session on now counts for the siege whether or not anyone fights it (seen: South_America_Quarry's went from 1/3 to
+  // 2/3 with nobody there and no battle on its marker), so it isn't one still to come.
+  const left = siege.progress ? Math.max(0, siege.progress.of - siege.progress.done - (siege.battle || clock.on ? 1 : 0)) : 0
   // Who may fight for each side: its residents, and the residents of its known allies, each ally counted for the share of
   // their fighting they've done for allies (a town of no nation has no allies: alliances.ts → defendingNation).
   const sides = useMemo(() => {

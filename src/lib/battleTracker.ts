@@ -17,6 +17,7 @@ import {
   unpackMoments,
   unpackTimes,
   type Allegiance,
+  type Fighter,
   type FighterSide,
   type Mark,
   type Moment,
@@ -55,6 +56,15 @@ export const READ_EVERY_MS = 3000
 export const MONTHLY_HOURS = 60
 /** The readings are kept this long for working a battle out again; what was made of them, for good. */
 const TRACK_KEPT_DAYS = 60
+
+/**
+ * The battle analysis's version (src/maps/fights.ts and the rules it takes):
+ * a battle whose fighters were worked out by an older one is worked out
+ * again from its readings while they're kept (reworkBattles). 2: the banner
+ * zone of 18 blocks, captures told by the marks' timing, one-blow deaths,
+ * alliances.
+ */
+export const ANALYSIS = 2
 
 const LEASE_KEY = 'azania-maps:tracker:lease'
 /** Dead fighters still being followed for their first teleport, carried from one stint to the next. */
@@ -124,7 +134,7 @@ const fighterSide = (name: string, siege: Siege, world: World | null): FighterSi
  * neither, the side an alliance of their nation's puts them on; and their
  * nation, kept with the battle so alliances can be told from it later.
  */
-function allegianceOf(name: string, side: FighterSide, siege: Siege, world: World | null, allied: Allied): Allegiance {
+function allegianceOf(name: string, side: FighterSide, siege: Pick<Siege, 'attacker' | 'defender' | 'town' | 'townNation'>, world: World | null, allied: Allied): Allegiance {
   const nation = townOf(name, world)?.nation ?? null
   return { side, nation, allied: side === 'other' ? allySide(nation, siege, allied) : null }
 }
@@ -299,6 +309,24 @@ async function addRespawns(payload: Payload, key: string, more: Respawn[]): Prom
 
 type StoredTrack = { readings?: string; marks?: Mark[]; players?: Record<string, { side?: FighterSide; moments?: string }> }
 
+/**
+ * The fighters of a battle, worked out from its readings: each player's side
+ * where they lived (kept with the readings), or for one of neither, by their
+ * play or a known alliance; and their nation, as the world has it.
+ */
+function fightersFrom(
+  readings: number[],
+  marks: Mark[],
+  players: Map<string, { side: FighterSide; moments: Moment[] }>,
+  siege: Pick<Siege, 'attacker' | 'defender' | 'town' | 'townNation'>,
+  world: World | null,
+  allied: Allied,
+) {
+  return [...players]
+    .map(([name, { side, moments }]) => fighterOf(name, allegianceOf(name, side, siege, world, allied), readings, moments, marks))
+    .filter((fighter) => fighter.first !== null)
+}
+
 /** Adds a stint's readings to the battle's row and works the battle out again from all of them. */
 async function saveBattle(payload: Payload, battle: Battle, world: World | null, respawns: Respawn[] = [], allied: Allied = alliedBy([])): Promise<void> {
   const { docs } = await payload.find({ collection: 'battles', where: { key: { equals: battle.key } }, limit: 1, depth: 0 })
@@ -316,9 +344,7 @@ async function saveBattle(payload: Payload, battle: Battle, world: World | null,
     const side = kept?.side && kept.side !== 'other' ? kept.side : fighterSide(name, battle.siege, world)
     players.set(name, { side, moments: mergeMoments(kept?.moments ?? [], moments) })
   }
-  const fighters = [...players]
-    .map(([name, { side, moments }]) => fighterOf(name, allegianceOf(name, side, battle.siege, world, allied), readings, moments, marks))
-    .filter((fighter) => fighter.first !== null)
+  const fighters = fightersFrom(readings, marks, players, battle.siege, world, allied)
   // Who could have fought: the two sides' residents online during the battle.
   const before = (stored?.sides ?? {}) as { attackers?: string[]; defenders?: string[] }
   const residentsOf = (nation: string | null | undefined) =>
@@ -342,6 +368,7 @@ async function saveBattle(payload: Payload, battle: Battle, world: World | null,
     coverage: Math.round(coverageOf(readings) * 1000) / 1000,
     fought: fighters.filter(attended).length,
     trackKeptUntil: new Date(battle.start + TRACK_KEPT_DAYS * 86_400_000).toISOString(),
+    analysis: ANALYSIS,
     banner: battle.siege.at,
     result: last ? { banner: last.banner, holders: last.holders, attacker: last.attacker, defender: last.defender } : null,
     sides,
@@ -355,6 +382,46 @@ async function saveBattle(payload: Payload, battle: Battle, world: World | null,
   }
   if (stored) await payload.update({ collection: 'battles', id: stored.id, data, depth: 0, overrideAccess: true })
   else await payload.create({ collection: 'battles', data, depth: 0, overrideAccess: true })
+}
+
+/**
+ * Battles whose fighters an older analysis worked out (ANALYSIS), worked
+ * out again from their readings: a few at a time, oldest first, for a run
+ * with the database awake (the watch's full runs). A battle whose readings
+ * are gone keeps what was made of them. Their nations are taken from the
+ * world as it is now, for a battle saved before they were kept.
+ */
+export async function reworkBattles(payload: Payload, count = 4): Promise<number> {
+  const { docs } = await payload.find({
+    collection: 'battles',
+    where: { and: [{ track: { exists: true } }, { or: [{ analysis: { exists: false } }, { analysis: { less_than: ANALYSIS } }] }] },
+    sort: 'startedAt',
+    limit: count,
+    depth: 0,
+  })
+  if (!docs.length) return 0
+  const [world, alliances] = await Promise.all([getWorld(), knownAlliances(payload).catch(() => [])])
+  const allied = alliedBy(alliances)
+  let done = 0
+  for (const doc of docs) {
+    const track = (doc.track ?? {}) as StoredTrack
+    const readings = unpackTimes(track.readings ?? '')
+    const marks = track.marks ?? []
+    const players = new Map<string, { side: FighterSide; moments: Moment[] }>(
+      Object.entries(track.players ?? {}).map(([name, kept]) => [name, { side: kept.side ?? 'other', moments: unpackMoments(kept.moments ?? '') }]),
+    )
+    const siege = { attacker: doc.attacker ?? '', defender: doc.defender ?? '', town: doc.town ?? null, townNation: null }
+    const fighters = readings.length ? fightersFrom(readings, marks, players, siege, world, allied) : ((doc.fighters ?? []) as unknown as Fighter[])
+    await payload.update({
+      collection: 'battles',
+      id: doc.id,
+      data: { fighters, fought: fighters.filter(attended).length, analysis: ANALYSIS },
+      depth: 0,
+      overrideAccess: true,
+    })
+    done++
+  }
+  return done
 }
 
 /** The readings of battles past their keeping, let go; what was made of them stays. For a run with the database awake. */

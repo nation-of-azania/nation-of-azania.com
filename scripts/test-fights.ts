@@ -58,7 +58,17 @@ const took = fighterOf('A', 'attackers', readings, stay(30, 200), [
   { t: 0, banner: null, holders: 0, attacker: 0, defender: 0 },
   { t: 210, banner: 'attackers', holders: 1, attacker: 0, defender: 0 },
 ])
-check(took.stays[0]?.outcome === 'held' && !took.stays[0].ours, 'out before five minutes by these readings, but the banner turned theirs: held')
+check(took.stays[0]?.outcome === 'left', 'out before five minutes, while a teammate took the banner: their own capture failed, left')
+const late = fighterOf('A', 'attackers', readings.filter((t) => t >= 30), stay(30, 200), [
+  { t: 0, banner: null, holders: 0, attacker: 0, defender: 0 },
+  { t: 210, banner: 'attackers', holders: 1, attacker: 0, defender: 0 },
+])
+check(late.stays[0]?.outcome === 'held' && late.stays[0].early === true, 'already there when the readings began, and the banner turned theirs within five minutes: held')
+const short = fighterOf('A', 'attackers', readings, stay(30, 340), [
+  { t: 0, banner: null, holders: 0, attacker: 0, defender: 0 },
+  { t: 400, banner: null, holders: 0, attacker: 0, defender: 0 },
+])
+check(short.stays[0]?.outcome === 'left', 'five minutes and more there, but the marks show no capture: not held (left a check too soon, or not counted)')
 check(attended(held) && !attended(fighterOf('A', 'other', readings, stay(30, 45, 150), none)), 'a minute in the zone counts as fought; fifteen seconds doesn’t')
 check(Math.abs(coverageOf(readings) - 900 / 3600) < 0.001, 'coverage: fifteen minutes of an hour')
 
@@ -92,6 +102,20 @@ check(triesOf(pandaz.stays).length === 1 && triesOf(pandaz.stays)[0].outcome ===
 const quade = inQuarry('quadecaelite68')
 check(quade.side === 'defenders' && quade.ally === true && triesOf(quade.stays).filter((stay) => stay.outcome === 'held').length === 1, 'the other joined the holders: a defender by play, one try held')
 check(inQuarry('Averycooper').side === 'other' && !inQuarry('Averycooper').ally, 'one whose play shows no side stays of neither')
+
+// A third, 1 November 2026, 12:00 UTC: Greater China's siege of Pataliputra, a town of no nation. Its defender stood on the
+// banner from the first second to 12:05:09 and no capture came of it; Luixtiter (Azania) took the banner for the attackers
+// at 12:15:03; the defender, killed five times by the points, respawned each time at the town's spawn inside the zone.
+const pata = JSON.parse(readFileSync(new URL('./fixtures/battle-pataliputra-2026-11-01-1200.json', import.meta.url), 'utf8')) as Fixture
+const pataReadings = unpackTimes(pata.readings)
+const inPata = (name: string) => fighterOf(name, pata.players[name].side, pataReadings, unpackMoments(pata.players[name].moments), pata.marks)
+const green = inPata('GreenStreak10')
+check(green.stays[0].outcome === 'left' && green.stays[0].to - green.stays[0].from > 300, 'five minutes and eight seconds on the banner, gone before the completing check: no capture, left')
+check(green.stays.some((stay) => stay.outcome === 'held' && stay.from > 1100), 'their capture from 12:19:28, 16 blocks off: held, the defenders took the banner at 12:24:33')
+check(green.deaths.length === 4 && green.deaths.every((death) => death.confirmed) && green.deaths[0].at === 577, 'four of the five deaths the points show, one of them a blow from full health with no reading at no health')
+const luix = inPata('Luixtiter')
+check(luix.side === 'attackers' && luix.ally === true && luix.by === 'banner', 'Luixtiter, of neither side: an attacker by the capture five minutes after stepping in, not by the defenders’ capture while there')
+check(triesOf(luix.stays).length === 1 && luix.stays[1]?.holder === true, 'took it once; the stay after began as one of its holders')
 
 // Records across battles.
 const saved: SavedBattle = {

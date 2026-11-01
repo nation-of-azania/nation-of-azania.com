@@ -879,6 +879,10 @@ export interface Battle {
    */
   fought?: number | null;
   trackKeptUntil?: string | null;
+  /**
+   * The version of the battle analysis its fighters were worked out by (src/lib/battleTracker.ts → ANALYSIS); older ones are worked out again from the readings.
+   */
+  analysis?: number | null;
   banner?:
     | {
         [k: string]: unknown;
@@ -1554,6 +1558,7 @@ export interface BattlesSelect<T extends boolean = true> {
   coverage?: T;
   fought?: T;
   trackKeptUntil?: T;
+  analysis?: T;
   banner?: T;
   result?: T;
   sides?: T;

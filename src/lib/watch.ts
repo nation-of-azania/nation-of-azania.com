@@ -9,7 +9,7 @@ import { FRESH_MS, readMarkerFile, townsOf, type MarkerFile } from './dynmap'
 import { syncLists } from './lists'
 import type { SiegeAlertSettings } from './siegeAlerts'
 import { alertHeadline, alertMessage, planSieges, untold, watchFrom, type SiegeAlert } from './siegeWatch'
-import { pruneTracks } from './battleTracker'
+import { pruneTracks, reworkBattles } from './battleTracker'
 import { flushPresence, notePresence } from './presence'
 import { dayOf, interestOf, marksOf, quietDecision, readNote, writeNote, type Marks, type QuietNote } from './quietWatch'
 import { saveSnapshot } from './snapshot'
@@ -186,10 +186,14 @@ async function fullRun(
         pending: outcome.pending,
       })
     }
-    // With the database awake anyway: who was online, from the cache into the database, and battles' readings past
-    // their keeping let go.
+    // With the database awake anyway: who was online, from the cache into the database, battles' readings past their
+    // keeping let go, and battles an older analysis worked out worked out again.
     await flushPresence(payload).catch((error: unknown) => payload.logger.error({ err: error, msg: 'Presence: saving failed' }))
     await pruneTracks(payload).catch((error: unknown) => payload.logger.error({ err: error, msg: 'Battle tracker: letting old readings go failed' }))
+    // And battles an older analysis worked out, worked out again from their readings (a few a run).
+    await reworkBattles(payload)
+      .then((count) => count && console.info(`[battles] worked out again by the analysis's latest: ${count}`))
+      .catch((error: unknown) => payload.logger.error({ err: error, msg: 'Battle tracker: working battles out again failed' }))
   }
   return { ...result, database }
 }

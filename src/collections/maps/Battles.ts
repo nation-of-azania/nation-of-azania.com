@@ -56,6 +56,21 @@ export const Battles: CollectionConfig = {
         { name: 'trackKeptUntil', type: 'date', admin: { readOnly: true, width: '33%' } },
       ],
     },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'analysis',
+          type: 'number',
+          index: true,
+          admin: {
+            readOnly: true,
+            width: '33%',
+            description: 'The version of the battle analysis its fighters were worked out by (src/lib/battleTracker.ts → ANALYSIS); older ones are worked out again from the readings.',
+          },
+        },
+      ],
+    },
     // [x, z] of the banner.
     { name: 'banner', type: 'json', admin: { readOnly: true } },
     // The marker's last word: { banner, holders, attacker, defender } (src/maps/fights.ts → Mark).

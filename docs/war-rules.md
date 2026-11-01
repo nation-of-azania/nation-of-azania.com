@@ -321,6 +321,36 @@ American Syndicate), laid during the session:
   at 00:05:35 teleported away two seconds later (thousands of blocks off,
   at full health), and the attackers went on earning for two holders.
 
+Logged the same way through the battle session of 1 November 2026, 13:00
+CET (12:00–13:00 UTC), with three battles on: Greater China's siege of
+Pataliputra and Sekhra's of Men-nefer (both towns of no nation), and the
+Zapatistas' of Elysian (Solaris):
+
+- **A capture completes at the check five minutes on, and not a moment
+  early**: Pataliputra's defender stood on the banner itself from the
+  session's first second to 12:05:09 and walked off; no capture came of
+  it. Standing 16 blocks off from 12:19:28, they took the banner at 12:24:33.
+  So "held" is told from the points, not the time spent there
+  (src/maps/fights.ts → captureCompleted).
+- **Allies take banners**: Luixtiter (Azania) stepped up to Pataliputra's
+  banner at 12:09:39 and Greater China took it at 12:15:03 with one holder,
+  then retook it at 12:29:33 after the defenders had it for five minutes: so
+  Azania and Greater China are mutual allies, by SiegeWar's rule. Soviet_Gorge
+  and Winter_Mystic (The Balkan Kingdom) took and joined Elysian's banner
+  for the Zapatistas: the Balkan Kingdom and the Zapatistas are allied too.
+- **A town of no nation respawns its defenders at its spawn, inside the
+  siege zone**: Pataliputra's defender, killed five times by the points,
+  came back each time about 100 blocks from the banner at full health,
+  some of them from full health between two readings (one blow). Such a
+  death is told by the jump and the attackers' hundred together.
+- **A session counts whether or not anyone comes**: South_America_Quarry
+  went from 1/3 to 2/3 with its balance unchanged (−800) and no battle ever
+  shown on its marker.
+- **The score, again**: each session ended within a check or two of 10 a
+  holder every 20 seconds (Elysian +3,790 with two holders from 12:05 and a
+  third from 12:43; Men-nefer +3,280 with two from 12:05, both of whom left
+  three minutes later and kept earning).
+
 **Told in game** (a player's chat as a capture starts, forwarded on 1
 November 2026): "Banner control session started. Remain within 18 blocks
 of the banner, but staying out of the town, for 5 minutes. If your session
