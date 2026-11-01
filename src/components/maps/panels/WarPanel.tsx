@@ -9,13 +9,13 @@ import {
   assessBattle,
   captureEndsAt,
   playersAtSiege,
-  returnEstimate,
   reversalMultiplier,
   RULES,
   sideOf,
   SPRINT_BLOCKS_PER_S,
   townOfName,
   type AtSiege,
+  type BattleReading,
   type BattleSide,
   type PlayerSide,
   type Captures,
@@ -32,6 +32,9 @@ import { useMaps } from '../context'
 import { recordOf, useFighters } from '../fighters'
 import { useStore } from '../hooks'
 import { FighterCard, OnlineDot, rankExpected, ScoreBadge, ENOUGH } from '../ui/Fighter'
+import { OutlookDetails, OutlookSummary } from './Outlook'
+import { returnFor, useMotion } from '../motion'
+import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
@@ -460,6 +463,15 @@ function SiegeView({
   const live = useStore(liveStore)
   const now = useSecond()
   const about = useMemo(() => playersAtSiege(siege, live.players, towns), [siege, live.players, towns])
+  // How many of each side are online at all, wherever they stand: what the outlook reckons a need against.
+  const online = useMemo(() => {
+    const count = { attackers: 0, defenders: 0 }
+    for (const player of live.players) {
+      const side = sideOf(townOfName(player.name, towns), siege)
+      if (side === 'attackers' || side === 'defenders') count[side]++
+    }
+    return live.status === 'live' ? count : null
+  }, [live.players, live.status, towns, siege])
   const readings = war.readings[siege.townId] ?? []
   const assessed = siege.battle && now ? assessBattle(siege, readings, now, { attackers: about.atBanner.attackers, defenders: about.atBanner.defenders }) : null
   // Azania's side as the sums name it, for the verdict: which side the reader is on.
@@ -495,7 +507,7 @@ function SiegeView({
       </div>
 
       {assessed ? (
-        <Scoreboard assessed={assessed} captures={captures} now={now} onFocus={onFocus} ours={ours} phase={phase} siege={siege} />
+        <Scoreboard assessed={assessed} captures={captures} now={now} onFocus={onFocus} online={online} ours={ours} phase={phase} readings={readings} siege={siege} towns={towns} />
       ) : (
         <div className="mx-4 mt-3 border border-sand-50/10 px-3 py-2 text-[15px] leading-snug text-sand-200/85">
           {siege.battle ? 'The battle’s first reading is on its way.' : 'No battle on just now: the score waits for the next session.'}
@@ -505,6 +517,8 @@ function SiegeView({
               {siege.balance ? ` for the ${siege.balance > 0 ? 'attackers' : 'defenders'}` : ', even'}.
             </span>
           ) : null}
+          {/* Between sessions the story and the sessions ahead are what there is to read: open. */}
+          {now ? <OutlookDetails assessed={null} now={now} online={online} ours={ours} phase={phase} readings={readings} siege={siege} towns={towns} /> : null}
         </div>
       )}
 
@@ -514,7 +528,9 @@ function SiegeView({
 
       <p className={FOOT}>
         {ASSUMED.length ? 'The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles. ' : ''}
-        The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. A sprint is {SPRINT_BLOCKS_PER_S} blocks a second.
+        The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. Times back are at a sprint ({SPRINT_BLOCKS_PER_S} blocks a
+        second), the pessimistic figure, and at a player’s own pace when they’ve been seen moving faster, read from their last two minutes with teleports
+        left out. <LockWords />
       </p>
     </>
   )
@@ -529,6 +545,9 @@ function Scoreboard({
   captures,
   phase,
   onFocus,
+  online,
+  readings,
+  towns,
 }: {
   siege: Siege
   assessed: NonNullable<ReturnType<typeof assessBattle>>
@@ -537,8 +556,12 @@ function Scoreboard({
   captures?: Captures
   phase: number | null
   onFocus: (focus: WarFocus) => void
+  /** How many of each side are online, for the outlook; null while the feed hasn't answered. */
+  online: Record<BattleSide, number> | null
+  readings: BattleReading[]
+  towns: SideTown[]
 }) {
-  const { score, reading, multiplier, secondsLeft, projected, paced, behind, reversals } = assessed
+  const { score, reading, multiplier, secondsLeft, projected, paced, reversals } = assessed
   // The holders by name, when those seen capturing since the view opened are as many as the marker counts.
   const holderNames =
     captures && reading.banner.side && captures.holdersSide === reading.banner.side && captures.holders.length === reading.banner.holders
@@ -645,31 +668,19 @@ function Scoreboard({
               </>
             ) : null}
             .
-            {projected.overCap > 0 && ahead ? (
-              <span className="block text-sand-100">
-                At the cap: <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(projected.overCap)}</span> more would go uncounted.
-              </span>
-            ) : null}
           </p>
         </div>
       ) : null}
 
-      <Verdict
-        ahead={ahead}
-        behind={behind}
-        holder={holder}
-        ours={ours}
-        overCap={projected?.overCap ?? 0}
-        secondsLeft={secondsLeft}
-        sessionsLeft={projected?.sessionsLeft ?? null}
-        siege={siege}
-      />
+      {/* The outlook (./Outlook.tsx): the glance, and the fold with the chart, the story and the sessions ahead. */}
+      <OutlookSummary assessed={assessed} now={now} online={online} ours={ours} phase={phase} readings={readings} siege={siege} towns={towns} />
       <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-sand-300/55">
         {/* The dot flashes as each reading lands: keyed by it, so the flash plays anew each time. */}
         <span aria-hidden="true" className="az-live-dot" key={reading.at} />
         Live · read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
         {phase === null ? ' · the checks’ rhythm not yet read' : ''}.
       </p>
+      <OutlookDetails assessed={assessed} now={now} online={online} ours={ours} phase={phase} readings={readings} siege={siege} towns={towns} />
     </div>
   )
 }
@@ -744,73 +755,17 @@ function CapturesNow({
   )
 }
 
-/** Whether to stay or go, in one look: who the session's end favours, and what the side behind needs. */
-function Verdict({
-  siege,
-  ahead,
-  behind,
-  holder,
-  ours,
-  overCap,
-  secondsLeft,
-  sessionsLeft,
-}: {
-  siege: Siege
-  ahead: BattleSide | null
-  behind: NonNullable<ReturnType<typeof assessBattle>>['behind']
-  holder: BattleSide | null
-  ours: BattleSide | null
-  /** Points of the session's margin beyond the balance cap, which the side behind may score for nothing. */
-  overCap: number
-  secondsLeft: number | null
-  sessionsLeft: number | null
-}) {
-  if (!ahead || !behind) return null
-  const who = (side: BattleSide) => (ours === side ? 'Azania' : sideName(siege, side))
-  const good = ours === ahead
-  const bad = ours === behind.side
-  const minutesLeft = secondsLeft === null ? 0 : secondsLeft / 60
-  const ways: string[] = [`${behind.kills} kill${behind.kills === 1 ? '' : 's'}`]
-  const many = (count: number) => `${count} at the banner`
-  if (behind.minutesRetaken === null) {
-    // They hold it, or nobody does: more of them at it, for what's left.
-    if (behind.holdersNeeded !== null) ways.push(`${many(behind.holdersNeeded)} for the rest of the session${holder === behind.side ? '' : ', once taken'}`)
-  } else {
-    // The enemy holds it: taking it back brings the bonus; said for those there now, and, when that won't do in time, for how many would.
-    const minutes = Math.ceil(behind.minutesRetaken)
-    const fits = behind.minutesRetaken <= minutesLeft
-    ways.push(
-      `take the banner back and hold it ${minutes} min with the ${behind.holders} there now${
-        fits ? '' : behind.holdersNeeded !== null ? `, more than is left; ${many(behind.holdersNeeded)} would do it in time` : ', more than is left'
-      }`,
-    )
-  }
-  if (overCap > 0) {
-    // Past the cap, the side ahead has a cushion: what's over it is the other side's to score for nothing. The deficit
-    // (battle.ts → assessBattle) is the whole of the margin, the cushion with it, and so are the ways to make it up.
-    return (
-      <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
-        <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
-          {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}, <span className={FIGURE}>{n(overCap)}</span> over the{' '}
-          <span className={FIGURE}>{n(RULES.balanceCap)}</span> cap{good ? ': hold on.' : '.'}
-        </p>
-        <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
-          {who(behind.side)} can score <span className={cn(FIGURE, 'font-semibold')}>{n(overCap)}</span> this session before it costs {who(ahead)} anything; to come level{' '}
-          {bad ? 'Azania' : 'they'} would need <span className={cn(FIGURE, 'font-semibold')}>{n(behind.deficit)}</span>: {ways.join(', or ')}.
-        </p>
-      </div>
-    )
-  }
-  return (
-    <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
-      <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
-        {who(ahead)} {sessionsLeft === 0 ? 'wins the siege as it stands' : 'leads into the next session'}
-        {good ? ': hold on.' : '.'}
-      </p>
-      <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
-        {who(behind.side)} {bad ? 'must' : 'would'} make up <span className={cn(FIGURE, 'font-semibold')}>{n(behind.deficit)}</span> to come level: {ways.join(', or ')}.
-      </p>
-    </div>
+/** How long a death in battle keeps a player from teleporting, as far as it's known. */
+function LockWords() {
+  const fighters = useFighters(false)
+  if (fighters.status !== 'ready') return null
+  return fighters.lock ? (
+    <>
+      After a death in battle a player can’t teleport for about {clockOf(fighters.lock.quickest)}: the quickest seen after {fighters.lock.seen} death
+      {fighters.lock.seen === 1 ? '' : 's'}.
+    </>
+  ) : (
+    <>After a death in battle a player can’t teleport for up to {clockOf(fighters.lockDefault)}, as far as is known; the tracker measures it from every death.</>
   )
 }
 
@@ -940,21 +895,71 @@ function FighterRow({
 
 /** Where a fighter is to the banner: at it, in the zone, or outside with the time back. */
 function Whereabouts({ entry, siege, towns }: { entry: AtSiege; siege: Siege; towns: SideTown[] }) {
+  const back = useWayBack(entry.player, siege, towns)
   if (entry.atBanner) return <span className="font-semibold text-coral-300">at the banner</span>
-  if (entry.inZone) return <>in the zone · {n(entry.distance)} blocks</>
-  const back = wayBack(entry.player, siege, towns)
+  if (entry.inZone)
+    return (
+      <>
+        in the zone · {n(entry.distance)} blocks
+        <Locked back={back} />
+      </>
+    )
   return (
     <>
-      {n(entry.distance)} blocks away · back in <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.seconds)}</span>
+      {n(entry.distance)} blocks away · <Back back={back} />
+    </>
+  )
+}
+
+/**
+ * The way back to the banner for a player (src/maps/motion.ts → returnOf):
+ * at a sprint, the pessimistic figure, and at their own pace when they've
+ * been seen moving faster, with the lock after a death in the zone. The
+ * lock is the quickest the tracker has measured, else its upper bound.
+ */
+function useWayBack(player: LivePlayer, siege: Siege, towns: SideTown[]): Return {
+  const motion = useMotion()
+  const fighters = useFighters(false)
+  const now = useSecond()
+  const home = townOfName(player.name, towns)?.home ?? null
+  // The clock is 0 only on the server, which never renders the war view; the store's last reading stands in then.
+  return returnFor(motion, player.name, [player.x, player.z], siege.at, home, now || motion.at, fighters.lock?.quickest ?? fighters.lockDefault)
+}
+
+/** "back in 3:10 at their pace (28 b/s) · 6:40 at a sprint", with the lock before it while it holds. */
+function Back({ back }: { back: Return }) {
+  return (
+    <>
+      <Locked back={back} lead={false} />
+      back in{' '}
+      {back.expected !== null ? (
+        <>
+          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.expected)}</span> at their pace ({back.pace} b/s) ·{' '}
+          <span className={FIGURE}>{clockOf(back.pessimistic)}</span> at a sprint
+        </>
+      ) : (
+        <>
+          <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.pessimistic)}</span> at a sprint
+        </>
+      )}
       {back.via === 'spawn' ? ' by /t spawn' : ''}
     </>
   )
 }
 
-/** The way back to the banner for a player: sprinting, or by their own town's spawn when that's nearer. */
-function wayBack(player: LivePlayer, siege: Siege, towns: SideTown[]) {
-  const home = townOfName(player.name, towns)?.home ?? null
-  return returnEstimate([player.x, player.z], siege.at, home)
+/** The lock after a death, while it holds: a padlock and the time until they may teleport. */
+function Locked({ back, lead = true }: { back: Return; lead?: boolean }) {
+  if (!back.locked) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-saffron-300" title="Dead in the battle a moment ago: the server keeps them from teleporting for a while">
+      {lead ? ' · ' : null}
+      <Icon className="h-3 w-3" name="lock" />
+      <span>
+        can’t teleport for <span className={cn(FIGURE, 'font-semibold')}>{clockOf(back.locked)}</span>
+      </span>
+      {lead ? null : ' · '}
+    </span>
+  )
 }
 
 /* A nation: who it is, how many, who's online. */
@@ -1059,14 +1064,19 @@ function NationView({
 
 /** A player's distance to the view's banner, and the time back: as a nation's roster says it. */
 function ToBanner({ player, siege, towns }: { player: LivePlayer; siege: Siege; towns: SideTown[] }) {
+  const back = useWayBack(player, siege, towns)
   const distance = Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1]))
   if (distance <= RULES.bannerRadius) return <span className="font-semibold text-coral-300">at the banner</span>
-  if (distance <= RULES.siegeZoneRadius) return <>in the zone · {n(distance)} blocks</>
-  const back = wayBack(player, siege, towns)
+  if (distance <= RULES.siegeZoneRadius)
+    return (
+      <>
+        in the zone · {n(distance)} blocks
+        <Locked back={back} />
+      </>
+    )
   return (
     <>
-      {n(distance)} blocks away · back in <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(back.seconds)}</span>
-      {back.via === 'spawn' ? ' by /t spawn' : ''}
+      {n(distance)} blocks away · <Back back={back} />
     </>
   )
 }
@@ -1092,13 +1102,17 @@ function PlayerView({
 }) {
   const { liveStore } = useMaps()
   const live = useStore(liveStore)
+  const motion = useMotion()
+  const fighters = useFighters(false)
+  const lockSeconds = fighters.lock?.quickest ?? fighters.lockDefault
+  const now = useSecond()
   const [copied, copy] = useCopy()
   const player = live.players.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase()) ?? null
   const town = townOfName(name, towns)
   const side = siege ? sideOf(town, siege) : null
   const place = player ? `${Math.round(player.x)} ${Math.round(player.y)} ${Math.round(player.z)}` : null
   const distance = player && siege ? Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1])) : null
-  const backWay = player && siege && distance !== null && distance > RULES.siegeZoneRadius ? wayBack(player, siege, towns) : null
+  const backWay = player && siege ? returnFor(motion, name, [player.x, player.z], siege.at, town?.home ?? null, now || motion.at, lockSeconds) : null
   return (
     <>
       <div className="flex items-start gap-2 px-4 pt-3">
@@ -1143,10 +1157,26 @@ function PlayerView({
                     <span className={cn(FIGURE, 'font-semibold')}>{n(distance)}</span> blocks from the banner, outside the zone
                   </>
                 )}
-                {backWay ? (
+                {backWay && distance !== null && distance > RULES.siegeZoneRadius ? (
                   <span className="block text-[15px] text-sand-200/85">
-                    Back in <span className={cn(FIGURE, 'text-[20px] font-semibold text-sand-50')}>{clockOf(backWay.seconds)}</span>{' '}
-                    {backWay.via === 'spawn' ? `by /t spawn and a ${n(backWay.blocks)}-block sprint` : 'sprinting straight there'}
+                    Back in{' '}
+                    <span className={cn(FIGURE, 'text-[20px] font-semibold text-sand-50')}>{clockOf(backWay.expected ?? backWay.pessimistic)}</span>
+                    {backWay.expected !== null ? (
+                      <>
+                        {' '}
+                        at their pace, <span className={FIGURE}>{backWay.pace}</span> blocks a second;{' '}
+                        <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(backWay.pessimistic)}</span> at a sprint
+                      </>
+                    ) : (
+                      ' at a sprint; no pace of their own seen yet'
+                    )}
+                    {backWay.via === 'spawn' ? `, by /t spawn and ${n(backWay.blocks)} blocks` : ', straight there'}
+                  </span>
+                ) : null}
+                {backWay?.locked ? (
+                  <span className="mt-0.5 flex items-center gap-1.5 text-[15px] text-saffron-300">
+                    <Icon className="h-4 w-4" name="lock" />
+                    Dead in the battle: can’t teleport for <span className={cn(FIGURE, 'font-semibold')}>{clockOf(backWay.locked)}</span>
                   </span>
                 ) : null}
               </p>

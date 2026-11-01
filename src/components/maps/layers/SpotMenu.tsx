@@ -10,6 +10,7 @@ import { inWorld } from '@/maps/source'
 import type { Siege } from '@/maps/world'
 
 import { useMaps } from '../context'
+import { paceFor, useMotion } from '../motion'
 import { L, toPoint, useLeaflet } from '../leaflet/canvas'
 import { Icon } from '../ui/icons'
 import { privateSpawnNote, useCopy } from '../ui/Readouts'
@@ -26,9 +27,12 @@ import { clockOf } from '../warView'
  * which is nowhere a player can stand. The map's foot used to read the
  * block under the pointer out all the time; it's asked for now.
  */
-export function SpotMenu({ data, siege }: { data: MapData; siege: Siege | null }) {
+export function SpotMenu({ data, siege, watch = null }: { data: MapData; siege: Siege | null; watch?: string | null }) {
   const { map } = useLeaflet()
   const { look } = useMaps()
+  const motion = useMotion()
+  // The watched player's own pace, when they've been seen moving: the spot's time at it, beside the sprint's.
+  const pace = watch ? paceFor(motion, watch, motion.at) : null
   const [spot, setSpot] = useState<Point | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const [copied, copy] = useCopy()
@@ -151,7 +155,12 @@ export function SpotMenu({ data, siege }: { data: MapData; siege: Siege | null }
         {toBanner !== null && siege ? (
           <p>
             <span className="font-semibold tabular-nums">{toBanner.toLocaleString('en-GB')} blocks</span> from the banner
-            {siege.town ? ` at ${spoken(siege.town)}` : ''} · a <span className="font-mono tabular-nums">{clockOf(toBanner / SPRINT_BLOCKS_PER_S)}</span> sprint
+            {siege.town ? ` at ${spoken(siege.town)}` : ''} · <span className="font-mono tabular-nums">{clockOf(toBanner / SPRINT_BLOCKS_PER_S)}</span> at a sprint
+            {pace !== null && pace > SPRINT_BLOCKS_PER_S && watch ? (
+              <>
+                , <span className="font-mono tabular-nums">{clockOf(toBanner / pace)}</span> at {watch}’s pace ({pace} b/s)
+              </>
+            ) : null}
           </p>
         ) : null}
         <p>
