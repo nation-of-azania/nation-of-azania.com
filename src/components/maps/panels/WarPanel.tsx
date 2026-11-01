@@ -24,11 +24,14 @@ import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import type { LivePlayer } from '@/maps/players'
 import { azaniaSide, bySiegeWeight, siegeHeadline, type SiegeSide } from '@/maps/sieges'
-import { secondsLeftNow } from '@/maps/battle'
+import { secondsLeftNow, sessionClock } from '@/maps/battle'
+import { fighterScore } from '@/maps/fighters'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useMaps } from '../context'
+import { recordOf, useFighters } from '../fighters'
 import { useStore } from '../hooks'
+import { FighterCard, OnlineDot, rankExpected, ScoreBadge, ENOUGH } from '../ui/Fighter'
 import { Head } from '../ui/Head'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
@@ -251,6 +254,7 @@ function Overview({
         </section>
       ) : null}
       <OnlineInTheFight nations={nations} onFocus={onFocus} towns={towns} />
+      <TopFighters onFocus={onFocus} />
       <p className={FOOT}>
         Choose a siege, a nation or a player, here or on the map. The players every 1.5 s; the sieges as SiegeWar rewrites their markers, every 15 s.
       </p>
@@ -382,6 +386,58 @@ function OnlineInTheFight({ nations, towns, onFocus }: { nations: string[]; town
   )
 }
 
+/** The fighters with the best scores across the last 60 days of battles, those with enough battles to judge by. */
+function TopFighters({ onFocus }: { onFocus: (focus: WarFocus) => void }) {
+  const fighters = useFighters(true)
+  const ranked = useMemo(
+    () =>
+      fighters.players
+        .filter((record) => record.fought >= ENOUGH)
+        .map((record) => ({ record, score: fighterScore(record) }))
+        .sort((a, b) => b.score - a.score || b.record.fought - a.record.fought || a.record.name.localeCompare(b.record.name))
+        .slice(0, 5),
+    [fighters.players],
+  )
+  return (
+    <section className="mt-3 px-4">
+      <p className={EYEBROW}>Fighters’ scores{fighters.status === 'ready' && fighters.battles ? ` · ${fighters.battles} battle${fighters.battles === 1 ? '' : 's'} in 60 days` : ''}</p>
+      {fighters.status === 'ready' && fighters.battles === 0 ? (
+        <p className="mt-1 text-[14px] leading-snug text-sand-200/80">No battles recorded yet: the tracker reads every battle from 1 November.</p>
+      ) : fighters.status === 'ready' && ranked.length === 0 ? (
+        <p className="mt-1 text-[14px] leading-snug text-sand-200/80">Nobody has fought {ENOUGH} battles yet: too few to judge by.</p>
+      ) : fighters.status === 'down' ? (
+        <p className="mt-1 text-[14px] text-sand-200/80">The records couldn’t be read just now.</p>
+      ) : fighters.status !== 'ready' ? (
+        <p className="mt-1 text-[14px] text-sand-200/80">Reading the records…</p>
+      ) : (
+        <ol className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+          {ranked.map(({ record, score }, index) => (
+            <li key={record.name}>
+              <button
+                className="flex w-full items-center gap-2.5 py-1 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400"
+                onClick={() => onFocus({ kind: 'player', name: record.name })}
+                type="button"
+              >
+                <span className={cn(FIGURE, 'w-4 shrink-0 text-[13px] text-sand-200/70')}>{index + 1}</span>
+                <Head name={record.name} px={24} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-sand-50">{record.name}</span>
+                  <span className="block text-[13px] text-sand-200/70">
+                    {record.fought} of {record.could} fought · {record.held} of {record.held + record.died + record.left} held
+                    {record.side && record.side !== 'other' ? ` · last ${record.side === 'attackers' ? 'attacking' : 'defending'}` : ''}
+                  </span>
+                </span>
+                <span className={cn(FIGURE, 'text-[20px] font-semibold text-sand-50')}>{score}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {fighters.demo ? <p className="mt-1 text-[12px] italic text-sand-300/70">Made up: the war demo’s records.</p> : null}
+    </section>
+  )
+}
+
 /* A siege: the battle, assessed. */
 
 function SiegeView({
@@ -453,6 +509,8 @@ function SiegeView({
       )}
 
       <Fighters about={about} onFocus={onFocus} siege={siege} towns={towns} />
+
+      <ExpectedFighters onFocus={onFocus} siege={siege} towns={towns} />
 
       <p className={FOOT}>
         {ASSUMED.length ? 'The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles. ' : ''}
@@ -858,6 +916,9 @@ function FighterRow({
   onOpen: () => void
 }) {
   const low = player.health !== null && player.health <= LOW_HEALTH
+  // Their score from the records, when the view has them (it never asks for them here).
+  const fighters = useFighters(false)
+  const record = fighters.status === 'ready' ? recordOf(fighters, player.name) : null
   return (
     <li className={low ? 'border-l-4 border-coral-500 -ml-4 pl-3' : undefined}>
       <button className="flex w-full items-center gap-2.5 py-1.5 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400" onClick={onOpen} type="button">
@@ -865,7 +926,10 @@ function FighterRow({
           <Head name={player.name} px={30} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn('block truncate font-mono text-[15px] font-semibold tracking-[0.02em]', low ? 'text-coral-300' : 'text-sand-50')}>{player.name}</span>
+          <span className="flex items-center gap-2">
+            <span className={cn('truncate font-mono text-[15px] font-semibold tracking-[0.02em]', low ? 'text-coral-300' : 'text-sand-50')}>{player.name}</span>
+            {record?.fought ? <ScoreBadge className="shrink-0 scale-90" record={record} tone="war" /> : null}
+          </span>
           {where ? <span className={cn(SECOND, 'block')}>{where}</span> : null}
         </span>
         <Vitals armor={player.armor} className="shrink-0" health={player.health} />
@@ -1126,7 +1190,119 @@ function PlayerView({
           {live.status === 'live' ? 'Not on the server just now, or hidden from its map.' : live.status === 'down' ? 'The map isn’t answering, so where they are isn’t known.' : 'Asking the map…'}
         </p>
       )}
+      <PlayerRecord name={name} />
     </>
+  )
+}
+
+/** The player's record in the battles (ui/Fighter.tsx), asked for as the view opens. */
+function PlayerRecord({ name }: { name: string }) {
+  const fighters = useFighters(true)
+  // The clock is 0 only on the server, which never renders the war view.
+  const now = useSecond()
+  if (!now) return null
+  return <FighterCard className="mx-4 mt-4 border-t border-sand-50/10 pt-3" now={now} record={recordOf(fighters, name)} state={fighters} tone="war" />
+}
+
+/**
+ * Who to expect at the siege the view is on: each side's residents, those
+ * on now first (the live feed), then by how likely they are to be fighting
+ * at the session's time (their usual hours times their turnout), each
+ * with their score. A read of the danger on the enemy's side and of the
+ * turnout on one's own. Residents only: an ally fights for a side without
+ * living in it, and can't be known in advance.
+ */
+function ExpectedFighters({ siege, towns, onFocus }: { siege: Siege; towns: SideTown[]; onFocus: (focus: WarFocus) => void }) {
+  const { liveStore } = useMaps()
+  const live = useStore(liveStore)
+  const now = useSecond()
+  const fighters = useFighters(true)
+  const [opened, setOpened] = useState<BattleSide | null>(null)
+  const online = useMemo(() => new Set(live.players.map((player) => player.name.toLowerCase())), [live.players])
+  if (!now) return null
+  // At the session on now, or the next; the clock is 0 only on the server, which never renders the war view.
+  const clock = sessionClock(now)
+  const at = siege.battle || clock.on ? now : clock.start
+  const when = siege.battle || clock.on ? 'this session' : `the next session, ${new Date(clock.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+  const sides: { side: BattleSide; nation: string }[] = [
+    { side: 'attackers', nation: siege.attacker },
+    { side: 'defenders', nation: siege.defender },
+  ]
+  const SHOWN = 6
+  return (
+    <section className="mt-4 px-4">
+      <p className={EYEBROW}>Who to expect · {when}</p>
+      {sides.map(({ side, nation }) => {
+        const names = towns.filter((town) => sameNation(town.nation, nation)).flatMap((town) => town.people)
+        const ranked = rankExpected(names, fighters, online, at)
+        const all = opened === side
+        const shown = all ? ranked : ranked.slice(0, SHOWN)
+        return (
+          <div className="mt-2" key={side}>
+            <p className={cn(EYEBROW, sideColour(side))}>
+              {sideWord(side)}s · {spoken(nation)}
+              {ranked.length ? ` · ${ranked.filter((entry) => entry.online).length} on now of ${ranked.length}` : ''}
+            </p>
+            {ranked.length ? (
+              <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
+                {shown.map((entry) => (
+                  <li key={entry.name}>
+                    <button
+                      className="flex w-full items-center gap-2.5 py-1 pr-1 text-left hover:bg-sand-50/5 focus-visible:outline-saffron-400"
+                      onClick={() => onFocus({ kind: 'player', name: entry.name })}
+                      type="button"
+                    >
+                      <span className={cn('az-war-head shrink-0', `az-war-head-${side}`)}>
+                        <Head name={entry.name} px={24} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={cn('block truncate font-mono text-[14px] font-semibold tracking-[0.02em]', entry.online ? 'text-sand-50' : 'text-sand-200/80')}>
+                          {entry.name}
+                        </span>
+                        <span className={cn('flex items-center gap-1.5 text-[13px]', entry.online ? 'text-lagoon-300' : 'text-sand-200/70')}>
+                          {entry.online ? (
+                            <>
+                              <OnlineDot /> on now
+                            </>
+                          ) : entry.expected !== null ? (
+                            `${Math.round(entry.expected * 100)}% likely`
+                          ) : fighters.status === 'ready' ? (
+                            'no record'
+                          ) : (
+                            '…'
+                          )}
+                          {entry.record?.fought ? ` · ${entry.record.fought} of ${entry.record.could} fought` : ''}
+                        </span>
+                      </span>
+                      {entry.record ? <ScoreBadge record={entry.record} tone="war" /> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-0.5 text-[14px] text-sand-200/80">{towns.length ? 'No residents the map knows.' : 'The world is still on its way.'}</p>
+            )}
+            {ranked.length > SHOWN ? (
+              <button
+                className="mt-1 text-[13px] text-sand-200/80 underline decoration-dotted underline-offset-2 hover:text-sand-50 focus-visible:outline-saffron-400"
+                onClick={() => setOpened(all ? null : side)}
+                type="button"
+              >
+                {all ? 'Fewer' : `All ${ranked.length}`}
+              </button>
+            ) : null}
+          </div>
+        )
+      })}
+      <p className="mt-1.5 text-[12px] leading-snug text-sand-300/70">
+        Residents only: an ally fights without living there, and can’t be known in advance.{' '}
+        {fighters.status === 'ready' && fighters.battles === 0
+          ? 'No battles recorded yet: the tracker reads every battle from 1 November, and the likelihoods come with them.'
+          : fighters.status === 'down'
+            ? 'The records couldn’t be read just now.'
+            : ''}
+      </p>
+    </section>
   )
 }
 
