@@ -85,6 +85,19 @@ export function sessionsOf(state: BattlesState, siege: { townId: string; attacke
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
 }
 
+/**
+ * A siege's tracked sessions split in two: those fought before the session
+ * on now (`finished`), and the one on now, if the tracker has saved any of it
+ * yet (`current`: it saves every five minutes through a battle, so this is
+ * the session so far, not its result). With no battle on, all are finished.
+ */
+export function splitSessions(sessions: TrackedBattle[], sessionStart: number | null): { finished: TrackedBattle[]; current: TrackedBattle | null } {
+  if (sessionStart === null) return { finished: sessions, current: null }
+  // A battle's row is keyed by its session's start, to the minute.
+  const isCurrent = (battle: TrackedBattle) => Date.parse(battle.startedAt) >= sessionStart - 60_000
+  return { finished: sessions.filter((battle) => !isCurrent(battle)), current: sessions.find(isCurrent) ?? null }
+}
+
 /** A session's points as it ended: the marker's last word when it has any, else the last minute that had any. */
 export function resultOf(battle: TrackedBattle): { attacker: number; defender: number } | null {
   if (battle.result && (battle.result.attacker || battle.result.defender)) return battle.result

@@ -5,14 +5,14 @@ import { useMemo, type ReactNode } from 'react'
 import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
 import { alliesOf, defendingNation } from '@/maps/alliances'
-import { assessBattle, RULES, type BattleReading, type BattleSide } from '@/maps/battle'
+import { assessBattle, RULES, sessionClock, type BattleReading, type BattleSide } from '@/maps/battle'
 import { spoken } from '@/maps/data'
 import { allyShare } from '@/maps/fighters'
 import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type SiegeForecast, type Target } from '@/maps/outlook'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useAlliances } from '../alliances'
-import { resultOf, sessionsOf, useBattles, type TrackedBattle } from '../battles'
+import { resultOf, sessionsOf, splitSessions, useBattles, type TrackedBattle } from '../battles'
 import { useFighters } from '../fighters'
 import { timeOf } from '../warView'
 
@@ -187,7 +187,11 @@ export function OutlookDetails(props: OutlookProps) {
   const fighters = useFighters(true)
   const { alliances } = useAlliances(true)
   const who = namer(siege, ours)
-  const past = useMemo(() => sessionsOf(battles, siege), [battles, siege])
+  // The sessions the tracker saved: those fought before this one (the siege's story), and this one so far, which starts the
+  // session's chart off from its first minute rather than from when the view was opened.
+  const clock = sessionClock(now)
+  const sessionStart = siege.battle && clock.on ? clock.start : null
+  const { finished: past, current } = useMemo(() => splitSessions(sessionsOf(battles, siege), sessionStart), [battles, siege, sessionStart])
   // The sessions still to come, after the one on now: their starts, and who of each side usually turns up at them.
   const left = siege.progress ? Math.max(0, siege.progress.of - siege.progress.done - (siege.battle ? 1 : 0)) : 0
   // Who may fight for each side: its residents, and the residents of its known allies, each ally counted for the share of
@@ -222,7 +226,7 @@ export function OutlookDetails(props: OutlookProps) {
     <details className="az-outlook mt-2.5 border-t border-sand-50/10 pt-1.5" open={open}>
       <summary className="flex cursor-pointer select-none items-center gap-2.5 py-1 focus-visible:outline-saffron-400 [&::-webkit-details-marker]:hidden">
         <span className={cn(EYEBROW, 'shrink-0')}>Outlook</span>
-        {assessed && readings.length > 1 ? <Sparkline assessed={assessed} readings={readings} /> : null}
+        {assessed && (readings.length > 1 || current) ? <Sparkline assessed={assessed} readings={readings} tracked={current} /> : null}
         <span className="min-w-0 flex-1 truncate text-[13px] text-sand-200/80">
           {siege.progress ? `Session ${Math.min(siege.progress.of, siege.progress.done + (siege.battle ? 1 : 0))} of ${siege.progress.of}` : ''}
           {forecast?.winner ? ` · forecast ${who(forecast.winner).toLowerCase() === 'azania' ? 'Azania' : forecast.winner}` : ''}
@@ -232,7 +236,7 @@ export function OutlookDetails(props: OutlookProps) {
         </span>
       </summary>
       <div className="space-y-3 pb-1 pt-1">
-        {assessed && outlook ? <SessionChart assessed={assessed} readings={readings} /> : null}
+        {assessed && outlook ? <SessionChart assessed={assessed} readings={readings} tracked={current} /> : null}
         {assessed && outlook ? <WhatItTakes outlook={outlook} siege={siege} who={who} online={props.online} /> : null}
         <SiegeStory assessed={assessed} forecast={forecast} past={past} siege={siege} who={who} battlesStatus={battles.status} />
         {forecast ? (
@@ -248,20 +252,32 @@ export function OutlookDetails(props: OutlookProps) {
   )
 }
 
-/** A session's points as the view read them: minute by minute, the end projected. */
-function courseOf(assessed: NonNullable<ReturnType<typeof assessBattle>>, readings: BattleReading[]) {
+/**
+ * A session's points: as the battle tracker saved them, a point a minute,
+ * up to the first the view read itself (`tracked`, the session so far as
+ * /maps/battles has it), then as the view read them; the end projected.
+ * `since` is the minute the view's own readings begin, when the tracker's
+ * came before them.
+ */
+function courseOf(assessed: NonNullable<ReturnType<typeof assessBattle>>, readings: BattleReading[], tracked: TrackedBattle | null = null) {
   const total = RULES.sessionMinutes * 60
-  const points = readings
+  const live = readings
     .filter((reading) => reading.points && reading.secondsLeft !== null)
     .map((reading) => ({ minute: (total - reading.secondsLeft!) / 60, attacker: reading.points!.attacker, defender: reading.points!.defender, banner: reading.banner.side }))
+  const firstLive = live.length ? live[0].minute : Infinity
+  const before = (tracked?.points ?? [])
+    .filter(([minute]) => minute < firstLive - 0.5)
+    .map(([minute, attacker, defender, banner]) => ({ minute, attacker, defender, banner: (banner === 'a' ? 'attackers' : banner === 'd' ? 'defenders' : null) as BattleSide | null }))
+  const points = [...before, ...live]
+  const since = before.length && live.length ? firstLive : null
   const end = assessed.projected ? { minute: RULES.sessionMinutes, ...assessed.projected.points } : null
   const top = Math.max(100, ...points.map((p) => Math.max(p.attacker, p.defender)), end ? Math.max(end.attacker, end.defender) : 0)
-  return { points, end, top }
+  return { points, end, top, since }
 }
 
 /** The shape of the session in a few pixels, for the fold's line. */
-function Sparkline({ assessed, readings }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[] }) {
-  const { points, end, top } = courseOf(assessed, readings)
+function Sparkline({ assessed, readings, tracked }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[]; tracked: TrackedBattle | null }) {
+  const { points, end, top } = courseOf(assessed, readings, tracked)
   const w = 64
   const h = 16
   const x = (minute: number) => (minute / RULES.sessionMinutes) * w
@@ -281,8 +297,8 @@ function Sparkline({ assessed, readings }: { assessed: NonNullable<ReturnType<ty
  * along the foot, running on dashed to the end the banner as it is would
  * make (the projection).
  */
-function SessionChart({ assessed, readings }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[] }) {
-  const { points, end, top } = courseOf(assessed, readings)
+function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[]; tracked: TrackedBattle | null }) {
+  const { points, end, top, since } = courseOf(assessed, readings, tracked)
   if (!points.length) return <p className="text-[13px] text-sand-200/75">The session’s course comes with the readings.</p>
   const w = 320
   const h = 96
@@ -317,6 +333,8 @@ function SessionChart({ assessed, readings }: { assessed: NonNullable<ReturnType
             {minute}
           </text>
         ))}
+        {/* Where the view's own readings take over from the tracker's, a point a minute before it. */}
+        {since !== null ? <line className="az-chart-grid" strokeDasharray="2 3" x1={x(since)} x2={x(since)} y1={pad.t} y2={h - pad.b} /> : null}
         {/* The banner's holders along the foot. */}
         {runs.map((run, i) => (
           <rect
@@ -346,6 +364,7 @@ function SessionChart({ assessed, readings }: { assessed: NonNullable<ReturnType
         </span>
         <span>dashed: if the banner stays as it is</span>
         <span>foot: who held it</span>
+        {since !== null ? <span>to minute {Math.round(since)}: the tracker’s, a point a minute; live since</span> : null}
       </figcaption>
     </figure>
   )
