@@ -3,6 +3,7 @@ import { getPayload } from 'payload'
 
 import { demoFighters, warDemo } from '@/lib/warDemo'
 import { recordsOf, usualHours, type SavedBattle } from '@/maps/fighters'
+import { TELEPORT_LOCK_SECONDS, lockOf } from '@/maps/motion'
 
 /**
  * Every player's record in the battles the battle tracker read
@@ -11,7 +12,8 @@ import { recordsOf, usualHours, type SavedBattle } from '@/maps/fighters'
  *
  *   { at, since, battles, players: [{ name, could, fought, minutes, stays, held, died, left, deaths, won, lost, …, hours }] }
  *
- * `hours` is 168 shares, one per hour of the week (UTC, Monday 00:00
+ * `lock` is the lock after a death as the tracker has measured it, `{ quickest, seen }` (null until it has;
+ * `lockDefault` until then: src/maps/motion.ts). `hours` is 168 shares, one per hour of the week (UTC, Monday 00:00
  * first): of the days recorded, on how many they were online at that hour.
  * The last BATTLE_DAYS of battles and PRESENCE_DAYS of presence count.
  *
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
   // On one's own machine with the war demo on (src/lib/warDemo.ts): the demo's fighters, made up.
   if (warDemo()) {
     const players = await demoFighters(now)
-    return Response.json({ at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: 12, days: 28, players, demo: true })
+    return Response.json({ at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: 12, days: 28, players, lock: { quickest: 212, seen: 2 }, demo: true })
   }
   const payload = await getPayload({ config })
   try {
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
         where: { startedAt: { greater_than: new Date(now - BATTLE_DAYS * 86_400_000).toISOString() } },
         pagination: false,
         depth: 0,
-        select: { startedAt: true, town: true, attacker: true, defender: true, coverage: true, result: true, sides: true, fighters: true },
+        select: { startedAt: true, town: true, attacker: true, defender: true, coverage: true, result: true, sides: true, fighters: true, respawns: true },
       }),
       payload.find({
         collection: 'presence-days',
@@ -54,11 +56,13 @@ export async function GET(request: Request) {
     ])
     const records = recordsOf(battles.docs as unknown as SavedBattle[])
     const hours = usualHours(days.docs.map((doc) => ({ day: doc.day, slots: (doc.slots ?? null) as Record<string, string> | null })))
+    // The lock after a death: the quickest first teleport the tracker has seen a dead fighter make (src/maps/motion.ts).
+    const lock = lockOf(battles.docs.flatMap((doc) => (Array.isArray(doc.respawns) ? (doc.respawns as { teleport?: unknown }[]) : []).map((respawn) => Number(respawn.teleport))))
     const names = new Set([...records.keys()])
     const players = [...names].map((key) => ({ ...records.get(key)!, hours: hours.get(key) ?? null }))
     // Everyone seen online but never near a battle is left out: their hours alone say little, and they'd be most of the server.
     return Response.json(
-      { at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: battles.docs.length, days: days.docs.length, players },
+      { at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: battles.docs.length, days: days.docs.length, players, lock, lockDefault: TELEPORT_LOCK_SECONDS },
       {
         headers: {
           'Cache-Control': 'public, max-age=300',

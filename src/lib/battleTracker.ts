@@ -2,7 +2,7 @@ import { getCache } from '@vercel/functions'
 import type { Payload } from 'payload'
 
 import { sameNation } from '../maps/abroad'
-import { bannerOf, secondsLeftOf, sideOf } from '../maps/battle'
+import { RULES, bannerOf, secondsLeftOf, sideOf } from '../maps/battle'
 import {
   FAR,
   KEEP_WITHIN,
@@ -22,6 +22,7 @@ import {
 import type { LiveSiege } from '../maps/players'
 import { pointsOf } from '../maps/sieges'
 import type { Siege, World, WorldTown } from '../maps/world'
+import { FOLLOW_MS, diedBetween, followed, type Fix, type Follow } from '../maps/motion'
 import { feed } from './livePlayers'
 import { getWorld } from './world'
 
@@ -52,6 +53,30 @@ export const MONTHLY_HOURS = 60
 const TRACK_KEPT_DAYS = 60
 
 const LEASE_KEY = 'azania-maps:tracker:lease'
+/** Dead fighters still being followed for their first teleport, carried from one stint to the next. */
+const FOLLOWS_KEY = 'azania-maps:tracker:follows'
+
+/** A dead fighter followed, and the battle they died in. */
+type Following = Follow & { battle: string }
+/** What a follow came to: when they died (ms), and how long after it they first teleported (s; null: not within a quarter of an hour). */
+export type Respawn = { name: string; died: number; teleport: number | null }
+
+async function loadFollows(): Promise<Map<string, Following>> {
+  try {
+    const kept = (await getCache().get(FOLLOWS_KEY)) as [string, Following][] | null
+    return new Map(Array.isArray(kept) ? kept : [])
+  } catch {
+    return new Map()
+  }
+}
+
+async function keepFollows(follows: Map<string, Following>): Promise<void> {
+  try {
+    await getCache().set(FOLLOWS_KEY, [...follows], { ttl: 3600 })
+  } catch {
+    // Lost: those follows end without a teleport seen.
+  }
+}
 const budgetKey = (now: number) => `azania-maps:tracker:budget:${new Date(now).toISOString().slice(0, 7)}`
 
 type Battle = {
@@ -141,6 +166,10 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   const battles = new Map<string, Battle>()
   const latest = new Map<string, Siege>(sieges.map((siege) => [siege.townId, siege]))
   let readings = 0
+  // Each player's last reading, to tell deaths and teleports; dead fighters followed for their first teleport.
+  const lastFix = new Map<string, Fix>()
+  const follows = await loadFollows()
+  const done: (Respawn & { battle: string })[] = []
 
   while (Date.now() < until) {
     const askedAt = Date.now()
@@ -179,31 +208,77 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
           }
         }
       }
+      // Deaths in a battle's siege zone, and how long until the dead first teleport: what the lock after a death is.
+      for (const player of reading.players) {
+        const fix: Fix = { at: reading.at, x: player.x, z: player.z, health: player.health }
+        const before = lastFix.get(player.name)
+        lastFix.set(player.name, fix)
+        const following = follows.get(player.name)
+        if (before && diedBetween(before, fix)) {
+          const battle = [...battles.values()].find((one) => Math.hypot(before.x - one.siege.at[0], before.z - one.siege.at[1]) <= RULES.siegeZoneRadius)
+          if (battle) {
+            follows.set(player.name, { died: before.at, last: fix, teleport: null, battle: battle.key })
+            continue
+          }
+        }
+        if (!following) continue
+        const next = followed(following, fix)
+        if (next.teleport !== null) {
+          done.push({ name: player.name, died: next.died, teleport: Math.round((next.teleport - next.died) / 1000), battle: following.battle })
+          follows.delete(player.name)
+        } else follows.set(player.name, { ...next, battle: following.battle })
+      }
+      for (const [name, following] of follows) {
+        if (reading.at - following.died > FOLLOW_MS) {
+          done.push({ name, died: following.died, teleport: null, battle: following.battle })
+          follows.delete(name)
+        }
+      }
     }
     await pause(Math.max(250, READ_EVERY_MS - (Date.now() - askedAt)))
   }
   await spend(began, (Date.now() - began) / 1000)
+  await keepFollows(follows)
 
   const world = await getWorld()
   const saved: string[] = []
   // Payload (and with it the database) only now, with something to save: a battle wakes the database anyway.
-  const payload = battles.size ? await payloadOf() : null
+  const payload = battles.size || done.length ? await payloadOf() : null
   for (const battle of battles.values()) {
     if (!payload) break
     try {
-      await saveBattle(payload, battle, world)
+      await saveBattle(payload, battle, world, done.filter((respawn) => respawn.battle === battle.key))
       saved.push(battle.key)
     } catch (error) {
       payload.logger.error({ err: error, msg: `Battle tracker: saving ${battle.key} failed` })
     }
   }
+  // Follows that end after their battle's last stint: added to its row on their own.
+  for (const key of new Set(done.filter((respawn) => !battles.has(respawn.battle)).map((respawn) => respawn.battle))) {
+    if (!payload) break
+    await addRespawns(payload, key, done.filter((respawn) => respawn.battle === key)).catch((error: unknown) =>
+      payload.logger.error({ err: error, msg: `Battle tracker: saving the respawns of ${key} failed` }),
+    )
+  }
   return { status: 'tracked', battles: saved, readings }
+}
+
+const withRespawns = (stored: unknown, more: Respawn[]): Respawn[] => {
+  const kept = Array.isArray(stored) ? (stored as Respawn[]) : []
+  const seen = new Set(kept.map((respawn) => `${respawn.name}|${respawn.died}`))
+  return [...kept, ...more.filter((respawn) => !seen.has(`${respawn.name}|${respawn.died}`)).map(({ name, died, teleport }) => ({ name, died, teleport }))]
+}
+
+async function addRespawns(payload: Payload, key: string, more: Respawn[]): Promise<void> {
+  const { docs } = await payload.find({ collection: 'battles', where: { key: { equals: key } }, limit: 1, depth: 0, select: { respawns: true } })
+  if (!docs[0]) return
+  await payload.update({ collection: 'battles', id: docs[0].id, data: { respawns: withRespawns(docs[0].respawns, more) }, depth: 0, overrideAccess: true })
 }
 
 type StoredTrack = { readings?: string; marks?: Mark[]; players?: Record<string, { side?: FighterSide; moments?: string }> }
 
 /** Adds a stint's readings to the battle's row and works the battle out again from all of them. */
-async function saveBattle(payload: Payload, battle: Battle, world: World | null): Promise<void> {
+async function saveBattle(payload: Payload, battle: Battle, world: World | null, respawns: Respawn[] = []): Promise<void> {
   const { docs } = await payload.find({ collection: 'battles', where: { key: { equals: battle.key } }, limit: 1, depth: 0 })
   const stored = docs[0]
   const track = (stored?.track ?? {}) as StoredTrack
@@ -247,6 +322,7 @@ async function saveBattle(payload: Payload, battle: Battle, world: World | null)
     result: last ? { banner: last.banner, holders: last.holders, attacker: last.attacker, defender: last.defender } : null,
     sides,
     fighters,
+    respawns: withRespawns(stored?.respawns, respawns),
     track: {
       readings: packTimes(readings),
       marks,

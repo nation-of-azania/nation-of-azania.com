@@ -64,6 +64,8 @@ export const Battles: CollectionConfig = {
     { name: 'sides', type: 'json', admin: { readOnly: true } },
     // Fighter[] (src/maps/fights.ts): what each player near the banner did.
     { name: 'fighters', type: 'json', admin: { readOnly: true } },
+    // Respawn[] (src/lib/battleTracker.ts): each death in the siege zone, and how long until the dead first teleported.
+    { name: 'respawns', type: 'json', admin: { readOnly: true } },
     // The readings: { readings: packed times, marks: Mark[], players: { [name]: { side, moments: packed } } }.
     { name: 'track', type: 'json', admin: { readOnly: true, hidden: true } },
   ],

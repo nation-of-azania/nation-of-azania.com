@@ -32,6 +32,7 @@
     "test:battle": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-battle.ts",
     "test:live-sieges": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-live-sieges.ts",
     "test:fights": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-fights.ts",
+    "test:motion": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-motion.ts",
     "test:outlook": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-outlook.ts",
     "test:quiet-watch": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-quiet-watch.ts",
     "test:media-names": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-media-names.ts",

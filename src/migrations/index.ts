@@ -26,6 +26,7 @@ import * as migration_20261029_155746_draft_links from './20261029_155746_draft_
 import * as migration_20261029_232807_lists from './20261029_232807_lists';
 import * as migration_20261030_090000_severe_sanction_list from './20261030_090000_severe_sanction_list';
 import * as migration_20261031_231112_battles_presence from './20261031_231112_battles_presence';
+import * as migration_20261101_051659_battles_respawns from './20261101_051659_battles_respawns';
 
 export const migrations = [
   {
@@ -166,6 +167,11 @@ export const migrations = [
   {
     up: migration_20261031_231112_battles_presence.up,
     down: migration_20261031_231112_battles_presence.down,
-    name: '20261031_231112_battles_presence'
+    name: '20261031_231112_battles_presence',
+  },
+  {
+    up: migration_20261101_051659_battles_respawns.up,
+    down: migration_20261101_051659_battles_respawns.down,
+    name: '20261101_051659_battles_respawns'
   },
 ];

@@ -915,6 +915,15 @@ export interface Battle {
     | number
     | boolean
     | null;
+  respawns?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   track?:
     | {
         [k: string]: unknown;
@@ -1549,6 +1558,7 @@ export interface BattlesSelect<T extends boolean = true> {
   result?: T;
   sides?: T;
   fighters?: T;
+  respawns?: T;
   track?: T;
   updatedAt?: T;
   createdAt?: T;
