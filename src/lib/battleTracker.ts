@@ -127,9 +127,10 @@ export type TrackResult = { status: 'tracked' | 'busy' | 'over budget' | 'no bat
  * Reads the map until `until` (a time), keeping every battle's players near
  * its banner, then adds what it read to the battles' rows. `sieges` are
  * the sieges as the watch read them; the feed's own marker updates take
- * over from there.
+ * over from there. `payloadOf` gives Payload when there's something to
+ * save, and only then (starting it connects to the database).
  */
-export async function trackBattles(payload: Payload, sieges: Siege[], until: number): Promise<TrackResult> {
+export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Siege[], until: number): Promise<TrackResult> {
   const began = Date.now()
   // Sieges with no battle on yet are read too: the feed's marker updates say when one starts (the file can be a minute behind).
   if (!sieges.length) return { status: 'no battle', battles: [], readings: 0 }
@@ -185,7 +186,10 @@ export async function trackBattles(payload: Payload, sieges: Siege[], until: num
 
   const world = await getWorld()
   const saved: string[] = []
+  // Payload (and with it the database) only now, with something to save: a battle wakes the database anyway.
+  const payload = battles.size ? await payloadOf() : null
   for (const battle of battles.values()) {
+    if (!payload) break
     try {
       await saveBattle(payload, battle, world)
       saved.push(battle.key)

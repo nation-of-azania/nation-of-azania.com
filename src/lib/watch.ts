@@ -104,7 +104,13 @@ function marksNow(file: MarkerFile, fresh: boolean, interest: QuietNote['interes
   return marksOf({ towns, world, sieges: warOf(file).sieges }, interest, day)
 }
 
-export async function watchMap(payload: Payload, { force = false }: { force?: boolean } = {}): Promise<WatchResult> {
+/**
+ * The watch. `payloadOf` gives Payload when a run needs the database, and
+ * only then: Payload's database adapter connects as it starts, and a
+ * connection is enough to wake the database, so a quiet run must never
+ * start it.
+ */
+export async function watchMap(payloadOf: () => Promise<Payload>, { force = false }: { force?: boolean } = {}): Promise<WatchResult> {
   const now = new Date()
   const note = await readNote()
   if (!force && note && now.getTime() - note.claimedAt < WATCH_EVERY_MS) {
@@ -136,9 +142,9 @@ export async function watchMap(payload: Payload, { force = false }: { force?: bo
         online,
       }
     }
-    return { ...(await fullRun(payload, now, file, fresh, day, note, false, `asked: ${decision.why}`)), battles, siegesOnMap, online }
+    return { ...(await fullRun(await payloadOf(), now, file, fresh, day, note, false, `asked: ${decision.why}`)), battles, siegesOnMap, online }
   }
-  return { ...(await fullRun(payload, now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')), battles, siegesOnMap, online }
+  return { ...(await fullRun(await payloadOf(), now, file, fresh, day, note, force, force ? 'asked: forced' : 'asked: no note from a full run')), battles, siegesOnMap, online }
 }
 
 /** What a full run leaves for the note: which fingerprints it brought up to date, and whether it left anything pending. */
