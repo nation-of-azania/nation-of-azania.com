@@ -1,4 +1,5 @@
 import { sameNation } from '@/maps/abroad'
+import type { Alliance } from '@/maps/alliances'
 import { RULES } from '@/maps/battle'
 import type { Point } from '@/maps/geo'
 import type { FighterRecord } from '@/maps/fighters'
@@ -26,6 +27,8 @@ type Scene = {
   attackers: { name: string; home: Point | null }[]
   defenders: { name: string; home: Point | null }[]
   others: string[]
+  /** The nation of the first of the others, made the defenders' ally (demoAlliances). */
+  allyNation: string | null
   capitals: War['capitals']
 }
 
@@ -54,11 +57,12 @@ function sceneOf(world: World): Scene | null {
   const attackers = peopleOf(azania.name).slice(0, 6)
   const defenders = peopleOf(target.nation, target.name).slice(0, 5)
   const taken = new Set([...attackers, ...defenders].map((person) => person.name))
-  const others = world.towns
+  const outsiders = world.towns
     .filter((town) => town.nation && !sameNation(town.nation, azania.name) && !sameNation(town.nation, target.nation))
-    .flatMap((town) => town.people)
-    .filter((name) => !taken.has(name))
+    .flatMap((town) => town.people.map((name) => ({ name, nation: town.nation! })))
+    .filter((person) => !taken.has(person.name))
     .slice(0, 2)
+  const others = outsiders.map((person) => person.name)
   return {
     siege: {
       townId: target.id ?? 'demo',
@@ -72,6 +76,7 @@ function sceneOf(world: World): Scene | null {
     attackers,
     defenders,
     others,
+    allyNation: outsiders[0]?.nation ?? null,
     capitals: nations.map((nation) => ({ nation: nation.name, town: nation.capital!.town, home: nation.capital!.home })),
   }
 }
@@ -185,6 +190,23 @@ export async function demoPlayers(now: number): Promise<LivePlayers> {
 const MARKER_EVERY_MS = 15_000
 
 /**
+ * The demo's alliances, for /maps/fighters on one's own machine: the first
+ * of the others' nation allied with the defenders, as the battles would
+ * have shown it, made up.
+ */
+export async function demoAlliances(): Promise<Alliance[]> {
+  const cast = await currentScene()
+  if (!cast?.allyNation) return []
+  return [
+    {
+      nations: [cast.siege.defender, cast.allyNation],
+      sources: ['seen'],
+      seen: { battles: 2, last: new Date(Date.now() - 2 * 86_400_000).toISOString(), players: cast.others.slice(0, 1) },
+    },
+  ]
+}
+
+/**
  * The demo's fighters' records, for /maps/fighters on one's own machine:
  * the cast with made-up but plausible histories (some keen, some who never
  * come, one who dies a lot), and usual hours peaking in the evening.
@@ -215,6 +237,9 @@ export async function demoFighters(now: number): Promise<(FighterRecord & { hour
       name,
       could,
       fought,
+      battles: fought + (fought && seed % 2 ? 1 : 0),
+      // Those who live with neither side have fought for allies, as the demo's allies do.
+      allied: side === 'other' ? fought : 0,
       minutes: fought * (20 + (seed % 35)),
       bannerMinutes: fought * (seed % 12),
       stays,

@@ -1,4 +1,5 @@
 import { sameNation } from './abroad'
+import { allySide, type Allied } from './alliances'
 import type { Point } from './geo'
 import type { LivePlayer } from './players'
 import { pointsOf } from './sieges'
@@ -461,23 +462,35 @@ export function townOfName(name: string, towns: Pick<WorldTown, 'name' | 'nation
 }
 
 /**
- * A player's side in a siege, by where they live: the attacker's nation (or
- * town, for a nationless attacker) attacks; the besieged town, and the
- * nation defending it, defend. Anyone else is 'other': an ally of either,
- * which the map doesn't show, or nobody's.
+ * A player's side in a siege, and whether as an ally, SiegeWar's way
+ * (SiegeSide.getPlayerSiegeSide): the besieged town's residents and its
+ * nation's defend, checked first; the attacker's nation (or town, for a
+ * nationless attacker) attacks. With `allied` (src/maps/alliances.ts),
+ * one whose nation is allied with the besieged town's nation defends, and
+ * one allied with the attacker attacks; a town of no nation has no allies.
+ * Anyone else is 'other': an ally not known, or nobody's.
  */
-export function sideOf(
+export function allegianceOf(
   town: Pick<WorldTown, 'name' | 'nation'> | null,
   siege: Pick<Siege, 'attacker' | 'defender' | 'town' | 'townNation'>,
-): PlayerSide {
-  if (!town) return 'other'
+  allied?: Allied,
+): { side: PlayerSide; ally: boolean } {
+  if (!town) return { side: 'other', ally: false }
   const named = (a: string | null | undefined, b: string | null | undefined) => sameNation(a, b)
-  if (named(town.nation, siege.attacker) || named(town.name, siege.attacker)) return 'attackers'
-  if (named(town.name, siege.town) || named(town.nation, siege.defender) || named(town.name, siege.defender) || named(town.nation, siege.townNation)) {
-    return 'defenders'
+  if (named(town.name, siege.town) || named(town.nation, siege.townNation) || named(town.nation, siege.defender) || named(town.name, siege.defender)) {
+    return { side: 'defenders', ally: false }
   }
-  return 'other'
+  if (named(town.nation, siege.attacker) || named(town.name, siege.attacker)) return { side: 'attackers', ally: false }
+  const side = allied ? allySide(town.nation, siege, allied) : null
+  return side ? { side, ally: true } : { side: 'other', ally: false }
 }
+
+/** A player's side in a siege (allegianceOf), without whether as an ally. */
+export const sideOf = (
+  town: Pick<WorldTown, 'name' | 'nation'> | null,
+  siege: Pick<Siege, 'attacker' | 'defender' | 'town' | 'townNation'>,
+  allied?: Allied,
+): PlayerSide => allegianceOf(town, siege, allied).side
 
 const distance = ([ax, az]: Point, [bx, bz]: Point) => Math.hypot(ax - bx, az - bz)
 
@@ -485,6 +498,8 @@ const distance = ([ax, az]: Point, [bx, bz]: Point) => Math.hypot(ax - bx, az - 
 export type AtSiege = {
   player: LivePlayer
   side: PlayerSide
+  /** On their side as an ally of its nation, by a known alliance. */
+  ally: boolean
   /** Blocks from the banner, across the ground. */
   distance: number
   /** Within the banner control zone, as far as the ground goes (the map gives no banner height). */
@@ -498,6 +513,7 @@ export function playersAtSiege(
   players: LivePlayer[],
   towns: Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>[],
   within = RULES.siegeZoneRadius * 2,
+  allied?: Allied,
 ) {
   const near: AtSiege[] = []
   for (const player of players) {
@@ -505,7 +521,7 @@ export function playersAtSiege(
     if (far > within) continue
     near.push({
       player,
-      side: sideOf(townOfName(player.name, towns), siege),
+      ...allegianceOf(townOfName(player.name, towns), siege, allied),
       distance: Math.round(far),
       atBanner: far <= RULES.bannerRadius,
       inZone: far <= RULES.siegeZoneRadius,

@@ -69,15 +69,26 @@ export const triesOf = (stays: Stay[]): Stay[] => stays.filter((stay) => !stay.h
 export type Death = { at: number; confirmed: boolean }
 export type FighterSide = 'attackers' | 'defenders' | 'other'
 
+/**
+ * How an ally's side was told: by their play (`banner`, a stay of theirs that
+ * took the banner or joined its holders; `kill`, a death of theirs the other
+ * side alone scored), or by an alliance known beforehand (`alliance`,
+ * src/maps/alliances.ts) when their play showed nothing.
+ */
+export type ToldBy = 'banner' | 'kill' | 'alliance'
+
 export type Fighter = {
   name: string
   side: FighterSide
   /**
-   * Their side was told by their play, not where they live: one who lives
-   * with neither side, whose stay at the banner turned it, or whose death
-   * the other side scored (an ally, a mercenary).
+   * They fought for a side they don't live with: an ally of its nation
+   * (SiegeWar counts a mutual ally's soldiers for either side), told by
+   * their play or by a known alliance (`by`).
    */
   ally?: boolean
+  by?: ToldBy
+  /** The nation they lived in at the battle, as the map had it; null for a town without one; absent in a battle saved before it was kept. */
+  nation?: string | null
   /** Seconds in the siege zone and in the banner zone, between readings close enough to know. */
   zone: number
   banner: number
@@ -130,15 +141,40 @@ export function deathsOf(moments: Moment[], marks: Mark[], side: FighterSide): D
   return deaths
 }
 
-/** The sides that gained a kill's worth of points soon after `at`. */
+/**
+ * The kills a side scored between two marks: what its points rose by
+ * beyond what its holders earned at SiegeWar's checks in between (10 a
+ * holder a check, a check every 20 seconds, the banner's holders as either
+ * mark has them). A rise the checks alone explain is no kill, so a side
+ * holding the banner with many doesn't seem to kill at every check; a
+ * kill's 100 that a check's earnings could equal (ten holders) is taken for
+ * the check.
+ */
+export function killsBetween(before: Mark, after: Mark, side: BattleSide): number {
+  const rise = side === 'attackers' ? after.attacker - before.attacker : after.defender - before.defender
+  if (rise < RULES.killPoints) return 0
+  const checks = Math.max(1, Math.ceil((after.t - before.t) / RULES.tickSeconds))
+  const holders = new Set([before.banner === side ? before.holders : 0, after.banner === side ? after.holders : 0])
+  const earned = new Set<number>([0])
+  for (const count of holders) for (let k = 1; k <= checks; k++) earned.add(k * count * RULES.pointsPerHolder)
+  if (earned.has(rise)) return 0
+  let kills = 0
+  for (const checked of earned) {
+    const rest = rise - checked
+    if (rest >= RULES.killPoints && rest % RULES.killPoints === 0) kills = Math.max(kills, rest / RULES.killPoints)
+  }
+  // Not a whole number of kills over any count of checks (a reading caught mid-change): what's left over the most the checks could have earned.
+  return kills || Math.max(0, Math.floor((rise - Math.max(...earned)) / RULES.killPoints))
+}
+
+/** The sides that scored a kill soon after `at`: from the last mark before it to FIGHT.confirmWithinSeconds after. */
 function killGainers(marks: Mark[], at: number): Set<BattleSide> {
   const gainers = new Set<BattleSide>()
-  const before = [...marks].reverse().find((mark) => mark.t <= at)
-  if (!before) return gainers
-  for (const mark of marks) {
-    if (mark.t <= at || mark.t > at + FIGHT.confirmWithinSeconds) continue
-    if (mark.attacker - before.attacker >= RULES.killPoints) gainers.add('attackers')
-    if (mark.defender - before.defender >= RULES.killPoints) gainers.add('defenders')
+  let from = -1
+  for (let i = 0; i < marks.length; i++) if (marks[i].t <= at) from = i
+  if (from < 0) return gainers
+  for (let i = from; i + 1 < marks.length && marks[i + 1].t <= at + FIGHT.confirmWithinSeconds; i++) {
+    for (const side of ['attackers', 'defenders'] as const) if (killsBetween(marks[i], marks[i + 1], side) > 0) gainers.add(side)
   }
   return gainers
 }
@@ -151,39 +187,60 @@ function killConfirmed(marks: Mark[], side: FighterSide, at: number): boolean {
 }
 
 /**
- * The side a player's play shows them on: a stay at the banner long enough
- * to take it, as the banner turned to a side or its holders grew by one
- * (within a check or two of its end); or a death the other side alone
- * scored. Null when nothing shows it, or the signs disagree.
+ * The side a player's play shows them on, and what showed it: a stay at the
+ * banner long enough to take it, as the banner turned to a side or its
+ * holders grew by one (within a check or two of its end); or else a death
+ * the other side alone scored. Null when nothing shows it, or the signs
+ * disagree.
  */
-export function sideShown(stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): BattleSide | null {
-  const shown = new Set<BattleSide>()
+export function sideShownBy(stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): { side: BattleSide; by: 'banner' | 'kill' } | null {
+  const byBanner = new Set<BattleSide>()
+  const byKill = new Set<BattleSide>()
   for (const stay of stays) {
     if (stay.to - stay.from < RULES.captureMinutes * 60 - RULES.tickSeconds) continue
     for (let i = 1; i < marks.length; i++) {
       const [before, mark] = [marks[i - 1], marks[i]]
       if (mark.t < stay.from || mark.t > stay.to + 2 * RULES.tickSeconds || !mark.banner) continue
-      if (before.banner !== mark.banner || mark.holders > before.holders) shown.add(mark.banner)
+      if (before.banner !== mark.banner || mark.holders > before.holders) byBanner.add(mark.banner)
     }
   }
   for (const death of deaths) {
     const gainers = killGainers(marks, death.at)
-    if (gainers.size === 1) shown.add(opposite([...gainers][0])!)
+    if (gainers.size === 1) byKill.add(opposite([...gainers][0])!)
   }
-  return shown.size === 1 ? [...shown][0] : null
+  const shown = new Set([...byBanner, ...byKill])
+  if (shown.size !== 1) return null
+  return { side: [...shown][0], by: byBanner.size ? 'banner' : 'kill' }
 }
+
+/** The side a player's play shows them on (sideShownBy), without what showed it. */
+export const sideShown = (stays: Pick<Stay, 'from' | 'to'>[], deaths: Pick<Death, 'at'>[], marks: Mark[]): BattleSide | null =>
+  sideShownBy(stays, deaths, marks)?.side ?? null
+
+/**
+ * Who a player fought for, as far as is known before their play: their own
+ * side (`side`, where they live), or, for one who lives with neither, the
+ * side a known alliance puts them on (`allied`, src/maps/alliances.ts), and
+ * their nation.
+ */
+export type Allegiance = { side: FighterSide; allied?: BattleSide | null; nation?: string | null }
 
 /**
  * A player's battle, from every reading's time (`readings`, so a reading
  * that didn't find them says they weren't there), their moments, and the
- * marks.
+ * marks. One who lives with neither side is told by their play when it
+ * shows a side, or else by a known alliance; their play wins where the two
+ * disagree, since SiegeWar scored it.
  */
-export function fighterOf(name: string, side: FighterSide, readings: number[], moments: Moment[], marks: Mark[]): Fighter {
-  const fighter = fighterAs(name, side, readings, moments, marks)
+export function fighterOf(name: string, allegiance: FighterSide | Allegiance, readings: number[], moments: Moment[], marks: Mark[]): Fighter {
+  const { side, allied = null, nation } = typeof allegiance === 'string' ? { side: allegiance } : allegiance
+  const kept = nation === undefined ? {} : { nation }
+  const fighter = { ...fighterAs(name, side, readings, moments, marks), ...kept }
   if (side !== 'other') return fighter
-  // One who lives with neither side: told by their play, if it shows.
-  const shown = sideShown(fighter.stays, fighter.deaths, marks)
-  return shown ? { ...fighterAs(name, shown, readings, moments, marks), ally: true } : fighter
+  const shown = sideShownBy(fighter.stays, fighter.deaths, marks)
+  if (shown) return { ...fighterAs(name, shown.side, readings, moments, marks), ally: true, by: shown.by, ...kept }
+  if (allied) return { ...fighterAs(name, allied, readings, moments, marks), ally: true, by: 'alliance', ...kept }
+  return fighter
 }
 
 function fighterAs(name: string, side: FighterSide, readings: number[], moments: Moment[], marks: Mark[]): Fighter {

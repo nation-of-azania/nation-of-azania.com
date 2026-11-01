@@ -21,9 +21,20 @@ export type SavedBattle = {
 
 export type FighterRecord = {
   name: string
-  /** Battles they could have fought (a side's resident, online during it), and fought (a minute or more in the zone). */
+  /**
+   * Battle sessions they could have fought in (a resident of a side of one
+   * of its battles, online during it), and fought in (a minute or more in
+   * the zone of any of its battles). Counted by the session, not the
+   * battle, so one whose nation has two sieges on at once, or who fights at
+   * an ally's siege while their own nation's is on, isn't counted absent
+   * from the one they weren't at.
+   */
   could: number
   fought: number
+  /** Battles fought: a siege's battle in a session, so two sieges fought in one session are two. */
+  battles: number
+  /** Sessions they fought in for an ally (a side they don't live with: src/maps/alliances.ts). */
+  allied: number
   /** Minutes in the siege zone and at the banner, across the battles fought. */
   minutes: number
   bannerMinutes: number
@@ -48,6 +59,8 @@ const blank = (name: string): FighterRecord => ({
   name,
   could: 0,
   fought: 0,
+  battles: 0,
+  allied: 0,
   minutes: 0,
   bannerMinutes: 0,
   stays: 0,
@@ -63,6 +76,13 @@ const blank = (name: string): FighterRecord => ({
   lastFought: null,
 })
 
+/**
+ * The battle session a battle was fought in, by the hour it began: sessions
+ * start on the hour, and a siege laid in a session's first ten minutes
+ * begins its battle a little after.
+ */
+export const sessionOf = (startedAt: string): string => startedAt.slice(0, 13)
+
 /** Every player's record over `battles`, keyed by lower-cased name. */
 export function recordsOf(battles: SavedBattle[]): Map<string, FighterRecord> {
   const records = new Map<string, FighterRecord>()
@@ -75,15 +95,24 @@ export function recordsOf(battles: SavedBattle[]): Map<string, FighterRecord> {
     }
     return record
   }
+  // By the session: who could have fought in it, who fought in it, and who for an ally.
+  const sessions = new Map<string, { could: Set<string>; fought: Set<string>; allied: Set<string> }>()
   for (const battle of [...battles].sort((a, b) => a.startedAt.localeCompare(b.startedAt))) {
-    const could = new Set([...(battle.sides?.attackers ?? []), ...(battle.sides?.defenders ?? [])].map((name) => name.toLowerCase()))
-    for (const name of [...(battle.sides?.attackers ?? []), ...(battle.sides?.defenders ?? [])]) of(name).could++
+    const key = sessionOf(battle.startedAt)
+    const session = sessions.get(key) ?? { could: new Set<string>(), fought: new Set<string>(), allied: new Set<string>() }
+    sessions.set(key, session)
+    for (const name of [...(battle.sides?.attackers ?? []), ...(battle.sides?.defenders ?? [])]) {
+      of(name)
+      session.could.add(name.toLowerCase())
+    }
     for (const fighter of battle.fighters ?? []) {
       if (!attended(fighter)) continue
       const record = of(fighter.name)
-      // One who fought without being counted as able to (an ally, a mercenary) could, after all.
-      if (!could.has(fighter.name.toLowerCase())) record.could++
-      record.fought++
+      // One who fought without being counted as able to (an ally) could, after all.
+      session.could.add(fighter.name.toLowerCase())
+      session.fought.add(fighter.name.toLowerCase())
+      if (fighter.ally) session.allied.add(fighter.name.toLowerCase())
+      record.battles++
       record.minutes += fighter.zone / 60
       record.bannerMinutes += fighter.banner / 60
       for (const stay of triesOf(fighter.stays)) {
@@ -102,6 +131,11 @@ export function recordsOf(battles: SavedBattle[]): Map<string, FighterRecord> {
       record.lastFought = battle.startedAt
     }
   }
+  for (const session of sessions.values()) {
+    for (const key of session.could) records.get(key)!.could++
+    for (const key of session.fought) records.get(key)!.fought++
+    for (const key of session.allied) records.get(key)!.allied++
+  }
   for (const record of records.values()) {
     record.minutes = Math.round(record.minutes)
     record.bannerMinutes = Math.round(record.bannerMinutes)
@@ -115,7 +149,7 @@ export const holdRate = (record: Pick<FighterRecord, 'held' | 'died' | 'left'>):
   return ended ? record.held / ended : null
 }
 
-/** Of the battles they could have fought, the share they did. */
+/** Of the battle sessions they could have fought in, the share they did. */
 export const turnout = (record: Pick<FighterRecord, 'could' | 'fought'>): number | null => (record.could ? record.fought / record.could : null)
 
 // Usual hours, from the presence days.
@@ -177,10 +211,11 @@ export const hourOfWeek = (ms: number): number => {
 
 /**
  * Their score, 0 to 100, to compare fighters by: the chance they take the
- * banner when they try, times the chance they fight a battle they could.
+ * banner when they try, times the chance they fight in a battle session
+ * they could have.
  * Both are smoothed toward an even chance (one more held and one more not,
  * one more fought and one more not), so a single lucky try doesn't top
- * the list and a newcomer starts mid-table; the more battles, the more it
+ * the list and a newcomer starts mid-table; the more sessions, the more it
  * says (`tries` and `could` say how much it rests on).
  */
 export function fighterScore(record: Pick<FighterRecord, 'held' | 'died' | 'left' | 'could' | 'fought'>): number {
@@ -191,11 +226,18 @@ export function fighterScore(record: Pick<FighterRecord, 'held' | 'died' | 'left
 
 /**
  * How likely they are to be fighting at `ms`, 0 to 1: how often they're
- * online at that hour of the week, times how often they fight when they
- * could (smoothed as above). Null without their hours.
+ * online at that hour of the week, times how often they fight in a session
+ * they could have (smoothed as above). Null without their hours.
  */
 export function expectedAt(record: Pick<FighterRecord, 'could' | 'fought'> & { hours: number[] | null }, ms: number): number | null {
   if (!record.hours) return null
   const showing = (record.fought + 1) / (record.could + 2)
   return Math.round((record.hours[hourOfWeek(ms)] ?? 0) * showing * 100) / 100
 }
+
+/**
+ * How much of an ally's fighting to count on for another nation's siege,
+ * 0 to 1: of the sessions they fought in, the share they fought for an ally.
+ * Nothing for one who never has: an alliance alone doesn't bring anyone.
+ */
+export const allyShare = (record: Pick<FighterRecord, 'fought' | 'allied'>): number => (record.fought ? Math.min(1, (record.allied ?? 0) / record.fought) : 0)

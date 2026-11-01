@@ -184,7 +184,7 @@ export function homeNationOf(towns: Pick<MapTown, 'nation'>[]): string | null {
 }
 
 /** A nation's name as the admins may have typed it: case, spaces and underscores don't matter. */
-const nationKey = (name: string): string => spoken(name).trim().toLowerCase().replace(/\s+/g, ' ')
+export const nationKey = (name: string): string => spoken(name).trim().toLowerCase().replace(/\s+/g, ' ')
 
 export const sameNation = (a: string | null | undefined, b: string | null | undefined): boolean =>
   Boolean(a && b) && nationKey(a!) === nationKey(b!)

@@ -220,7 +220,12 @@ export type SiegeForecast = {
   lead: { side: BattleSide; needs: number; possible: boolean } | null
 }
 
-type Resident = Pick<FighterRecord, 'could' | 'fought'> & { hours: number[] | null }
+/**
+ * One who may fight for a side: a resident (`share` 1, the default), or an
+ * ally of its nation, counted for the share of their fighting they've done
+ * for allies (allyShare, src/maps/fighters.ts).
+ */
+type Resident = Pick<FighterRecord, 'could' | 'fought'> & { hours: number[] | null; share?: number }
 
 /**
  * How the siege's sessions still to come are likely to go, by who usually
@@ -228,9 +233,11 @@ type Resident = Pick<FighterRecord, 'could' | 'fought'> & { hours: number[] | nu
  * likely to fight (their usual hours × their turnout, `expectedAt`), the
  * side likely to bring more, and roughly what that does to the balance,
  * starting `from` the balance as it stands (or as this session is
- * projected to leave it). Rough by design, and only as good as the records:
- * allies aren't known, and the side that brings more doesn't always hold
- * the banner.
+ * projected to leave it). Allies count for as much of their fighting as
+ * they've done for allies before. Rough by design, and only as good as the
+ * records: an ally not known isn't counted, a fighter shared with another
+ * siege on at the same time is counted at both, and the side that brings
+ * more doesn't always hold the banner.
  */
 export function forecastSiege(
   from: number,
@@ -242,8 +249,8 @@ export function forecastSiege(
   let balance = capped(from)
   const sessions = starts.map((start): SessionForecast => {
     const expected = {
-      attackers: residents.attackers.reduce((sum, one) => sum + (expectedAt(one, at(start)) ?? 0), 0),
-      defenders: residents.defenders.reduce((sum, one) => sum + (expectedAt(one, at(start)) ?? 0), 0),
+      attackers: residents.attackers.reduce((sum, one) => sum + (expectedAt(one, at(start)) ?? 0) * (one.share ?? 1), 0),
+      defenders: residents.defenders.reduce((sum, one) => sum + (expectedAt(one, at(start)) ?? 0) * (one.share ?? 1), 0),
     }
     const difference = expected.attackers - expected.defenders
     const favoured: BattleSide | null = Math.abs(difference) < 0.5 ? null : difference > 0 ? 'attackers' : 'defenders'
@@ -265,8 +272,8 @@ export function forecastSiege(
     }
   }
   const known = {
-    attackers: residents.attackers.filter((one) => one.hours).length,
-    defenders: residents.defenders.filter((one) => one.hours).length,
+    attackers: residents.attackers.filter((one) => one.hours && (one.share ?? 1) > 0).length,
+    defenders: residents.defenders.filter((one) => one.hours && (one.share ?? 1) > 0).length,
   }
   return { sessions, known, winner, lead }
 }

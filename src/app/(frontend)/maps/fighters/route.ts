@@ -1,7 +1,9 @@
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
-import { demoFighters, warDemo } from '@/lib/warDemo'
+import { knownAlliances } from '@/lib/alliances'
+import { demoAlliances, demoFighters, warDemo } from '@/lib/warDemo'
+import type { AllianceBattle } from '@/maps/alliances'
 import { recordsOf, usualHours, type SavedBattle } from '@/maps/fighters'
 import { TELEPORT_LOCK_SECONDS, lockOf } from '@/maps/motion'
 
@@ -12,6 +14,8 @@ import { TELEPORT_LOCK_SECONDS, lockOf } from '@/maps/motion'
  *
  *   { at, since, battles, players: [{ name, could, fought, minutes, stays, held, died, left, deaths, won, lost, …, hours }] }
  *
+ * `alliances` are the alliances known (src/maps/alliances.ts): Azania's diplomacy, the diplomats' list, and those
+ * the battles show, each `{ nations, sources, seen?, note? }`; the map doesn't say who is allied with whom.
  * `lock` is the lock after a death as the tracker has measured it, `{ quickest, seen }` (null until it has;
  * `lockDefault` until then: src/maps/motion.ts). `hours` is 168 shares, one per hour of the week (UTC, Monday 00:00
  * first): of the days recorded, on how many they were online at that hour.
@@ -34,7 +38,16 @@ export async function GET(request: Request) {
   // On one's own machine with the war demo on (src/lib/warDemo.ts): the demo's fighters, made up.
   if (warDemo()) {
     const players = await demoFighters(now)
-    return Response.json({ at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: 12, days: 28, players, lock: { quickest: 212, seen: 2 }, demo: true })
+    return Response.json({
+      at: now,
+      since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(),
+      battles: 12,
+      days: 28,
+      players,
+      alliances: await demoAlliances(),
+      lock: { quickest: 212, seen: 2 },
+      demo: true,
+    })
   }
   const payload = await getPayload({ config })
   try {
@@ -55,6 +68,7 @@ export async function GET(request: Request) {
       }),
     ])
     const records = recordsOf(battles.docs as unknown as SavedBattle[])
+    const alliances = await knownAlliances(payload, now, battles.docs as unknown as AllianceBattle[])
     const hours = usualHours(days.docs.map((doc) => ({ day: doc.day, slots: (doc.slots ?? null) as Record<string, string> | null })))
     // The lock after a death: the quickest first teleport the tracker has seen a dead fighter make (src/maps/motion.ts).
     const lock = lockOf(battles.docs.flatMap((doc) => (Array.isArray(doc.respawns) ? (doc.respawns as { teleport?: unknown }[]) : []).map((respawn) => Number(respawn.teleport))))
@@ -62,7 +76,16 @@ export async function GET(request: Request) {
     const players = [...names].map((key) => ({ ...records.get(key)!, hours: hours.get(key) ?? null }))
     // Everyone seen online but never near a battle is left out: their hours alone say little, and they'd be most of the server.
     return Response.json(
-      { at: now, since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(), battles: battles.docs.length, days: days.docs.length, players, lock, lockDefault: TELEPORT_LOCK_SECONDS },
+      {
+        at: now,
+        since: new Date(now - BATTLE_DAYS * 86_400_000).toISOString(),
+        battles: battles.docs.length,
+        days: days.docs.length,
+        players,
+        alliances,
+        lock,
+        lockDefault: TELEPORT_LOCK_SECONDS,
+      },
       {
         headers: {
           'Cache-Control': 'public, max-age=300',

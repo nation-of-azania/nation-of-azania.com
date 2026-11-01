@@ -1796,6 +1796,20 @@ export interface AzaniaMap {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Alliances the Rulercraft map doesn’t show, for the war view: SiegeWar lets an ally’s soldiers fight for either side of a siege. Azania’s own allies are set under Diplomacy above. The battle tracker also learns alliances by itself, from players who fight for another nation’s side; list one here to have it known before a battle shows it.
+   */
+  alliances?:
+    | {
+        a: string;
+        b: string;
+        /**
+         * Where it’s known from, e.g. "announced on their Discord, 30 October".
+         */
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   syncedAt?: string | null;
   syncNote?: string | null;
   siegeWatch?:
@@ -1892,6 +1906,14 @@ export interface AzaniaMapsSelect<T extends boolean = true> {
     | {
         nation?: T;
         stance?: T;
+        note?: T;
+        id?: T;
+      };
+  alliances?:
+    | T
+    | {
+        a?: T;
+        b?: T;
         note?: T;
         id?: T;
       };

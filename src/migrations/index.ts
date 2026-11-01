@@ -27,6 +27,7 @@ import * as migration_20261029_232807_lists from './20261029_232807_lists';
 import * as migration_20261030_090000_severe_sanction_list from './20261030_090000_severe_sanction_list';
 import * as migration_20261031_231112_battles_presence from './20261031_231112_battles_presence';
 import * as migration_20261101_051659_battles_respawns from './20261101_051659_battles_respawns';
+import * as migration_20261101_113822_alliances from './20261101_113822_alliances';
 
 export const migrations = [
   {
@@ -172,6 +173,11 @@ export const migrations = [
   {
     up: migration_20261101_051659_battles_respawns.up,
     down: migration_20261101_051659_battles_respawns.down,
-    name: '20261101_051659_battles_respawns'
+    name: '20261101_051659_battles_respawns',
+  },
+  {
+    up: migration_20261101_113822_alliances.up,
+    down: migration_20261101_113822_alliances.down,
+    name: '20261101_113822_alliances'
   },
 ];

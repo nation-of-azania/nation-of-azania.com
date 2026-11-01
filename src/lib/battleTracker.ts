@@ -2,6 +2,7 @@ import { getCache } from '@vercel/functions'
 import type { Payload } from 'payload'
 
 import { sameNation } from '../maps/abroad'
+import { alliedBy, allySide, type Allied } from '../maps/alliances'
 import { RULES, bannerOf, secondsLeftOf, sideOf } from '../maps/battle'
 import {
   FAR,
@@ -15,6 +16,7 @@ import {
   packTimes,
   unpackMoments,
   unpackTimes,
+  type Allegiance,
   type FighterSide,
   type Mark,
   type Moment,
@@ -23,6 +25,7 @@ import type { LiveSiege } from '../maps/players'
 import { pointsOf } from '../maps/sieges'
 import type { Siege, World, WorldTown } from '../maps/world'
 import { FOLLOW_MS, diedBetween, followed, type Fix, type Follow } from '../maps/motion'
+import { knownAlliances } from './alliances'
 import { feed } from './livePlayers'
 import { getWorld } from './world'
 
@@ -111,6 +114,17 @@ function townOf(name: string, world: World | null): WorldTown | null {
 }
 
 const fighterSide = (name: string, siege: Siege, world: World | null): FighterSide => sideOf(townOf(name, world), siege)
+
+/**
+ * Who a player fought for as far as is known before their play: their own
+ * side (`side`, by where they lived when first read), or for one of
+ * neither, the side an alliance of their nation's puts them on; and their
+ * nation, kept with the battle so alliances can be told from it later.
+ */
+function allegianceOf(name: string, side: FighterSide, siege: Siege, world: World | null, allied: Allied): Allegiance {
+  const nation = townOf(name, world)?.nation ?? null
+  return { side, nation, allied: side === 'other' ? allySide(nation, siege, allied) : null }
+}
 
 /** Whether a lease lets this stint read: none running, or the last one's ended. Not airtight; two stints at once only read twice. */
 async function takeLease(until: number): Promise<boolean> {
@@ -244,10 +258,12 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   const saved: string[] = []
   // Payload (and with it the database) only now, with something to save: a battle wakes the database anyway.
   const payload = battles.size || done.length ? await payloadOf() : null
+  // The alliances known (src/lib/alliances.ts), for those who fought for a side they don't live with.
+  const allied = payload && battles.size ? alliedBy(await knownAlliances(payload).catch(() => [])) : alliedBy([])
   for (const battle of battles.values()) {
     if (!payload) break
     try {
-      await saveBattle(payload, battle, world, done.filter((respawn) => respawn.battle === battle.key))
+      await saveBattle(payload, battle, world, done.filter((respawn) => respawn.battle === battle.key), allied)
       saved.push(battle.key)
     } catch (error) {
       payload.logger.error({ err: error, msg: `Battle tracker: saving ${battle.key} failed` })
@@ -278,7 +294,7 @@ async function addRespawns(payload: Payload, key: string, more: Respawn[]): Prom
 type StoredTrack = { readings?: string; marks?: Mark[]; players?: Record<string, { side?: FighterSide; moments?: string }> }
 
 /** Adds a stint's readings to the battle's row and works the battle out again from all of them. */
-async function saveBattle(payload: Payload, battle: Battle, world: World | null, respawns: Respawn[] = []): Promise<void> {
+async function saveBattle(payload: Payload, battle: Battle, world: World | null, respawns: Respawn[] = [], allied: Allied = alliedBy([])): Promise<void> {
   const { docs } = await payload.find({ collection: 'battles', where: { key: { equals: battle.key } }, limit: 1, depth: 0 })
   const stored = docs[0]
   const track = (stored?.track ?? {}) as StoredTrack
@@ -294,7 +310,9 @@ async function saveBattle(payload: Payload, battle: Battle, world: World | null,
     const side = kept?.side && kept.side !== 'other' ? kept.side : fighterSide(name, battle.siege, world)
     players.set(name, { side, moments: mergeMoments(kept?.moments ?? [], moments) })
   }
-  const fighters = [...players].map(([name, { side, moments }]) => fighterOf(name, side, readings, moments, marks)).filter((fighter) => fighter.first !== null)
+  const fighters = [...players]
+    .map(([name, { side, moments }]) => fighterOf(name, allegianceOf(name, side, battle.siege, world, allied), readings, moments, marks))
+    .filter((fighter) => fighter.first !== null)
   // Who could have fought: the two sides' residents online during the battle.
   const before = (stored?.sides ?? {}) as { attackers?: string[]; defenders?: string[] }
   const residentsOf = (nation: string | null | undefined) =>
