@@ -12,7 +12,7 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { hourOfWeek, holdRate, recordsOf, turnout, usualHours, type SavedBattle } from '../src/maps/fighters'
+import { expectedAt, fighterScore, hourOfWeek, holdRate, recordsOf, turnout, usualHours, type SavedBattle } from '../src/maps/fighters'
 import { FAR, attended, coverageOf, fighterOf, mergeMoments, packMoments, packTimes, triesOf, unpackMoments, unpackTimes, type Mark, type Moment } from '../src/maps/fights'
 import { packBits, withSlot } from '../src/lib/presence'
 
@@ -124,6 +124,15 @@ const owl = hours.get('night_owl')!
 check(owl.length === 168 && owl[hourOfWeek(Date.parse('2026-10-31T23:30:00Z'))] === 0.5, 'online one of two Saturdays at 23:00 UTC: a half')
 check(owl.filter((share) => share > 0).length === 1, 'and no other hour')
 check(hourOfWeek(Date.parse('2026-11-02T00:10:00Z')) === 0, 'Monday 00:00 UTC is the week’s first hour')
+
+// The score and who to expect.
+check(fighterScore({ held: 0, died: 0, left: 0, could: 0, fought: 0 }) === 25, 'a newcomer starts mid-table: an even chance of each, 25')
+check(fighterScore({ held: 1, died: 0, left: 0, could: 1, fought: 1 }) < fighterScore({ held: 6, died: 1, left: 0, could: 6, fought: 6 }), 'one lucky try doesn’t beat a long record')
+check(fighterScore({ held: 0, died: 4, left: 2, could: 6, fought: 6 }) < 25, 'tries that all end in death or retreat score low')
+check(fighterScore({ held: 5, died: 0, left: 0, could: 10, fought: 2 }) < fighterScore({ held: 5, died: 0, left: 0, could: 5, fought: 5 }), 'showing up counts')
+const owlRecord = { could: 2, fought: 2, hours: owl }
+check(expectedAt(owlRecord, Date.parse('2026-11-07T23:10:00Z')) === 0.38 && expectedAt(owlRecord, Date.parse('2026-11-07T12:00:00Z')) === 0, 'expected at a Saturday 23:00: online half the Saturdays × fights three in four (smoothed); at noon, not at all')
+check(expectedAt({ could: 0, fought: 0, hours: null }, Date.now()) === null, 'no hours, no expectation')
 
 if (failed) {
   console.error('\nSome checks failed.')

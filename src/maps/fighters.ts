@@ -174,3 +174,28 @@ export const hourOfWeek = (ms: number): number => {
   const date = new Date(ms)
   return ((date.getUTCDay() + 6) % 7) * 24 + date.getUTCHours()
 }
+
+/**
+ * Their score, 0 to 100, to compare fighters by: the chance they take the
+ * banner when they try, times the chance they fight a battle they could.
+ * Both are smoothed toward an even chance (one more held and one more not,
+ * one more fought and one more not), so a single lucky try doesn't top
+ * the list and a newcomer starts mid-table; the more battles, the more it
+ * says (`tries` and `could` say how much it rests on).
+ */
+export function fighterScore(record: Pick<FighterRecord, 'held' | 'died' | 'left' | 'could' | 'fought'>): number {
+  const taking = (record.held + 1) / (record.held + record.died + record.left + 2)
+  const showing = (record.fought + 1) / (record.could + 2)
+  return Math.round(taking * showing * 100)
+}
+
+/**
+ * How likely they are to be fighting at `ms`, 0 to 1: how often they're
+ * online at that hour of the week, times how often they fight when they
+ * could (smoothed as above). Null without their hours.
+ */
+export function expectedAt(record: Pick<FighterRecord, 'could' | 'fought'> & { hours: number[] | null }, ms: number): number | null {
+  if (!record.hours) return null
+  const showing = (record.fought + 1) / (record.could + 2)
+  return Math.round((record.hours[hourOfWeek(ms)] ?? 0) * showing * 100) / 100
+}
