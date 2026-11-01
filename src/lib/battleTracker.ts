@@ -3,7 +3,7 @@ import type { Payload } from 'payload'
 
 import { sameNation } from '../maps/abroad'
 import { alliedBy, allySide, type Allied } from '../maps/alliances'
-import { RULES, bannerOf, claimsNear, secondsLeftOf, sideOf } from '../maps/battle'
+import { RULES, bannerOf, claimsNear, secondsLeftOf, sessionClock, sideOf } from '../maps/battle'
 import {
   FAR,
   KEEP_WITHIN,
@@ -58,6 +58,13 @@ import { getWorld } from './world'
  * the server's compute, which the free plan meters, so not more often.
  */
 export const READ_EVERY_MS = 5000
+/** A stint that has seen no battle on this long after it began stops: the next ask starts another. */
+const NO_BATTLE_AFTER_MS = 60_000
+/** Whether a siege may still be laid this session and fought at once: its first ten minutes (and one more for the marker). */
+const layingOpen = (now: number): boolean => {
+  const clock = sessionClock(now)
+  return clock.on && now - clock.start < 11 * 60_000
+}
 /** At most this many hours of reading a month (reset each month, UTC). */
 export const MONTHLY_HOURS = 60
 /** The readings are kept this long for working a battle out again; what was made of them, for good. */
@@ -209,6 +216,10 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   const done: (Respawn & { battle: string })[] = []
 
   while (Date.now() < until) {
+    // Asked in a session's hour because sieges are on the map, but none fighting a minute in, and past the session's first
+    // ten minutes (when a siege can still be laid and fought at once): nothing to read this stint (a siege waiting for
+    // tomorrow's sessions). Every reading is compute the free plan meters (CLAUDE.md).
+    if (!battles.size && Date.now() - began > NO_BATTLE_AFTER_MS && !layingOpen(Date.now())) break
     const askedAt = Date.now()
     const reading = await read()
     if (!reading.offline) {
