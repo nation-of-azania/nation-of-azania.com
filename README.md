@@ -853,6 +853,30 @@ carries what's already drawn into place until the fresh render lands.
   costs one shared request every few seconds), switched in the layers menu,
   and remembered in the address's `layers` like the others (`players`
   among them); the players button's list says how many are on.
+- **The fighters' records.** What the battle tracker makes of every
+  battle (`src/maps/fights.ts`, `src/maps/fighters.ts`; `GET /maps/fighters`,
+  counted over the last 60 days and shared at the CDN a quarter of an
+  hour; asked for only when something on the page wants it, never on a
+  page load and never polled: `components/maps/fighters.ts`), shown
+  wherever a player is chosen (`ui/Fighter.tsx`): how many of the battles
+  they could have fought they did, their tries at the banner and how each
+  ended (held, died, left, cut short), their deaths in the zone and those
+  the points confirm, minutes in the zone and at the banner, sessions won
+  and lost, their score (the chance they take the banner when they try,
+  times the chance they turn up, both smoothed), and their usual hours as
+  a strip of the week with now ringed, in UTC, with what it says of now
+  ("at this hour on 3 of the last 4 Saturdays"). Counts rather than
+  percentages, since the samples are small and the records young: the
+  tracker reads every battle from 1 November, and until there are any the
+  card says so, as it says "one battle: too few to judge". The war view's
+  siege lists **who to expect** on each side, that side's residents with
+  those on now first and then by how likely they are to be fighting at
+  the session's time, each with their score: the danger on the enemy's
+  side and the turnout on one's own; residents only, since an ally fights
+  without living there. Its overview ranks the fighters by score, those
+  with two battles or more, and every roster's row carries the score of
+  anyone who has fought. A player's card on the normal map says their
+  record in a line.
 - **Appearance.** The chrome and the panels are drawn light, dark, or,
   left to the map (*Automatic*, the default), light and dark in the war
   view, as the map always was: the viewer's own setting, at the foot of

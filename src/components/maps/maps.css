@@ -830,6 +830,62 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
 }
 
 /*
+ * A fighter's usual hours (ui/Fighter.tsx → WeekStrip): seven rows of
+ * twenty-four cells, each as dark as the share of days they were online
+ * at that hour, in the tone's colour, and the hour of now ringed in
+ * saffron.
+ */
+.az-week {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  max-width: 22rem;
+}
+.az-week-hours,
+.az-week-row {
+  display: grid;
+  grid-template-columns: 1.4rem repeat(24, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+.az-week-hours {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.az-week-hours span {
+  grid-row: 1;
+}
+.az-week-hours span:nth-child(1) {
+  grid-column-start: 2;
+}
+.az-week-hours span:nth-child(2) {
+  grid-column-start: 8;
+}
+.az-week-hours span:nth-child(3) {
+  grid-column-start: 14;
+}
+.az-week-hours span:nth-child(4) {
+  grid-column-start: 20;
+}
+.az-week-day {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1;
+}
+.az-week-cell {
+  display: block;
+  aspect-ratio: 1;
+  min-height: 6px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--az-strip, #8acbd2) calc(var(--az-share, 0) * 100%), rgba(128, 128, 128, 0.14));
+}
+.az-week-cell[data-now] {
+  box-shadow: 0 0 0 1.5px #d8962c;
+}
+
+/*
  * The war sidebar (panels/WarPanel.tsx): dark where the panels are sand,
  * with the two sides' colours lifted to read on it. Health and armour
  * (ui/Vitals.tsx) are drawn as the game's HUD draws them: a row of ten

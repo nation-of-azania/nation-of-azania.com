@@ -12,7 +12,9 @@ import { spawnRoute } from '@/maps/spawn'
 
 import type { LiveState } from '../live'
 import type { Store } from '../hooks'
+import { recordOf, useFighters } from '../fighters'
 import { useLatest, useStore } from '../hooks'
+import { recordWords, ScoreBadge } from '../ui/Fighter'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import { monogramOf } from '../ui/Head'
 import { Icon } from '../ui/icons'
@@ -537,6 +539,10 @@ function PlayerCard({
   const live = useStore(store)
   const [copied, copy] = useCopy()
   const [copiedWay, copyWay] = useCopy()
+  // Their record in the battles, asked for as the card opens.
+  const fighters = useFighters(true)
+  const record = recordOf(fighters, name)
+  const words = recordWords(record, fighters)
   const player = live.players.find((candidate) => candidate.name === name)
   if (!player) return null
   const town = townOfPlayer(name, towns)
@@ -567,6 +573,12 @@ function PlayerCard({
               'On the server, not of Azania'
             )}
           </p>
+          {words ? (
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-snug text-ink-500">
+              <span>{words}</span>
+              {record?.fought ? <ScoreBadge className="scale-90" record={record} tone="panel" /> : null}
+            </p>
+          ) : null}
         </div>
         <button
           aria-label="Close"
