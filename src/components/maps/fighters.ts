@@ -60,7 +60,7 @@ const isRecord = (value: unknown): value is FighterEntry => {
 const SOURCES: AllianceSource[] = ['diplomacy', 'told', 'seen']
 
 /** An alliance as the route serves it, checked field by field: two named nations, at least one way it's known. */
-function allianceOf(value: unknown): Alliance | null {
+export function allianceOf(value: unknown): Alliance | null {
   const raw = value as Partial<Alliance> | null
   if (!raw || !Array.isArray(raw.nations) || typeof raw.nations[0] !== 'string' || typeof raw.nations[1] !== 'string') return null
   if (!raw.nations[0].trim() || !raw.nations[1].trim()) return null

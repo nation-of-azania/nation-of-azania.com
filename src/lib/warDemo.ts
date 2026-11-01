@@ -6,9 +6,6 @@ import type { FighterRecord } from '@/maps/fighters'
 import type { LivePlayer, LivePlayers } from '@/maps/players'
 import { CAPITAL_WAR_RADIUS, type Siege, type War, type World, type WorldTown } from '@/maps/world'
 
-// The world as the map has it or, while the map can't be read, as last saved (./snapshot.ts): a cycle of imports,
-// since the snapshot asks the demo for its war, and a benign one, as neither calls the other while loading.
-import { worldReading } from './snapshot'
 
 /**
  * A made-up battle for building and checking the war view on one's own
@@ -108,6 +105,9 @@ function sceneOf(world: World): Scene | null {
 
 async function currentScene(): Promise<Scene | null> {
   // The map's reading, or, while the map can't be read, the world as last saved: the demo runs either way.
+  // The world as the map has it or, while the map can't be read, as last saved (./snapshot.ts), imported here
+  // rather than at the top: the snapshot asks the demo for its war, and the demo is never loaded on Vercel.
+  const { worldReading } = await import('./snapshot')
   const world = (await worldReading())?.value ?? null
   if (!world) return null
   if (scene?.world !== world) scene = { world, value: sceneOf(world) }

@@ -124,7 +124,7 @@ export function AlliesList({
 
 /** A nation's allies on its page abroad: a section, asking for the records as it opens. */
 export function NationAllies({ nation }: { nation: string }) {
-  const { alliances, status } = useAlliances(true)
+  const { alliances, status } = useAlliances('alone')
   const { now } = useMaps()
   return (
     <PanelSection title="Allies">
