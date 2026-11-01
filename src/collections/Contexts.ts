@@ -13,6 +13,7 @@ import { DESIGNS } from '../contexts/designs'
 import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles'
 import { parentIdOf } from '../contexts/tree'
 import { slugify } from '../fields/slug'
+import { refreshOnChange, refreshOnDelete } from '../hooks/refreshSite'
 
 /**
  * Contexts: where an article is published and who speaks. A tree of any
@@ -186,6 +187,7 @@ export const Contexts: CollectionConfig = {
         return doc
       },
       cascadeToChildren,
+      refreshOnChange,
     ],
     beforeDelete: [refuseNonEmpty],
     afterDelete: [
@@ -193,6 +195,7 @@ export const Contexts: CollectionConfig = {
         forgetScope(req)
         return doc
       },
+      refreshOnDelete,
     ],
   },
   fields: [

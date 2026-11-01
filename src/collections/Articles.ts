@@ -20,6 +20,7 @@ import { isStyle, STYLES, styleOptions, styleSupports } from '../contexts/styles
 import { slugField } from '../fields/slug'
 import { announceArticle } from '../lib/discord'
 import { articlePath, livePreview, previewButton } from '../lib/preview'
+import { refreshOnDelete, refreshWhenPublished } from '../hooks/refreshSite'
 
 const idOf = (value: unknown): number | undefined =>
   typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id
@@ -305,7 +306,8 @@ export const Articles: CollectionConfig = {
   hooks: {
     beforeValidate: [applyContext, applyDefaultByline],
     beforeChange: [enforcePublishing, stampPublishedAt, markFirstPublication],
-    afterChange: [announceFirstPublication],
+    afterChange: [announceFirstPublication, refreshWhenPublished],
+    afterDelete: [refreshOnDelete],
   },
   fields: [
     {

@@ -9,12 +9,13 @@ import { dynmapTileUrl, isMapName, MAPS, TILE_SIZE, voidRows } from '@/maps/sour
  *   /maps/tiles/flat/2/41/58.jpg   (map, Dynmap level, column, row)
  *
  * The Rulercraft map serves its tiles uncached and is down now and then, so
- * the CDN keeps each tile: fresh for a quarter of an hour, then refreshed in
- * the background whenever someone looks (so nobody waits on the map), and
- * the last good copy goes on answering for a month while the map errors
- * (stale-if-error). Browsers keep a tile five minutes, then check back
- * cheaply by its ETag, so someone who comes back sees new building soon
- * after the Rulercraft map draws it. Ground the map hasn't drawn comes back
+ * the CDN keeps each tile: fresh for an hour, then refreshed in the
+ * background whenever someone looks (so nobody waits on the map), and the
+ * last good copy goes on answering for a month while the map errors
+ * (stale-if-error). Each refresh runs this function, which Vercel's free
+ * plan meters (CLAUDE.md), and building shows on the Rulercraft map only as
+ * fast as its renderer gets round to it anyway, so an hour, not less.
+ * Browsers keep a tile five minutes, then check back cheaply by its ETag. Ground the map hasn't drawn comes back
  * as an empty transparent tile, cached alike, so the slippy map shows its
  * own backdrop; and so does the void past the poles, which Dynmap paints
  * black in its coarser tiles: a tile reaching past one comes back as a
@@ -28,7 +29,7 @@ const FETCH_TIMEOUT_MS = 6000
 
 /** For browsers; the CDN follows its own header (Vercel-CDN-Cache-Control). */
 const BROWSER = 'public, max-age=300'
-const CDN = 'max-age=900, stale-while-revalidate=2592000, stale-if-error=2592000'
+const CDN = 'max-age=3600, stale-while-revalidate=2592000, stale-if-error=2592000'
 const CACHED = { 'Cache-Control': BROWSER, 'Vercel-CDN-Cache-Control': CDN }
 /**
  * The coarsest levels, each tile hundreds of chunks across, barely change

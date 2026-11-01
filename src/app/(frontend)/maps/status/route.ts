@@ -1,6 +1,4 @@
-import config from '@payload-config'
-import { getPayload } from 'payload'
-
+import { readNote } from '@/lib/quietWatch'
 import { dynmapTileUrl } from '@/maps/source'
 
 /**
@@ -9,31 +7,34 @@ import { dynmapTileUrl } from '@/maps/source'
  *
  *   { online: false, checkedAt: "…", townsReadAt: "…" }
  *
- * Asks the map for one small tile; the answer is cached for a minute.
+ * Asks the map for one small tile, and the watch's note in the runtime cache
+ * (src/lib/quietWatch.ts) for when it last read the map and found Azania's
+ * towns as they were or brought them up to date; the database isn't asked,
+ * so a map left open doesn't keep it awake. Every open map asks every five
+ * minutes, so the CDN shares one answer among them for four.
  */
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const online = await fetch(dynmapTileUrl('flat', 5, 0, 0), {
-    method: 'HEAD',
-    signal: AbortSignal.timeout(3000),
-    cache: 'no-store',
-  })
-    .then((response) => response.ok || response.status === 404)
-    .catch(() => false)
-  const payload = await getPayload({ config })
-  const { docs } = await payload.find({
-    collection: 'towns',
-    where: { azanian: { equals: true } },
-    sort: '-syncedAt',
-    limit: 1,
-    depth: 0,
-    select: { syncedAt: true },
-  })
+  const [online, note] = await Promise.all([
+    fetch(dynmapTileUrl('flat', 5, 0, 0), {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(3000),
+      cache: 'no-store',
+    })
+      .then((response) => response.ok || response.status === 404)
+      .catch(() => false),
+    readNote(),
+  ])
   return Response.json(
-    { online, checkedAt: new Date().toISOString(), townsReadAt: docs[0]?.syncedAt ?? null },
-    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=60' } },
+    { online, checkedAt: new Date().toISOString(), townsReadAt: note?.seenAt ? new Date(note.seenAt).toISOString() : null },
+    {
+      headers: {
+        'Cache-Control': 'public, max-age=60',
+        'Vercel-CDN-Cache-Control': 'max-age=240, stale-while-revalidate=600',
+      },
+    },
   )
 }

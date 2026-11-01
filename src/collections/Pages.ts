@@ -10,6 +10,7 @@ import { can, contextIdsWith, getScope } from '../access/scope'
 import { contentBlocks } from '../blocks/config'
 import { slugField } from '../fields/slug'
 import { livePreview, pagePath, previewButton } from '../lib/preview'
+import { refreshOnDelete, refreshWhenPublished } from '../hooks/refreshSite'
 
 const idOf = (value: unknown): number | undefined =>
   typeof value === 'number' ? value : (value as { id?: number } | null | undefined)?.id
@@ -87,6 +88,8 @@ export const Pages: CollectionConfig = {
   },
   hooks: {
     beforeChange: [placeInContext],
+    afterChange: [refreshWhenPublished],
+    afterDelete: [refreshOnDelete],
   },
   versions: {
     drafts: {

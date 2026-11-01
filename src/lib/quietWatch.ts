@@ -57,7 +57,7 @@ export type Interest = TownInterest & {
 export type Marks = { towns: string; lists: string; sieges: string }
 
 export type QuietNote = {
-  /** When a run last started: the watch runs at most every four minutes however often it's asked. */
+  /** When a run last started: the watch runs at most every four minutes in a battle session's hour, twelve otherwise, however often it's asked. */
   claimedAt: number
   /** When a run last went to the database. */
   fullAt: number

@@ -743,10 +743,12 @@ carries what's already drawn into place until the fresh render lands.
   so their panels read the figure in the browser once the world has come);
   a nation's panel sums its towns' banks. Nobody else's balance is on the
   map. These pages are
-  rendered on the server and cached for everyone alike, a minute at a time
-  (and regenerated at once after someone draws), so links unfurl and search
-  engines read them; the visitor's own drawing rights are fetched in the
-  browser (`/api/users/me`). The map's own spot travels in the query —
+  rendered on the server and cached for everyone alike, a quarter of an
+  hour at a time (and regenerated at once after someone draws, or the
+  watch sees Azania's towns change), so links unfurl and search engines
+  read them; the visitor's own drawing rights are fetched in the browser
+  (`/session`, which answers a visitor who isn't signed in without starting
+  Payload or waking the database). The map's own spot travels in the query —
   `?at=<x>,<z>,<zoom>`, `&layers=towns,roads`, `&view=<id>` for an article's
   view with its highlights — written as the map moves, so any address can
   be shared. `layers` also names the layers that aren't the nation's own
@@ -1559,8 +1561,14 @@ pnpm typecheck && pnpm lint && pnpm migrate:check   # optional; the build checks
 git push origin main                                 # → Vercel builds and deploys (a few minutes)
 ```
 
-Public pages revalidate within about two minutes of a content change, so
-content edits in the admin panel need no deploy.
+Public pages are rebuilt on their next visit after an article or page is
+published, changed while published or taken down, or a context changes
+(`src/hooks/refreshSite.ts`), and at the latest every half hour otherwise,
+so content edits in the admin panel need no deploy. Each rebuild is server
+compute, which Vercel's free plan meters (CLAUDE.md), hence not more often.
+The site's navs ask `/session` who is signed in, which answers a visitor
+without Payload's session cookie at once, without starting Payload (which
+would wake the database).
 
 ### One-time setup
 

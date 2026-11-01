@@ -41,7 +41,7 @@ import type { Context } from '@/payload-types'
  * resolveRoute in src/lib/site.ts). The context's design renders it.
  */
 
-export const revalidate = 120
+export const revalidate = 1800
 
 type Params = { top: string; rest?: string[] }
 type Props = {

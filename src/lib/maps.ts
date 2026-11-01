@@ -28,7 +28,7 @@ import type { Article, Town as TownDoc } from '@/payload-types'
  * Read-side data for Azania Maps' pages (src/app/(frontend)/maps): the
  * nation as the map draws it and the particulars of whatever's opened.
  * Nothing here looks at who's asking — the pages are cached for everyone
- * alike, and the browser asks /api/users/me for the visitor's own rights
+ * alike, and the browser asks /session for the visitor's own rights
  * (src/maps/data.ts → mapRightsOf). Everything the site stores is read
  * here; the pictures come from the tile cache. Database errors give empty
  * results, so `next build` succeeds before the database exists.

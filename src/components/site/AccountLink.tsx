@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react'
  * "Sign in" link (→ /login) for visitors and the resident's name (→ /account)
  * once signed in.
  *
- * The session is checked on the CLIENT via Payload's /api/users/me so the
+ * The session is checked on the CLIENT via /session (Payload's /api/users/me,
+ * without starting Payload for a visitor who isn't signed in) so the
  * surrounding pages stay statically cacheable — reading the cookie on the server
  * would force every page that renders a nav to become dynamic. The signed-out
  * label is the initial (server-rendered) state, so hydration matches for the
@@ -19,7 +20,7 @@ export function AccountLink({ className }: { className?: string }) {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/users/me', { cache: 'no-store', credentials: 'same-origin' })
+    fetch('/session', { cache: 'no-store', credentials: 'same-origin' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return

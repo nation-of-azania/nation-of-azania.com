@@ -152,7 +152,7 @@ const idOf = (value: number | { id: number } | null | undefined): number | null 
 
 /**
  * The visitor's rights on the map, worked out in the browser from their
- * own account (/api/users/me), by the server's rule (src/access/maps.ts):
+ * own account (/session), by the server's rule (src/access/maps.ts):
  * staff and cartographers draw anywhere, mayors inside their towns, and
  * map views are for staff, cartographers and anyone granted a context to
  * write in, and the diplomacy is for admins and diplomats. The pages

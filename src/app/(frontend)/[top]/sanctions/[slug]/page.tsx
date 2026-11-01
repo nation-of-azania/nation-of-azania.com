@@ -20,7 +20,7 @@ import { contextHref, getSiteTree } from '@/lib/site'
  * 404. The chrome is the context's design's, from [top]/layout.tsx.
  */
 
-export const revalidate = 120
+export const revalidate = 1800
 
 type Props = { params: Promise<{ top: string; slug: string }> }
 

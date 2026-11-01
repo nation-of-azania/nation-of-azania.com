@@ -15,8 +15,13 @@ import { buildFeed, resolveFeed } from '@/lib/feed'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** A feed turns over with the pages (which revalidate in two minutes): kept five at the CDN, served stale for an hour while a fresh one is built. */
-const CACHE = 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600'
+/**
+ * A feed turns over with the pages (cached half an hour): kept as long at the
+ * CDN, served stale for a day while a fresh one is built. Feed readers ask
+ * every few minutes, and each answer the CDN doesn't have is a Payload read,
+ * which Vercel's free plan meters (CLAUDE.md).
+ */
+const CACHE = 'public, max-age=900, s-maxage=1800, stale-while-revalidate=86400'
 
 const decode = (segment: string): string => {
   try {

@@ -19,9 +19,16 @@ import type { TownKind } from './registry'
  */
 export const CAPITAL_WAR_RADIUS = 12_320
 
-/** How often the CDN refreshes each: the world changes slowly, a siege by the battle session. */
-export const WORLD_EVERY_S = 900
-export const WAR_EVERY_S = 180
+/**
+ * How often the CDN refreshes each, and the map in the browser asks again:
+ * the world (every town and nation) changes slowly; the sieges come with the
+ * live feed the browser reads every few seconds (every siege's marker as
+ * SiegeWar rewrites it, src/maps/feed.ts), so the war file is only a check
+ * on it, and for the capitals. Each refresh reads the 5 MB marker file on
+ * the server, which Vercel's free plan meters (CLAUDE.md).
+ */
+export const WORLD_EVERY_S = 1800
+export const WAR_EVERY_S = 600
 
 /**
  * How often the war view asks for the sieges during a battle, from

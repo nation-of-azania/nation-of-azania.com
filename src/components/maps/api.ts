@@ -140,7 +140,8 @@ export type ViewInput = {
 export const api = {
   /** Who the visitor is, as the Registry has them; null when signed out. Throws when it can't be reached. */
   me: async (): Promise<unknown> => {
-    const body = await request<{ user?: unknown }>('/api/users/me', { cache: 'no-store' })
+    // /session answers a visitor who isn't signed in without starting Payload (src/app/(frontend)/session/route.ts).
+    const body = await request<{ user?: unknown }>('/session', { cache: 'no-store' })
     return body.user ?? null
   },
   savePlace: async (id: number | null, data: PlaceInput): Promise<MapPlace> => {
