@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { getPayload, type Payload } from 'payload'
 
 import { trackBattles } from '@/lib/battleTracker'
+import { cpuWords, meter } from '@/lib/cpuMeter'
 import { FRESH_MS, readMarkerFile } from '@/lib/dynmap'
 import { watchMap } from '@/lib/watch'
 import { warOf } from '@/lib/world'
@@ -44,9 +45,14 @@ export async function GET(request: Request) {
   const force = Boolean(secret) && request.headers.get('authorization') === `Bearer ${secret}`
   try {
     const askedAt = Date.now()
+    const stop = meter('watch')
     const result = await watchMap(payloadOf, { force })
-    // One line a run, so the logs say how often the database is woken, and why (src/lib/quietWatch.ts).
-    console.info(`[watch] ${result.status}; database ${result.database ?? 'asked'}; battles ${result.battles ?? 0}; online ${result.online ?? '?'}`)
+    const cpu = await stop()
+    // One line a run, so the logs say how often the database is woken, and why (src/lib/quietWatch.ts), and what the
+    // run cost in CPU, which the free plan meters (src/lib/cpuMeter.ts).
+    console.info(
+      `[watch] ${result.status}; database ${result.database ?? 'asked'}; battles ${result.battles ?? 0}; online ${result.online ?? '?'}; ${cpuWords('watch', cpu)}`,
+    )
     // A battle on, or a session on with sieges on the map (the marker file, written about once a minute, can be behind
     // a battle's first minute; the live feed's own marker updates say it within seconds): after answering, read the map
     // for the battle tracker until the next ask (src/lib/battleTracker.ts).
@@ -55,11 +61,13 @@ export async function GET(request: Request) {
       if (file) {
         const sieges = warOf(file).sieges
         after(async () => {
+          const stopStint = meter('tracker')
           const tracked = await trackBattles(payloadOf, sieges, askedAt + TRACK_FOR_MS).catch((error: unknown) => {
             console.error('[battles] the stint failed', error)
             return null
           })
-          if (tracked) console.info(`[battles] ${tracked.status}; ${tracked.readings} readings; ${tracked.battles.join(', ') || 'none saved'}`)
+          const stint = await stopStint()
+          if (tracked) console.info(`[battles] ${tracked.status}; ${tracked.readings} readings; ${tracked.battles.join(', ') || 'none saved'}; ${cpuWords('tracker', stint)}`)
         })
       }
     }

@@ -28,6 +28,7 @@ import { pointsOf } from '../maps/sieges'
 import type { Siege, World, WorldTown } from '../maps/world'
 import { FOLLOW_MS, diedBetween, followed, type Fix, type Follow } from '../maps/motion'
 import { knownAlliances } from './alliances'
+import { CPU_SHARE_S, cpuSpent } from './cpuMeter'
 import { feed } from './livePlayers'
 import { getWorld } from './world'
 
@@ -192,6 +193,8 @@ export async function trackBattles(payloadOf: () => Promise<Payload>, sieges: Si
   // Sieges with no battle on yet are read too: the feed's marker updates say when one starts (the file can be a minute behind).
   if (!sieges.length) return { status: 'no battle', battles: [], readings: 0 }
   if ((await budgetLeft(began)) <= 0) return { status: 'over budget', battles: [], readings: 0 }
+  // And its share of the month's CPU, which the free plan meters (src/lib/cpuMeter.ts): spent, it stops till next month.
+  if ((await cpuSpent('tracker', began)) >= CPU_SHARE_S.tracker) return { status: 'over budget', battles: [], readings: 0 }
   if (!(await takeLease(until))) return { status: 'busy', battles: [], readings: 0 }
 
   const read = feed()
