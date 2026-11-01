@@ -1648,6 +1648,11 @@ Azania Maps' settings, and tells each thing **once** (`src/lib/siegeWatch.ts`):
   nothing of how it ended, so the alert gives the siege as it stood when
   last seen.
 
+A siege of a town of no nation is told as any other, but never pings the
+role (asked for in the channel): Towny has no nation for the town, and
+SiegeWar has it defend as itself ("Siege: Norway vs Freetown"); both must
+say so, so a town whose nation merely couldn't be read still pings.
+
 Each alert says **when to fight**, as Discord timestamps, which every
 reader sees in their own time zone: the next battle session and the ones
 after it the siege still has, or the one on now and until when (a siege's

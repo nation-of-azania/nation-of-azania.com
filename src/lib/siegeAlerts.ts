@@ -104,7 +104,7 @@ export async function greetSiegeChannel(payload: Payload, settings: SiegeAlertSe
   const role = roleId(settings.role)
   const allies = settings.pingAllies && alliesWanted(settings) !== 'off' ? ' or one of its allies' : ''
   const pings = role
-    ? `<@&${role}> will be pinged for each new siege against Azania${allies}${settings.battles ? ', and when fighting starts at one' : ''}.`
+    ? `<@&${role}> will be pinged for each new siege against Azania${allies}${settings.battles ? ', and when fighting starts at one' : ''}; never for a town of no nation, which is told without the ping.`
     : 'No role will be pinged.'
   const schedule = scheduleOf(settings.sessionTimes, settings.sessionZone)
   const sessions = schedule

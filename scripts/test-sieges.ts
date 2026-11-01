@@ -47,6 +47,7 @@ const towns = new Map([
   ['id-pretoria', { name: 'Pretoria', nation: 'Azania' }],
   ['id-oslo', { name: 'Oslo', nation: 'Norway' }],
   ['id-lima', { name: 'Lima', nation: 'Peru' }],
+  ['id-free', { name: 'Freetown', nation: null }],
 ])
 
 /** A siege as SiegeWar marks it on the map. */
@@ -264,6 +265,13 @@ let watch: SiegeWatch
   check(battle.content.startsWith('<@&') && battle.embeds[0].description.startsWith('Fighting at the banner, in battle session 3 of 7'), 'a battle pings, and says its session')
   const none = alertMessage({ kind: 'laid', siege: siege('id-cape', 'Balkan_Kingdom', 'Azania'), party: AZANIA_DEFENDS }, href, { ...on, role: null }, at(0))
   check(none.content === '**Cape Town is under siege**', 'no role, no ping')
+  // A town of no nation (Towny has none for it; SiegeWar has it defend as itself): told, without the ping.
+  const free = alertMessage({ kind: 'laid', siege: siege('id-free', 'Balkan_Kingdom', 'Freetown'), party: AZANIA_DEFENDS }, href, on, at(0))
+  check(free.content === '**Freetown is under siege**' && JSON.stringify(free.allowed_mentions) === '{"parse":[]}', `a town of no nation is told without pinging (${free.content})`)
+  const freeBattle = alertMessage({ kind: 'battle', siege: siege('id-free', 'Balkan_Kingdom', 'Freetown', { battle: true }), party: AZANIA_DEFENDS, session: 2 }, href, on, at(0))
+  check(!freeBattle.content.includes('<@&') && freeBattle.embeds.length === 1, 'nor when fighting starts there')
+  const unread = siege('id-unknown', 'Balkan_Kingdom', 'Azania', { town: 'Somewhere' })
+  check(unread.townNation === null && alertMessage({ kind: 'laid', siege: unread, party: AZANIA_DEFENDS }, href, on, at(0)).content.startsWith('<@&'), 'a town whose nation couldn’t be read, defending as a nation, still pings')
 }
 
 // Rulercraft's battle sessions, as its #sieges channel bears them out (Thai time, UTC+7, all

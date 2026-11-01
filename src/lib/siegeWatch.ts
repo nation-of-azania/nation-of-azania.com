@@ -231,11 +231,24 @@ export function alertHeadline(alert: SiegeAlert): string {
 const cap = (words: string) => words.charAt(0).toUpperCase() + words.slice(1)
 
 /**
+ * A town of no nation: Towny has none for it, and SiegeWar has it defend
+ * as itself ("Siege: Norway vs Freetown"). Both, so a town whose nation
+ * merely couldn't be read isn't taken for one.
+ */
+export const nationless = (siege: Pick<Siege, 'town' | 'townNation' | 'defender'>): boolean =>
+  !siege.townNation?.trim() && Boolean(siege.town) && sameNation(siege.defender, siege.town)
+
+/**
  * Only what calls for defenders pings: a siege against Azania, and fighting
  * started at one; and the same for an ally besieged, when the admins choose.
+ * Never for a town of no nation (the soldiers asked): it's still told, just
+ * without the role.
  */
 export const pings = (alert: SiegeAlert, settings: SiegeAlertSettings): boolean =>
-  alert.party.side === 'defending' && alert.kind !== 'ended' && (alert.party.ally === null || Boolean(settings.pingAllies))
+  alert.party.side === 'defending' &&
+  alert.kind !== 'ended' &&
+  (alert.party.ally === null || Boolean(settings.pingAllies)) &&
+  !nationless(alert.siege)
 
 type Field = { name: string; value: string; inline?: boolean }
 
