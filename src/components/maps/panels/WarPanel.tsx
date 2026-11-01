@@ -646,7 +646,8 @@ function CapturesNow({
     holder === null ? 'takes the banner' : holder === side ? `joins the holders · +${RULES.pointsPerHolder} a check` : `retakes it · ×${multiplierNext}, assumed`
   return (
     <div className="mt-2.5 border-t border-sand-50/10 pt-2">
-      <p className={cn(EYEBROW, 'flex items-center gap-1.5 text-coral-300')}>
+      {/* Its own eyebrow, not EYEBROW's: two colour utilities on one element and the stylesheet's order would pick. */}
+      <p className="flex items-center gap-1.5 font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-coral-300">
         <span aria-hidden="true" className="az-capture-dot" />
         Capturing · {under.length}
       </p>

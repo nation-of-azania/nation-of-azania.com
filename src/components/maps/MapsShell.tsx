@@ -67,7 +67,7 @@ import { EditorPanel } from './editor/EditorPanel'
 import type { GlobeHostProps, HostApi } from './globe/GlobeHost'
 import { loadGlobe, useGlobeSupport, warmGlobe } from './globe/support'
 import type { GlobeEntry, GlobePull, LeaveRequest } from './globe/types'
-import { createStore, useHydrated, useLatest, useMediaQuery, useNamesSetting, useSearch } from './hooks'
+import { createStore, useAppearance, useHydrated, useLatest, useMediaQuery, useNamesSetting, useSearch } from './hooks'
 import { abroadTownTarget } from './layers/AbroadLayer'
 import type { WarHeads } from './layers/PlayersLayer'
 import { useLivePlayers } from './live'
@@ -351,6 +351,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
   const liveStore = useLivePlayers(live, { fast: warOn })
   // Names beside the heads at every zoom: the viewer's own setting, kept in their browser.
   const [named, setNamed] = useNamesSetting()
+  // How the chrome and the panels are drawn: the viewer's choice, or, left to the map, light and dark in the war view.
+  const [appearance, setAppearance] = useAppearance()
+  const theme = appearance === 'auto' ? (warOn ? 'dark' : 'light') : appearance
   const [editor, setEditorState] = useState<Editor | null>(null)
 
   // The world as a globe (./globe): offered where the browser can draw it,
@@ -1484,7 +1487,9 @@ export function MapsShell({ data: served, children }: ShellProps) {
         extras={extras}
         layers={layers}
         liveStore={liveStore}
+        appearance={appearance}
         named={named}
+        onAppearance={setAppearance}
         onChange={setLayers}
         onExtra={(layer, on) => (layer === 'war' ? (on ? enterWar() : leaveWar()) : setExtra(layer, on))}
         onNamed={setNamed}
@@ -1612,6 +1617,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
     <MapsContext.Provider value={actions}>
       <div
         className="az-maps fixed inset-0 flex bg-sea-900 text-ink-900"
+        data-theme={hydrated ? theme : undefined}
         data-tool={editor ? editor.kind : undefined}
         data-war={warOn ? '' : undefined}
         onClickCapture={followLink}
@@ -1623,10 +1629,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         {wide ? (
           <aside
             aria-label="Panel"
-            className={cn(
-              'flex w-[26rem] shrink-0 flex-col border-r',
-              warOn ? 'border-sand-50/10 bg-sea-950' : 'border-sand-300 bg-sand-50',
-            )}
+            className="flex w-[26rem] shrink-0 flex-col border-r border-sand-300 bg-sand-50"
           >
             {/* The war sidebar has a head of its own, and no search: nothing a fighter needs. */}
             {!warOn ? (
@@ -1826,7 +1829,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         {/* Phone: the panel as a sheet. */}
         {!wide ? (
           <Sheet
-            className={warOn ? 'border-sand-50/10 bg-sea-950 text-sand-100' : undefined}
+            className={warOn ? 'az-war' : undefined}
             handle={handle}
             onState={setSheet}
             page={warOn ? `war:${warFocus ? `${warFocus.kind}:${'townId' in warFocus ? warFocus.townId : warFocus.name}` : ''}` : page}

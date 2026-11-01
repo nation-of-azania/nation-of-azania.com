@@ -853,6 +853,18 @@ carries what's already drawn into place until the fresh render lands.
   costs one shared request every few seconds), switched in the layers menu,
   and remembered in the address's `layers` like the others (`players`
   among them); the players button's list says how many are on.
+- **Appearance.** The chrome and the panels are drawn light, dark, or,
+  left to the map (*Automatic*, the default), light and dark in the war
+  view, as the map always was: the viewer's own setting, at the foot of
+  the layers menu, kept in their browser like the names setting and never
+  in the address. The components are written in the site's light tokens,
+  and the dark appearance is those tokens redefined under the map's root
+  (`maps.css`), so every panel, menu, card and sheet follows; the war
+  sidebar, written in the dark tokens, is restored there and mirrored in
+  the light appearance, its coral and sea the deep ones on sand. The
+  map's own ground, the tiles and the globe, stays as it is. An inline
+  script in the maps layout reads the setting before the first paint, so
+  a viewer who chose dark never sees a flash of sand.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*

@@ -21,6 +21,16 @@ import { syncIfStale } from '@/lib/towns'
 
 export const revalidate = 60
 
+/**
+ * The viewer's appearance setting (src/components/maps/hooks.ts →
+ * useAppearance), read before the first paint: dark when they chose it,
+ * or when they left it to the map and the address opens the war view, so
+ * the panels never flash sand before turning dark. The shell takes over
+ * once it has hydrated (maps.css reads both attributes).
+ */
+const APPEARANCE_SCRIPT =
+  "(function(){try{var s=localStorage.getItem('az-maps-appearance');var w=/[?&]layers=[^&]*\\bwar\\b/.test(location.search);if(s==='dark'||(s!=='light'&&w))document.documentElement.setAttribute('data-az-theme','dark');else if(s==='light')document.documentElement.setAttribute('data-az-theme','light')}catch(e){}})()"
+
 export const metadata: Metadata = {
   title: { default: 'Azania Maps', template: '%s · Azania Maps' },
   description:
@@ -42,5 +52,10 @@ export default async function MapsLayout({ children }: { children: ReactNode }) 
       .then(syncIfStale)
       .catch(() => {}),
   )
-  return <MapsShell data={data}>{children}</MapsShell>
+  return (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
+      <MapsShell data={data}>{children}</MapsShell>
+    </>
+  )
 }
