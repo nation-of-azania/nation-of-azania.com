@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 
 import type { FighterRecord } from '@/maps/fighters'
+import { TELEPORT_LOCK_SECONDS } from '@/maps/motion'
 
 import { createStore, useStore } from './hooks'
 
@@ -29,12 +30,16 @@ export type FightersState = {
   days: number
   /** Made up, on one's own machine with the war demo on. */
   demo: boolean
+  /** The lock after a death as the tracker has measured it: the quickest teleport seen after one, and how many it rests on; null until it has. */
+  lock: { quickest: number; seen: number } | null
+  /** The lock taken until then: an upper bound from deaths seen by hand. */
+  lockDefault: number
   players: FighterEntry[]
   /** By lower-cased name, since the feed and the marker file don't always agree on case. */
   byName: Map<string, FighterEntry>
 }
 
-const IDLE: FightersState = { status: 'idle', at: 0, since: null, battles: 0, days: 0, demo: false, players: [], byName: new Map() }
+const IDLE: FightersState = { status: 'idle', at: 0, since: null, battles: 0, days: 0, demo: false, lock: null, lockDefault: TELEPORT_LOCK_SECONDS, players: [], byName: new Map() }
 
 /** How long a reading serves before something wanting the records asks again: the CDN's own quarter of an hour. */
 const FRESH_MS = 15 * 60_000
@@ -54,7 +59,8 @@ function ask(): void {
   inFlight = fetch('/maps/fighters')
     .then(async (response) => {
       if (!response.ok) throw new Error(`The records answered ${response.status}`)
-      const body = (await response.json()) as Partial<Omit<FightersState, 'byName' | 'status'>> & { players?: unknown[] }
+      const body = (await response.json()) as Partial<Omit<FightersState, 'byName' | 'status' | 'lock'>> & { players?: unknown[]; lock?: { quickest?: unknown; seen?: unknown } | null }
+      const lock = body.lock && typeof body.lock.quickest === 'number' && body.lock.quickest > 0 ? { quickest: body.lock.quickest, seen: typeof body.lock.seen === 'number' ? body.lock.seen : 1 } : null
       const players = (Array.isArray(body.players) ? body.players : []).filter(isRecord).map((record) => ({ ...record, hours: Array.isArray(record.hours) ? record.hours : null }))
       store.set({
         status: 'ready',
@@ -63,6 +69,8 @@ function ask(): void {
         battles: typeof body.battles === 'number' ? body.battles : 0,
         days: typeof body.days === 'number' ? body.days : 0,
         demo: Boolean(body.demo),
+        lock,
+        lockDefault: typeof body.lockDefault === 'number' ? body.lockDefault : TELEPORT_LOCK_SECONDS,
         players,
         byName: new Map(players.map((record) => [record.name.toLowerCase(), record])),
       })

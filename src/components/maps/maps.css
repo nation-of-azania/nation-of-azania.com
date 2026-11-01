@@ -886,6 +886,143 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
 }
 
 /*
+ * The outlook (panels/Outlook.tsx): the session's chart, in the sides'
+ * colours with the grid and the labels in the sidebar's quieter ink; the
+ * fold's chevron turns as it opens.
+ */
+.az-chart-grid {
+  stroke: currentColor;
+  stroke-opacity: 0.12;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.az-chart-label {
+  fill: currentColor;
+  fill-opacity: 0.6;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+.az-chart-banner[data-side='attackers'] {
+  fill: var(--az-atk);
+}
+.az-chart-banner[data-side='defenders'] {
+  fill: var(--az-def);
+}
+.az-chart-banner[data-side='none'] {
+  fill: currentColor;
+  fill-opacity: 0.15;
+}
+.az-outlook-chevron {
+  transition: transform 160ms ease-out;
+}
+.az-outlook[open] .az-outlook-chevron {
+  transform: rotate(180deg);
+}
+
+/*
+ * The players docked at the map's edge in the war view (ui/PlayersList.tsx
+ * → PlayersDock): a tab folded against the right edge under the controls,
+ * and the list in a column when it's opened, in the panels' own sand (or
+ * the dark appearance's sea).
+ */
+.az-dock-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-sand-300);
+  background: var(--color-sand-50);
+  color: var(--color-sea-900);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(22, 25, 31, 0.08);
+}
+.az-dock-tab:hover {
+  border-color: var(--color-sea-700);
+  background: var(--color-sand-100);
+}
+.az-dock {
+  width: 19rem;
+  max-height: calc(100vh - 12rem);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-sand-300);
+  background: color-mix(in srgb, var(--color-sand-50) 94%, transparent);
+  color: var(--color-ink-900);
+  box-shadow: 0 8px 24px rgba(22, 25, 31, 0.14);
+}
+.az-dock > :last-child {
+  min-height: 0;
+  padding: 0 6px 6px;
+}
+
+/*
+ * The fighters off the edge of the map (layers/EdgeArrows.tsx): a head
+ * with a chevron in its side's colour pointing their way, and the blocks
+ * to them, on the map's border.
+ */
+.az-edge {
+  --az-edge-ink: rgba(251, 248, 241, 0.92);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border-radius: 3px;
+  background: rgba(14, 18, 26, 0.72);
+  box-shadow: 0 1px 4px rgba(22, 25, 31, 0.4);
+  cursor: pointer;
+}
+.az-edge-attackers {
+  --az-edge-ink: #e0644c;
+}
+.az-edge-defenders {
+  --az-edge-ink: #4f9fd6;
+}
+.az-edge[data-watched] {
+  --az-edge-ink: #d8962c;
+  box-shadow:
+    0 0 0 2px #d8962c,
+    0 1px 4px rgba(22, 25, 31, 0.4);
+}
+.az-edge .az-player-mark {
+  box-shadow: 0 0 0 2px var(--az-edge-ink);
+}
+.az-edge-chevron {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  pointer-events: none;
+}
+.az-edge-chevron::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  margin-top: -6px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 8px solid var(--az-edge-ink);
+  filter: drop-shadow(0 0 1px rgba(22, 25, 31, 0.7));
+}
+.az-edge-blocks {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fbf8f1;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
  * The war sidebar (panels/WarPanel.tsx): dark where the panels are sand,
  * with the two sides' colours lifted to read on it. Health and armour
  * (ui/Vitals.tsx) are drawn as the game's HUD draws them: a row of ten

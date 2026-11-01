@@ -89,7 +89,7 @@ import { Notice, TextButton } from './ui/chrome'
 import { DiplomacyButton, DrawMenu, LayerMenu, Legend, WarButton, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { DiplomacyKey } from './ui/DiplomacyKey'
 import { Icon } from './ui/icons'
-import { PlayersButton } from './ui/PlayersList'
+import { PlayersButton, PlayersDock } from './ui/PlayersList'
 import { StatusNote, type MapStatus } from './ui/Readouts'
 import { Search } from './ui/Search'
 import { Sheet, type SheetState } from './ui/Sheet'
@@ -97,6 +97,7 @@ import { WhatsOnStrip } from './ui/WhatsOn'
 import { Wordmark } from './ui/Wordmark'
 import { SiegeBadge } from './ui/Siege'
 import { useWar } from './war'
+import { useMotionTracking } from './motion'
 import { useCaptures, type WarFocus } from './warView'
 import { useWorld } from './world'
 
@@ -646,6 +647,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The captures of the view's siege, run on the live positions SiegeWar's way (battle.ts → stepCaptures), on the checks the points show.
   const viewPhase = useMemo(() => tickPhaseOf(viewSiege ? (war.readings[viewSiege] ?? []) : []), [war.readings, viewSiege])
   const captures = useCaptures(liveStore, warOn ? viewSiegeObject : null, viewPhase, sideOfName)
+  // How the players have been moving, for their own pace back to the banner and the lock after a death (./motion.ts).
+  useMotionTracking(liveStore, warOn)
   const pickPlayer = useCallback((name: string) => focusWar({ kind: 'player', name }), [focusWar])
   // A player picked from the list (ui/PlayersList.tsx): in the war view the sidebar takes them; otherwise the map
   // flies to them and their card opens beside their head.
@@ -1497,7 +1500,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
         showPast={showPast}
         worldStatus={worldState.status}
       />
-      <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { sideOf: sideOfName } : null} />
+      {/* On a wide war view the list is docked at the map's edge instead (below). */}
+      {warOn && wide ? null : <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { sideOf: sideOfName } : null} />}
       <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
       <WarButton on={warOn} onToggle={() => (warOn ? leaveWar() : enterWar())} />
       <Legend globe={globeSupport} />
@@ -1782,6 +1786,16 @@ export function MapsShell({ data: served, children }: ShellProps) {
               ) : null}
             </div>
             <div className="flex items-start gap-2">{controls}</div>
+            {warOn && wide ? (
+              <PlayersDock
+                className="pointer-events-auto"
+                home={homeNation}
+                onPick={pickOnline}
+                store={liveStore}
+                towns={sideTowns}
+                war={{ sideOf: sideOfName, watch: warFocus }}
+              />
+            ) : null}
             <ZoomButtons
               globe={
                 globeSupport

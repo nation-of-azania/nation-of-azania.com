@@ -25,6 +25,7 @@ import { createStore, useLatest, type Store } from './hooks'
 import { AbroadClaims, AbroadMarks, HomeGlow, StanceGlow, type HomeNation, type NationStyle } from './layers/AbroadLayer'
 import { BattleZones } from './layers/BattleZones'
 import { DrawingsLayer } from './layers/DrawingsLayer'
+import { EdgeArrows } from './layers/EdgeArrows'
 import { EventsLayer } from './layers/EventsLayer'
 import { AbroadHover, HoverReach } from './layers/hover'
 import { planLabels, type LabelPlan } from './layers/labels'
@@ -455,7 +456,9 @@ export function MapScene(props: SceneProps) {
             />
           ) : null}
           {/* A spot asked about by a right click or a long press: its coordinates, the way there, and in the war view its distance to the banner. */}
-          <SpotMenu data={data} siege={war ? (sieges.find((siege) => siege.townId === war.siege) ?? null) : null} />
+          <SpotMenu data={data} siege={war ? (sieges.find((siege) => siege.townId === war.siege) ?? null) : null} watch={war?.heads.watch ?? null} />
+          {/* The war view: the fighters off the edge of the map, marked on its border. */}
+          {war ? <EdgeArrows onPick={war.heads.onPick} sideOf={war.heads.sideOf} store={liveStore} watch={war.heads.watch} /> : null}
           {/* The players online: Leaflet markers of their own, moved per frame, outside the overlay and its renders. */}
           <PlayersLayer data={data} enabled={live} named={named} pick={pickStore} store={liveStore} war={war?.heads ?? null} />
         </>

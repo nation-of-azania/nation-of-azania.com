@@ -51,6 +51,8 @@ const PATHS = {
   war: 'M5 5l11 11M14 18l4-4M16 16l3 3M19 5L8 16M6 14l4 4M8 16l-3 3',
   /** Two heads, one before the other: the players online. */
   players: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20a7 7 0 0 1 14 0M16 11a3 3 0 1 0-1.5-5.6M17 13.5a5.5 5.5 0 0 1 5 6.5',
+  /** A padlock: a player who can't teleport yet, after a death. */
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2',
   /** A heart: health. */
   heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z',
   /** A shield: armour. */

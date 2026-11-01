@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 
+import type { WarFocus } from '../warView'
+
 import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
 import { townOfName, type PlayerSide } from '@/maps/battle'
@@ -65,7 +67,63 @@ export function PlayersButton({
   )
 }
 
-function PlayersList({
+/**
+ * The list docked at the map's right edge in the war view: a slim tab
+ * ("Players · 17") folded against the edge, which opens to the list
+ * beside the map's controls and folds again by its own ×, so the list is
+ * a glance away without ever lying over the map unasked. A phone keeps
+ * the button and its popover, the sheet already taking the foot.
+ */
+export function PlayersDock({
+  store,
+  towns,
+  home,
+  war,
+  onPick,
+  className,
+}: {
+  store: Store<LiveState>
+  towns: NamedTown[]
+  home: string | null
+  war: { sideOf: (name: string) => PlayerSide | null; watch: WarFocus | null } | null
+  onPick: (player: LivePlayer) => void
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const live = useStore(store)
+  const count = live.status === 'live' ? (live.online ?? live.players.length) : null
+  if (!open)
+    return (
+      <button
+        aria-expanded={false}
+        className={cn('az-dock-tab', className)}
+        onClick={() => setOpen(true)}
+        title="Who’s online"
+        type="button"
+      >
+        <Icon className="h-4 w-4" name="players" />
+        <span>{count === null ? 'Players' : `${count} online`}</span>
+      </button>
+    )
+  return (
+    <section aria-label="Who’s online" className={cn('az-dock', className)}>
+      <div className="flex items-center justify-between gap-2 px-2 pt-1.5">
+        <span className={cn(EYEBROW, 'text-ink-500')}>Who’s online</span>
+        <button
+          aria-label="Fold the list away"
+          className="-mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-ink-500 hover:text-ink-900 focus-visible:outline-saffron-500"
+          onClick={() => setOpen(false)}
+          type="button"
+        >
+          <Icon className="h-3.5 w-3.5" name="close" />
+        </button>
+      </div>
+      <PlayersList home={home} onPick={onPick} store={store} towns={towns} war={war} />
+    </section>
+  )
+}
+
+export function PlayersList({
   store,
   towns,
   home,

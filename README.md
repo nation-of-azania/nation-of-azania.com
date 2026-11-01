@@ -877,6 +877,39 @@ carries what's already drawn into place until the fresh render lands.
   with two battles or more, and every roster's row carries the score of
   anyone who has fought. A player's card on the normal map says their
   record in a line.
+- **The outlook.** The war view's siege says, in a line under the balance,
+  who has the session (or the siege, in its last) if nothing changes and
+  what the other side would need from now (`src/maps/outlook.ts`, pure;
+  `panels/Outlook.tsx` draws it): the least holders at the banner for the
+  rest of the session that would turn it, against how many they have
+  online ("8 holders from now would win the siege; they have only 5
+  online: out of reach, 114 kills short"), whether the leader could leave
+  the banner and still win even if every one of the other side online took
+  it, and, past the ±7,000 cap, whose points count for nothing. A fold
+  beneath (open by itself between sessions) holds the session's points as
+  they went and will go (both sides, who held the banner along the foot,
+  the projection dashed), what each side needs for the session and for the
+  siege, the siege's story session by session (`GET /maps/battles`, the
+  tracker's last fortnight: each session's result and the balance after it,
+  within the cap; the one on now as projected), and the **sessions ahead**:
+  for each, how many of each side's residents are likely to fight at its
+  hour (their usual hours times their turnout), roughly what that does to
+  the balance (about 1,650 a fighter more than the other side), and the
+  lead the side the forecast leaves losing would need going into the other
+  side's sessions, and whether the cap even allows it: the question of
+  which session to turn out for. Rough by design, and only as good as the
+  records. In the war view the players' list is docked at the map's right
+  edge as a folded tab, and fighters beyond the edge of the map are marked
+  on its border with their head, a chevron in their side's colour and the
+  blocks to them (`layers/EdgeArrows.tsx`), the nearest few. Every "back
+  in" is said twice (`src/maps/motion.ts`; `components/maps/motion.ts`
+  keeps each player's last two minutes of readings beside the live feed
+  while the view is on): at a sprint, the pessimistic figure, and at the
+  player's own pace when they've been seen moving faster, the median of
+  their steps with any teleport dropped out, since most fly; and after a
+  death in the siege zone, how long the server's lock keeps them from
+  teleporting, the quickest the tracker has measured after a death or,
+  until it has, an upper bound.
 - **Appearance.** The chrome and the panels are drawn light, dark, or,
   left to the map (*Automatic*, the default), light and dark in the war
   view, as the map always was: the viewer's own setting, at the foot of
