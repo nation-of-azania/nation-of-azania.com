@@ -17,6 +17,7 @@ import type {
   MapBlockType,
   Media,
   Model3DBlockType,
+  PanelBlockType,
   QuoteBlockType,
   SkinBlockType,
 } from '@/payload-types'
@@ -27,10 +28,11 @@ import type {
  * reduced to what a feed reader can show. Prose, lists, links and pictures
  * come through as themselves, with every URL made absolute; each custom
  * block degrades to what it can be without the site around it — a callout
- * to an aside, a quote to a blockquote, a gallery to its plates, a Discord
- * exchange to its lines, a map to its clipping, a skin to its still render —
- * and the exhibits only the page can show (the 3D model, the Litematica
- * build) to a short note and a link back to the article.
+ * to an aside, a panel to a bordered aside around its content (converted
+ * by these same rules), a quote to a blockquote, a gallery to its plates,
+ * a Discord exchange to its lines, a map to its clipping, a skin to its
+ * still render — and the exhibits only the page can show (the 3D model,
+ * the Litematica build) to a short note and a link back to the article.
  */
 
 type ContentBlocks =
@@ -42,6 +44,7 @@ type ContentBlocks =
   | LitematicBlockType
   | MapBlockType
   | Model3DBlockType
+  | PanelBlockType
   | QuoteBlockType
   | SkinBlockType
 
@@ -136,6 +139,15 @@ const convertersFor =
       callout: ({ node }) => {
         const { title, body } = node.fields
         return `<aside>${title ? `<p><strong>${escapeHtml(title)}</strong></p>` : ''}<p>${escapeHtml(body).replace(/\n/g, '<br />')}</p></aside>`
+      },
+      // The box as a hairline a reader may keep or drop, its label in bold,
+      // and its content converted by these same rules, blocks included.
+      panel: ({ node, nodesToHTML }) => {
+        const { label, content } = node.fields
+        const inner = nodesToHTML({ nodes: content?.root?.children ?? [], parent: node }).join('')
+        const title = label?.trim()
+        if (!inner && !title) return ''
+        return `<aside style="border:1px solid #d6c9ab;padding:0.25em 1em;margin:1em 0">${title ? `<p><strong>${escapeHtml(title)}</strong></p>` : ''}${inner}</aside>`
       },
       quote: ({ node }) => {
         const { quote, attribution, attributionTitle } = node.fields
