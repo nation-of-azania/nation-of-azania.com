@@ -24,6 +24,7 @@ import type {
   Model3DBlockType,
   PanelBlockType,
   Page,
+  PanelBlockType,
   QuoteBlockType,
   SanctionsBlockType,
   SkinBlockType,
@@ -37,6 +38,7 @@ import { ImageBlock } from '@/blocks/components/Image'
 import { LitematicBlock } from '@/blocks/components/Litematic'
 import { MapBlock } from '@/blocks/components/Map'
 import { Model3DBlock } from '@/blocks/components/Model3D'
+import { PanelBlock } from '@/blocks/components/Panel'
 import { QuoteBlock } from '@/blocks/components/Quote'
 import { SanctionsBlock } from '@/blocks/components/Sanctions'
 import { cn, type Tone, type Voice } from '@/blocks/components/shared'
@@ -98,6 +100,17 @@ const convertersFor =
         </aside>
       ),
       model3d: ({ node }) => <Model3DBlock {...node.fields} />,
+      // The panel's content is a Lexical document of its own: its nodes are
+      // drawn by these same converters, so a block inside looks as it does
+      // outside. (The block's `tone` is its tint; the paper's is the voice's.)
+      panel: ({ node, nodesToJSX }) => {
+        const { tone: tint, label, content } = node.fields
+        return (
+          <PanelBlock label={label} tint={tint} {...voice}>
+            {nodesToJSX({ nodes: content?.root?.children ?? [], parent: node })}
+          </PanelBlock>
+        )
+      },
       quote: ({ node }) => <QuoteBlock {...node.fields} />,
       sanctions: ({ node }) => <SanctionsBlock {...node.fields} />,
       skin: ({ node }) => <SkinBlock {...node.fields} {...voice} />,
@@ -231,7 +244,8 @@ type RichTextProps = {
 
 /**
  * Renders Lexical rich text content, including every custom block (callout,
- * quote, image, gallery, embed, discord, map, skin, model3d, litematic).
+ * panel, quote, image, gallery, embed, discord, map, sanctions, skin,
+ * model3d, litematic).
  * Server-safe: the only client code is the Discord block's audio/spoiler
  * island, the map's image and copy button, and the Skin/Model3D/Litematic
  * dynamic imports.

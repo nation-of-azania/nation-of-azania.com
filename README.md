@@ -317,9 +317,10 @@ the whole Gazette, `/gov/girlietown/feed.xml` the town's record in it,
 nation publishes. Each item carries the article's title and permalink,
 its first publication date, the byline's name (never an address; accounts
 have none), its type and context as categories, the excerpt, the full
-text as HTML (pictures and galleries as themselves, a map as its
-clipping, a player as the still render of their skin, the 3D and
-Litematica exhibits as a note and a link to the page) and its
+text as HTML (pictures and galleries as themselves, a panel as a bordered
+aside around its content, a map as its clipping, a player as the still
+render of their skin, the 3D and Litematica exhibits as a note and a link
+to the page) and its
 link-preview card as `media:content`, so a Discord RSS bot unfurls it the
 way a pasted link does. The channel is named after the paper ("GirlieTea
 · The Azanian Times"), described by the context's tagline and pictured by
@@ -375,12 +376,13 @@ The pages are never cached or indexed, and send no referrer, so the token
 stays with the people it was given to. An expired link says so; an unknown
 one is a 404.
 
-Article and page content is a Lexical rich-text field with eleven custom blocks
+Article and page content is a Lexical rich-text field with twelve custom blocks
 (schema in `src/blocks/config.ts`, renderers in `src/blocks/components/`):
 
 | Block       | Purpose                                                                  |
 | ----------- | ------------------------------------------------------------------------ |
 | `callout`   | Boxed aside in `note`, `decree` or `warning` style, with an optional title. |
+| `panel`     | A plain bordered box around any content — paragraphs, headings, lists and every other block (a news update inside a feature, a side story, a box of facts) — with an optional small label and a tint: `plain` (a border only), `neutral`, `cool`, `warm` or `alert`, each design in its own colours, GirlieTown's in rose. Panels don't go inside panels. |
 | `quote`     | Pull quote with optional attribution and attribution title.              |
 | `image`     | A single captioned image, in `standard` or `wide` layout.                |
 | `gallery`   | Grid of captioned images in 2 or 3 columns.                              |
@@ -1823,6 +1825,15 @@ const converters: JSXConvertersFunction<NodeTypes> = ({ defaultConverters }) => 
   },
 })
 ```
+
+Give it a plain-HTML converter in `src/lib/feedHtml.ts` as well, for the
+feeds (a block without one is left out of them). A block that holds rich
+text of its own, as the Panel does (`content`, a `richText` field whose
+editor offers the other blocks), gets its nested nodes drawn by the same
+converters: the `panel` converter in `RichText.tsx` passes
+`nodesToJSX({ nodes: content.root.children, parent: node })` to the
+component as children, and the feed's does the same with `nodesToHTML`, so
+a block inside a panel renders exactly as it does at the top level.
 
 **5. Restart `pnpm dev`.** The admin editor UI for your block comes entirely
 from the field schema in step 1, with no admin code needed.
