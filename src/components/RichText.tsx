@@ -22,6 +22,7 @@ import type {
   LitematicBlockType,
   MapBlockType,
   Model3DBlockType,
+  PanelBlockType,
   Page,
   QuoteBlockType,
   SanctionsBlockType,
@@ -50,6 +51,7 @@ type ContentBlocks =
   | LitematicBlockType
   | MapBlockType
   | Model3DBlockType
+  | PanelBlockType
   | QuoteBlockType
   | SanctionsBlockType
   | SkinBlockType
@@ -88,6 +90,13 @@ const convertersFor =
       image: ({ node }) => <ImageBlock {...node.fields} />,
       litematic: ({ node }) => <LitematicBlock {...node.fields} />,
       map: ({ node }) => <MapBlock {...node.fields} {...voice} />,
+      // A plain bordered box around its own rich text, blocks and all (src/blocks/config.ts → PanelBlock); a stand-in look.
+      panel: ({ node }) => (
+        <aside className="my-8 border border-current/20 px-5 py-4 sm:px-6" role="note">
+          {node.fields.label ? <p className="mb-2 text-[0.6875rem] font-semibold tracking-[0.18em] uppercase opacity-70">{node.fields.label}</p> : null}
+          <PayloadRichText converters={convertersFor(voice)} data={node.fields.content as SerializedEditorState} disableContainer />
+        </aside>
+      ),
       model3d: ({ node }) => <Model3DBlock {...node.fields} />,
       quote: ({ node }) => <QuoteBlock {...node.fields} />,
       sanctions: ({ node }) => <SanctionsBlock {...node.fields} />,

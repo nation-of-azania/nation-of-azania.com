@@ -17,6 +17,7 @@ import type {
   MapBlockType,
   Media,
   Model3DBlockType,
+  PanelBlockType,
   QuoteBlockType,
   SkinBlockType,
 } from '@/payload-types'
@@ -42,6 +43,7 @@ type ContentBlocks =
   | LitematicBlockType
   | MapBlockType
   | Model3DBlockType
+  | PanelBlockType
   | QuoteBlockType
   | SkinBlockType
 
@@ -133,6 +135,12 @@ const convertersFor =
       return picture ? figure(picture) : ''
     },
     blocks: {
+      // A panel: its label in bold, then its own content, set the same way.
+      panel: ({ node }) => {
+        const { label, content } = node.fields
+        const inner = content ? convertLexicalToHTML({ converters: convertersFor(place), data: content as SerializedEditorState, disableContainer: true }) : ''
+        return `<aside>${label ? `<p><strong>${escapeHtml(label)}</strong></p>` : ''}${inner}</aside>`
+      },
       callout: ({ node }) => {
         const { title, body } = node.fields
         return `<aside>${title ? `<p><strong>${escapeHtml(title)}</strong></p>` : ''}<p>${escapeHtml(body).replace(/\n/g, '<br />')}</p></aside>`
