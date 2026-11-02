@@ -30,6 +30,7 @@ import * as migration_20261101_051659_battles_respawns from './20261101_051659_b
 import * as migration_20261101_113822_alliances from './20261101_113822_alliances';
 import * as migration_20261101_131717_battles_analysis from './20261101_131717_battles_analysis';
 import * as migration_20261102_090000_clayton_leaves_ia from './20261102_090000_clayton_leaves_ia';
+import * as migration_20261102_100000_update_boxes from './20261102_100000_update_boxes';
 
 export const migrations = [
   {
@@ -191,5 +192,10 @@ export const migrations = [
     up: migration_20261102_090000_clayton_leaves_ia.up,
     down: migration_20261102_090000_clayton_leaves_ia.down,
     name: '20261102_090000_clayton_leaves_ia',
+  },
+  {
+    up: migration_20261102_100000_update_boxes.up,
+    down: migration_20261102_100000_update_boxes.down,
+    name: '20261102_100000_update_boxes',
   },
 ];
