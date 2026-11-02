@@ -2220,6 +2220,38 @@ export interface LitematicBlockType {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PanelBlockType".
+ */
+export interface PanelBlockType {
+  /**
+   * Each design draws the tints in its own colours.
+   */
+  tone: 'plain' | 'neutral' | 'cool' | 'warm' | 'alert';
+  /**
+   * A small heading above the content, e.g. "Breaking news" or "Update, 1 November". Optional.
+   */
+  label?: string | null;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'panel';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {

@@ -1,3 +1,4 @@
+import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import type { Block } from 'payload'
 
 import { MINECRAFT_NAME } from '../fields/minecraftName'
@@ -624,9 +625,60 @@ export const SanctionsBlock: Block = {
   ],
 }
 
+/**
+ * Panel — a plain bordered box around any content, text and blocks alike (a
+ * Discord quote, an image, a map), with an optional small label and a
+ * subtle tint. A callout holds one paragraph of plain text in one of three
+ * fixed registers; a panel holds whatever the editor puts in it: a news
+ * update inside an article, a side story, a box of facts. Panels don't go
+ * inside panels.
+ */
+export const PanelBlock: Block = {
+  slug: 'panel',
+  interfaceName: 'PanelBlockType',
+  labels: { singular: 'Panel', plural: 'Panels' },
+  fields: [
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'tone',
+          type: 'select',
+          required: true,
+          defaultValue: 'plain',
+          options: [
+            { label: 'Plain (a border only)', value: 'plain' },
+            { label: 'Neutral (a light grey tint)', value: 'neutral' },
+            { label: 'Cool (a light blue tint)', value: 'cool' },
+            { label: 'Warm (a light yellow tint)', value: 'warm' },
+            { label: 'Alert (a light red tint)', value: 'alert' },
+          ],
+          admin: { width: '40%', description: 'Each design draws the tints in its own colours.' },
+        },
+        {
+          name: 'label',
+          type: 'text',
+          maxLength: 80,
+          admin: { width: '60%', description: 'A small heading above the content, e.g. "Breaking news" or "Update, 1 November". Optional.' },
+        },
+      ],
+    },
+    {
+      name: 'content',
+      type: 'richText',
+      required: true,
+      // `innerBlocks` is defined below, after the list it's taken from; the features are read when the config is, by then.
+      editor: lexicalEditor({
+        features: ({ defaultFeatures }) => [...defaultFeatures, BlocksFeature({ blocks: innerBlocks })],
+      }),
+    },
+  ],
+}
+
 /** Every block available in article/page content, in menu order. */
 export const contentBlocks: Block[] = [
   CalloutBlock,
+  PanelBlock,
   QuoteBlock,
   ImageBlock,
   GalleryBlock,
@@ -638,3 +690,6 @@ export const contentBlocks: Block[] = [
   Model3DBlock,
   LitematicBlock,
 ]
+
+/** The blocks a panel may hold: every other one. */
+const innerBlocks: Block[] = contentBlocks.filter((candidate) => candidate.slug !== 'panel')
