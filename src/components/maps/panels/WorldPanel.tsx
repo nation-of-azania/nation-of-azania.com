@@ -174,7 +174,7 @@ export function WorldPanel() {
                 { label: 'Claimed chunks', value: stats.totals.chunks.toLocaleString('en-GB') },
                 {
                   label: 'People to a town',
-                  value: `${stats.totals.perTown.mean.toLocaleString('en-GB', { maximumFractionDigits: 1 })} on average · ${stats.totals.perTown.median.toLocaleString('en-GB', { maximumFractionDigits: 1 })} in the middle town`,
+                  value: `${stats.totals.perTown.mean.toLocaleString('en-GB', { maximumFractionDigits: 1 })} on average · a median of ${stats.totals.perTown.median.toLocaleString('en-GB', { maximumFractionDigits: 1 })}`,
                 },
                 { label: 'Founded in 30 days', value: plural(stats.totals.recent, 'town') },
                 { label: 'Standing empty', value: plural(stats.totals.empty, 'town') },

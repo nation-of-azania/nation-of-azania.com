@@ -24,6 +24,8 @@ export function Swatch({
         background: `color-mix(in srgb, ${ink} 30%, transparent)`,
         borderColor: ink,
         borderStyle: colour ? 'solid' : 'dashed',
+        // A hairline of the text's colour around it, so a nation coloured near the panel's own (black on the dark panel) still shows.
+        outline: '1px solid color-mix(in srgb, var(--color-ink-900) 18%, transparent)',
       }}
     />
   )
