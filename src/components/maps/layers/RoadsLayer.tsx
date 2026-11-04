@@ -1,10 +1,12 @@
 import { roadPoints, type MapRoad } from '@/maps/data'
 import { boundsOf, pathLength, type Point } from '@/maps/geo'
+import { overpassesOf } from '@/maps/junctions'
 import { GROUND, ROAD_ORDER, ROAD_STYLES } from '@/maps/palette'
 
 import {
   boundsTouch,
   halo,
+  inBounds,
   LabelPlacer,
   named,
   pathOf,
@@ -48,6 +50,70 @@ function pointAlong(line: Point[], fraction: number): Point {
     walked += step
   }
   return line[line.length - 1]
+}
+
+/** Where two roads' courses cross without a node they share: one passes over the other (src/maps/junctions.ts). */
+type Overpass = ReturnType<typeof overpassesOf>[number]
+
+/**
+ * The bridges among a set of roads, worked out once for the set and kept
+ * by it: the layer is drawn again at every settle of the map, and the
+ * roads change only when one is saved. A fresh array of the same roads
+ * (the scene's, filtered) is told by their ids and stamps.
+ */
+const overpassesByRoads = new WeakMap<MapRoad[], Overpass[]>()
+let lastOverpasses: { signature: string; overpasses: Overpass[] } | null = null
+function overpassesAmong(roads: MapRoad[]): Overpass[] {
+  const kept = overpassesByRoads.get(roads)
+  if (kept) return kept
+  const signature = roads.map((road) => `${road.id}:${road.updatedAt ?? ''}:${road.line.length}`).join('|')
+  const overpasses = lastOverpasses?.signature === signature ? lastOverpasses.overpasses : roads.length > 1 ? overpassesOf(roads) : []
+  lastOverpasses = { signature, overpasses }
+  overpassesByRoads.set(roads, overpasses)
+  return overpasses
+}
+
+/** How much wider than its road a bridge's deck is drawn, in px: its edges, across the road below, are what say "bridge". */
+const DECK = 7
+/** The deck's edges are shaded a shade darker than the road's casing, so they tell against the road below through the wash. */
+const DECK_SHADE = 0.55
+
+/** The piece of a course within `reach` blocks either way of `at`, along it: the deck of a bridge there. */
+function pieceAround(course: Point[], at: Point, reach: number): Point[] {
+  let best = { segment: 0, point: course[0], distance: Infinity }
+  for (let i = 0; i < course.length - 1; i++) {
+    const [ax, az] = course[i]
+    const [bx, bz] = course[i + 1]
+    const dx = bx - ax
+    const dz = bz - az
+    const length2 = dx * dx + dz * dz
+    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((at[0] - ax) * dx + (at[1] - az) * dz) / length2))
+    const point: Point = [ax + dx * t, az + dz * t]
+    const d = Math.hypot(point[0] - at[0], point[1] - at[1])
+    if (d < best.distance) best = { segment: i, point, distance: d }
+  }
+  // Out from the spot as far as `reach` runs, each way, through the course's own points on the way.
+  const walk = (indices: number[]): Point[] => {
+    const out: Point[] = []
+    let left = reach
+    let here = best.point
+    for (const i of indices) {
+      const point = course[i]
+      const step = Math.hypot(point[0] - here[0], point[1] - here[1])
+      if (step >= left) {
+        const t = step === 0 ? 0 : left / step
+        out.push([here[0] + (point[0] - here[0]) * t, here[1] + (point[1] - here[1]) * t])
+        return out
+      }
+      out.push(point)
+      left -= step
+      here = point
+    }
+    return out
+  }
+  const back = Array.from({ length: best.segment + 1 }, (_, k) => best.segment - k)
+  const forward = Array.from({ length: course.length - best.segment - 1 }, (_, k) => best.segment + 1 + k)
+  return [...walk(back).reverse(), best.point, ...walk(forward)]
 }
 
 const roadWidth = (road: MapRoad, ppb: number) => {
@@ -153,6 +219,31 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
   const edge = ease(zoom, 0, 2, 2, 1.2)
   const fontSize = nameSize(zoom)
   const chosen = selected != null ? ordered.find((road) => road.id === selected) : null
+  // The bridges on the page, once the roads are wide enough for one to be seen passing over another.
+  const byId = new Map(ordered.map((road) => [road.id, road]))
+  const bridges =
+    part === 'names'
+      ? []
+      : overpassesAmong(roads).flatMap((bridge) => {
+          const over = byId.get(Number(bridge.over))
+          const under = byId.get(Number(bridge.under))
+          if (!over || !under || !inBounds(projection.bounds, bridge.at)) return []
+          const overWidth = roadWidth(over, ppb)
+          const underWidth = roadWidth(under, ppb)
+          if (underWidth < 3) return []
+          // The deck spans the road under it and a little more each way; its fill runs on past the deck's ends, so only
+          // the deck's long edges show, as two bars across the road below.
+          const course = courses.get(over.id)!
+          const reach = (underWidth / 2 + edge + overWidth / 2 + 2) / ppb
+          return [
+            {
+              over,
+              deck: pathOf(projection, pieceAround(course, bridge.at, reach)),
+              fill: pathOf(projection, pieceAround(course, bridge.at, reach + (DECK + 2) / ppb)),
+              width: overWidth,
+            },
+          ]
+        })
 
   return (
     <g className="az-roads">
@@ -236,6 +327,50 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
               )
             })}
           </g>
+          {/*
+            A bridge: the road passing over is drawn again across the one under it, on a deck wider than its casing,
+            whose edges, shaded, cut across the road below. A kind drawn without a casing gets a whitewash deck, and
+            a dashed kind a solid run over it.
+          */}
+          {bridges.length ? (
+            <g className="az-road-bridges" pointerEvents="none">
+              {bridges.map(({ over, deck, fill, width }) => {
+                const style = ROAD_STYLES[over.kind]
+                return (
+                  <g key={over.id + deck}>
+                    <path
+                      d={deck}
+                      fill="none"
+                      stroke={style.casing ?? GROUND.whitewash}
+                      strokeLinecap="butt"
+                      strokeLinejoin="round"
+                      strokeWidth={width + DECK}
+                      {...roadSteady(over, ppb, { plus: DECK })}
+                    />
+                    <path
+                      d={deck}
+                      fill="none"
+                      stroke={GROUND.ink}
+                      strokeLinecap="butt"
+                      strokeLinejoin="round"
+                      strokeOpacity={DECK_SHADE}
+                      strokeWidth={width + DECK}
+                      {...roadSteady(over, ppb, { plus: DECK })}
+                    />
+                    <path
+                      d={fill}
+                      fill="none"
+                      stroke={style.fill}
+                      strokeLinecap="butt"
+                      strokeLinejoin="round"
+                      strokeWidth={width}
+                      {...roadSteady(over, ppb)}
+                    />
+                  </g>
+                )
+              })}
+            </g>
+          ) : null}
         </g>
       )}
       {labels?.size && part !== 'roads' ? (
