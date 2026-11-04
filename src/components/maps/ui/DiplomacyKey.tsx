@@ -12,6 +12,7 @@ import type { Siege } from '@/maps/world'
 import { useMaps } from '../context'
 import { EYEBROW } from '../panels/shared'
 import { KEY_ORDER, StanceSwatch, stanceLabel } from './Diplomacy'
+import { Hint } from './Hint'
 import { Icon } from './icons'
 
 /** A nation as the key names it: its relation, its address on the map (null when it isn't on the map just now), and whether it's in a siege. */
@@ -105,23 +106,25 @@ export function DiplomacyKey({
                   {list.map(({ relation, slug, besieged }) => (
                     <li key={relation.nation}>
                       {slug ? (
-                        <button
-                          className="group inline-flex max-w-full items-center gap-1 border border-transparent px-1 py-0.5 text-left text-[13px] font-semibold leading-snug text-ink-900 hover:border-sand-300 hover:bg-sand-100 focus-visible:outline-saffron-500"
-                          onClick={() => select({ kind: 'nation', slug })}
-                          title={relation.note ? `${relation.note} · Open ${spoken(relation.nation)}` : `Open ${spoken(relation.nation)} on the map`}
-                          type="button"
+                        <Hint
+                          text={`${relation.note ? `${relation.note} · ` : ''}${besieged ? 'In a siege · ' : ''}Opens ${spoken(relation.nation)} on the map.`}
                         >
-                          <span className="truncate">{spoken(relation.nation)}</span>
-                          {besieged ? <SiegeHint /> : null}
-                        </button>
+                          <button
+                            className="group inline-flex max-w-full items-center gap-1 border border-transparent px-1 py-0.5 text-left text-[13px] font-semibold leading-snug text-ink-900 hover:border-sand-300 hover:bg-sand-100 focus-visible:outline-saffron-500"
+                            onClick={() => select({ kind: 'nation', slug })}
+                            type="button"
+                          >
+                            <span className="truncate">{spoken(relation.nation)}</span>
+                            {besieged ? <SiegeHint /> : null}
+                          </button>
+                        </Hint>
                       ) : (
-                        <span
-                          className="inline-flex items-center gap-1 px-1 py-0.5 text-[13px] font-semibold leading-snug text-ink-400"
-                          title={`${spoken(relation.nation)} isn’t on the Rulercraft map just now${relation.note ? ` · ${relation.note}` : ''}`}
-                        >
-                          <span className="truncate">{spoken(relation.nation)}</span>
-                          {besieged ? <SiegeHint /> : null}
-                        </span>
+                        <Hint text={`${spoken(relation.nation)} isn’t on the Rulercraft map just now.${relation.note ? ` ${relation.note}` : ''}`}>
+                          <span className="inline-flex items-center gap-1 px-1 py-0.5 text-[13px] font-semibold leading-snug text-ink-400" tabIndex={0}>
+                            <span className="truncate">{spoken(relation.nation)}</span>
+                            {besieged ? <SiegeHint /> : null}
+                          </span>
+                        </Hint>
                       )}
                     </li>
                   ))}
@@ -135,25 +138,23 @@ export function DiplomacyKey({
   )
 
   const hide = (
-    <button
-      aria-label="Hide the diplomacy layer"
-      className="-mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-ink-500 hover:text-ink-900 focus-visible:outline-saffron-500"
-      onClick={onHide}
-      title="Hide the diplomacy layer"
-      type="button"
-    >
-      <Icon className="h-3.5 w-3.5" name="close" />
-    </button>
+    <Hint described={false} text="Hide the diplomacy layer">
+      <button
+        aria-label="Hide the diplomacy layer"
+        className="-mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center text-ink-500 hover:text-ink-900 focus-visible:outline-saffron-500"
+        onClick={onHide}
+        type="button"
+      >
+        <Icon className="h-3.5 w-3.5" name="close" />
+      </button>
+    </Hint>
   )
 
+  // Nothing set: said, since the key would otherwise be empty; a diplomat is told where to set one.
   const foot =
     relations.length === 0 ? (
       <p className="mt-1.5 text-[13px] leading-snug text-ink-500">
-        No stances set yet, so every nation is neutral.{diplomat ? ' Open a nation and set where Azania stands with it.' : ''}
-      </p>
-    ) : diplomat ? (
-      <p className="mt-1.5 border-t border-sand-300/60 pt-1.5 text-[12px] leading-snug text-ink-400">
-        You can set a stance from any nation’s page.
+        No stances set yet, so every nation is neutral.{diplomat ? ' Open a nation to set where Azania stands with it.' : ''}
       </p>
     ) : null
 
@@ -196,10 +197,10 @@ export function DiplomacyKey({
   )
 }
 
-/** The swords beside a nation in a siege, in the key: small, in the seal's coral. */
+/** The swords beside a nation in a siege, in the key: small, in the seal's coral; the nation's hint says so in words. */
 function SiegeHint() {
   return (
-    <span className="inline-flex shrink-0 items-center text-coral-700" title="In a siege">
+    <span className="inline-flex shrink-0 items-center text-coral-700">
       <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth={2.4} viewBox="0 0 24 24">
         <path d="M5 5l11 11M14 18l4-4M16 16l3 3M19 5L8 16M6 14l4 4M8 16l-3 3" />
       </svg>

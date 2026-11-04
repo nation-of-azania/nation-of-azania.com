@@ -12,6 +12,7 @@ import type { Store } from '../hooks'
 import type { LiveState } from '../live'
 import { FIELD, TextButton } from '../ui/chrome'
 import { Head } from '../ui/Head'
+import { Hint } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 import { Swatch } from '../ui/Swatch'
@@ -58,24 +59,31 @@ function useOnline(store: Store<LiveState>): Set<string> {
 /** Whether a name matches the search, ignoring case and a Bedrock player's dot. */
 const matches = (name: string, query: string) => name.replace(/^\./, '').toLowerCase().includes(query)
 
-/** A name's outlaw command, copied by a click: the one in-game primitive, beside every name. */
+/** A name's outlaw command, copied by a click: the one in-game primitive, beside every name, and the hint says which. */
 function CopyCommand({ name }: { name: string }) {
   const [copied, copy] = useCopy()
   const command = outlawCommand(name)
   return (
-    <button
-      aria-label={`Copy ${command}`}
-      className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[12px] tracking-[0.04em] focus-visible:outline-saffron-500',
-        copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
-      )}
-      onClick={() => copy(command)}
-      title={`Copy ${command}`}
-      type="button"
+    <Hint
+      text={
+        <>
+          Copy <code>{command}</code>, to paste in chat.
+        </>
+      }
     >
-      <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
-      <span aria-live="polite">{copied ? 'Copied' : 'outlaw'}</span>
-    </button>
+      <button
+        aria-label={`Copy ${command}`}
+        className={cn(
+          'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[12px] tracking-[0.04em] focus-visible:outline-saffron-500',
+          copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
+        )}
+        onClick={() => copy(command)}
+        type="button"
+      >
+        <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+        <span aria-live="polite">{copied ? 'Copied' : 'outlaw'}</span>
+      </button>
+    </Hint>
   )
 }
 
@@ -88,7 +96,7 @@ function PersonRow({ name, ruler, online }: { name: string; ruler: boolean; onli
         <span className="truncate font-mono text-[14px] tracking-[0.02em] text-ink-900">{name}</span>
         {ruler ? <span className={cn(EYEBROW, 'shrink-0')}>Ruler</span> : null}
         {online ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-lagoon-600" title="Online now">
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-lagoon-600">
             <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-lagoon-500" />
             online
           </span>
@@ -104,17 +112,32 @@ function CopyAll({ names, what, className }: { names: string[]; what: 'names' | 
   const [copied, copy] = useCopy()
   const text = (what === 'names' ? names : names.map(outlawCommand)).join('\n')
   return (
-    <TextButton
-      className={cn('px-2 py-1 text-[13px]', className)}
-      disabled={names.length === 0}
-      onClick={() => copy(text)}
-      title={what === 'names' ? 'Copy every name, one a line' : `Copy ${outlawCommand('<name>')} for everyone, one a line`}
+    <Hint
+      text={
+        what === 'names' ? (
+          'Copy every name, one a line: for notes or a macro.'
+        ) : (
+          <>
+            Copy <code>{outlawCommand('<name>')}</code> for everyone, one a line: Towny takes one name a command.
+          </>
+        )
+      }
     >
-      <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
-      {copied ? `Copied ${names.length}` : what === 'names' ? 'Names' : 'Commands'}
-    </TextButton>
+      <TextButton className={cn('px-2 py-1 text-[13px]', className)} disabled={names.length === 0} onClick={() => copy(text)}>
+        <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+        {copied ? `Copied ${names.length}` : what === 'names' ? 'Names' : 'Commands'}
+      </TextButton>
+    </Hint>
   )
 }
+
+/** What the lists are for, as the hint on their titles: the one thing Azania does with another town's names. */
+const PEOPLE_HINT = (
+  <>
+    As Towny lists them, the ruler first. Each name’s <code>{outlawCommand('name')}</code> is a click away, since Towny
+    takes one name a command; the whole list, a line each, is for notes or a macro.
+  </>
+)
 
 /** A line of the search's field, for a list long enough to want one. */
 function SearchField({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
@@ -170,19 +193,15 @@ export function Residents({ town }: { town: Pick<AbroadFacts, 'name' | 'people' 
           </span>
         ) : null
       }
-      title={`Residents · ${(people.length || town.residents).toLocaleString('en-GB')}`}
+      hint={PEOPLE_HINT}
+      title={`Residents · ${(people.length || town.residents).toLocaleString('en-GB')}${here ? ` · ${here} online` : ''}`}
     >
       {people.length === 0 ? (
         <p className="text-[15px] italic text-ink-500">{NOT_READ}</p>
       ) : (
         <>
-          <p className="text-[14px] leading-relaxed text-ink-500">
-            As Towny lists them{town.ruler ? ', the ruler first' : ''}
-            {here ? `; ${here} online now` : ''}. Each name’s{' '}
-            <code className="font-mono text-[13px] text-ink-700">{outlawCommand('name')}</code> is a click away.
-          </p>
           {people.length >= SEARCH_FROM ? (
-            <div className="mt-2">
+            <div className="mb-1">
               <SearchField label="Find a name" onChange={setQuery} value={query} />
             </div>
           ) : null}
@@ -255,28 +274,17 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
         ) : null
       }
       flush
-      title={`People · ${(everyone.length || nation.residents).toLocaleString('en-GB')}`}
+      hint={PEOPLE_HINT}
+      title={`People · ${(everyone.length || nation.residents).toLocaleString('en-GB')}${here ? ` · ${here} online` : ''}`}
     >
       <div className="px-4">
-        <p className="text-[14px] leading-relaxed text-ink-500">
-          {everyone.length ? (
-            <>
-              {count(everyone.length, 'resident')} in {count(towns.length, 'town')}, as Towny lists them
-              {here ? `; ${here} online now` : ''}. Each name’s{' '}
-              <code className="font-mono text-[13px] text-ink-700">{outlawCommand('name')}</code> is a click away, and a
-              town’s whole list within it.
-            </>
-          ) : (
-            NOT_READ
-          )}
-        </p>
         {everyone.length ? (
-          <div className="mt-2">
-            <SearchField label="Find a name or a town" onChange={setQuery} value={query} />
-          </div>
-        ) : null}
+          <SearchField label="Find a name or a town" onChange={setQuery} value={query} />
+        ) : (
+          <p className="text-[15px] italic text-ink-500">{NOT_READ}</p>
+        )}
         {unread && everyone.length ? (
-          <p className="mt-1.5 text-[12px] italic leading-snug text-ink-500">
+          <p className="mt-1.5 text-[13px] italic leading-snug text-ink-500">
             {unread === 1 ? 'One town’s names haven’t' : `${unread} towns’ names haven’t`} been read yet; they come with the
             map’s next reading.
           </p>
@@ -340,9 +348,6 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
           ) : null}
         </ul>
       ) : null}
-      <p className="mt-2 px-4 text-[12px] leading-snug text-ink-400">
-        Towny takes one name a command: paste a name’s line in chat. The whole list, a line each, is for notes or a macro.
-      </p>
     </PanelSection>
   )
 }

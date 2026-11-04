@@ -10,12 +10,16 @@ import { placeHref, townHref } from '@/maps/url'
 import type { Article } from '@/payload-types'
 
 import { placeColour } from '../layers/PlacesLayer'
+import { HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 
 /**
  * The furniture of the panels on /maps, in the Gazette's hand: an eyebrow
  * over a display title, facts as a definition list, sections under a
- * hairline, and the links back into the papers.
+ * hairline, and the links back into the papers. Each piece can carry a
+ * hint (ui/Hint.tsx) on a small mark beside its words, for what would
+ * otherwise be a line of small print: where the page's data comes from,
+ * how a figure is reckoned, what a section's rows mean.
  */
 
 export const EYEBROW =
@@ -24,15 +28,21 @@ export const EYEBROW =
 export function PanelHead({
   eyebrow,
   title,
+  hint,
   children,
 }: {
   eyebrow: ReactNode
   title: string
+  /** Where the page's data comes from, and what it keeps: a hint on the eyebrow's mark. */
+  hint?: ReactNode
   children?: ReactNode
 }) {
   return (
     <header className="px-4 pt-4">
-      <p className={EYEBROW}>{eyebrow}</p>
+      <p className={EYEBROW}>
+        {eyebrow}
+        {hint ? <HintMark label="About this page" text={hint} /> : null}
+      </p>
       <h1 className="mt-1 text-balance font-display text-2xl leading-tight text-sea-950">
         {title}
       </h1>
@@ -43,19 +53,25 @@ export function PanelHead({
 
 export function PanelSection({
   title,
+  hint,
   action,
   children,
   flush = false,
 }: {
   title: string
+  /** What the section's rows are and where they come from: a hint on a mark beside the title. */
+  hint?: ReactNode
   action?: ReactNode
   children: ReactNode
   flush?: boolean
 }) {
   return (
     <section className="mt-5 border-t border-sand-300 pt-3">
-      <div className={cn('flex items-baseline justify-between gap-3', flush ? 'px-4' : 'px-4')}>
-        <h2 className="font-display text-lg text-sea-900">{title}</h2>
+      <div className="flex items-baseline justify-between gap-3 px-4">
+        <h2 className="font-display text-lg text-sea-900">
+          {title}
+          {hint ? <HintMark label={`About ${title.toLowerCase()}`} text={hint} /> : null}
+        </h2>
         {action}
       </div>
       <div className={cn('mt-1.5', !flush && 'px-4')}>{children}</div>
@@ -63,13 +79,14 @@ export function PanelSection({
   )
 }
 
-export function Facts({ items }: { items: { label: string; value: ReactNode }[] }) {
+export function Facts({ items }: { items: { label: string; value: ReactNode; hint?: ReactNode }[] }) {
   return (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
       {items.map((item) => (
         <div className="min-w-0" key={item.label}>
           <dt className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
             {item.label}
+            {item.hint ? <HintMark label={`About ${item.label.toLowerCase()}`} text={item.hint} /> : null}
           </dt>
           <dd className="mt-0.5 break-words text-[15px] text-ink-900">{item.value}</dd>
         </div>

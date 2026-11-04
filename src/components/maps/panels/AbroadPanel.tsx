@@ -83,6 +83,10 @@ const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' :
 const listed = (names: string[]) =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 
+/** Where a page abroad's facts come from, and what the map keeps of them: the head's hint on every page abroad. */
+const SOURCE_HINT =
+  'From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other nations’ towns.'
+
 /**
  * A town abroad: its nation, ruler, residents and claims, its spawn when
  * anyone may use it, and a site's pay; or one of the server's own places,
@@ -132,7 +136,7 @@ export function AbroadTownPanel({
   return (
     <article className="pb-6">
       <Arrival target={whereTo(town.fit, town.home)} />
-      <PanelHead eyebrow={eyebrow} title={spoken(town.name)}>
+      <PanelHead eyebrow={eyebrow} hint={SOURCE_HINT} title={spoken(town.name)}>
         {site ? (
           <p className="mt-3 flex flex-wrap items-baseline gap-x-2">
             {pays ? (
@@ -168,26 +172,22 @@ export function AbroadTownPanel({
           </div>
         )}
         {town.home ? (
-          <>
-            <Survey
-              className="mt-3"
-              fit={town.fit}
-              fitLabel={site ? 'Fit to the site' : 'Fit to town'}
-              point={town.home}
-              route={route}
-              town={route?.town.name === town.name ? route.town : undefined}
-              y={64}
-            />
-            {site ? (
-              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
-                A site has no spawn of its own: that is the nearest anyone may use, and the walk from it.
-              </p>
-            ) : town.publicSpawn === false ? (
-              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
-                Its own spawn is private, for its residents: that is the nearest anyone may use, and the walk.
-              </p>
-            ) : null}
-          </>
+          <Survey
+            className="mt-3"
+            fit={town.fit}
+            fitLabel={site ? 'Fit to the site' : 'Fit to town'}
+            hint={
+              site
+                ? 'A site has no spawn of its own: that is the nearest anyone may use, and the walk from it.'
+                : town.publicSpawn === false
+                  ? 'Its own spawn is private, for its residents: that is the nearest anyone may use, and the walk.'
+                  : undefined
+            }
+            point={town.home}
+            route={route}
+            town={route?.town.name === town.name ? route.town : undefined}
+            y={64}
+          />
         ) : null}
       </PanelHead>
 
@@ -262,11 +262,6 @@ export function AbroadTownPanel({
           </p>
         </PanelSection>
       ) : null}
-
-      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
-        From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other
-        nations’ towns.
-      </p>
     </article>
   )
 }
@@ -316,6 +311,7 @@ export function NationPanel({
             Nation
           </span>
         }
+        hint={SOURCE_HINT}
         title={spoken(nation.name)}
       >
         <p className="mt-2 text-[15px] text-ink-500">
@@ -414,11 +410,12 @@ export function NationPanel({
       ) : null}
 
       {sites.length ? (
-        <PanelSection flush title="Holdings">
-          <p className="px-4 text-[14px] leading-relaxed text-ink-500">
-            Sites the server runs and {spoken(nation.name)} holds, each taken, and lost, by siege.
-          </p>
-          <ul className="mt-2 divide-y divide-sand-300/70">
+        <PanelSection
+          flush
+          hint={`Sites the server runs and ${spoken(nation.name)} holds, each paying it daily, and each taken, and lost, by siege.`}
+          title="Holdings"
+        >
+          <ul className="divide-y divide-sand-300/70">
             {sites.map((site) => {
               const facts = siteOf(site)!
               return (
@@ -479,11 +476,6 @@ export function NationPanel({
       </PanelSection>
 
       <NationPeople members={members} nation={nation} />
-
-      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
-        From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other
-        nations.
-      </p>
     </article>
   )
 }

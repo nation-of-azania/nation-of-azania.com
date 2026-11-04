@@ -114,13 +114,11 @@ export function TownPanel({
         ) : record?.about ? (
           <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
         ) : (
-          <p className="az-arrive text-[15px] italic text-ink-500">
-            Nothing written yet. The town’s mayor can add a few lines here.
-          </p>
+          <p className="az-arrive text-[15px] italic text-ink-500">Nothing written yet.</p>
         )}
       </PanelSection>
 
-      <PanelSection title="Growth">
+      <PanelSection hint="The census: the town’s residents and claimed chunks, read from the Rulercraft map once a day." title="Growth">
         {census === undefined ? (
           <div className="space-y-4">
             <GrowthChartComing label="Residents" />
@@ -134,9 +132,6 @@ export function TownPanel({
           <div className="az-arrive space-y-4">
             <GrowthChart label="Residents" measure="residents" points={census} />
             <GrowthChart label="Claimed chunks" measure="chunks" points={census} />
-            {census.length < 3 ? (
-              <p className="text-[13px] text-ink-400">Recorded daily; the lines fill in day by day.</p>
-            ) : null}
           </div>
         )}
       </PanelSection>

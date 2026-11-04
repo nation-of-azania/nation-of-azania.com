@@ -6,6 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { expectedAt, fighterScore, hourOfWeek } from '@/maps/fighters'
 
 import type { FighterEntry, FightersState } from '../fighters'
+import { Hint, HintMark } from './Hint'
 
 /**
  * A fighter's record, as the war view and the players' panels show it
@@ -62,21 +63,22 @@ export function agoWords(iso: string, now: number): string {
   return `${Math.floor(days / 7)} weeks ago`
 }
 
-/** The score as a small pill: a figure of 100, dim where it rests on too little. */
+/** The score as a small pill: a figure of 100, dim where it rests on too little; what it is, as its hint. */
 export function ScoreBadge({ record, tone, className }: { record: FighterEntry; tone: Tone; className?: string }) {
   const score = fighterScore(record)
   const thin = record.fought < ENOUGH
   const t = TONES[tone]
   return (
-    <span
-      className={cn('inline-flex items-baseline gap-1 border px-1.5 py-0.5', t.line, thin ? t.faint : t.ink, className)}
-      title={`Score ${score} of 100: the chance they take the banner when they try, times the chance they turn up; ${
-        thin ? `rests on ${record.fought === 0 ? 'no battle session' : 'one battle session'} fought, so says little yet` : `from ${record.fought} battle sessions`
+    <Hint
+      text={`Score ${score} of 100: the chance they take the banner when they try, times the chance they turn up; ${
+        thin ? `rests on ${record.fought === 0 ? 'no battle session' : 'one battle session'} fought, so says little yet.` : `from ${record.fought} battle sessions.`
       }`}
     >
-      <span className={cn(FIGURE, 'text-[15px] leading-none')}>{score}</span>
-      <span className="text-[11px] uppercase tracking-[0.12em] opacity-70">score</span>
-    </span>
+      <span className={cn('inline-flex items-baseline gap-1 border px-1.5 py-0.5', t.line, thin ? t.faint : t.ink, className)} tabIndex={0}>
+        <span className={cn(FIGURE, 'text-[15px] leading-none')}>{score}</span>
+        <span className="text-[11px] uppercase tracking-[0.12em] opacity-70">score</span>
+      </span>
+    </Hint>
   )
 }
 
@@ -261,7 +263,13 @@ function Usual({ hours, now, tone, days }: { hours: number[]; now: number; tone:
   const day = DAYS[Math.floor(hourOfWeek(now) / 24)]
   return (
     <div className="mt-2.5">
-      <p className={t.eyebrow}>Usually on</p>
+      <p className={t.eyebrow}>
+        Usually on
+        <HintMark
+          label="About their usual hours"
+          text={`A week of hours, Monday first, in UTC as the server keeps its sessions: each cell as dark as the share of the last ${days} days they were online at that hour. Now is ringed.`}
+        />
+      </p>
       <p className={cn('mt-0.5 text-[14px] leading-snug', t.soft)}>
         At this hour on {Math.round(share * weeks)} of the last {weeks} {day}s
         {share >= 0.6 ? ': expect them.' : share > 0 ? '.' : ': not usually on now.'}
@@ -269,7 +277,6 @@ function Usual({ hours, now, tone, days }: { hours: number[]; now: number; tone:
       <div className="mt-1.5">
         <WeekStrip days={days} hours={hours} now={now} tone={tone} />
       </div>
-      <p className={cn('mt-1 text-[12px]', t.faint)}>Hours in UTC, the last {days} days; now is ringed.</p>
     </div>
   )
 }

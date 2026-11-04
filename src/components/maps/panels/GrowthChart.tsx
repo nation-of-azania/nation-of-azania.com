@@ -1,10 +1,11 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import type { CensusPoint } from '@/lib/maps'
 
+import { HintMark } from '../ui/Hint'
 import { ComingWords, type Coming } from './coming'
 
 /**
@@ -237,17 +238,23 @@ export function GrowthChartComing({ label, className }: { label: string; classNa
   )
 }
 
-/** A figure with a trend beneath: the nation's totals, at a glance. The trend is the census's, still to come while the page is on its way. */
+/**
+ * A figure with a trend beneath: the nation's totals, at a glance. The
+ * trend is the census's, still to come while the page is on its way. What
+ * the figure counts, and what the trend rests on, is the tile's hint.
+ */
 export function StatTile({
   label,
   value,
   points,
   measure,
+  hint,
 }: {
   label: string
   value: number
   points: Coming<CensusPoint[]>
   measure: Measure | null
+  hint?: ReactNode
 }) {
   const hue = measure ? HUES[measure] : null
   const values = measure && points ? points.map((point) => point[measure]) : []
@@ -264,7 +271,10 @@ export function StatTile({
       : ''
   return (
     <div className="border border-sand-300 bg-sand-50 px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">{label}</p>
+      <p className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+        {label}
+        {hint ? <HintMark className="-mr-1.5" label={`About ${label.toLowerCase()}`} text={hint} /> : null}
+      </p>
       <div className="mt-1 flex items-end justify-between gap-2">
         <p className="font-body text-2xl font-semibold leading-none text-ink-900">
           {value.toLocaleString('en-GB')}

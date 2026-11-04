@@ -5,6 +5,7 @@ import type { MapData, MapEvent } from '@/maps/data'
 import { placeHref } from '@/maps/url'
 import type { Article } from '@/payload-types'
 
+import { HintMark } from '../ui/Hint'
 import { ComingClippings, ComingWords, type Coming } from './coming'
 import { EventActions, LocalTime, RelativeDay, Survey } from './islands'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow, TownLink } from './shared'
@@ -54,8 +55,8 @@ export function EventPanel({
               <LocalTime className="font-semibold" iso={event.endsAt} withYear={!sameDay} />
             </>
           ) : null}
+          <HintMark label="About the time" text="In your own time zone, as your browser sets it." />
         </p>
-        <p className="mt-0.5 text-[13px] text-ink-500">In your own time zone.</p>
         {event.description ? (
           <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-700">
             {event.description}

@@ -9,6 +9,7 @@ import type { EditorUpdate } from '../context'
 import { useLatest } from '../hooks'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import type { Editor } from '../state'
+import { Hint } from '../ui/Hint'
 import { Icon, type IconName } from '../ui/icons'
 import { removePoint } from './points'
 import { reversed, withCornerToggled, withoutPointAt } from './road'
@@ -128,7 +129,7 @@ function ChipButton({
   title?: string
   onClick?: () => void
 }) {
-  return (
+  const button = (
     <button
       aria-label={label}
       aria-pressed={pressed}
@@ -138,12 +139,21 @@ function ChipButton({
       )}
       disabled={disabled}
       onClick={onClick}
-      title={title ?? label}
       type="button"
     >
       <Icon className="h-3.5 w-3.5 shrink-0" name={icon} />
       {children}
     </button>
+  )
+  // What the button does, as its hint; a label alone (the ×) is read as its name and needs no second reading.
+  return title ? (
+    <Hint text={title}>{button}</Hint>
+  ) : label ? (
+    <Hint described={false} text={label}>
+      {button}
+    </Hint>
+  ) : (
+    button
   )
 }
 
@@ -232,7 +242,7 @@ export function PointChip({
         disabled={!picked.remove}
         icon="trash"
         onClick={picked.remove}
-        title={picked.remove ? 'Remove this point (Delete)' : 'The line can’t spare this point'}
+        title={picked.remove ? 'Remove this point (Delete).' : 'The line can’t spare this point.'}
       >
         Remove
       </ChipButton>
@@ -243,8 +253,8 @@ export function PointChip({
           pressed={picked.corner.on}
           title={
             picked.corner.on
-              ? 'A sharp corner: click to let the bends flow through again'
-              : 'Turn sharply here, as at a junction (or alt-click the point)'
+              ? 'A sharp corner: click to let the bends flow through again.'
+              : 'Turn sharply here, as at a junction (or alt-click the point).'
           }
         >
           Sharp corner
@@ -254,7 +264,7 @@ export function PointChip({
         <ChipButton
           icon="pen"
           onClick={picked.carryOn}
-          title="Carry on drawing from this end: click along the map, Enter to finish"
+          title="Carry on drawing from this end: click along the map, Enter to finish."
         >
           Continue from here
         </ChipButton>

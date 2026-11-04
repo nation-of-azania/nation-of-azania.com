@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 
+import { Hint, HintMark } from './Hint'
 import { Icon, type IconName } from './icons'
 
 /**
@@ -14,6 +15,7 @@ import { Icon, type IconName } from './icons'
 export const BUTTON =
   'inline-flex items-center justify-center border border-sand-300 bg-sand-50 text-sea-900 shadow-[0_1px_2px_rgba(22,25,31,0.08)] transition-colors hover:border-sea-700 hover:bg-sand-100 focus-visible:outline-saffron-500 aria-pressed:border-sea-800 aria-pressed:bg-sea-800 aria-pressed:text-sand-50 disabled:cursor-not-allowed disabled:opacity-50'
 
+/** A square button with an icon alone: its name is its hint (ui/Hint.tsx), shown on a rest of the mouse, on focus, or a finger held. */
 export function IconButton({
   icon,
   label,
@@ -27,16 +29,17 @@ export function IconButton({
   pressed?: boolean
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'aria-label'>) {
   return (
-    <button
-      aria-label={label}
-      aria-pressed={pressed}
-      className={cn(BUTTON, 'h-10 w-10', className)}
-      title={label}
-      type="button"
-      {...props}
-    >
-      <Icon className="h-5 w-5" name={icon} />
-    </button>
+    <Hint described={false} text={label}>
+      <button
+        aria-label={label}
+        aria-pressed={pressed}
+        className={cn(BUTTON, 'h-10 w-10', className)}
+        type="button"
+        {...props}
+      >
+        <Icon className="h-5 w-5" name={icon} />
+      </button>
+    </Hint>
   )
 }
 
@@ -143,15 +146,18 @@ export const FIELD =
 
 export const LABEL = 'text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-500'
 
-/** A labelled field, in the resident area's hand. */
+/** A labelled field, in the resident area's hand: a word beside the label ("optional"), and a hint for anything longer. */
 export function Field({
   label,
   note,
+  hint,
   children,
   error,
 }: {
   label: string
   note?: string
+  /** What the field is for, or how it's used, as a hint on a mark beside the label (ui/Hint.tsx). */
+  hint?: ReactNode
   children: ReactNode
   error?: string | null
 }) {
@@ -164,6 +170,7 @@ export function Field({
             {note}
           </span>
         ) : null}
+        {hint ? <HintMark label={`About ${label.toLowerCase()}`} text={hint} /> : null}
       </span>
       <div className="mt-1.5">{children}</div>
       {error ? <p className="mt-1.5 text-[13px] font-medium text-coral-700">{error}</p> : null}

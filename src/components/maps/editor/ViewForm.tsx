@@ -19,6 +19,7 @@ import { api, saveMessageOf } from '../api'
 import { useMaps } from '../context'
 import type { Editor, HighlightTool } from '../state'
 import { BUTTON, EYEBROW, FIELD, Field, Notice, TextButton } from '../ui/chrome'
+import { Hint, HintMark } from '../ui/Hint'
 import { Icon, type IconName } from '../ui/icons'
 import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
 
@@ -192,7 +193,7 @@ export function ViewForm({
       {!own ? (
         <Notice tone="warning">This view belongs to someone else; staff may edit it.</Notice>
       ) : null}
-      <Field label="Title" note="for finding it in the Map block; readers don’t see it">
+      <Field hint="For finding the view in an article’s Map block; readers don’t see it." label="Title">
         <input
           className={FIELD}
           maxLength={100}
@@ -204,23 +205,23 @@ export function ViewForm({
         />
       </Field>
 
-      <Field label="Frame">
+      <Field hint="The frame on the map is the article’s picture: move and zoom the map to set what it shows, and choose its shape here." label="Frame">
         <div className="mt-4 flex" role="group" aria-label="Aspect">
           {(Object.keys(VIEW_ASPECTS) as ViewAspect[]).map((aspect, index) => (
-            <button
-              aria-pressed={draft.aspect === aspect}
-              className={cn(
-                BUTTON,
-                'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
-                index > 0 && '-ml-px',
-              )}
-              key={aspect}
-              onClick={() => onChange({ ...editor, draft: { ...draft, aspect } })}
-              title={VIEW_ASPECTS[aspect].label}
-              type="button"
-            >
-              {aspect}
-            </button>
+            <Hint described={false} key={aspect} text={VIEW_ASPECTS[aspect].label}>
+              <button
+                aria-pressed={draft.aspect === aspect}
+                className={cn(
+                  BUTTON,
+                  'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                  index > 0 && '-ml-px',
+                )}
+                onClick={() => onChange({ ...editor, draft: { ...draft, aspect } })}
+                type="button"
+              >
+                {aspect}
+              </button>
+            </Hint>
           ))}
         </div>
       </Field>
@@ -258,47 +259,54 @@ export function ViewForm({
       </fieldset>
 
       <fieldset className="mt-5">
-        <legend className={EYEBROW}>Highlighter</legend>
+        <legend className={EYEBROW}>
+          Highlighter
+          <HintMark label="About the tools" text={`${tool.label}: ${tool.hint} Each tool says how it’s used when the mouse rests on it.`} />
+        </legend>
         <div className="mt-1.5 flex" role="group" aria-label="Tool">
           {TOOLS.map((candidate, index) => (
-            <button
-              aria-label={candidate.label}
-              aria-pressed={editor.tool === candidate.tool}
-              className={cn(BUTTON, 'h-10 flex-1', index > 0 && '-ml-px')}
+            <Hint
               key={candidate.tool}
-              onClick={() => setTool(candidate.tool)}
-              title={candidate.label}
-              type="button"
+              text={
+                <>
+                  <strong>{candidate.label}.</strong> {candidate.hint}
+                </>
+              }
             >
-              <Icon className="h-5 w-5" name={candidate.icon} />
-            </button>
+              <button
+                aria-label={candidate.label}
+                aria-pressed={editor.tool === candidate.tool}
+                className={cn(BUTTON, 'h-10 flex-1', index > 0 && '-ml-px')}
+                onClick={() => setTool(candidate.tool)}
+                type="button"
+              >
+                <Icon className="h-5 w-5" name={candidate.icon} />
+              </button>
+            </Hint>
           ))}
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-ink-500">
-          <strong className="font-semibold text-ink-700">{tool.label}.</strong> {tool.hint}
-        </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="flex gap-1.5" role="radiogroup" aria-label="Ink">
             {(Object.keys(INKS) as Ink[]).map((ink) => (
-              <button
-                aria-checked={editor.ink === ink}
-                aria-label={INK_COLOURS[ink].label}
-                className={cn(
-                  'h-7 w-7 rounded-full border-2 transition-transform focus-visible:outline-saffron-500',
-                  editor.ink === ink
-                    ? 'scale-110 border-sea-900'
-                    : 'border-sand-300 hover:scale-105',
-                )}
-                key={ink}
-                onClick={() => {
-                  onChange({ ...editor, ink })
-                  if (selected) update({ ...selected, ink })
-                }}
-                role="radio"
-                style={{ background: INK_COLOURS[ink].fill }}
-                title={INK_COLOURS[ink].label}
-                type="button"
-              />
+              <Hint described={false} key={ink} text={INK_COLOURS[ink].label}>
+                <button
+                  aria-checked={editor.ink === ink}
+                  aria-label={INK_COLOURS[ink].label}
+                  className={cn(
+                    'h-7 w-7 rounded-full border-2 transition-transform focus-visible:outline-saffron-500',
+                    editor.ink === ink
+                      ? 'scale-110 border-sea-900'
+                      : 'border-sand-300 hover:scale-105',
+                  )}
+                  onClick={() => {
+                    onChange({ ...editor, ink })
+                    if (selected) update({ ...selected, ink })
+                  }}
+                  role="radio"
+                  style={{ background: INK_COLOURS[ink].fill }}
+                  type="button"
+                />
+              </Hint>
             ))}
           </div>
           {editor.tool === 'pen' || editor.tool === 'line' || selected?.kind === 'line' ? (
@@ -342,22 +350,23 @@ export function ViewForm({
               >
                 <Icon className="h-4 w-4" name="arrow" /> Arrow
               </button>
-              <button
-                aria-pressed={selected?.kind === 'line' ? Boolean(selected.curve) : editor.curve}
-                className={cn(
-                  BUTTON,
-                  'h-8 gap-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
-                )}
-                onClick={() => {
-                  const curve = selected?.kind === 'line' ? !selected.curve : !editor.curve
-                  onChange({ ...editor, curve })
-                  if (selected?.kind === 'line') update({ ...selected, curve })
-                }}
-                title="One smooth curve through the line’s points: click a start, a bend and an end for an arc"
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="curve" /> Curve
-              </button>
+              <Hint text="One smooth curve through the line’s points: click a start, a bend and an end for an arc.">
+                <button
+                  aria-pressed={selected?.kind === 'line' ? Boolean(selected.curve) : editor.curve}
+                  className={cn(
+                    BUTTON,
+                    'h-8 gap-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                  )}
+                  onClick={() => {
+                    const curve = selected?.kind === 'line' ? !selected.curve : !editor.curve
+                    onChange({ ...editor, curve })
+                    if (selected?.kind === 'line') update({ ...selected, curve })
+                  }}
+                  type="button"
+                >
+                  <Icon className="h-4 w-4" name="curve" /> Curve
+                </button>
+              </Hint>
             </>
           ) : null}
         </div>
@@ -372,13 +381,13 @@ export function ViewForm({
               : selected.kind === 'area'
                 ? 'area'
                 : selected.kind}
+            {selected.kind === 'line' || selected.kind === 'area' ? (
+              <HintMark
+                label="How its points are edited"
+                text="Its points are edited on the map: drag one to move it, press the line or a + to add one there, click one to remove it."
+              />
+            ) : null}
           </p>
-          {selected.kind === 'line' || selected.kind === 'area' ? (
-            <p className="mt-1 text-xs leading-snug text-ink-500">
-              Its points are edited on the map: drag one to move it, press the line or a + to add
-              one there, click one to remove it.
-            </p>
-          ) : null}
           {selected.kind === 'text' ? (
             <Field label="The note">
               <input

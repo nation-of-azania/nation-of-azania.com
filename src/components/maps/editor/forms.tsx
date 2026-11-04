@@ -24,6 +24,7 @@ import { api, saveMessageOf } from '../api'
 import { useMaps } from '../context'
 import type { Editor } from '../state'
 import { BUTTON, FIELD, Field, Notice, TextButton } from '../ui/chrome'
+import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
 import { withinRights } from './rights'
@@ -51,37 +52,42 @@ function HandleGlyph({ kind }: { kind: 'point' | 'plus' | 'picked' }) {
 }
 
 /**
- * The line grammar, said beside the map wherever a line is edited, with
- * the marks as they're drawn: so whoever opens a road sees at once how to
- * move a point, add one on the line, and get at the rest.
+ * The line grammar, a hint wherever a line is edited, with the marks as
+ * they're drawn: how to move a point, add one on the line, and get at the
+ * rest. On the mark beside the notice that says the course is edited on
+ * the map, so whoever opens a road has it a hover away and the panel
+ * keeps its room for the form.
  */
 export function LineHowTo({ curved, what }: { curved?: boolean; what: 'road' | 'outline' }) {
   return (
-    <ul className="mt-2 space-y-1.5 text-xs leading-snug text-ink-700">
-      <li className="flex gap-2">
-        <HandleGlyph kind="point" />
-        <span>
-          <strong className="font-semibold">Drag</strong> a point to move it.
-        </span>
-      </li>
-      <li className="flex gap-2">
-        <HandleGlyph kind="plus" />
-        <span>
-          <strong className="font-semibold">Press the {what}</strong> itself
-          {curved ? ', on the bend,' : ''} or a <strong className="font-semibold">+</strong> to add
-          a point right there; drag it into place.
-        </span>
-      </li>
-      <li className="flex gap-2">
-        <HandleGlyph kind="picked" />
-        <span>
-          <strong className="font-semibold">Click</strong> a point for more: remove it
-          {curved ? ', make it a sharp corner' : ''}
-          {what === 'road' ? ', carry on from an end' : ''}. Twice, or <kbd>Delete</kbd>, removes
-          it. <kbd>⌘Z</kbd> / <kbd>Ctrl+Z</kbd> undoes.
-        </span>
-      </li>
-    </ul>
+    <HintMark
+      label="How the points are edited"
+      text={
+        <ul className="space-y-1.5">
+          <li className="flex gap-2">
+            <HandleGlyph kind="point" />
+            <span>
+              <strong>Drag</strong> a point to move it.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <HandleGlyph kind="plus" />
+            <span>
+              <strong>Press the {what}</strong> itself{curved ? ', on the bend,' : ''} or a <strong>+</strong> to add a point right there;
+              drag it into place.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <HandleGlyph kind="picked" />
+            <span>
+              <strong>Click</strong> a point for more: remove it{curved ? ', make it a sharp corner' : ''}
+              {what === 'road' ? ', carry on from an end' : ''}. Twice, or <kbd>Delete</kbd>, removes it. <kbd>⌘Z</kbd> / <kbd>Ctrl+Z</kbd>{' '}
+              undoes.
+            </span>
+          </li>
+        </ul>
+      }
+    />
   )
 }
 
@@ -110,24 +116,24 @@ export function CategoryPicker({
             )
               .filter(([, category]) => category.group === group)
               .map(([key, category]) => (
-                <button
-                  aria-checked={value === key}
-                  aria-label={category.label}
-                  className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-full border-2 transition-transform focus-visible:outline-saffron-500',
-                    value === key
-                      ? 'scale-110 border-saffron-500 shadow-[0_0_0_2px_#fbf8f1_inset]'
-                      : 'border-transparent hover:scale-105',
-                  )}
-                  key={key}
-                  onClick={() => onChange(key)}
-                  role="radio"
-                  style={{ background: GROUP_COLOURS[group] }}
-                  title={category.label}
-                  type="button"
-                >
-                  <PlaceIcon category={key} className="h-5 w-5 text-sand-50" />
-                </button>
+                <Hint described={false} key={key} text={category.label}>
+                  <button
+                    aria-checked={value === key}
+                    aria-label={category.label}
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-full border-2 transition-transform focus-visible:outline-saffron-500',
+                      value === key
+                        ? 'scale-110 border-saffron-500 shadow-[0_0_0_2px_#fbf8f1_inset]'
+                        : 'border-transparent hover:scale-105',
+                    )}
+                    onClick={() => onChange(key)}
+                    role="radio"
+                    style={{ background: GROUP_COLOURS[group] }}
+                    type="button"
+                  >
+                    <PlaceIcon category={key} className="h-5 w-5 text-sand-50" />
+                  </button>
+                </Hint>
               ))}
           </div>
         </div>
@@ -218,7 +224,7 @@ export function PlaceForm({
       ? 'Click around the building to trace it. Click the first point again, or press Enter, to close the outline.'
       : draft.point
         ? traced
-          ? 'Drag the pin to move it; the outline is edited on the map:'
+          ? 'Drag the pin to move it; the outline is edited on the map.'
           : 'Drag the pin to move it. An outline is optional: trace one for a building.'
         : ''
   const picked = editor.vertex != null ? draft.outline[editor.vertex] : null
@@ -230,8 +236,12 @@ export function PlaceForm({
       title={draft.name.trim() || 'A new place'}
       tools={<UndoRedo />}
     >
-      {hint ? <Notice>{hint}</Notice> : null}
-      {traced ? <LineHowTo what="outline" /> : null}
+      {hint ? (
+        <Notice>
+          {hint}
+          {traced ? <LineHowTo what="outline" /> : null}
+        </Notice>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <TextButton
           className="px-2.5 py-1.5"
@@ -311,7 +321,7 @@ export function PlaceForm({
             value={draft.description}
           />
         </Field>
-        <Field label="Height (Y)" note="optional, for places underground or in the sky">
+        <Field hint="For a place underground or in the sky, as F3 shows it." label="Height (Y)" note="optional">
           <input
             className={cn(FIELD, 'w-32')}
             inputMode="numeric"
@@ -397,10 +407,10 @@ export function RoadForm({
           or press Enter, to finish. Backspace takes the last point back.
         </Notice>
       ) : (
-        <>
-          <Notice>The course is edited on the map:</Notice>
+        <Notice>
+          The course is edited on the map.
           <LineHowTo curved={curved} what="road" />
-        </>
+        </Notice>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         <TextButton
@@ -440,36 +450,34 @@ export function RoadForm({
       <RightsNote ok={ok} />
       <div className="mt-4 space-y-4">
         <Field
+          hint={
+            <>
+              Straight from point to point, the everyday choice; or curved, the bends flowing smoothly through the points. Where a curved road should
+              turn sharply, as at a junction, click the point and choose <strong>Sharp corner</strong> (or alt-click it): it’s drawn square.
+            </>
+          }
           label="Shape"
-          note={curved ? 'bends flow smoothly from point to point' : 'the everyday choice'}
         >
           <div className="flex" role="group" aria-label="Shape">
             {(Object.keys(ROAD_SHAPES) as RoadShape[]).map((shape, index) => (
-              <button
-                aria-pressed={draft.shape === shape}
-                className={cn(
-                  BUTTON,
-                  'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
-                  index > 0 && '-ml-px',
-                )}
-                key={shape}
-                onClick={() => setShape(shape)}
-                title={ROAD_SHAPES[shape].label}
-                type="button"
-              >
-                {shape}
-              </button>
+              <Hint described={false} key={shape} text={ROAD_SHAPES[shape].label}>
+                <button
+                  aria-pressed={draft.shape === shape}
+                  className={cn(
+                    BUTTON,
+                    'h-9 flex-1 px-2 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                    index > 0 && '-ml-px',
+                  )}
+                  onClick={() => setShape(shape)}
+                  type="button"
+                >
+                  {shape}
+                </button>
+              </Hint>
             ))}
           </div>
-          {curved ? (
-            <p className="mt-1.5 text-xs leading-relaxed text-ink-500">
-              Where the road should turn sharply, as at a junction, click the point and choose{' '}
-              <strong className="font-semibold text-ink-700">Sharp corner</strong> (or alt-click
-              it); it’s drawn square.
-            </p>
-          ) : null}
         </Field>
-        <Field label="Name" note="optional; plenty of paths have none">
+        <Field label="Name" note="optional">
           <input
             className={FIELD}
             maxLength={80}
@@ -702,7 +710,7 @@ export function EventForm({
         </Field>
         <RightsNote ok={ok} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Starts">
+          <Field hint="In your own time zone; readers see the time in theirs." label="Starts">
             <input
               className={FIELD}
               onChange={(event) =>
@@ -727,9 +735,6 @@ export function EventForm({
             />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-ink-500">
-          Times are in your own time zone; readers see them in theirs.
-        </p>
         <Field label="Host" note="optional">
           <input
             className={FIELD}
@@ -751,7 +756,7 @@ export function EventForm({
             value={draft.description}
           />
         </Field>
-        <Field label="Article" note="optional: the one announcing it">
+        <Field hint="The article announcing the event, which its page then links to." label="Article" note="optional">
           <ArticlePicker
             onChange={(article) => onChange({ ...editor, draft: { ...draft, article } })}
             value={draft.article}

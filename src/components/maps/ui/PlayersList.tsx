@@ -104,9 +104,9 @@ export function PlayersDock({
     return (
       <button
         aria-expanded={false}
+        aria-label="Who’s online"
         className={cn('az-dock-tab', className)}
         onClick={() => onOpen(true)}
-        title="Who’s online"
         type="button"
       >
         <Icon className="h-4 w-4" name="players" />

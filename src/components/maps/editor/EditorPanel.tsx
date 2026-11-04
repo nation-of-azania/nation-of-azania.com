@@ -9,9 +9,10 @@ import { api, saveMessageOf } from '../api'
 import { useMaps } from '../context'
 import { useStore } from '../hooks'
 import type { SceneApi } from '../MapScene'
-import { ViewRows, ViewsExplainer } from '../panels/views'
+import { ViewRows, VIEWS_HINT } from '../panels/views'
 import type { Editor } from '../state'
 import { BUTTON, EYEBROW, FIELD, Field, Notice, TextButton } from '../ui/chrome'
+import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { EventForm, PlaceForm, RoadForm } from './forms'
 import { ViewForm } from './ViewForm'
@@ -31,40 +32,45 @@ export function UndoRedo() {
   const { canUndo, canRedo } = useStore(historyStore)
   return (
     <div aria-label="Undo and redo" className="flex" role="group">
-      <button
-        aria-label="Undo"
-        className={cn(BUTTON, 'h-8 w-8')}
-        disabled={!canUndo}
-        onClick={undo}
-        title="Undo the last step (⌘Z or Ctrl+Z)"
-        type="button"
+      <Hint
+        text={
+          <>
+            Undo the last step: <kbd>⌘Z</kbd> or <kbd>Ctrl+Z</kbd>
+          </>
+        }
       >
-        <Icon className="h-4 w-4" name="undo" />
-      </button>
-      <button
-        aria-label="Redo"
-        className={cn(BUTTON, '-ml-px h-8 w-8')}
-        disabled={!canRedo}
-        onClick={redo}
-        title="Redo (⇧⌘Z or Ctrl+Y)"
-        type="button"
+        <button aria-label="Undo" className={cn(BUTTON, 'h-8 w-8')} disabled={!canUndo} onClick={undo} type="button">
+          <Icon className="h-4 w-4" name="undo" />
+        </button>
+      </Hint>
+      <Hint
+        text={
+          <>
+            Redo: <kbd>⇧⌘Z</kbd> or <kbd>Ctrl+Y</kbd>
+          </>
+        }
       >
-        <Icon className="h-4 w-4" name="redo" />
-      </button>
+        <button aria-label="Redo" className={cn(BUTTON, '-ml-px h-8 w-8')} disabled={!canRedo} onClick={redo} type="button">
+          <Icon className="h-4 w-4" name="redo" />
+        </button>
+      </Hint>
     </div>
   )
 }
 
-/** The frame every editor sits in: a title, a way out, its tools, and room for the form. */
+/** The frame every editor sits in: a title (with what the thing is as a hint), a way out, its tools, and room for the form. */
 export function EditorFrame({
   eyebrow,
   title,
+  hint,
   tools,
   onClose,
   children,
 }: {
   eyebrow: string
   title: string
+  /** What is being edited, for anyone unsure: a hint on the eyebrow's mark. */
+  hint?: ReactNode
   /** Set beside the way out: undo and redo, where there is drawing to undo. */
   tools?: ReactNode
   onClose: () => void
@@ -74,7 +80,10 @@ export function EditorFrame({
     <section aria-labelledby="az-editor-title" className="flex min-h-full flex-col">
       <header className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className={EYEBROW}>{eyebrow}</p>
+          <p className={EYEBROW}>
+            {eyebrow}
+            {hint ? <HintMark label={`About ${eyebrow.toLowerCase()}`} text={hint} /> : null}
+          </p>
           <h2 className="truncate font-display text-xl text-sea-950" id="az-editor-title">
             {title}
           </h2>
@@ -183,12 +192,12 @@ function ViewsList({
   return (
     <EditorFrame
       eyebrow="Map views"
+      hint={VIEWS_HINT}
       onClose={onClose}
       title={editor.everyone ? 'Everyone’s views' : 'My map views'}
     >
-      <ViewsExplainer />
       {rights.anywhere ? (
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input
             checked={editor.everyone}
             className="h-4 w-4 accent-sea-800"

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 
-import { cn } from '@/blocks/components/shared'
 import type { MapViewData } from '@/maps/data'
 import { VIEW_ASPECTS } from '@/maps/registry'
 import { mapsHref } from '@/maps/url'
@@ -11,6 +10,7 @@ import { api, messageOf } from '../api'
 import { useMaps } from '../context'
 import { viewEditor } from '../state'
 import { Notice, TextButton } from '../ui/chrome'
+import { Hint } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 import { PanelSection } from './shared'
@@ -22,31 +22,28 @@ import { PanelSection } from './shared'
  * carries, which opens the map framed on the view with its highlights.
  */
 
-/** What a view is, said once wherever views are listed. */
-export function ViewsExplainer({ className }: { className?: string }) {
-  return (
-    <p className={cn('text-[14px] leading-relaxed text-ink-500', className)}>
-      A map view is a framed piece of the map with highlights drawn on it, for an article’s{' '}
-      <strong className="font-semibold text-ink-700">Map</strong> block. Readers see it in the
-      article, or through its link; it isn’t drawn on the public map.
-    </p>
-  )
-}
+/** What a view is, said once wherever views are listed: the hint on the list's title. */
+export const VIEWS_HINT = (
+  <>
+    A map view is a framed piece of the map with highlights drawn on it, for an article’s <strong>Map</strong> block.
+    Readers see it in the article, or through its link; it isn’t drawn on the public map.
+  </>
+)
 
-/** How a view is put in an article, for those who have one. */
+/** The way to the Registry, where a view is put in an article, for those who have one. */
 function RegistryNote() {
   return (
     <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
-      To use one: in the Registry, add a <strong>Map</strong> block to an article and choose the
-      view by its title.{' '}
-      <a
-        className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
-        href="/admin/collections/articles"
-        rel="noopener"
-        target="_blank"
-      >
-        Open the Registry <span aria-hidden="true">↗</span>
-      </a>
+      <Hint text="In the Registry, add a Map block to an article and choose the view by its title.">
+        <a
+          className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
+          href="/admin/collections/articles"
+          rel="noopener"
+          target="_blank"
+        >
+          Put one in an article: open the Registry <span aria-hidden="true">↗</span>
+        </a>
+      </Hint>
     </p>
   )
 }
@@ -159,10 +156,7 @@ export function ViewRows({
       ) : !list ? (
         <p className="text-[15px] text-ink-500">Fetching…</p>
       ) : list.length === 0 ? (
-        <Notice>
-          {everyone ? 'No views drawn yet.' : 'None of yours yet.'} Choose “New map view” to draw
-          one.
-        </Notice>
+        <Notice>{everyone ? 'No views drawn yet.' : 'None of yours yet.'}</Notice>
       ) : (
         <ul className="divide-y divide-sand-300 border-y border-sand-300">
           {shown!.map((view) => (
@@ -203,11 +197,11 @@ export function YourViews() {
           <Icon className="h-3.5 w-3.5" name="frame" /> New map view
         </TextButton>
       }
+      hint={VIEWS_HINT}
       title={everyone ? 'Everyone’s map views' : 'Your map views'}
     >
-      <ViewsExplainer />
       {rights.anywhere ? (
-        <label className="mt-2 flex cursor-pointer items-center gap-2 text-[15px]">
+        <label className="flex cursor-pointer items-center gap-2 text-[15px]">
           <input
             checked={everyone}
             className="h-4 w-4 accent-sea-800"

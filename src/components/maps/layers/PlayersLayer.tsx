@@ -619,7 +619,6 @@ function PlayerCard({
             aria-label={`Copy ${place}`}
             className="inline-flex items-center gap-1 text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             onClick={() => copy(place)}
-            title="Copy the coordinates"
             type="button"
           >
             <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
@@ -632,7 +631,6 @@ function PlayerCard({
               aria-label={`Copy ${route.command}`}
               className="inline-flex items-center gap-1 font-mono text-[12px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
               onClick={() => copyWay(route.command)}
-              title="Copy the command"
               type="button"
             >
               <Icon className="h-3 w-3" name={copiedWay ? 'check' : 'copy'} />
