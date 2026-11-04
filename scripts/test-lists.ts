@@ -3,7 +3,9 @@
  * database: players named outright, a town's and a nation's residents, the
  * towns and players an entry leaves out, names in any case, a reading that
  * can't say who lives where; and the changelog's sums: who came onto a
- * list, who left it, who keeps the date they came, what an edit did.
+ * list, who left it, who keeps the date they came, what an edit did. And
+ * who may read which: staff every list, Azania's accounts the members'
+ * too, a guest (a writer from abroad) and a visitor the public ones.
  *
  *   pnpm test:lists
  */
@@ -15,6 +17,7 @@ import {
   type ListEntry,
   type TownResidents,
 } from '../src/lists/resolve'
+import { listVisibility } from '../src/access/lists'
 
 let failed = false
 function check(ok: boolean, what: string): void {
@@ -108,6 +111,14 @@ const avalonia: ListEntry = {
   check(changeSummary(changes, []) === '1 entry added, 1 removed, 1 changed', `summed up (${changeSummary(changes, [])})`)
   check(diffEntries(before, before).length === 0, 'saving without changes changes nothing')
 }
+
+// Who reads which lists (src/access/lists.ts).
+const readable = (user: unknown) => JSON.stringify(listVisibility(user))
+check(readable({ role: 'admin' }) === 'true' && readable({ role: 'editor' }) === 'true', 'staff read every list')
+check(readable({ role: 'resident' }) === JSON.stringify({ visibility: { in: ['public', 'members'] } }), 'a resident reads the public lists and the members\u2019')
+check(readable({ role: 'guest' }) === JSON.stringify({ visibility: { in: ['public'] } }), 'a guest reads only the public lists')
+check(readable(null) === JSON.stringify({ visibility: { in: ['public'] } }), 'a visitor reads only the public lists')
+check(JSON.stringify(listVisibility({ role: 'guest' }, 'list.visibility')) === JSON.stringify({ 'list.visibility': { in: ['public'] } }), 'the changelog follows its list')
 
 if (failed) {
   console.error('\nSome checks failed.')

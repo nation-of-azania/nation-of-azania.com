@@ -97,6 +97,10 @@ export const Users: CollectionConfig = {
       defaultValue: 'resident',
       options: [
         { label: 'Resident: no admin access, except the contexts granted below', value: 'resident' },
+        {
+          label: 'Guest: a writer from outside Azania; only the contexts granted below, and nothing for members',
+          value: 'guest',
+        },
         { label: 'Editor: publish in every context', value: 'editor' },
         { label: 'Admin: everything, including accounts and contexts', value: 'admin' },
       ],
@@ -108,7 +112,7 @@ export const Users: CollectionConfig = {
       saveToJWT: true,
       admin: {
         description:
-          'Residents have the resident area, plus the contexts granted under Context access. Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.',
+          'Residents have the resident area, plus the contexts granted under Context access. Guests are the same, for writers from outside Azania, but see nothing meant for members (lists shown to members). Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.',
       },
     },
     {

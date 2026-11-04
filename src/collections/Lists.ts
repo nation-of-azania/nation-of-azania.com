@@ -29,7 +29,7 @@ export type ListKind = keyof typeof LIST_KINDS
 
 export const LIST_VISIBILITY = {
   public: 'Public: anyone, and shown on the site',
-  members: 'Members: anyone signed in',
+  members: 'Members: Azania’s accounts (not guests)',
   staff: 'Staff: editors and admins',
 } as const
 

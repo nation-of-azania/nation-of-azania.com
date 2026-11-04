@@ -394,9 +394,9 @@ export interface User {
    */
   minecraftName?: string | null;
   /**
-   * Residents have the resident area, plus the contexts granted under Context access. Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.
+   * Residents have the resident area, plus the contexts granted under Context access. Guests are the same, for writers from outside Azania, but see nothing meant for members (lists shown to members). Editors and admins act in every context. Roles within Azania ("Co-Leader") are set on Profiles.
    */
-  role: 'resident' | 'editor' | 'admin';
+  role: 'resident' | 'guest' | 'editor' | 'admin';
   /**
    * For members: each grant covers a context and everything below it. Write drafts, publish, or manage (publish, and create and edit the contexts below). Editors and admins don’t need grants.
    */

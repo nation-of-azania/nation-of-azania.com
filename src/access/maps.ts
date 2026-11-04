@@ -1,6 +1,6 @@
 import type { Access, PayloadRequest } from 'payload'
 
-import { hasRole } from './index'
+import { hasRole, type Role } from './index'
 import { getScope, NOTHING } from './scope'
 
 /**
@@ -23,7 +23,7 @@ export type MapRights = {
 
 type MapUser = {
   id?: number
-  role?: 'resident' | 'editor' | 'admin' | null
+  role?: Role | null
   cartographer?: boolean | null
   mayorOf?: (number | { id: number })[] | null
 } | null

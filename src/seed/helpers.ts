@@ -68,7 +68,7 @@ export async function ensureUser(
     password: string
     name: string
     minecraftName?: string
-    role: 'admin' | 'editor' | 'resident'
+    role: 'admin' | 'editor' | 'resident' | 'guest'
     contextAccess?: { context: number; level: 'write' | 'publish' | 'manage' }[]
   },
 ) {

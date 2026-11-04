@@ -129,6 +129,7 @@ Three things describe a person here. Their **role** sets their reach, their
 
 | Role (stored value)        | Can                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------- |
+| **Guest** (`guest`)        | A writer from outside Azania: as a resident, but never a member, so lists shown to members stay hidden (`src/access/lists.ts`). Given *Write drafts* in a column such as the Times' Guest Column, where a Times editor reviews and publishes. |
 | **Resident** (`resident`)  | Their own account on `/account`. Without grants, nothing else, and no admin access. With grants, the admin panel, limited to the granted contexts. |
 | **Editor** (`editor`)      | Publish anything in every context; manage media and every profile; use every block. |
 | **Admin** (`admin`)        | Everything, plus accounts, grants, top-level contexts and their designs.     |
@@ -191,7 +192,7 @@ Collections (`src/collections/`):
 - **Profiles**: byline profiles, one per role a person writes in. See
   [Bylines and profiles](#bylines-and-profiles).
 - **Users**: accounts. Display name, username, Minecraft name, role
-  (`resident | editor | admin`) and context grants. No email; see
+  (`guest | resident | editor | admin`) and context grants. No email; see
   [No email, anywhere](#no-email-anywhere).
 
 ### Contexts and designs

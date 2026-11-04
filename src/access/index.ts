@@ -1,6 +1,15 @@
 import type { Access, FieldAccess } from 'payload'
 
-export type Role = 'resident' | 'editor' | 'admin'
+/**
+ * Access levels (src/collections/Users.ts → role). A guest is a writer from
+ * outside Azania: like a resident, the contexts granted are all they reach,
+ * and, not being a member, they never see what members see (lists shown to
+ * members, src/access/lists.ts).
+ */
+export type Role = 'guest' | 'resident' | 'editor' | 'admin'
+
+/** Whether an account is one of Azania's own: signed in, and not a guest. */
+export const isMember = (user: MaybeUser): boolean => Boolean(user?.role && user.role !== 'guest')
 
 type MaybeUser = null | undefined | { role?: Role | null }
 

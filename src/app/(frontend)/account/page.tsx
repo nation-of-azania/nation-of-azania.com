@@ -30,6 +30,10 @@ export const dynamic = 'force-dynamic'
  * Publishing Desk, so nothing here should point them to one.
  */
 const ACCESS = {
+  guest: {
+    label: 'Guest',
+    note: 'You write as a guest of Azania: your drafts in the contexts below are published once someone who publishes there has reviewed them.',
+  },
   resident: {
     label: 'Resident',
     note: 'You keep your own details and password here. To write somewhere, ask an administrator to grant you access to it.',
