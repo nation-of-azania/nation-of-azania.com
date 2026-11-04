@@ -397,7 +397,7 @@ export function AddHere({ town }: { town: MapTown }) {
         className="px-2.5 py-1.5"
         onClick={() => {
           start()
-          edit({ kind: 'road', id: null, draft: emptyRoad(), drawing: true, vertex: null })
+          edit({ kind: 'road', id: null, draft: emptyRoad(), drawing: true, vertex: null, junctions: {} })
         }}
       >
         <Icon className="h-3.5 w-3.5" name="road" /> Draw a road

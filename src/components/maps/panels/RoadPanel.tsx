@@ -1,14 +1,26 @@
 import { roadLength, type MapData, type MapRoad } from '@/maps/data'
+import { junctionsOf } from '@/maps/junctions'
 import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
 
 import { Look, RoadActions, Survey } from './islands'
 import { Facts, PanelHead, PanelSection, TownLink } from './shared'
 
-/** A road's page: its class, length and whose it is. */
+/** The roads this one shares a node with (src/maps/junctions.ts), each once, as named. */
+function meets(road: MapRoad, roads: MapRoad[]): string[] {
+  const ids = new Set<number>()
+  for (const node of junctionsOf(roads)) if (node.roads.includes(road.id)) for (const id of node.roads) if (id !== road.id) ids.add(Number(id))
+  return [...ids]
+    .map((id) => roads.find((other) => other.id === id))
+    .filter((other): other is MapRoad => Boolean(other))
+    .map((other) => other.name ?? `an unnamed ${ROAD_KINDS[other.kind].label.toLowerCase()}`)
+}
+
+/** A road's page: its class, length, whose it is, and what it meets. */
 export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
   const town = data.towns.find((candidate) => candidate.id === road.town) ?? null
   const length = Math.round(roadLength(road))
   const [start, end] = [road.line[0], road.line[road.line.length - 1]]
+  const joined = meets(road, data.roads)
   return (
     <article className="pb-6">
       <PanelHead
@@ -46,6 +58,7 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
                 </span>
               ),
             },
+            ...(joined.length ? [{ label: 'Meets', value: joined.join(', ') }] : []),
           ]}
         />
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">

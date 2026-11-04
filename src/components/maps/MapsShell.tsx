@@ -1060,6 +1060,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
           draft: emptyRoad(),
           drawing: true,
           vertex: null,
+          junctions: {},
         })
       case 'event':
         return openEditor({ kind: 'event', id: null, draft: emptyEvent(), picking: false })
@@ -1140,6 +1141,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         },
         drawing: false,
         vertex: null,
+        junctions: {},
       }),
     [openEditor],
   )

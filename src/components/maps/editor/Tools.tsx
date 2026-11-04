@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { curvePath } from '@/maps/curves'
 import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
-import type { Drawing } from '@/maps/registry'
+import { ROAD_KINDS, type Drawing } from '@/maps/registry'
 import { clampToWorld } from '@/maps/source'
 
 import type { EditorUpdate } from '../context'
@@ -21,7 +21,18 @@ import { L, toPoint, useLeaflet } from '../leaflet/canvas'
 import type { Editor, RoadDraft } from '../state'
 import { insertPoint, midpoints, movePoint, nearestOnPath, removePoint } from './points'
 import { withinRights } from './rights'
-import { betweenPoints, nearestOnRoad, withCornerToggled, withoutPointAt, withPointAt } from './road'
+import {
+  betweenPoints,
+  meetingsOf,
+  nearestOnRoad,
+  otherRoads,
+  snappedPoint,
+  withChoice,
+  withCornerToggled,
+  withoutPointAt,
+  withPointAt,
+  type Meeting,
+} from './road'
 
 type Props = {
   data: MapData
@@ -383,6 +394,115 @@ function LineHandles({
   )
 }
 
+/** The crossing marks' size on the page: the disc, the roads' lines through it, the hop of the one passing over, the gap under it. */
+const MARK = { disc: 11, reach: 9, hop: 4, gap: 4, node: 3.4 }
+
+/** A road's line through the mark, along the x axis before its turn: full across, or from the centre out where the road ends here. */
+const across = (ends: boolean) => (ends ? `M0 0H${MARK.reach}` : `M${-MARK.reach} 0H${MARK.reach}`)
+/** The road passing over: it hops the other. */
+const hop = `M${-MARK.reach} 0H${-MARK.hop}A${MARK.hop} ${MARK.hop} 0 0 1 ${MARK.hop} 0H${MARK.reach}`
+/** The road passing under: a gap where the other crosses it. */
+const under = `M${-MARK.reach} 0H${-MARK.gap}M${MARK.gap} 0H${MARK.reach}`
+/** A road ending at the other without joining it: stopping short. */
+const short = `M${MARK.gap} 0H${MARK.reach}`
+
+/**
+ * The two roads' lines through a crossing, as its mark draws them: the
+ * other road in ink, the drawn road in its colour, turned the way each
+ * runs there. Joined, they meet at a node; apart, the one passing over
+ * hops the other, as a wire does in a circuit diagram.
+ */
+function CrossingGlyph({ meeting, colour, node }: { meeting: Meeting; colour: string; node: boolean }) {
+  const { joined, over, ends, otherEnds, heading, otherHeading } = meeting
+  const mine = joined ? across(ends) : over === true ? hop : over === false ? under : across(ends)
+  const theirs = joined ? across(otherEnds) : over === true ? across(false) : over === false ? hop : otherEnds ? short : across(false)
+  const line = { fill: 'none', strokeLinecap: 'round' as const, strokeWidth: 2.5 }
+  return (
+    <>
+      <circle fill={GROUND.whitewash} fillOpacity={0.96} r={MARK.disc} stroke={colour} strokeWidth={1.5} />
+      <path d={theirs} stroke={GROUND.inkSoft} transform={`rotate(${otherHeading.toFixed(1)})`} {...line} />
+      <path d={mine} stroke={colour} transform={`rotate(${heading.toFixed(1)})`} {...line} />
+      {joined && node ? <circle fill={colour} r={MARK.node} stroke={GROUND.whitewash} strokeWidth={1} /> : null}
+    </>
+  )
+}
+
+/** What a crossing's mark says of itself, for a mouse resting on it. */
+function describe(meeting: Meeting): string {
+  const { other, joined, over } = meeting
+  const name = other.name ?? `an unnamed ${ROAD_KINDS[other.kind].label.toLowerCase()}`
+  if (joined) return `Junction with ${name}. Click for a bridge instead.`
+  const passes = over === true ? 'Passes over' : over === false ? 'Passes under' : 'Meets'
+  return `${passes} ${name} without joining. Click for a junction.`
+}
+
+/**
+ * A crossing with another road, marked where it is: a node the two will
+ * share, or a bridge. Clicked or tapped, it's the other. Where the drawn
+ * road has a point there already the crossing is a junction as long as the
+ * point stays, so the mark is drawn under the point's handle and takes no
+ * press of its own.
+ */
+function CrossingMark({
+  meeting,
+  projection,
+  colour,
+  onToggle,
+}: {
+  meeting: Meeting
+  projection: Projection
+  colour: string
+  onToggle?: (joined: boolean) => void
+}) {
+  const ref = useRef<SVGGElement>(null)
+  usePress(ref, {
+    onUp: (_, moved) => {
+      if (!moved) onToggle?.(!meeting.joined)
+    },
+  })
+  const [x, y] = projection.project(meeting.crossing.at)
+  if (!onToggle) {
+    return (
+      <g className="az-crossing az-crossing-fixed" pointerEvents="none" {...upright(x, y)}>
+        <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+          <CrossingGlyph colour={colour} meeting={meeting} node={false} />
+        </g>
+      </g>
+    )
+  }
+  return (
+    <g
+      aria-pressed={meeting.joined}
+      className={cn('az-crossing', meeting.joined ? 'az-crossing-joined' : 'az-crossing-apart')}
+      ref={ref}
+      role="button"
+      {...upright(x, y)}
+    >
+      <title>{describe(meeting)}</title>
+      <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+        {/* Room for a finger. */}
+        <circle fill="transparent" r={16} />
+        <g className="az-crossing-mark">
+          <CrossingGlyph colour={colour} meeting={meeting} node />
+        </g>
+      </g>
+    </g>
+  )
+}
+
+/** Where the road being drawn meets the others, worked out again only as the draft or the roads change. */
+function useMeetings(editor: Editor, data: MapData): Meeting[] {
+  const road = editor.kind === 'road' ? editor : null
+  const draft = road?.draft ?? null
+  const id = road?.id ?? null
+  const choices = road?.junctions ?? null
+  const { roads } = data
+  return useMemo(
+    () => (draft && choices ? meetingsOf(draft, id, otherRoads(roads, id), choices) : []),
+    [draft, id, choices, roads],
+  )
+}
+
 /** Douglas–Peucker: fewer points along a freehand stroke, within a tolerance in blocks. */
 function simplify(points: Point[], tolerance: number): Point[] {
   if (points.length < 3) return points
@@ -424,6 +544,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
   const editorRef = useLatest(editor)
   const [stroke, setStroke] = useState<Point[] | null>(null)
   const penning = editor.kind === 'view' && editor.tool === 'pen'
+  const meetings = useMeetings(editor, data)
 
   // The pen: a press on the map starts a stroke, a release keeps it.
   useEffect(() => {
@@ -723,10 +844,13 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
             current?.kind === 'road' ? { ...current, ...rest, draft: change(current.draft) } : current,
           press,
         )
+      // A point placed or dragged onto another road is set on it, as the server will set it.
+      const others = otherRoads(data.roads, editor.id)
+      const snap = (point: Point) => snappedPoint(point, editor.id, others)
       const ops: LineOps = {
         move: (index, point, press) =>
-          road((d) => ({ ...d, line: movePoint(d.line, index, point) }), {}, press),
-        insert: (index, point, press) => road((d) => withPointAt(d, index, point), { vertex: index }, press),
+          road((d) => ({ ...d, line: movePoint(d.line, index, snap(point)) }), {}, press),
+        insert: (index, point, press) => road((d) => withPointAt(d, index, snap(point)), { vertex: index }, press),
         remove: (index) => road((d) => withoutPointAt(d, index), { vertex: null }),
         pick: (index, event) =>
           // Alt-click makes a point a sharp corner of a curved road, and back.
@@ -734,6 +858,15 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
             ? onEditor({ ...editor, vertex: index, draft: withCornerToggled(draft, index) })
             : onEditor({ ...editor, vertex: editor.vertex === index ? null : index }),
       }
+      const toggle = (meeting: Meeting) => (joined: boolean) =>
+        onEditor((current) =>
+          current?.kind === 'road' ? { ...current, junctions: withChoice(current.junctions, meeting, meetings, joined) } : current,
+        )
+      // A "+" under a crossing's mark would be unreachable: it's left out there.
+      const open = meetings.filter((meeting) => !meeting.fixed)
+      const between = betweenPoints(draft).filter((point) =>
+        open.every((meeting) => Math.hypot(point[0] - meeting.crossing.at[0], point[1] - meeting.crossing.at[1]) * projection.ppb > 2 * MARK.disc),
+      )
       return (
         <g className="az-tools">
           {draft.line.length >= 2 ? (
@@ -742,6 +875,10 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
               roads={[{ id: -1, ...draft, name: draft.name || null, town: null }]}
             />
           ) : null}
+          {/* Junctions the road has already, at its own points: under the handles, which are their nodes. */}
+          {meetings.map((meeting) =>
+            meeting.fixed ? <CrossingMark colour={colour} key={meeting.key} meeting={meeting} projection={projection} /> : null,
+          )}
           {/* The points joined up: the road itself when straight, the thread the curve follows when curved. */}
           {draft.line.length >= 1 ? (
             <path
@@ -754,7 +891,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
             />
           ) : null}
           <LineHandles
-            between={betweenPoints(draft)}
+            between={between}
             canRemove={draft.line.length > 2}
             colour={colour}
             course={roadPoints(draft)}
@@ -771,6 +908,10 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
             projection={projection}
             squares={curved ? draft.corners : undefined}
           />
+          {/* The crossings to decide: over the line, so a press lands on the mark and not on the course under it. */}
+          {open.map((meeting) => (
+            <CrossingMark colour={colour} key={meeting.key} meeting={meeting} onToggle={toggle(meeting)} projection={projection} />
+          ))}
         </g>
       )
     }

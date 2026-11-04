@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { roadLength, roadPoints, spoken, type MapPlace } from '@/maps/data'
@@ -28,6 +28,7 @@ import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
 import { withinRights } from './rights'
+import { meetingsOf, otherRoads, withKeptJunctions } from './road'
 
 /** The handle as the map draws it, for the how-to: a point, a "+" between two, a picked one. */
 function HandleGlyph({ kind }: { kind: 'point' | 'plus' | 'picked' }) {
@@ -51,12 +52,32 @@ function HandleGlyph({ kind }: { kind: 'point' | 'plus' | 'picked' }) {
   )
 }
 
+/** A crossing's mark as the map draws it (Tools.tsx → CrossingGlyph), for the how-to: a junction, or a bridge. */
+function CrossingGlyph({ joined }: { joined: boolean }) {
+  const colour = GROUND.saffron
+  return (
+    <svg aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 16 16">
+      <circle cx={8} cy={8} fill={GROUND.whitewash} r={7.25} stroke={colour} strokeWidth={1} />
+      <path d="M8 2v12" fill="none" stroke={GROUND.inkSoft} strokeLinecap="round" strokeWidth={1.8} />
+      <path
+        d={joined ? 'M2 8h12' : 'M2 8h3.5a2.5 2.5 0 0 1 5 0H14'}
+        fill="none"
+        stroke={colour}
+        strokeLinecap="round"
+        strokeWidth={1.8}
+      />
+      {joined ? <circle cx={8} cy={8} fill={colour} r={2.4} stroke={GROUND.whitewash} strokeWidth={0.8} /> : null}
+    </svg>
+  )
+}
+
 /**
  * The line grammar, a hint wherever a line is edited, with the marks as
  * they're drawn: how to move a point, add one on the line, and get at the
- * rest. On the mark beside the notice that says the course is edited on
- * the map, so whoever opens a road has it a hover away and the panel
- * keeps its room for the form.
+ * rest; for a road, what the mark at a crossing with another road means.
+ * On the mark beside the notice that says the course is edited on the
+ * map, so whoever opens a road has it a hover away and the panel keeps
+ * its room for the form.
  */
 export function LineHowTo({ curved, what }: { curved?: boolean; what: 'road' | 'outline' }) {
   return (
@@ -85,6 +106,18 @@ export function LineHowTo({ curved, what }: { curved?: boolean; what: 'road' | '
               undoes.
             </span>
           </li>
+          {what === 'road' ? (
+            <li className="flex gap-2">
+              <span className="flex shrink-0 gap-0.5">
+                <CrossingGlyph joined />
+                <CrossingGlyph joined={false} />
+              </span>
+              <span>
+                Where it crosses another road, a <strong>junction</strong> joins them. <strong>Tap</strong> the mark for a bridge
+                instead, and back.
+              </span>
+            </li>
+          ) : null}
         </ul>
       }
     />
@@ -373,6 +406,14 @@ export function RoadForm({
   const length = Math.round(roadLength(draft))
   const curved = draft.shape === 'curved'
   const picked = editor.vertex != null ? draft.line[editor.vertex] : null
+  // Where it meets the other roads, as the map marks them; the junctions kept go into the line on save.
+  const { roads } = data
+  const meetings = useMemo(
+    () => meetingsOf(draft, editor.id, otherRoads(roads, editor.id), editor.junctions),
+    [draft, editor.id, editor.junctions, roads],
+  )
+  const junctions = meetings.filter((meeting) => meeting.joined).length
+  const bridges = meetings.length - junctions
   const setShape = (shape: RoadShape) =>
     onChange({ ...editor, draft: { ...draft, shape, corners: shape === 'curved' ? draft.corners : [] } })
 
@@ -380,12 +421,13 @@ export function RoadForm({
     setBusy(true)
     setError(null)
     try {
+      const kept = withKeptJunctions(draft, meetings)
       const road = await api.saveRoad(editor.id, {
         name: draft.name.trim() || undefined,
         kind: draft.kind,
-        line: draft.line,
+        line: kept.line,
         shape: draft.shape,
-        corners: draft.shape === 'curved' ? draft.corners : [],
+        corners: draft.shape === 'curved' ? kept.corners : [],
       })
       onSaved('road', road)
     } catch (caught) {
@@ -443,6 +485,8 @@ export function RoadForm({
           ? ` · ${draft.corners.length} sharp corner${draft.corners.length === 1 ? '' : 's'}`
           : ''}{' '}
         · {length.toLocaleString('en-GB')} blocks
+        {junctions ? ` · ${junctions} junction${junctions === 1 ? '' : 's'}` : ''}
+        {bridges ? ` · ${bridges} bridge${bridges === 1 ? '' : 's'}` : ''}
         {picked && editor.vertex != null
           ? ` · point ${editor.vertex + 1} at X ${picked[0]} Z ${picked[1]}`
           : ''}

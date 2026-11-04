@@ -146,6 +146,24 @@
 .az-overlay .az-handle-plus:hover .az-handle-mark {
   opacity: 1;
 }
+/* A crossing's mark is pressed to make it a junction or a bridge; it grows a little under the pointer, as a handle does. */
+.az-overlay .az-crossing {
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+}
+.az-overlay .az-crossing-fixed {
+  pointer-events: none;
+}
+.az-overlay .az-crossing-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+}
+.az-overlay .az-crossing:hover .az-crossing-mark,
+.az-overlay .az-crossing:active .az-crossing-mark {
+  transform: scale(1.2);
+}
 /* The line itself takes a press, to add a point there; only its stroke, not the ground around it. */
 .az-overlay .az-course {
   pointer-events: stroke;
