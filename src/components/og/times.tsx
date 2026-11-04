@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+
+import type { StyleId } from '@/contexts/styles'
 
 import type { ArticleCard, CardByline, CardContext, PlaceCard } from './model'
 import {
@@ -10,6 +12,7 @@ import {
   Dot,
   EmblemImage,
   Picture,
+  PlaneMark,
   Standfirst,
   col,
   fitSize,
@@ -28,8 +31,10 @@ import { COLOR, FACE, HEAD_PX } from './tokens'
  * behind the headline. Cherry Blossom sets the story in the pink box the
  * site gives a GirlieTea column, in Fredoka, with the blossom in the tag —
  * the nameplate stays the paper's (src/components/styles/blossom/times.ts).
- * The front page's card is the nameplate itself, full size, over the bar
- * of desks.
+ * Airmail sets it in the envelope the site gives the guest column, the
+ * chevrons round the edge, the kicker typed, the paper plane in a tag that
+ * reads "From abroad" (src/components/styles/airmail/times.ts). The front
+ * page's card is the nameplate itself, full size, over the bar of desks.
  */
 
 type Dress = {
@@ -41,12 +46,19 @@ type Dress = {
   wash: string
   display: string
   headlineWeight: 700 | 900
+  /** Archivo's headlines are set tight; a rounder face at zero. */
+  headlineTracking: number
   nameWeight: 600 | 700
   ratio: number
   label: string
-  labelWeight: 600
+  labelWeight: 600 | 700
+  dateWeight: 500 | 600
+  /** The box, with its edge as a colour or a gradient (see Panel). */
   box: { ground: string; edge: string } | null
-  blossom: boolean
+  /** The style's mark, in the tag and the emblem frame; null for the paper's own. */
+  Mark: ComponentType<{ color: string; size: number }> | null
+  /** The style's word for the tag on every story; null to tag an opinion as the paper does. */
+  tag: string | null
 }
 
 const PLAIN: Dress = {
@@ -58,12 +70,15 @@ const PLAIN: Dress = {
   wash: COLOR.cinnabar100,
   display: FACE.archivo,
   headlineWeight: 900,
+  headlineTracking: -1,
   nameWeight: 700,
   ratio: 0.58,
   label: FACE.sourceSans,
   labelWeight: 600,
+  dateWeight: 600,
   box: null,
-  blossom: false,
+  Mark: null,
+  tag: null,
 }
 
 const BLOSSOM: Dress = {
@@ -75,13 +90,36 @@ const BLOSSOM: Dress = {
   wash: COLOR.blossom200,
   display: FACE.fredoka,
   headlineWeight: 700,
+  headlineTracking: 0,
   nameWeight: 600,
   ratio: 0.54,
   label: FACE.fredoka,
   labelWeight: 600,
+  dateWeight: 500,
   box: { ground: COLOR.blossom100, edge: COLOR.blossom300 },
-  blossom: true,
+  Mark: BlossomMark,
+  tag: null,
 }
+
+/** The envelope's edge: the writer's cobalt and the paper's cinnabar taking turns, as the site draws it. */
+const CHEVRONS = `repeating-linear-gradient(-45deg, ${COLOR.airmail700} 0 16px, ${COLOR.airmailCream} 16px 32px, ${COLOR.cinnabar500} 32px 48px, ${COLOR.airmailCream} 48px 64px)`
+
+const AIRMAIL: Dress = {
+  ...PLAIN,
+  accentInk: COLOR.airmail700,
+  accent: COLOR.airmail800,
+  deep: COLOR.airmail900,
+  tint: COLOR.airmail400,
+  faint: COLOR.airmail300,
+  wash: COLOR.airmail200,
+  label: FACE.courierPrime,
+  labelWeight: 700,
+  box: { ground: COLOR.airmailCream, edge: CHEVRONS },
+  Mark: PlaneMark,
+  tag: 'From abroad',
+}
+
+const DRESS: Record<StyleId, Dress> = { blossom: BLOSSOM, airmail: AIRMAIL }
 
 const avatarTone = (dress: Dress): AvatarTone => ({
   mark: { background: dress.wash, color: dress.accent, font: dress.display, weight: dress.headlineWeight },
@@ -92,7 +130,7 @@ const WIDTH = 1200
 const GUTTER = 56
 
 export function TimesCard({ card }: { card: ArticleCard | PlaceCard }) {
-  const dress = card.style === 'blossom' ? BLOSSOM : PLAIN
+  const dress = (card.style && DRESS[card.style]) || PLAIN
   if (card.kind === 'place' && card.what === 'home') return <FrontPage card={card} />
   return (
     <Canvas background={COLOR.news50} fontFamily={FACE.sourceSans} color={COLOR.news900}>
@@ -163,8 +201,8 @@ function Nameplate({ top }: { top: CardContext }) {
   )
 }
 
-/** The Opinion tag: solid accent, with the style's mark as the column's badge. */
-function OpinionTag({ dress }: { dress: Dress }) {
+/** The solid tag — the style's word, else "Opinion" — with the style's mark as the column's badge. */
+function Tag({ dress, word }: { dress: Dress; word: string }) {
   return (
     <div
       style={{
@@ -177,8 +215,8 @@ function OpinionTag({ dress }: { dress: Dress }) {
         marginRight: 14,
       }}
     >
-      {dress.blossom ? <BlossomMark color={COLOR.news50} size={14} /> : null}
-      <span>Opinion</span>
+      {dress.Mark ? <dress.Mark color={COLOR.news50} size={14} /> : null}
+      <span>{word}</span>
     </div>
   )
 }
@@ -215,25 +253,31 @@ function Byline({ byline, dress }: { byline: CardByline; dress: Dress }) {
   )
 }
 
-/** The pink box a style switches on, or the plain newsprint. */
+/**
+ * The box a style switches on, or the plain newsprint. The edge is a panel
+ * painted in the edge colour or gradient, 3px wider all round than the
+ * ground panel inside it, as the site paints the edge under a transparent
+ * border: a gradient edge keeps the rounded corners that way.
+ */
 function Panel({ dress, children }: { dress: Dress; children: ReactNode }) {
   if (!dress.box) {
     return <div style={{ ...row, flex: 1, alignItems: 'stretch', padding: `34px ${GUTTER}px 38px` }}>{children}</div>
   }
   return (
     <div style={{ ...col, flex: 1, padding: `24px ${GUTTER - 12}px 26px` }}>
-      <div
-        style={{
-          ...row,
-          flex: 1,
-          alignItems: 'stretch',
-          padding: '24px 40px 28px',
-          borderRadius: 30,
-          border: `3px solid ${dress.box.edge}`,
-          background: dress.box.ground,
-        }}
-      >
-        {children}
+      <div style={{ ...col, flex: 1, padding: 3, borderRadius: 30, background: dress.box.edge }}>
+        <div
+          style={{
+            ...row,
+            flex: 1,
+            alignItems: 'stretch',
+            padding: '21px 37px 25px',
+            borderRadius: 27,
+            background: dress.box.ground,
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )
@@ -241,7 +285,8 @@ function Panel({ dress, children }: { dress: Dress; children: ReactNode }) {
 
 function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
   const opinion = card.type === 'opinion'
-  const words = opinion ? card.kicker.filter((word) => word !== 'Opinion') : card.kicker
+  const tag = dress.tag ?? (opinion ? 'Opinion' : null)
+  const words = opinion && !dress.tag ? card.kicker.filter((word) => word !== 'Opinion') : card.kicker
   const picture = card.image ? 420 : 0
   const inset = dress.box ? 12 + 40 : 0
   const column = WIDTH - GUTTER * 2 - inset * 2 - (picture ? picture + 40 : 0)
@@ -278,7 +323,7 @@ function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
           </div>
         ) : null}
         <Caps font={dress.label} weight={dress.labelWeight} size={19} tracking={0.16} color={dress.accentInk}>
-          {opinion ? <OpinionTag dress={dress} /> : null}
+          {tag ? <Tag dress={dress} word={tag} /> : null}
           {words.map((word, index) => (
             <span key={word} style={{ ...row }}>
               {index > 0 ? <Dot color={COLOR.news300} /> : null}
@@ -288,7 +333,7 @@ function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
           {card.date ? (
             <>
               <Dot color={COLOR.news300} />
-              <span style={{ color: COLOR.news500, fontWeight: dress.blossom ? 500 : 600 }}>{card.date}</span>
+              <span style={{ color: COLOR.news500, fontWeight: dress.dateWeight }}>{card.date}</span>
             </>
           ) : null}
         </Caps>
@@ -299,7 +344,7 @@ function Story({ card, dress }: { card: ArticleCard; dress: Dress }) {
             fontWeight: dress.headlineWeight,
             fontSize: size,
             lineHeight: 1.04,
-            letterSpacing: dress.blossom ? 0 : -1,
+            letterSpacing: dress.headlineTracking,
             color: opinion ? dress.deep : COLOR.news900,
             textWrap: 'balance',
             lineClamp: 3,
@@ -423,8 +468,8 @@ function Desk({ card, dress }: { card: PlaceCard; dress: Dress }) {
           >
             {card.emblem ? (
               <EmblemImage src={card.emblem} size={frame - 20} />
-            ) : dress.blossom ? (
-              <BlossomMark color={dress.accentInk} size={91} />
+            ) : dress.Mark ? (
+              <dress.Mark color={dress.accentInk} size={91} />
             ) : (
               <div
                 style={{
@@ -452,7 +497,7 @@ function Desk({ card, dress }: { card: PlaceCard; dress: Dress }) {
             fontWeight: dress.headlineWeight,
             fontSize: size,
             lineHeight: 1.04,
-            letterSpacing: dress.blossom ? 0 : -1.5,
+            letterSpacing: dress.headlineTracking * 1.5,
             color: archive || section ? dress.accentInk : COLOR.news900,
             textTransform: archive || section ? 'uppercase' : 'none',
             textWrap: 'balance',

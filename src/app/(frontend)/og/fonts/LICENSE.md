@@ -17,6 +17,7 @@ All are licensed under the SIL Open Font License, Version 1.1
 | IBM Plex Serif| IBMPlexSerif-Medium                          | Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"                                   |
 | IBM Plex Mono | IBMPlexMono-Regular, IBMPlexMono-Medium      | Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"                                   |
 | Fredoka       | Fredoka-Medium, Fredoka-SemiBold, Fredoka-Bold | Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One)      |
+| Courier Prime | CourierPrime-Bold                            | Copyright 2015 The Courier Prime Project Authors (https://github.com/quoteunquoteapps/CourierPrime) |
 
 The fonts are used unmodified and are not sold; the Reserved Font Names are
 not used for any derived font.

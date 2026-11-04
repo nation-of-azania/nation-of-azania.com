@@ -126,6 +126,25 @@
   --color-blossom-plank: #f7e9e5;
 
   /*
+   * Airmail — the Times' guest column (src/components/styles/airmail), a
+   * letter from abroad: a cobalt that is the writer's ink, not the paper's
+   * cinnabar nor the Gazette's sea. 700 is kickers and links (passes AA on
+   * the newsprint and on the envelope), 800 the tag's fill and rules (a
+   * role line set over the wash at 80% still passes), 900 a headline on a
+   * card; 400 and 300 the sky behind a quotation mark; 200 the wash: the
+   * blue onionskin of the letter inside. `airmail-cream` is the envelope,
+   * the box's ground, a shade warmer than the newsprint around it; the
+   * chevrons on its edge are this cobalt beside the Times' own cinnabar.
+   */
+  --color-airmail-900: #122a5e;
+  --color-airmail-800: #1b3f8f;
+  --color-airmail-700: #2552b4;
+  --color-airmail-400: #7ea3e6;
+  --color-airmail-300: #a9c3ef;
+  --color-airmail-200: #e3ecfa;
+  --color-airmail-cream: #fcf5e4;
+
+  /*
    * Discord's own dark palette — used ONLY by the Discord Quote content block
    * (src/blocks/components/Discord), so a quoted exchange looks like the real
    * client rather than a re-skin of it. These are Discord's dark-theme values:
@@ -163,6 +182,8 @@
   --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   /* Cherry Blossom's voice: a plump, rounded sans for GirlieTown's headlines and labels (src/components/styles/blossom). */
   --font-bubbly: var(--font-fredoka), 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  /* Airmail's voice: a typewriter face for the guest column's kickers and tags, like a postmark (src/components/styles/airmail). */
+  --font-typewriter: var(--font-courier-prime), 'Courier Prime', 'Courier New', Courier, monospace;
   /* Discord ships "gg sans"; visitors won't have it, so this is its fallback stack. */
   --font-discord: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }

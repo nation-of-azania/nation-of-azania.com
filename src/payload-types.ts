@@ -215,7 +215,7 @@ export interface Article {
   /**
    * Empty: the style of its context, e.g. GirlieTown’s Cherry Blossom, on its page and wherever it is listed.
    */
-  style?: ('plain' | 'blossom') | null;
+  style?: ('plain' | 'blossom' | 'airmail') | null;
   design?: ('gazette' | 'times' | 'international') | null;
   /**
    * Set automatically on first publish; can be backdated.
@@ -305,7 +305,7 @@ export interface Context {
   /**
    * A hand-made look worn by this context, its articles and everything below it, e.g. GirlieTown’s Cherry Blossom. Empty: inherit from above.
    */
-  style?: ('plain' | 'blossom') | null;
+  style?: ('plain' | 'blossom' | 'airmail') | null;
   /**
    * Lower numbers come first among siblings.
    */

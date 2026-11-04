@@ -23,6 +23,11 @@ export const STYLES = {
     /** Open styles can be picked on any article of their designs; others only come from contexts. */
     open: false,
   },
+  airmail: {
+    label: 'Airmail (guest column: writers from abroad)',
+    designs: ['times'],
+    open: false,
+  },
 } as const satisfies Record<string, { label: string; designs: readonly Design[]; open: boolean }>
 
 export type StyleId = keyof typeof STYLES

@@ -9,7 +9,8 @@ import { FACE } from '@/components/og/tokens'
  * Satori reads neither woff2 nor next/font. Kept to the weights the cards
  * use: regular Alegreya for the Gazette's headlines, Archivo Black for the
  * Times', Plex Serif Medium for the registry's, Fredoka in the three weights
- * Cherry Blossom sets, and the label faces beside them.
+ * Cherry Blossom sets, Courier Prime Bold for Airmail's postmark, and the
+ * label faces beside them.
  *
  * The files are referenced through `new URL(…, import.meta.url)`, which the
  * bundler resolves to the built output, so the route works from `next build`
@@ -34,6 +35,7 @@ const FILES: { name: string; weight: CardFont['weight']; url: URL }[] = [
   { name: FACE.fredoka, weight: 500, url: new URL('./Fredoka-Medium.ttf', import.meta.url) },
   { name: FACE.fredoka, weight: 600, url: new URL('./Fredoka-SemiBold.ttf', import.meta.url) },
   { name: FACE.fredoka, weight: 700, url: new URL('./Fredoka-Bold.ttf', import.meta.url) },
+  { name: FACE.courierPrime, weight: 700, url: new URL('./CourierPrime-Bold.ttf', import.meta.url) },
 ]
 
 const toArrayBuffer = (buffer: Buffer): ArrayBuffer =>

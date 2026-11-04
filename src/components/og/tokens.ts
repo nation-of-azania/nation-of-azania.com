@@ -22,6 +22,8 @@ export const FACE = {
   plexMono: 'IBM Plex Mono',
   /** Cherry Blossom's bubbly face: Medium, SemiBold, Bold. */
   fredoka: 'Fredoka',
+  /** Airmail's typewriter, for the guest column's kickers and tag: Bold. */
+  courierPrime: 'Courier Prime',
 } as const
 
 export const COLOR = {
@@ -87,6 +89,16 @@ export const COLOR = {
   blossom200: '#f8d3e0',
   blossom100: '#fbe7ee',
   blossomPlank: '#f7e9e5',
+  // Airmail: the guest column's cobalt ink, the sky behind its quotation mark, and its envelope.
+  airmail900: '#122a5e',
+  airmail800: '#1b3f8f',
+  airmail700: '#2552b4',
+  airmail400: '#7ea3e6',
+  airmail300: '#a9c3ef',
+  airmail200: '#e3ecfa',
+  airmailCream: '#fcf5e4',
+  // The Times' cinnabar at mid-strength: the paper's half of Airmail's chevrons.
+  cinnabar500: '#cb4c2c',
 } as const
 
 /**
@@ -103,6 +115,7 @@ export const DESIGN_THEME: Record<Design, string> = {
 /** A style's own colour, taking the design's place on anything it dresses. */
 export const STYLE_THEME: Record<StyleId, string> = {
   blossom: COLOR.blossom600,
+  airmail: COLOR.airmail700,
 }
 
 export const themeColorOf = (design: Design, style: StyleId | null): string =>

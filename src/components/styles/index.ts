@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { Design } from '@/contexts/designs'
 import { STYLES, styleSupports, type StyleId } from '@/contexts/styles'
 
+import { airmailTimes } from './airmail/times'
 import { blossomGazette } from './blossom/gazette'
 import { blossomTimes } from './blossom/times'
 import { boxVars, faceVars, slotVars } from './slots'
@@ -27,6 +28,7 @@ type Variants = {
 
 export const STYLE_VARIANTS: Variants = {
   blossom: { gazette: blossomGazette, times: blossomTimes },
+  airmail: { times: airmailTimes },
 }
 
 /** What a styled element wears. */

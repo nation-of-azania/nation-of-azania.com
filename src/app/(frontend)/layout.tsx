@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import {
   Alegreya,
   Archivo,
+  Courier_Prime,
   Fredoka,
   IBM_Plex_Mono,
   IBM_Plex_Serif,
@@ -77,6 +78,17 @@ const fredoka = Fredoka({
   preload: false,
 })
 
+// Airmail's voice (src/components/styles/airmail): a typewriter face for the
+// guest column's kickers and tag, Bold only, since the Times sets those
+// semibold and nothing else is typed in it. Not preloaded, like Fredoka.
+const courierPrime = Courier_Prime({
+  subsets: ['latin'],
+  variable: '--font-courier-prime',
+  display: 'swap',
+  weight: ['700'],
+  preload: false,
+})
+
 const SITE_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3000'
 
 export const metadata: Metadata = {
@@ -109,7 +121,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       suppressHydrationWarning
       lang="en"
-      className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable} ${fredoka.variable}`}
+      className={`${alegreya.variable} ${marcellus.variable} ${sourceSans.variable} ${archivo.variable} ${plexSerif.variable} ${plexMono.variable} ${fredoka.variable} ${courierPrime.variable}`}
     >
       {/* The site's base dress is the Gazette's (sign-in, the account): its slots sit on the body, and each design's shell sets its own. */}
       <body className="font-body antialiased" style={slotVars('gazette')}>
