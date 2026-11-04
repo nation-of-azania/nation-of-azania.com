@@ -79,7 +79,12 @@ export type Faces = Partial<Record<Face, string>>
  * entry has no box to switch on.
  */
 export const DESIGN_BOXES = {
-  /** The panel's ground, and its border. */
+  /**
+   * The panel's ground (a colour), and its edge: a colour, or an image such
+   * as a gradient — the Times paints the edge as a background layer under a
+   * transparent border (src/components/times/TimesBox.ts), so Airmail's
+   * chevrons run round the corners as a plain colour would.
+   */
   times: ['box-ground', 'box-edge'],
 } as const satisfies Partial<Record<Design, readonly string[]>>
 

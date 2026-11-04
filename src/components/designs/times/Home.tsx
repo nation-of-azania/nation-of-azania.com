@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { cn } from '@/blocks/components/shared'
 import { FeedLink } from '@/components/site/FeedLink'
 import { OpinionPortrait } from '@/components/times/OpinionPortrait'
+import { TIMES_BOX } from '@/components/times/TimesBox'
 import { TimesByline } from '@/components/times/TimesByline'
 import { TimesCard } from '@/components/times/TimesCard'
 import {
@@ -22,7 +23,7 @@ import type { HomeProps } from '../types'
  * The Times' front page: a lead story (the pinned one, else the newest) over
  * a grid. The lead wears its style's colours like any card — and sits in
  * its box when the style has one on — but keeps the paper's own "Lead
- * Story" tag.
+ * Story" tag, with the style's own tag after it when the style has one.
  */
 export async function Home({ top, pinned, latest }: HomeProps) {
   const lead = pinned[0] ?? latest[0]
@@ -50,7 +51,7 @@ export async function Home({ top, pinned, latest }: HomeProps) {
   const leadDateTime = lead.publishedAt ?? lead.createdAt
   const leadDate = formatDate(leadDateTime)
   const leadHref = articleHref(lead)
-  const { attrs, boxed } = dress('times', await getArticleStyle(lead))
+  const { attrs, boxed, Mark, tag } = dress('times', await getArticleStyle(lead))
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
@@ -59,9 +60,7 @@ export async function Home({ top, pinned, latest }: HomeProps) {
         {...attrs}
         className={cn(
           'grid gap-8 md:grid-cols-2 md:gap-10',
-          boxed
-            ? 'rounded-3xl border-2 border-(--box-edge) bg-(--box-ground) p-6 md:p-10'
-            : 'border-b border-news-200 pb-12',
+          boxed ? `rounded-3xl ${TIMES_BOX} p-6 md:p-10` : 'border-b border-news-200 pb-12',
         )}
       >
         <div
@@ -73,6 +72,12 @@ export async function Home({ top, pinned, latest }: HomeProps) {
         >
           <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
             <span className="bg-(--accent) px-1.5 py-0.5 text-news-50">Lead Story</span>
+            {tag ? (
+              <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
+                {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}
+                {tag}
+              </span>
+            ) : null}
             {leadKicker ? <span>{leadKicker}</span> : null}
             {leadDate ? (
               <>

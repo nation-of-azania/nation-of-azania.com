@@ -15,6 +15,7 @@ import {
 } from '@/components/site/format'
 
 import { OpinionPortrait } from './OpinionPortrait'
+import { TIMES_BOX } from './TimesBox'
 import { TimesCredit } from './TimesByline'
 
 /**
@@ -23,8 +24,9 @@ import { TimesCredit } from './TimesByline'
  * unmistakably one: a solid "Opinion" tag, and in place of a picture the
  * writer's head under a great opening quotation mark, since a signed view is
  * a person speaking. A story in a style wears it here too — its colours in
- * the kicker, tag and ground, its faces, its mark in the tag — so it stands
- * out a little in the grid; with the style's box on, the card is the box: a
+ * the kicker, tag and ground, its faces, its mark in the tag, and its own
+ * word in the tag on every story when it has one — so it stands out a
+ * little in the grid; with the style's box on, the card is the box: a
  * rounded, bordered panel in the box colours, the picture inset in it. The
  * whole card is clickable via a stretched title link.
  */
@@ -35,16 +37,17 @@ export async function TimesCard({ article }: { article: Article }) {
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const opinion = article.type === 'opinion'
-  const words = opinion ? parts.filter((part) => part !== 'Opinion') : parts
-  const { attrs, Mark, boxed } = dress('times', await getArticleStyle(article))
+  const { attrs, Mark, boxed, tag } = dress('times', await getArticleStyle(article))
+  const badge = tag ?? (opinion ? 'Opinion' : null)
+  const words = opinion && !tag ? parts.filter((part) => part !== 'Opinion') : parts
 
   return (
     <article
       {...attrs}
       className={cn(
         'group relative flex flex-col',
-        boxed &&
-          'rounded-2xl border-2 border-(--box-edge) bg-(--box-ground) p-4 transition-colors hover:border-(--accent-tint) sm:p-5',
+        // Hovered, the box's edge turns the style's tint, whatever it was painted with.
+        boxed && `rounded-2xl ${TIMES_BOX} p-4 hover:[--box-edge:var(--accent-tint)] sm:p-5`,
       )}
     >
       {image ? (
@@ -79,10 +82,10 @@ export async function TimesCard({ article }: { article: Article }) {
       )}
       <div className="mt-3.5 flex flex-1 flex-col">
         <p className="flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.14em] text-(--accent-ink)">
-          {opinion ? (
+          {badge ? (
             <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
               {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}
-              Opinion
+              {badge}
             </span>
           ) : null}
           {words.map((word, index) => (

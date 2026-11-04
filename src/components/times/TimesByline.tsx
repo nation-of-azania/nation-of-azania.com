@@ -49,8 +49,10 @@ export function TimesCredit({
 /**
  * The byline under a headline: a 48px head, "By Name" in the news grotesque,
  * and the role beneath, with a lagoon tick to mark the paper's own people.
+ * A standing note — a style's, on every post it dresses — goes under the
+ * role, set as the desk's note is on a signed view.
  */
-export function TimesByline({ byline, className }: Props) {
+export function TimesByline({ byline, note, className }: Props & { note?: string | null }) {
   return (
     <div className={cn('flex items-center gap-4', className)}>
       <BylineAvatar byline={byline} size={48} tone="times" />
@@ -65,6 +67,7 @@ export function TimesByline({ byline, className }: Props) {
             {byline.title}
           </p>
         ) : null}
+        {note ? <p className="mt-2 text-xs italic text-(--accent)">{note}</p> : null}
       </div>
     </div>
   )
