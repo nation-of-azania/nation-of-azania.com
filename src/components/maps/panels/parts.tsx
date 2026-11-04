@@ -48,16 +48,16 @@ export function AwayParts({
   const outposts = away.filter((part) => part.role === 'outpost')
   const detached = away.filter((part) => part.role === 'detached')
   const title = outposts.length ? (detached.length ? 'Outposts and detached claims' : outposts.length > 1 ? 'Outposts' : 'Outpost') : 'Detached claims'
+  // What the parts are, as the map reads them: the section's hint.
+  const hint = [
+    outposts.length ? `An outpost is claims apart from the ${of} itself, with a spawn of their own that its residents reach by /t outpost.` : null,
+    detached.length ? `Detached claims are joined to neither the ${of} nor an outpost, as the map reads them.` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
-    <PanelSection title={title}>
-      <p className="text-[14px] leading-relaxed text-ink-500">
-        {outposts.length
-          ? `Claims apart from the ${of} itself, each with a spawn of its own that its residents reach by /t outpost.`
-          : null}
-        {outposts.length && detached.length ? ' ' : null}
-        {detached.length ? `Detached claims are joined to neither the ${of} nor an outpost, as the map reads them.` : null}
-      </p>
-      <ul className="mt-2 divide-y divide-sand-300/70">
+    <PanelSection hint={hint} title={title}>
+      <ul className="divide-y divide-sand-300/70">
         {away.map((part, index) => {
           const nth = outposts.length > 1 && part.role === 'outpost' ? ` ${outposts.indexOf(part) + 1}` : ''
           const name =

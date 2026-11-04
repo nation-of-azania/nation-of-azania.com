@@ -13,6 +13,7 @@ import type { ContinentStats, NationRow, TownRow, WorldStats } from '@/maps/worl
 import { useMaps } from '../context'
 import { useAppearance, useStore } from '../hooks'
 import { Notice } from '../ui/chrome'
+import { Hint } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { Swatch } from '../ui/Swatch'
 import { BeliefsSection } from './BeliefsChart'
@@ -92,32 +93,41 @@ const measureWords = (row: { residents: number; towns: number; chunks: number },
 
 type Standout = keyof WorldStats['towns']
 const STANDOUTS: { key: Standout; label: string; note: string }[] = [
-  { key: 'largest', label: 'Largest', note: 'the most people' },
-  { key: 'widest', label: 'Widest', note: 'the most chunks claimed' },
-  { key: 'newest', label: 'Newest', note: 'founded last' },
-  { key: 'oldest', label: 'Oldest', note: 'standing longest' },
-  { key: 'richest', label: 'Richest', note: 'the fullest town bank, where the map shows it' },
+  { key: 'largest', label: 'Largest', note: 'The towns with the most people.' },
+  { key: 'widest', label: 'Widest', note: 'The towns with the most chunks claimed.' },
+  { key: 'newest', label: 'Newest', note: 'The towns founded last.' },
+  { key: 'oldest', label: 'Oldest', note: 'The towns standing longest.' },
+  { key: 'richest', label: 'Richest', note: 'The fullest town banks, where the map shows them.' },
 ]
 
-/** A choice among a few, as the layers menu offers the appearance: one pressed. */
-function Segmented<T extends string>({ label, choices, value, onChange }: { label: string; choices: { key: T; label: string }[]; value: T; onChange: (value: T) => void }) {
+/** A choice among a few, as the layers menu offers the appearance: one pressed; what each means is its hint. */
+function Segmented<T extends string>({ label, choices, value, onChange }: { label: string; choices: { key: T; label: string; note?: string }[]; value: T; onChange: (value: T) => void }) {
   return (
     <div aria-label={label} className="flex" role="group">
-      {choices.map((choice, index) => (
-        <button
-          aria-pressed={value === choice.key}
-          className={cn(
-            'flex-1 border px-1 py-1 text-[13px] font-semibold transition-colors focus-visible:outline-saffron-500',
-            value === choice.key ? 'border-sea-800 bg-sea-800 text-sand-50' : 'border-sand-300 bg-sand-50 text-sea-900 hover:bg-sand-100',
-            index ? '-ml-px' : null,
-          )}
-          key={choice.key}
-          onClick={() => onChange(choice.key)}
-          type="button"
-        >
-          {choice.label}
-        </button>
-      ))}
+      {choices.map((choice, index) => {
+        const button = (
+          <button
+            aria-pressed={value === choice.key}
+            className={cn(
+              'flex-1 border px-1 py-1 text-[13px] font-semibold transition-colors focus-visible:outline-saffron-500',
+              value === choice.key ? 'border-sea-800 bg-sea-800 text-sand-50' : 'border-sand-300 bg-sand-50 text-sea-900 hover:bg-sand-100',
+              index ? '-ml-px' : null,
+            )}
+            key={choice.key}
+            onClick={() => onChange(choice.key)}
+            type="button"
+          >
+            {choice.label}
+          </button>
+        )
+        return choice.note ? (
+          <Hint key={choice.key} text={choice.note}>
+            {button}
+          </Hint>
+        ) : (
+          button
+        )
+      })}
     </div>
   )
 }
@@ -140,18 +150,17 @@ export function WorldPanel() {
 
   return (
     <article className="pb-6">
-      <PanelHead eyebrow="Rulercraft · the whole server" title="The world in numbers">
+      <PanelHead
+        eyebrow="Rulercraft · the whole server"
+        hint="From Towny, as the Rulercraft map has it, read every quarter of an hour and worked out here in your browser; nothing of it is kept. People are the residents of players’ towns: the bots at the server’s sites aren’t counted."
+        title="The world in numbers"
+      >
         {stats ? (
           <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
             {plural(stats.totals.towns, 'town')}, {people(stats.totals.residents)} and {plural(stats.totals.nations, 'nation')}, as the Rulercraft map had
             them at {timeWords(stats.at)}.{worldStatus === 'saved' ? ' The map isn’t answering just now: this is the world as last saved.' : ''}
           </p>
-        ) : (
-          <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
-            Where the server’s people are, who the big nations are, and where Azania stands, worked out in your browser from the map’s own reading
-            of the world.
-          </p>
-        )}
+        ) : null}
         {lazy ? (
           <p className="mt-2 text-[12px]">
             <Look className={LINK} target={{ bounds: lazy.WORLD_BOUNDS }}>
@@ -171,10 +180,11 @@ export function WorldPanel() {
           <div className="mt-4 px-4">
             <Facts
               items={[
-                { label: 'Claimed chunks', value: stats.totals.chunks.toLocaleString('en-GB') },
+                { label: 'Claimed chunks', value: stats.totals.chunks.toLocaleString('en-GB'), hint: 'A chunk is 16 × 16 blocks, the unit a town claims in.' },
                 {
                   label: 'People to a town',
                   value: `${stats.totals.perTown.mean.toLocaleString('en-GB', { maximumFractionDigits: 1 })} on average · a median of ${stats.totals.perTown.median.toLocaleString('en-GB', { maximumFractionDigits: 1 })}`,
+                  hint: 'Over players’ towns alone; the bots at the server’s sites aren’t people.',
                 },
                 { label: 'Founded in 30 days', value: plural(stats.totals.recent, 'town') },
                 { label: 'Standing empty', value: plural(stats.totals.empty, 'town') },
@@ -185,10 +195,6 @@ export function WorldPanel() {
                 },
               ]}
             />
-            <p className="mt-2 text-[12px] leading-snug text-ink-400">
-              People are the residents of players’ towns: the bots at the server’s sites aren’t counted. A chunk is 16 × 16 blocks, the unit a town
-              claims in.
-            </p>
           </div>
 
           <Standing stats={stats} />
@@ -209,12 +215,11 @@ export function WorldPanel() {
 
           <Standouts continentName={continentName} hrefOf={hrefOf} stats={stats} />
 
-          <PanelSection title="Founded, month by month">
-            <p className="text-[14px] leading-relaxed text-ink-500">
-              The towns standing today, by the month they were founded. Towns that have since fallen aren’t in it, so it says when today’s towns
-              came, not how the server grew.
-            </p>
-            <FoundedChart className="mt-3" months={stats.founded} />
+          <PanelSection
+            hint="The towns standing today, by the month they were founded. Towns that have since fallen aren’t in it, so it says when today’s towns came, not how the server grew."
+            title="Founded, month by month"
+          >
+            <FoundedChart className="mt-1" months={stats.founded} />
           </PanelSection>
 
           <BeliefsSection beliefs={stats.beliefs} towns={stats.totals.towns} />
@@ -238,11 +243,6 @@ export function WorldPanel() {
       ) : (
         <ComingWorld />
       )}
-
-      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
-        From Towny, as the Rulercraft map has it, read every quarter of an hour and worked out here in your browser; nothing of it is kept. The
-        continents follow Natural Earth’s lines, the sea going to the nearest, and a town is counted where its home block stands.
-      </p>
     </article>
   )
 }
@@ -353,12 +353,12 @@ function Continents({
   }
 
   return (
-    <PanelSection flush title="The continents">
-      <p className="px-4 text-[14px] leading-relaxed text-ink-500">
-        Where the server’s people are: each continent washed darker the more live there, every town a dot, Azania’s in saffron. Pick one to see it
-        on the map and in numbers.
-      </p>
-      <div className="mt-3 px-4">
+    <PanelSection
+      flush
+      hint="Where the server’s people are: each continent washed darker the more live there, every town a dot, Azania’s in saffron. The continents follow Natural Earth’s lines, the sea going to the nearest, and a town is counted where its home block stands."
+      title="The continents"
+    >
+      <div className="mt-1 px-4">
         <WorldMap
           appearance={appearance}
           continents={stats.continents}
@@ -639,7 +639,6 @@ function Nations({ stats, continentName }: { stats: WorldStats; continentName: M
 function Standouts({ stats, hrefOf, continentName }: { stats: WorldStats; hrefOf: (row: TownRow) => string; continentName: Map<ContinentId, string> }) {
   const [kind, setKind] = useState<Standout>('largest')
   const rows = stats.towns[kind]
-  const chosen = STANDOUTS.find((one) => one.key === kind)!
   const figure = (row: TownRow): ReactNode =>
     kind === 'widest'
       ? plural(row.chunks, 'chunk')
@@ -652,9 +651,6 @@ function Standouts({ stats, hrefOf, continentName }: { stats: WorldStats; hrefOf
     <PanelSection flush title="Towns that stand out">
       <div className="px-4">
         <Segmented choices={STANDOUTS} label="Which towns" onChange={setKind} value={kind} />
-        <p className="mt-2 text-[13px] text-ink-500">
-          The {chosen.label.toLowerCase()} towns on the server: {chosen.note}.
-        </p>
       </div>
       {rows.length ? (
         <ol className="mt-2 divide-y divide-sand-300/70">

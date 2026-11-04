@@ -28,6 +28,7 @@ import type { LiveState } from '../live'
 import type { WorldState } from '../world'
 import { EYEBROW, IconButton, Popover } from './chrome'
 import { STANCE_ORDER, StanceSwatch, stanceLabel } from './Diplomacy'
+import { Hint, HintMark } from './Hint'
 import { Icon } from './icons'
 
 /** The game's pixel heart (the one under the heads, ui/Vitals.tsx), drawn as one path on an 8-unit grid for the legend. */
@@ -54,7 +55,7 @@ function LiveWords({ store }: { store: Store<LiveState> }) {
   return words ? <span className="ml-auto text-[13px] text-ink-500">{words}</span> : null
 }
 
-/** One of the layers beyond the nation's own: a checkbox, its name, a few words of state, and a line saying what it is. */
+/** One of the layers beyond the nation's own: a checkbox, its name, what it is as a hint on the mark beside, and a few words of state. */
 function ExtraRow({
   checked,
   onChange,
@@ -66,22 +67,22 @@ function ExtraRow({
   onChange: (value: boolean) => void
   label: string
   state?: ReactNode
-  note: string
+  note: ReactNode
 }) {
   return (
-    <>
-      <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 hover:bg-sand-100">
-        <input
-          checked={checked}
-          className="h-4 w-4 accent-sea-800"
-          onChange={(e) => onChange(e.target.checked)}
-          type="checkbox"
-        />
-        <span>{label}</span>
-        {state}
-      </label>
-      <p className="px-2 pb-1 pl-9 text-[12px] leading-snug text-ink-400">{note}</p>
-    </>
+    <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1.5 hover:bg-sand-100">
+      <input
+        checked={checked}
+        className="h-4 w-4 accent-sea-800"
+        onChange={(e) => onChange(e.target.checked)}
+        type="checkbox"
+      />
+      <span>
+        {label}
+        <HintMark label={`About ${label.toLowerCase()}`} text={note} />
+      </span>
+      {state}
+    </label>
   )
 }
 
@@ -138,7 +139,13 @@ export function LayerMenu({
     <Popover icon="layers" label="Layers" pressed={layers.length < 4 || changed} width="w-72">
       {/* The viewer's own settings first, then the layers; the whole scrolls within a short window. */}
       <div className="max-h-[calc(100vh-7rem)] overflow-y-auto">
-      <p className={cn(EYEBROW, 'px-2 pt-1')}>Appearance</p>
+      <p className={cn(EYEBROW, 'px-2 pt-1')}>
+        Appearance
+        <HintMark
+          label="About the appearance"
+          text="How the panels and the controls are drawn. Automatic is light, and dark in the war view. Kept in this browser; the map’s own ground stays as it is."
+        />
+      </p>
       <div aria-label="Appearance" className="mt-1.5 flex px-2" role="group">
         {(
           [
@@ -162,10 +169,7 @@ export function LayerMenu({
           </button>
         ))}
       </div>
-      <p className="px-2 pb-2 pt-1.5 text-[12px] leading-snug text-ink-400">
-        Automatic is light, and dark in the war view. Kept in this browser; the map’s own ground stays as it is.
-      </p>
-      <p className={cn(EYEBROW, 'border-t border-sand-300/70 px-2 pt-2.5')}>Azania</p>
+      <p className={cn(EYEBROW, 'mt-2.5 border-t border-sand-300/70 px-2 pt-2.5')}>Azania</p>
       <ul className="mt-1.5">
         {(Object.keys(MAP_LAYERS) as MapLayer[]).map((layer) => (
           <li key={layer}>
@@ -198,7 +202,7 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.world}
             label="Other nations"
-            note="Every town on the server in its nation’s colour; Azania stays in full."
+            note="Every town on the server, in its nation’s colour; Azania stays in full."
             onChange={(on) => onExtra('world', on)}
             state={worldWords ? <span className="ml-auto text-[13px] text-ink-500">{worldWords}</span> : null}
           />
@@ -207,7 +211,7 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.diplomacy}
             label="Diplomacy"
-            note="Where Azania stands with the other nations: allies green, enemies red, the land veiled so they read; and each nation’s reach, how far from its capital it may besiege: Azania’s ring, and a nation’s when it’s open or under the pointer. The pennant button beside is the same switch."
+            note="Where Azania stands with the other nations, allies green and enemies red, with each nation’s reach: how far from its capital it may besiege. The pennant button is the same switch."
             onChange={(on) => onExtra('diplomacy', on)}
           />
         </li>
@@ -215,7 +219,7 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.players}
             label="Players (live)"
-            note="Who’s on the server, where they are, every few seconds. Nothing is kept."
+            note="Who’s on the server and where, read every few seconds. Nothing is kept."
             onChange={(on) => onExtra('players', on)}
             state={extras.players ? <LiveWords store={liveStore} /> : null}
           />
@@ -227,7 +231,10 @@ export function LayerMenu({
                 onChange={(e) => onNamed(e.target.checked)}
                 type="checkbox"
               />
-              <span>Names beside the heads, at every zoom</span>
+              <span>
+                Names beside the heads
+                <HintMark label="About the names" text="At every zoom. Off, a name shows on hover, on the chosen player, and close in. Kept in this browser." />
+              </span>
             </label>
           ) : null}
         </li>
@@ -235,7 +242,7 @@ export function LayerMenu({
           <ExtraRow
             checked={extras.war}
             label="War view"
-            note="The map for the hour of a battle: the sieges’ zones to scale, every nation’s reach, the fighters with their health and armour, and a sidebar with the score, where it’s heading and who’s where. The swords button beside is the same switch."
+            note="The map for the hour of a battle: the sieges’ zones to scale, the fighters with their health and armour, and a sidebar with the score and who’s where. The swords button is the same switch."
             onChange={(on) => onExtra('war', on)}
           />
         </li>
@@ -341,13 +348,13 @@ export function Legend({ globe }: { globe: boolean }) {
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <PartSample role="outpost" />
             </svg>
-            <span>A town’s outpost: claims apart from the town, with a spawn of their own (/t outpost), striped in its nation’s colour</span>
+            <span>A town’s outpost, striped: claims apart from the town, with a spawn of their own</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <PartSample role="detached" />
             </svg>
-            <span>Claims detached from a town: joined to neither the town nor an outpost</span>
+            <span>Claims detached from a town, joined to neither it nor an outpost</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
@@ -431,20 +438,20 @@ export function Legend({ globe }: { globe: boolean }) {
               />
               <TradingMark kind="trading" scale={0.75} x={24} y={10} />
             </svg>
-            <span>A trading outpost, the server’s own: trade with it at its prices. Nobody holds one, and it’s no town’s outpost</span>
+            <span>A trading outpost, the server’s own: nobody holds it, and it’s no town’s</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
               <TradingMark kind="landmark" scale={0.7} x={24} y={10} />
             </svg>
-            <span>One of the server’s landmarks, nobody’s either</span>
+            <span>One of the server’s landmarks</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
               <SiegeMarkGlyph battle breathe={false} scale={0.8} side={null} x={13} y={12} />
               <SiegeMarkGlyph battle={false} breathe={false} scale={0.8} side={null} x={35} y={12} />
             </svg>
-            <span>A siege, at its banner: a battle on, and quiet. Always shown</span>
+            <span>A siege, at its banner: a battle on, and quiet</span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
             <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
@@ -458,8 +465,8 @@ export function Legend({ globe }: { globe: boolean }) {
               <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
             </svg>
             <span>
-              Nation reach, with Diplomacy on or in the war view: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from a
-              capital, as far as a nation may besiege; it ends at the world’s edge
+              A nation’s reach, with Diplomacy on or in the war view: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks
+              from its capital, as far as it may besiege
             </span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
@@ -468,8 +475,8 @@ export function Legend({ globe }: { globe: boolean }) {
               <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.2} r={3.5} stroke={GROUND.coralDeep} strokeWidth={1.5} />
             </svg>
             <span>
-              In the war view, a siege’s zones to scale: the banner zone, where staying five minutes takes the banner,
-              within the siege zone, where a death costs a side a hundred points
+              In the war view, a siege’s zones to scale: the banner zone, where five minutes takes the banner, within
+              the siege zone, where a death costs a hundred points
             </span>
           </li>
           <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
@@ -483,8 +490,8 @@ export function Legend({ globe }: { globe: boolean }) {
               ))}
             </svg>
             <span>
-              And its fighters, ringed and tagged in their side’s colour, attackers coral and defenders sea, with their
-              hearts and armour under the name as the game shows them
+              And its fighters, ringed in their side’s colour, attackers coral and defenders sea, with their hearts and
+              armour under the name
             </span>
           </li>
           {globe ? (
@@ -494,7 +501,13 @@ export function Legend({ globe }: { globe: boolean }) {
             </li>
           ) : null}
         </ul>
-        <p className={cn(EYEBROW, 'mt-3 px-1')}>Diplomacy, when it’s on</p>
+        <p className={cn(EYEBROW, 'mt-3 px-1')}>
+          Diplomacy, when it’s on
+          <HintMark
+            label="About the diplomacy layer"
+            text="Each nation is washed in Azania’s stance toward it; a friend’s or foe’s name wears a pennant, and a siege one is in is ringed in its colour. Set from a nation’s page by Azania’s diplomats."
+          />
+        </p>
         <ul className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1">
           {STANCE_ORDER.map((stance) => (
             <li className="flex items-center gap-1.5 px-1 py-0.5 text-[14px]" key={stance}>
@@ -503,9 +516,6 @@ export function Legend({ globe }: { globe: boolean }) {
             </li>
           ))}
         </ul>
-        <p className="mt-1.5 px-1 text-[13px] leading-snug text-ink-500">
-          The land is veiled and each nation washed in its stance; a friend’s or foe’s name wears a pennant, and a siege one is in is ringed in its colour. Set from a nation’s page by Azania’s diplomats.
-        </p>
       </div>
     </Popover>
   )
@@ -587,7 +597,7 @@ export function WarButton({ on, onToggle }: { on: boolean; onToggle: () => void 
 
 export type DrawChoice = 'place' | 'road' | 'event' | 'view' | 'views'
 
-/** What the signed-in person may add: offered only to those who may. */
+/** What the signed-in person may add: offered only to those who may. What each is, in a few words, is each item's hint. */
 export function DrawMenu({
   canDraw,
   canViews,
@@ -650,21 +660,20 @@ export function DrawMenu({
             .filter((item) => item.show)
             .map((item) => (
               <li key={item.choice} role="none">
-                <button
-                  className="flex w-full items-start gap-3 px-2 py-2 text-left hover:bg-sand-100 focus-visible:outline-saffron-500"
-                  onClick={() => {
-                    close()
-                    onChoose(item.choice)
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-sea-700" name={item.icon} />
-                  <span>
-                    <span className="block font-semibold text-ink-900">{item.label}</span>
-                    <span className="block text-[13px] text-ink-500">{item.hint}</span>
-                  </span>
-                </button>
+                <Hint text={item.hint}>
+                  <button
+                    className="flex w-full items-center gap-3 px-2 py-2 text-left font-semibold text-ink-900 hover:bg-sand-100 focus-visible:outline-saffron-500"
+                    onClick={() => {
+                      close()
+                      onChoose(item.choice)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-sea-700" name={item.icon} />
+                    {item.label}
+                  </button>
+                </Hint>
               </li>
             ))}
         </ul>

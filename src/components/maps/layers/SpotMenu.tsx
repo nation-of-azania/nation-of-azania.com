@@ -142,7 +142,6 @@ export function SpotMenu({ data, siege, watch = null }: { data: MapData; siege: 
               aria-label={`Copy ${route.command}`}
               className="inline-flex items-center gap-1 font-mono text-[13px] tracking-[0.04em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900 focus-visible:outline-saffron-500"
               onClick={() => copyWay(route.command)}
-              title={route.town.publicSpawn === false ? privateSpawnNote(route.town) : 'Copy the command'}
               type="button"
             >
               <Icon className="h-3.5 w-3.5" name={copiedWay ? 'check' : 'copy'} />

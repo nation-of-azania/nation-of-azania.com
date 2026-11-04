@@ -10,6 +10,7 @@ import { useLatest, type Store } from '../hooks'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import type { LiveState } from '../live'
 import { Head } from '../ui/Head'
+import { Hint } from '../ui/Hint'
 import type { Allegiance } from '../warView'
 
 /**
@@ -104,20 +105,24 @@ export function EdgeArrows({
   return (
     <div aria-label="Fighters off the edge of the map" className="pointer-events-none absolute inset-0 z-[480]">
       {arrows.map((arrow) => (
-        <button
-          aria-label={`${arrow.name}${arrow.ally ? `, an ally of ${spoken(arrow.ally)}` : ''}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
-          className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null, arrow.ally ? 'az-edge-ally' : null)}
-          data-watched={arrow.watched ? '' : undefined}
+        <Hint
+          described={false}
           key={arrow.name}
-          onClick={() => onPick(arrow.name)}
-          style={{ transform: `translate(${arrow.x.toFixed(0)}px, ${arrow.y.toFixed(0)}px) translate(-50%, -50%)` }}
-          title={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view${arrow.ally ? ` · ally, of ${spoken(arrow.ally)}` : ''}`}
-          type="button"
+          text={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view${arrow.ally ? ` · an ally, of ${spoken(arrow.ally)}` : ''}`}
         >
-          <span aria-hidden="true" className="az-edge-chevron" style={{ transform: `rotate(${arrow.angle.toFixed(0)}deg)` }} />
-          <Head name={arrow.name} px={22} />
-          <span className="az-edge-blocks">{arrow.blocks >= 10_000 ? `${Math.round(arrow.blocks / 1000)}k` : arrow.blocks.toLocaleString('en-GB')}</span>
-        </button>
+          <button
+            aria-label={`${arrow.name}${arrow.ally ? `, an ally of ${spoken(arrow.ally)}` : ''}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
+            className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null, arrow.ally ? 'az-edge-ally' : null)}
+            data-watched={arrow.watched ? '' : undefined}
+            onClick={() => onPick(arrow.name)}
+            style={{ transform: `translate(${arrow.x.toFixed(0)}px, ${arrow.y.toFixed(0)}px) translate(-50%, -50%)` }}
+            type="button"
+          >
+            <span aria-hidden="true" className="az-edge-chevron" style={{ transform: `rotate(${arrow.angle.toFixed(0)}deg)` }} />
+            <Head name={arrow.name} px={22} />
+            <span className="az-edge-blocks">{arrow.blocks >= 10_000 ? `${Math.round(arrow.blocks / 1000)}k` : arrow.blocks.toLocaleString('en-GB')}</span>
+          </button>
+        </Hint>
       ))}
     </div>
   )

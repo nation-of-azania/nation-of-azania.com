@@ -71,12 +71,14 @@ export function SitePanel({
           )}
         </p>
         {town.home ? (
-          <>
-            <Survey className="mt-3" fit={main} fitLabel="Fit to the site" point={town.home} y={64} />
-            <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
-              A site has no spawn of its own: that is the nearest town’s, and the walk from it.
-            </p>
-          </>
+          <Survey
+            className="mt-3"
+            fit={main}
+            fitLabel="Fit to the site"
+            hint="A site has no spawn of its own: that is the nearest town’s, and the walk from it."
+            point={town.home}
+            y={64}
+          />
         ) : null}
       </PanelHead>
 
@@ -129,9 +131,7 @@ export function SitePanel({
         ) : record?.about ? (
           <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
         ) : (
-          <p className="az-arrive text-[15px] italic text-ink-500">
-            Nothing written yet. The nation’s cartographers can add a few lines here.
-          </p>
+          <p className="az-arrive text-[15px] italic text-ink-500">Nothing written yet.</p>
         )}
       </PanelSection>
 

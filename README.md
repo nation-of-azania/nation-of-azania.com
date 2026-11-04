@@ -940,6 +940,26 @@ carries what's already drawn into place until the fresh render lands.
   map's own ground, the tiles and the globe, stays as it is. An inline
   script in the maps layout reads the setting before the first paint, so
   a viewer who chose dark never sees a flash of sand.
+- **Hints.** The panels show the facts and little else; whatever would
+  otherwise be a line of small print (how a figure is worked out, what a
+  thing is, where the data comes from, what a setting does) is a *hint*
+  (`ui/Hint.tsx`): a few words on an ink plate beside the thing, the same
+  on the light panels, the dark war sidebar and over the map. It shows
+  once the mouse has rested still on the thing for a moment (a pass across
+  opens nothing), at once when the thing is focused from the keyboard, and
+  on a touch screen after a finger holds on it, or, for the small ⓘ mark
+  (`HintMark`) that carries a hint beside a heading, a label or a figure,
+  on a tap. It never takes the pointer, closes on Escape (taking it, so
+  the popover or the map keeps its own), on a scroll, when the pointer
+  leaves or on a tap elsewhere, and stays within the window. Its words are
+  in the page for a screen reader whether or not the plate shows
+  (`aria-describedby`). The panels' furniture carries one (`PanelHead`,
+  `PanelSection`, `Facts`, the front's tiles, a form's `Field`, the survey
+  line, the editor's frame), the icon buttons' names are hints rather than
+  native titles, and so are the explanations on the map's chips and the
+  war sidebar's rosters. What stays on the page: the data, an offline or
+  "as last saved" note, an empty state that says why, a warning, a
+  control's label.
 - **Events.** A pennant on the map where it's held, breathing while the
   event is on (two hours from the start, when no end is given; still for
   readers who ask for less motion), hollow once it's past. A *What's on*

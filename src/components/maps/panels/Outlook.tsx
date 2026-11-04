@@ -14,6 +14,7 @@ import type { Siege, WorldTown } from '@/maps/world'
 import { useAlliances } from '../alliances'
 import { resultOf, sessionsOf, splitSessions, useBattles, type TrackedBattle } from '../battles'
 import { useFighters } from '../fighters'
+import { HintMark } from '../ui/Hint'
 import { timeOf } from '../warView'
 
 /**
@@ -239,7 +240,7 @@ export function OutlookDetails(props: OutlookProps) {
       </summary>
       <div className="space-y-3 pb-1 pt-1">
         {assessed && outlook ? <SessionChart assessed={assessed} readings={readings} tracked={current} /> : null}
-        {assessed && outlook ? <WhatItTakes outlook={outlook} siege={siege} who={who} online={props.online} /> : null}
+        {assessed && outlook ? <WhatItTakes outlook={outlook} who={who} online={props.online} /> : null}
         <SiegeStory assessed={assessed} forecast={forecast} past={past} siege={siege} who={who} battlesStatus={battles.status} />
         {forecast ? (
           <SessionsAhead forecast={forecast} rests={{ attackers: sides.attackers.rests, defenders: sides.defenders.rests }} siege={siege} who={who} known={fighters.status} />
@@ -360,25 +361,32 @@ function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<R
         <circle cx={x(last.minute)} cy={y(last.attacker)} r={2.5} style={{ fill: 'var(--az-atk)' }} />
         <circle cx={x(last.minute)} cy={y(last.defender)} r={2.5} style={{ fill: 'var(--az-def)' }} />
       </svg>
-      <figcaption className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-sand-200/70">
-        <span>
-          <span className="text-(--az-atk)">—</span> attackers <span className="text-(--az-def)">—</span> defenders
-        </span>
-        <span>dashed: if the banner stays as it is</span>
-        <span>foot: who held it</span>
-        {since !== null ? <span>to minute {Math.round(since)}: the tracker’s, a point a minute; live since</span> : null}
+      <figcaption className="mt-0.5 text-[12px] text-sand-200/70">
+        The session’s points, minute by minute
+        <HintMark
+          label="About the chart"
+          text={`Attackers in coral, defenders in sea. Dashed: to the session’s end, if the banner stays as it is. Along the foot, who held the banner.${
+            since !== null ? ` To minute ${Math.round(since)} the tracker’s points, one a minute; the view’s own since.` : ''
+          }`}
+        />
       </figcaption>
     </figure>
   )
 }
 
 /** What each side needs from now, for the session and, when it's another, for the siege. */
-function WhatItTakes({ outlook, siege, who, online }: { outlook: BattleOutlook; siege: Siege; who: (side: BattleSide) => string; online: OnlineCount | null }) {
+function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (side: BattleSide) => string; online: OnlineCount | null }) {
   const targets: Target[] = outlook.final ? ['siege'] : ['session', 'siege']
   const words = (target: Target) => (target === 'session' ? 'This session' : outlook.final ? 'The siege' : 'The siege, after all sessions')
   return (
     <div>
-      <p className={EYEBROW}>What it takes, from now</p>
+      <p className={EYEBROW}>
+        What it takes, from now
+        <HintMark
+          label="About what it takes"
+          text="For each side: the points short, the least holders at the banner for the rest of the session that would turn it (five minutes to take it, or to join the holders), and the kills that would do instead. The siege is the balance on their side when all its sessions are fought; the sessions ahead are the rest of the story."
+        />
+      </p>
       <dl className="mt-1 space-y-1.5">
         {targets.map((target) => (
           <div key={target}>
@@ -412,11 +420,6 @@ function WhatItTakes({ outlook, siege, who, online }: { outlook: BattleOutlook; 
           </div>
         ))}
       </dl>
-      {siege.progress && !outlook.final ? (
-        <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-          The siege: the balance on their side when all {siege.progress.of} sessions are fought; the sessions ahead, below, are the rest of the story.
-        </p>
-      ) : null}
     </div>
   )
 }
@@ -592,7 +595,15 @@ function SessionsAhead({
   }
   return (
     <div>
-      <p className={EYEBROW}>Sessions ahead · {forecast.sessions.length}</p>
+      <p className={EYEBROW}>
+        Sessions ahead · {forecast.sessions.length}
+        <HintMark
+          label="About the forecast"
+          text={`Rough: who is likely to fight at each session, from their usual hours and their turnout, and about ${n(POINTS_PER_EXTRA_FIGHTER)} to the balance for each fighter more than the other side brings, if they hold the banner. Rests on the usual hours of ${restsWords(who('attackers'), rests.attackers)}, and of ${restsWords(who('defenders'), rests.defenders)}${
+            siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''
+          }. An ally counts for the share of their fighting done for allies, as SiegeWar counts a mutual ally’s soldiers for the side; an ally the map doesn’t know of isn’t counted.`}
+        />
+      </p>
       {counted === 0 ? (
         <p className="mt-1 text-[14px] leading-snug text-sand-200/80">
           {known === 'ready'
@@ -627,12 +638,6 @@ function SessionsAhead({
             ))}
           </ul>
           {words.length ? <p className="mt-1.5 text-[15px] leading-snug text-sand-100">{words}</p> : null}
-          <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-            Rough: about {n(POINTS_PER_EXTRA_FIGHTER)} to the balance for each fighter more than the other side brings, if they hold the banner. Rests on the
-            usual hours of {restsWords(who('attackers'), rests.attackers)}, and of {restsWords(who('defenders'), rests.defenders)}
-            {siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''}. An ally counts for
-            the share of their fighting done for allies, as SiegeWar counts a mutual ally’s soldiers for the side; an ally the map doesn’t know of isn’t counted.
-          </p>
         </>
       )}
     </div>

@@ -43,6 +43,7 @@ import { OutlookDetails, OutlookSummary, totalOnline, type OnlineCount } from '.
 import { returnFor, useMotion } from '../motion'
 import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
+import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { useCopy } from '../ui/Readouts'
 import { SiegeBadge } from '../ui/Siege'
@@ -82,7 +83,6 @@ const FIGURE = 'font-mono tabular-nums'
 const SECOND = 'text-[14px] leading-snug text-sand-200/80'
 const CHIP =
   'inline-flex max-w-full items-center gap-1.5 border border-sand-50/20 px-2 py-0.5 text-[14px] font-semibold leading-snug text-sand-50 hover:border-sand-50/45 hover:bg-sand-50/5 focus-visible:outline-saffron-400'
-const FOOT = 'mt-4 px-4 text-[13px] leading-snug text-sand-300/70'
 
 const n = (value: number) => value.toLocaleString('en-GB')
 const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
@@ -162,15 +162,16 @@ export function WarPanel({ focus, siege: siegeId, onFocus, follow, onFollow, onL
       <header className="flex items-center gap-3 border-b border-sand-50/10 px-4 py-2">
         <Wordmark small tone="dark" />
         <SessionLine />
-        <button
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-sand-50/25 px-2.5 text-[13px] font-semibold text-sand-50 hover:border-sand-50/50 hover:bg-sand-50/5 focus-visible:outline-saffron-400"
-          onClick={onLeave}
-          title="Back to the map as it was"
-          type="button"
-        >
-          <Icon className="h-3.5 w-3.5" name="close" />
-          Leave
-        </button>
+        <Hint text="Back to the map as it was.">
+          <button
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-sand-50/25 px-2.5 text-[13px] font-semibold text-sand-50 hover:border-sand-50/50 hover:bg-sand-50/5 focus-visible:outline-saffron-400"
+            onClick={onLeave}
+            type="button"
+          >
+            <Icon className="h-3.5 w-3.5" name="close" />
+            Leave
+          </button>
+        </Hint>
       </header>
       <div className="flex-1 pb-5">{body}</div>
     </div>
@@ -256,7 +257,13 @@ function Overview({
     <>
       <BigClock />
       <section className="mt-3 px-4">
-        <p className={EYEBROW}>Sieges on the server{sieges.length ? ` · ${sieges.length}` : ''}</p>
+        <p className={EYEBROW}>
+          Sieges on the server{sieges.length ? ` · ${sieges.length}` : ''}
+          <HintMark
+            label="About the sieges"
+            text="As SiegeWar rewrites their markers on the Rulercraft map, read every 15 s; the players every 1.5 s. Choose a siege, a nation or a player, here or on the map."
+          />
+        </p>
         {sieges.length ? (
           <ul className="mt-1 divide-y divide-sand-50/10 border-y border-sand-50/10">
             {sieges.map((entry) => (
@@ -284,9 +291,6 @@ function Overview({
       ) : null}
       <OnlineInTheFight nations={nations} onFocus={onFocus} towns={towns} />
       <TopFighters onFocus={onFocus} />
-      <p className={FOOT}>
-        Choose a siege, a nation or a player, here or on the map. The players every 1.5 s; the sieges as SiegeWar rewrites their markers, every 15 s.
-      </p>
     </>
   )
 }
@@ -301,7 +305,10 @@ function BigClock() {
       </p>
       <p className="mt-1 text-[14px] text-sand-200/85">
         {clock ? (clock.on ? clock.detail : `until ${clock.detail}`) : 'Reading the clock…'}
-        <span className="text-sand-300/60"> · sessions at {RULES.sessionHours.map((hour) => `${String(hour).padStart(2, '0')}:00`).join(', ')} server time</span>
+        <HintMark
+          label="About the sessions"
+          text={`Battle sessions are at ${RULES.sessionHours.map((hour) => `${String(hour).padStart(2, '0')}:00`).join(', ')} server time, ${RULES.sessionMinutes} minutes each. A battle on says its own time left, read from the map.`}
+        />
       </p>
     </div>
   )
@@ -429,7 +436,13 @@ function TopFighters({ onFocus }: { onFocus: (focus: WarFocus) => void }) {
   )
   return (
     <section className="mt-3 px-4">
-      <p className={EYEBROW}>Fighters’ scores{fighters.status === 'ready' && fighters.battles ? ` · ${fighters.battles} battle${fighters.battles === 1 ? '' : 's'} in 60 days` : ''}</p>
+      <p className={EYEBROW}>
+        Fighters’ scores{fighters.status === 'ready' && fighters.battles ? ` · ${fighters.battles} battle${fighters.battles === 1 ? '' : 's'} in 60 days` : ''}
+        <HintMark
+          label="About the scores"
+          text={`A score of 100: the chance they take the banner when they try, times the chance they turn up to a session they could fight, each smoothed so one lucky try doesn’t top the list. Those with ${ENOUGH} battles or more, from the last 60 days.`}
+        />
+      </p>
       {fighters.status === 'ready' && fighters.battles === 0 ? (
         <p className="mt-1 text-[14px] leading-snug text-sand-200/80">No battles recorded yet: the tracker reads every battle from 1 November.</p>
       ) : fighters.status === 'ready' && ranked.length === 0 ? (
@@ -552,14 +565,29 @@ function SiegeView({
       <Fighters about={about} onFocus={onFocus} siege={siege} towns={towns} />
 
       <ExpectedFighters onFocus={onFocus} siege={siege} towns={towns} />
-
-      <p className={FOOT}>
-        {ASSUMED.length ? 'The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles. ' : ''}
-        The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen. Times back are at a sprint ({SPRINT_BLOCKS_PER_S} blocks a
-        second), the pessimistic figure, and at a player’s own pace when they’ve been seen moving faster, read from their last two minutes with teleports
-        left out. <LockWords />
-      </p>
     </>
+  )
+}
+
+/** How the score is run on, and what of the rules is assumed: the hint beside the live line under the scoreboard. */
+const SCORE_HINT = `The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen.${
+  ASSUMED.length
+    ? ' The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles.'
+    : ''
+}`
+
+/** How a fighter's time back to the banner is reckoned, and the lock after a death: the hint beside the fighters' rosters. */
+function WayBackHint() {
+  return (
+    <HintMark
+      label="About the times back"
+      text={
+        <>
+          Times back are at a sprint ({SPRINT_BLOCKS_PER_S} blocks a second), the pessimistic figure, and at a player’s own pace when they’ve been seen
+          moving faster, read from their last two minutes with teleports left out. <LockWords />
+        </>
+      }
+    />
   )
 }
 
@@ -710,8 +738,11 @@ function Scoreboard({
       <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-sand-300/55">
         {/* The dot flashes as each reading lands: keyed by it, so the flash plays anew each time. */}
         <span aria-hidden="true" className="az-live-dot" key={reading.at} />
-        Live · read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
-        {phase === null ? ' · the checks’ rhythm not yet read' : ''}.
+        <span>
+          Live · read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
+          {phase === null ? ' · the checks’ rhythm not yet read' : ''}
+          <HintMark label="About the score" text={SCORE_HINT} />
+        </span>
       </p>
       <OutlookDetails assessed={assessed} now={now} online={online} ours={ours} phase={phase} readings={readings} siege={siege} towns={towns} />
     </div>
@@ -845,7 +876,13 @@ function SharedSieges({
   const who = (side: BattleSide) => (ours === side ? 'Azania' : sideName(siege, side))
   return (
     <section className="mt-3 px-4">
-      <p className={EYEBROW}>Sieges sharing fighters</p>
+      <p className={EYEBROW}>
+        Sieges sharing fighters
+        <HintMark
+          label="About the shared sieges"
+          text="The other battles on now in which a side’s nation or an ally of it fights. SiegeWar counts a mutual ally’s soldiers for the side, so a side’s people are its residents and its known allies; “there” is who of them stands in that siege’s zone now."
+        />
+      </p>
       {sides.map(({ side, shared }) => (
         <div className="mt-1.5" key={side}>
           <p className={cn('text-[13px] font-semibold', sideColour(side))}>
@@ -872,10 +909,6 @@ function SharedSieges({
           </ul>
         </div>
       ))}
-      <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-        SiegeWar counts a mutual ally’s soldiers for the side, so a side’s people are its residents and its known allies; “there” is who of them stands
-        in that siege’s zone now.
-      </p>
     </section>
   )
 }
@@ -1035,7 +1068,10 @@ function Fighters({
     <section className="mt-3">
       <div className="mx-4 border-y border-sand-50/10 py-2">{counts}</div>
       <div className="mt-2 flex items-center justify-between gap-3 px-4">
-        <p className={EYEBROW}>Fighters · {about.near.length}</p>
+        <p className={EYEBROW}>
+          Fighters · {about.near.length}
+          <WayBackHint />
+        </p>
         <div className="flex text-[13px]" role="group" aria-label="Order">
           {(['health', 'distance'] as const).map((choice) => (
             <button
@@ -1118,9 +1154,9 @@ function FighterRow({
           {where || ally ? (
             <span className={cn(SECOND, 'block')}>
               {ally ? (
-                <span className={cn('font-semibold', sideColour(side))} title={`Of ${spoken(ally)}, allied with this side’s nation: SiegeWar counts them for it`}>
-                  ally · {spoken(ally)}
-                </span>
+                <Hint text={`Of ${spoken(ally)}, allied with this side’s nation: SiegeWar counts them for it.`}>
+                  <span className={cn('font-semibold', sideColour(side))}>ally · {spoken(ally)}</span>
+                </Hint>
               ) : null}
               {ally && where ? ' · ' : null}
               {where}
@@ -1191,14 +1227,16 @@ function Back({ back }: { back: Return }) {
 function Locked({ back, lead = true }: { back: Return; lead?: boolean }) {
   if (!back.locked) return null
   return (
-    <span className="inline-flex items-center gap-1 text-saffron-300" title="Dead in the battle a moment ago: the server keeps them from teleporting for a while">
-      {lead ? ' · ' : null}
-      <Icon className="h-3 w-3" name="lock" />
-      <span>
-        can’t teleport for <span className={cn(FIGURE, 'font-semibold')}>{clockOf(back.locked)}</span>
+    <Hint text="Dead in the battle a moment ago: the server keeps them from teleporting for a while.">
+      <span className="inline-flex items-center gap-1 text-saffron-300">
+        {lead ? ' · ' : null}
+        <Icon className="h-3 w-3" name="lock" />
+        <span>
+          can’t teleport for <span className={cn(FIGURE, 'font-semibold')}>{clockOf(back.locked)}</span>
+        </span>
+        {lead ? null : ' · '}
       </span>
-      {lead ? null : ' · '}
-    </span>
+    </Hint>
   )
 }
 
@@ -1256,6 +1294,12 @@ function NationView({
             {n(residents)} resident{residents === 1 ? '' : 's'} · <span className={cn('font-semibold', online.length ? 'text-lagoon-300' : 'text-sand-50')}>{online.length} online</span>
             {members.length ? ` · ${members.length} town${members.length === 1 ? '' : 's'}` : ''}
             {ours ? ' · Azania’s own' : ''}
+            {nation?.capital ? (
+              <HintMark
+                label="About its reach"
+                text={`Its reach, the ring on the map, is ${n(war.radius)} blocks from ${spoken(nation.capital.town)}, its capital: as far as it may besiege.`}
+              />
+            ) : null}
           </p>
           {theirSieges.length ? (
             <ul className="mt-1.5 flex flex-wrap gap-1.5">
@@ -1278,6 +1322,7 @@ function NationView({
         <p className={EYEBROW}>
           Online · {online.length}
           {allegiance?.ally && siege ? <span className="normal-case tracking-normal text-sand-200/75"> · allies of the {allegiance.side} here</span> : null}
+          {siege ? <WayBackHint /> : null}
         </p>
         {online.length ? (
           <ul className="mt-0.5 divide-y divide-sand-50/10 border-y border-sand-50/10">
@@ -1321,7 +1366,6 @@ function NationView({
           {world ? 'Towny’s list of its names hasn’t been read yet.' : 'The rest of the world is still on its way; its names come with it.'}
         </p>
       ) : null}
-      {nation?.capital ? <p className={FOOT}>Its reach is {n(war.radius)} blocks from {spoken(nation.capital.town)}, its capital: the ring on the map.</p> : null}
     </>
   )
 }
@@ -1469,21 +1513,20 @@ function PlayerView({
             </p>
           </div>
           <div className="mt-3 px-4">
-            <button
-              aria-pressed={follow}
-              className={cn(
-                'inline-flex items-center gap-2 border px-3 py-2 text-[15px] font-semibold transition-colors focus-visible:outline-saffron-400',
-                follow ? 'border-saffron-400 bg-saffron-400 text-sea-950' : 'border-sand-50/30 text-sand-50 hover:border-sand-50/60 hover:bg-sand-50/5',
-              )}
-              onClick={() => onFollow(!follow)}
-              type="button"
-            >
-              <Icon className="h-4 w-4" name="crosshair" />
-              {follow ? 'Following on the map' : 'Follow on the map'}
-            </button>
-            <p className="mt-1 text-[13px] text-sand-200/70">
-              {follow ? 'The map moves with each reading; a drag of the map lets go.' : 'Keeps them in the middle of the map as they move.'}
-            </p>
+            <Hint text={follow ? 'The map moves with each reading; a drag of the map lets go.' : 'Keeps them in the middle of the map as they move.'}>
+              <button
+                aria-pressed={follow}
+                className={cn(
+                  'inline-flex items-center gap-2 border px-3 py-2 text-[15px] font-semibold transition-colors focus-visible:outline-saffron-400',
+                  follow ? 'border-saffron-400 bg-saffron-400 text-sea-950' : 'border-sand-50/30 text-sand-50 hover:border-sand-50/60 hover:bg-sand-50/5',
+                )}
+                onClick={() => onFollow(!follow)}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="crosshair" />
+                {follow ? 'Following on the map' : 'Follow on the map'}
+              </button>
+            </Hint>
           </div>
         </>
       ) : (
@@ -1544,19 +1587,21 @@ function ExpectedFighters({ siege, towns, onFocus }: { siege: Siege; towns: Side
   })
   return (
     <section className="mt-4 px-4">
-      <p className={EYEBROW}>Who to expect · {when}</p>
+      <p className={EYEBROW}>
+        Who to expect · {when}
+        <HintMark
+          label="About who to expect"
+          text="Each side’s residents, those on now first and then by how likely they are to be fighting at the session’s time (their usual hours times their turnout), each with their score; and the residents of its known allies, whom SiegeWar counts for the side too, each for the share of their fighting done for allies. An ally the map doesn’t know of can’t be counted."
+        />
+      </p>
       {groups.map((group) => (
         <ExpectedGroup fighters={fighters} group={group} key={group.key} onFocus={onFocus} onOpen={(open) => setOpened(open ? group.key : null)} open={opened === group.key} towns={towns} />
       ))}
-      <p className="mt-1.5 text-[12px] leading-snug text-sand-300/70">
-        Each side’s residents, and the residents of its known allies, whom SiegeWar counts for the side too: an ally for the share of their fighting done
-        for allies. An ally the map doesn’t know of can’t be counted; the records say what they have.{' '}
-        {fighters.status === 'ready' && fighters.battles === 0
-          ? 'No battles recorded yet: the tracker reads every battle from 1 November, and the likelihoods come with them.'
-          : fighters.status === 'down'
-            ? 'The records couldn’t be read just now.'
-            : ''}
-      </p>
+      {fighters.status === 'ready' && fighters.battles === 0 ? (
+        <p className="mt-1.5 text-[13px] leading-snug text-sand-200/75">No battles recorded yet: the tracker reads every battle from 1 November, and the likelihoods come with them.</p>
+      ) : fighters.status === 'down' ? (
+        <p className="mt-1.5 text-[13px] leading-snug text-sand-200/75">The records couldn’t be read just now.</p>
+      ) : null}
     </section>
   )
 }

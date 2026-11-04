@@ -91,6 +91,7 @@ import {
 import { Notice, TextButton } from './ui/chrome'
 import { DiplomacyButton, DrawMenu, LayerMenu, Legend, WarButton, ZoomButtons, type DrawChoice } from './ui/Controls'
 import { DiplomacyKey } from './ui/DiplomacyKey'
+import { Hint } from './ui/Hint'
 import { Icon } from './ui/icons'
 import { PlayersButton, PlayersDock } from './ui/PlayersList'
 import { StatusNote, type MapStatus } from './ui/Readouts'
@@ -1465,11 +1466,15 @@ export function MapsShell({ data: served, children }: ShellProps) {
       ) : null}
       {/* Beside the map, a way back above the page; on a phone the sheet's own line has it. */}
       {wide && selection ? (
-        <div className="flex items-start gap-3 border-b border-sand-300 px-4 py-3">
-          <span className="mt-0.5">{back}</span>
-          <p className="min-w-0 flex-1 self-center text-[12px] uppercase tracking-[0.18em] text-ink-400">
-            Azania Maps
-          </p>
+        <div className="border-b border-sand-300 px-4 py-2">
+          <button
+            className="-ml-1 inline-flex h-7 items-center gap-1 pr-1 text-[13px] text-sea-700 hover:text-sea-900 focus-visible:outline-saffron-500"
+            onClick={() => select(null)}
+            type="button"
+          >
+            <Icon className="h-4 w-4" name="back" />
+            Back to the map
+          </button>
         </div>
       ) : null}
       {/* The page, or until it arrives its preview: busy meanwhile, still once it's slow or held. */}
@@ -1538,22 +1543,20 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // instead, with a way to ask again, since the person may well be signed in.
   const account =
     rightsStatus === 'unreachable' ? (
-      <button
-        className="inline-flex max-w-[60%] items-center gap-1.5 text-left text-[12px] leading-tight text-saffron-600 hover:text-saffron-500 focus-visible:outline-saffron-500"
-        onClick={retryRights}
-        title="The Registry couldn’t be reached, so who you are isn’t known yet. Click to try again."
-        type="button"
-      >
-        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-saffron-500" />
-        <span>
-          Couldn’t reach the Registry · <span className="font-semibold underline">Retry</span>
-        </span>
-      </button>
+      <Hint text="The Registry couldn’t be reached, so who you are isn’t known yet.">
+        <button
+          className="inline-flex max-w-[60%] items-center gap-1.5 text-left text-[12px] leading-tight text-saffron-600 hover:text-saffron-500 focus-visible:outline-saffron-500"
+          onClick={retryRights}
+          type="button"
+        >
+          <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-saffron-500" />
+          <span>
+            Couldn’t reach the Registry · <span className="font-semibold underline">Retry</span>
+          </span>
+        </button>
+      </Hint>
     ) : !rightsKnown ? null : rights.user ? (
-      <span
-        className="inline-flex min-w-0 items-center gap-1.5 text-[12px] uppercase tracking-[0.16em] text-ink-500"
-        title={`Signed in as ${rights.user.name}: ${standingOf(rights, data.towns)}`}
-      >
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] uppercase tracking-[0.16em] text-ink-500">
         <Icon className="h-3.5 w-3.5 shrink-0" name="user" />
         <span className="truncate">
           {rights.user.name}

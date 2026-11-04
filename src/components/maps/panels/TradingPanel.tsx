@@ -65,6 +65,7 @@ export function TradingPanel({
             <span>the server’s own</span>
           </span>
         }
+        hint="Its claim from Towny and its name from the server’s own marker, as the Rulercraft map has them, read every quarter of an hour."
         title={spoken(place.name)}
       >
         <div className="mt-2 space-y-1.5 text-[15px] leading-relaxed text-ink-700">
@@ -73,15 +74,19 @@ export function TradingPanel({
           ))}
         </div>
         {place.home ? (
-          <>
-            <Survey className="mt-3" fit={place.fit} fitLabel={fitWords(kind, place.name)} point={place.home} route={route} y={64} />
-            {route ? (
-              <p className="mt-1 text-[12px] italic leading-snug text-ink-500">
-                No <span className="font-mono not-italic">/t spawn</span> leads here: that is the nearest town’s anyone
-                may use, and the walk from it.
-              </p>
-            ) : null}
-          </>
+          <Survey
+            className="mt-3"
+            fit={place.fit}
+            fitLabel={fitWords(kind, place.name)}
+            hint={
+              <>
+                No <code>/t spawn</code> leads here: that is the nearest town’s anyone may use, and the walk from it.
+              </>
+            }
+            point={place.home}
+            route={route}
+            y={64}
+          />
         ) : null}
       </PanelHead>
 
@@ -122,11 +127,6 @@ export function TradingPanel({
           </ul>
         </PanelSection>
       ) : null}
-
-      <p className="mt-6 px-4 text-[13px] leading-relaxed text-ink-400">
-        Its claim from Towny and its name from the server’s own marker, as the Rulercraft map has them, read every
-        quarter of an hour.
-      </p>
     </article>
   )
 }

@@ -127,12 +127,11 @@ export function NationAllies({ nation }: { nation: string }) {
   const { alliances, status } = useAlliances('alone')
   const { now } = useMaps()
   return (
-    <PanelSection title="Allies">
+    <PanelSection
+      hint="As far as Azania Maps can know, since the Rulercraft map names no allies: set by Azania’s diplomats, or seen in the battles, where a player of the one fought for the other. SiegeWar counts a mutual ally’s soldiers for either side of a siege."
+      title="Allies"
+    >
       <AlliesList alliances={alliances} nation={nation} now={now} status={status} tone="panel" />
-      <p className="mt-2 text-[13px] leading-snug text-ink-500">
-        As far as Azania Maps can know: the Rulercraft map names no allies. Set by Azania’s diplomats, or seen in the battles, where a player of the one
-        fought for the other. SiegeWar counts a mutual ally’s soldiers for either side of a siege.
-      </p>
     </PanelSection>
   )
 }

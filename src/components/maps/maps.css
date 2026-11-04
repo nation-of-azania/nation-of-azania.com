@@ -1429,6 +1429,99 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
   }
 }
 
+/*
+ * The hints (ui/Hint.tsx): a few words on an ink plate beside the thing
+ * they're about, the same on the light panels, the dark war sidebar and
+ * over the map, with a nib towards the thing. Fixed to the window and
+ * never in the pointer's way. The mark that carries one (ⓘ) is set in
+ * the text's own colour, quiet until it's wanted.
+ */
+.az-hint {
+  position: fixed;
+  z-index: 1000;
+  max-width: 18rem;
+  padding: 6px 10px 7px;
+  border: 1px solid rgba(251, 248, 241, 0.14);
+  background: rgba(22, 25, 31, 0.95);
+  color: #fbf8f1;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 14px rgba(22, 25, 31, 0.3);
+  pointer-events: none;
+  animation: az-hint-in 120ms ease-out both;
+}
+.az-hint strong {
+  font-weight: 600;
+}
+.az-hint code,
+.az-hint kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+.az-hint::after {
+  content: '';
+  position: absolute;
+  left: var(--az-nib, 50%);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: rgba(22, 25, 31, 0.95);
+  border-right: 1px solid rgba(251, 248, 241, 0.14);
+  border-bottom: 1px solid rgba(251, 248, 241, 0.14);
+}
+.az-hint[data-side='above']::after {
+  bottom: -5px;
+  transform: rotate(45deg);
+}
+.az-hint[data-side='below']::after {
+  top: -5px;
+  transform: rotate(-135deg);
+}
+@keyframes az-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-hint {
+    animation: none;
+  }
+}
+.az-hint-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: -3px 0 -2px 0.2em;
+  vertical-align: middle;
+  border-radius: 9999px;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 120ms ease-out;
+}
+.az-hint-mark:hover,
+.az-hint-mark:focus-visible {
+  opacity: 1;
+}
+.az-hint-mark:focus-visible {
+  outline: 2px solid var(--color-saffron-500);
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-hint-mark {
+    transition: none;
+  }
+}
+
 /* The hint over the map that a pull fell short of the globe (globe/GlobeHost.tsx) comes and goes in a moment. */
 .az-globe-hint {
   opacity: 0;

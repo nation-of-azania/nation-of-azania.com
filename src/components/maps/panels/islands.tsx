@@ -20,6 +20,7 @@ import { useMaps } from '../context'
 import { useHydrated } from '../hooks'
 import { emptyEvent, emptyPlace, emptyRoad } from '../state'
 import { Notice, TextButton } from '../ui/chrome'
+import { HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { privateSpawnNote, useCopy } from '../ui/Readouts'
 import { EventRow } from '../ui/WhatsOn'
@@ -163,8 +164,10 @@ export function Look({
  * The survey line: coordinates (players see them with F3), a Look, and the
  * way there as a player can actually travel — `/t spawn <town>` for the
  * nearest town, with the walk from its home block, copied by a click. A
- * town's own line names its own spawn. A private spawn is said kindly: only
- * the town's residents can use it.
+ * town's own line names its own spawn. A private spawn is said plainly,
+ * since a player would otherwise try it: only the town's residents can use
+ * it. Why the way there is another town's spawn (a site, a trading
+ * outpost) is a hint on the mark beside it.
  */
 export function Survey({
   point,
@@ -173,6 +176,7 @@ export function Survey({
   route: given,
   fit,
   fitLabel = 'Fit to town',
+  hint,
   className,
 }: {
   point: Point
@@ -185,6 +189,8 @@ export function Survey({
   fit?: Bounds | null
   /** What fitting is called: "Fit to the site" for a quarry. */
   fitLabel?: string
+  /** Why the way there is what it is, as a hint beside the command. */
+  hint?: React.ReactNode
   className?: string
 }) {
   const { data } = useMaps()
@@ -238,13 +244,13 @@ export function Survey({
             aria-label={`Copy ${command}`}
             className="inline-flex items-center gap-1 font-mono text-[12px] tracking-[0.06em] text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
             onClick={() => copy(command)}
-            title="Copy the command"
             type="button"
           >
             <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
             <span aria-live="polite">{copied ? 'Copied' : command}</span>
           </button>
           {route.then ? <span className="text-ink-500">{route.then}</span> : null}
+          {hint ? <HintMark label="About the way there" text={hint} /> : null}
           {closed ? (
             <span className="basis-full text-[12px] italic leading-snug text-ink-500">
               {town

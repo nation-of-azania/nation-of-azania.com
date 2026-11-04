@@ -12,6 +12,7 @@ import { api, saveMessageOf } from '../api'
 import { useMaps, useMapsIfAny } from '../context'
 import { FIELD, LABEL, Notice, TextButton } from '../ui/chrome'
 import { KEY_ORDER, STANCE_WORDS, StanceSwatch, stanceLabel } from '../ui/Diplomacy'
+import { HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { LayerToggle } from './islands'
 import { EYEBROW, PanelSection } from './shared'
@@ -123,6 +124,10 @@ function StanceForm({ nation, relation, onDone }: { nation: string; relation: Re
     <form aria-labelledby={`${id}-title`} className="min-w-0" onSubmit={save}>
       <p className={EYEBROW} id={`${id}-title`}>
         Azania’s stance toward {spoken(nation)}
+        <HintMark
+          label="About the stance"
+          text="Shown to everyone: on the map’s diplomacy layer, on the front and on the nation’s page. Neutral takes the nation off the list, since every nation not named is neutral."
+        />
       </p>
       <div aria-label="Stance" className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3" role="radiogroup">
         {KEY_ORDER.map((choice) => {
@@ -167,11 +172,10 @@ function StanceForm({ nation, relation, onDone }: { nation: string; relation: Re
           value={note}
         />
       </label>
-      <p className="mt-1.5 text-[12px] leading-snug text-ink-500">
-        {stance === 'neutral'
-          ? `Neutral takes ${spoken(nation)} off the list: every nation not named is neutral.`
-          : 'Shown to everyone, on the map and on the nation’s page.'}
-      </p>
+      {/* Neutral is a removal, which is worth saying before Save. */}
+      {stance === 'neutral' && was !== 'neutral' ? (
+        <p className="mt-1.5 text-[13px] leading-snug text-ink-700">Neutral takes {spoken(nation)} off the list.</p>
+      ) : null}
       {error ? (
         <Notice className="mt-2" tone="warning">
           {error}

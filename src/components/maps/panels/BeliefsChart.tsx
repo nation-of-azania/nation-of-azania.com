@@ -317,21 +317,16 @@ export function BeliefsSection({ beliefs, towns }: { beliefs: Beliefs; towns: nu
   if (towns === 0) return null
   const chosen = (shares: Share[]) => shares.some((share) => share.name !== null)
   return (
-    <PanelSection title="Culture and religion">
+    <PanelSection hint="Shares of the people, by what each town’s mayor chose in game. A name keeps its colour wherever it’s met." title="Culture and religion">
       {!chosen(beliefs.cultures) && !chosen(beliefs.religions) ? (
         <p className="text-[15px] italic text-ink-500">
           {towns === 1 ? 'Its town hasn’t' : `None of its ${towns} towns has`} chosen a culture or a religion yet.
         </p>
       ) : (
-        <>
-          <p className="text-[14px] leading-relaxed text-ink-500">
-            Shares of the people, by what each town’s mayor chose in game.
-          </p>
-          <div className="mt-3 space-y-5">
-            <BeliefFigure label="Cultures" shares={beliefs.cultures} towns={towns} what="culture" />
-            <BeliefFigure label="Religions" shares={beliefs.religions} towns={towns} what="religion" />
-          </div>
-        </>
+        <div className="mt-1 space-y-5">
+          <BeliefFigure label="Cultures" shares={beliefs.cultures} towns={towns} what="culture" />
+          <BeliefFigure label="Religions" shares={beliefs.religions} towns={towns} what="religion" />
+        </div>
       )}
     </PanelSection>
   )
