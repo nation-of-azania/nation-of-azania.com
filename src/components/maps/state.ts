@@ -69,6 +69,12 @@ export type Editor =
       drawing: boolean
       /** The point picked for more (remove, a sharp corner, carrying on), by index. */
       vertex: number | null
+      /**
+       * The drawer's choice at each crossing with another road, by the
+       * crossing's key (src/maps/junctions.ts → crossingKey): a junction
+       * (true) or a bridge (false). A crossing not here takes its default.
+       */
+      junctions: Record<string, boolean>
     }
   | { kind: 'event'; id: number | null; draft: EventDraft; picking: boolean }
   | {

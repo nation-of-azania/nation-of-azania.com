@@ -19,6 +19,7 @@ import type { Siege, War } from '@/maps/world'
 import type { EditorUpdate } from './context'
 
 import { PointChip } from './editor/PointChip'
+import { otherRoads, snappedPoint } from './editor/road'
 import { Tools } from './editor/Tools'
 import type { GlobePull } from './globe/types'
 import { createStore, useLatest, type Store } from './hooks'
@@ -176,6 +177,7 @@ export function MapScene(props: SceneProps) {
   const { world, sieges, siegeOpen, onSiege } = props
   const mapRef = useRef<L.Map | null>(null)
   const editorRef = useLatest(editor)
+  const dataRef = useLatest(data)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   // The nation under the pointer: changing as the pointer moves, so kept out of the layers' props.
   const hover = useMemo(() => createStore<string | null>(null), [])
@@ -299,11 +301,15 @@ export function MapScene(props: SceneProps) {
           }
           return
         case 'road':
+          // Clicked onto another road, the point is set on it, as the server will set it.
           if (current.drawing)
             onEditor({
               ...current,
               vertex: null,
-              draft: { ...current.draft, line: [...current.draft.line, at] },
+              draft: {
+                ...current.draft,
+                line: [...current.draft.line, snappedPoint(at, current.id, otherRoads(dataRef.current.roads, current.id))],
+              },
             })
           return
         case 'event':
@@ -352,7 +358,7 @@ export function MapScene(props: SceneProps) {
           return
       }
     },
-    [onEditor, editorRef],
+    [onEditor, editorRef, dataRef],
   )
 
   // A double click finishes a line; the two clicks it carries are undone.
