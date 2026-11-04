@@ -9,6 +9,7 @@ import {
   type MapViewData,
   type Relation,
 } from '@/maps/data'
+import type { RoadLanes } from '@/maps/lanes'
 import type { Stance } from '@/maps/registry'
 import type { Event, MapView, Place, Road } from '@/payload-types'
 
@@ -115,6 +116,8 @@ export type RoadInput = {
   line: [number, number][]
   shape: 'straight' | 'curved'
   corners: number[]
+  /** The cross-section (src/maps/lanes.ts), or null for none. */
+  lanes?: RoadLanes | null
 }
 
 export type EventInput = {

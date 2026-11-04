@@ -3,6 +3,7 @@ import type { CollectionAfterChangeHook, CollectionBeforeChangeHook, CollectionC
 import { createMapFeature, editMapFeature, getMapRights } from '../../access/maps'
 import { isPoint, roadCourse, samplePath, type Point } from '../../maps/geo'
 import { followMoves, sharedInto, snapToRoads, type JunctionRoad } from '../../maps/junctions'
+import { HAS_LANES, lanesProblem, parseLanes } from '../../maps/lanes'
 import { options, ROAD_KINDS, ROAD_SHAPES, type RoadKind } from '../../maps/registry'
 import { authorshipFields, JUNCTIONS, pathField, placeOnMap, townField } from './shared'
 
@@ -156,6 +157,27 @@ export const Roads: CollectionConfig = {
             new Set(value).size === value.length) ||
           'Positions of the road’s inner points, each once.'
         )
+      },
+    },
+    {
+      name: 'lanes',
+      type: 'json',
+      admin: {
+        condition: (data) => !data?.kind || HAS_LANES.has(data.kind),
+        description:
+          'Optional: the road’s cross-section as built, left to right looking along it the way it was drawn: lanes (width, dir with/against/both), lines (dashed/solid), strips (grass/paved: a median between lanes, a verge beside them) and pavements, in blocks; axis is where the drawn line lies, in blocks from the left edge. Set in the road editor on Azania Maps (src/maps/lanes.ts).',
+      },
+      validate: (value: unknown) => lanesProblem(value) ?? true,
+      hooks: {
+        // Kept as built (half blocks, known parts), and nothing for a railway or a waterway.
+        beforeChange: [
+          ({ value, siblingData, originalDoc }) => {
+            // Not sent (a node shared into the road, say): left as it is.
+            if (value === undefined) return value
+            const kind = String(siblingData?.kind ?? originalDoc?.kind ?? 'street')
+            return HAS_LANES.has(kind) ? parseLanes(value) : null
+          },
+        ],
       },
     },
     townField,

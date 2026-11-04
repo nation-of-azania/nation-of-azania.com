@@ -12,6 +12,7 @@ import {
   type RoadShape,
 } from './geo'
 import { claimParts, mainBounds, spawnsFrom, type ClaimPart, type OutpostSpawn } from './claims'
+import { parseLanes, type RoadLanes } from './lanes'
 import type { MapName } from './source'
 import { isPlaceCategory } from './icons'
 import {
@@ -90,6 +91,8 @@ export type MapRoad = {
   shape: RoadShape
   /** In a curved road, the points kept as sharp turns, by index. */
   corners: number[]
+  /** Its cross-section as built, where one is set (src/maps/lanes.ts); else it's drawn by its class. */
+  lanes: RoadLanes | null
   town: number | null
   updatedAt?: string
 }
@@ -266,6 +269,7 @@ export function mapRoad(road: Road): MapRoad | null {
     corners: Array.isArray(road.corners)
       ? road.corners.filter((index): index is number => Number.isInteger(index))
       : [],
+    lanes: parseLanes(road.lanes),
     town: idOf(road.town),
     updatedAt: road.updatedAt,
   }

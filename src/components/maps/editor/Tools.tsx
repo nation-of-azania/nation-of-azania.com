@@ -872,7 +872,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           {draft.line.length >= 2 ? (
             <RoadsLayer
               projection={projection}
-              roads={[{ id: -1, ...draft, name: draft.name || null, town: null }]}
+              roads={[{ id: -1, ...draft, name: draft.name || null, town: null, lanes: null }]}
             />
           ) : null}
           {/* Junctions the road has already, at its own points: under the handles, which are their nodes. */}

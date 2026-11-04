@@ -29,6 +29,7 @@
     "test:beliefs": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-beliefs.ts",
     "test:world-stats": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-world-stats.ts",
     "test:junctions": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-junctions.ts",
+    "test:lanes": "tsx scripts/test-lanes.ts",
     "test:lists": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-lists.ts",
     "test:curves": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-curves.ts",
     "test:battle": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-battle.ts",

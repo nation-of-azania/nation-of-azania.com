@@ -778,6 +778,18 @@ export interface Road {
     | boolean
     | null;
   /**
+   * Optional: the road’s cross-section as built, left to right looking along it the way it was drawn: lanes (width, dir with/against/both), lines (dashed/solid), strips (grass/paved: a median between lanes, a verge beside them) and pavements, in blocks; axis is where the drawn line lies, in blocks from the left edge. Set in the road editor on Azania Maps (src/maps/lanes.ts).
+   */
+  lanes?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Set from where it is: the Azanian town whose claims hold it. Empty between towns.
    */
   town?: (number | null) | Town;
@@ -1477,6 +1489,7 @@ export interface RoadsSelect<T extends boolean = true> {
   line?: T;
   shape?: T;
   corners?: T;
+  lanes?: T;
   town?: T;
   createdBy?: T;
   updatedBy?: T;
