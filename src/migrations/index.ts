@@ -34,6 +34,7 @@ import * as migration_20261102_100000_update_boxes from './20261102_100000_updat
 import * as migration_20261104_135608_guest_role from './20261104_135608_guest_role';
 import * as migration_20261104_142338_airmail_style from './20261104_142338_airmail_style';
 import * as migration_20261104_142400_guest_column from './20261104_142400_guest_column';
+import * as migration_20261104_150000_road_junctions from './20261104_150000_road_junctions';
 
 export const migrations = [
   {
@@ -215,5 +216,10 @@ export const migrations = [
     up: migration_20261104_142400_guest_column.up,
     down: migration_20261104_142400_guest_column.down,
     name: '20261104_142400_guest_column',
+  },
+  {
+    up: migration_20261104_150000_road_junctions.up,
+    down: migration_20261104_150000_road_junctions.down,
+    name: '20261104_150000_road_junctions',
   },
 ];

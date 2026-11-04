@@ -145,13 +145,22 @@ export async function townHolding(req: PayloadRequest, points: Point[]): Promise
  * the feature's points from the document as it will be (saved values with
  * the change on top), so a partial update is judged on the whole feature.
  */
+/**
+ * Flags a save of a road made to share a junction's node with the road
+ * being drawn (src/collections/maps/Roads.ts): a point put in where the
+ * other road already runs, or a node dragged along, not the drawer's own
+ * change to that road, so it is neither checked against their rights nor
+ * stamped as theirs.
+ */
+export const JUNCTIONS = 'azaniaJunctions'
+
 export const placeOnMap =
   (geometry: (doc: Record<string, unknown>, req: PayloadRequest) => Promise<Point[]> | Point[]): CollectionBeforeChangeHook =>
   async ({ data, originalDoc, req, operation }) => {
     const doc = { ...(originalDoc ?? {}), ...data }
     const points = await geometry(doc, req)
     const town = await townHolding(req, points)
-    if (req.user) {
+    if (req.user && !req.context[JUNCTIONS]) {
       const rights = getMapRights(req.user)
       if (!rights.anywhere && (town == null || !rights.towns.includes(town))) {
         throw new APIError('Mayors draw inside their own town’s claims. This reaches outside them.', 403, null, true)
