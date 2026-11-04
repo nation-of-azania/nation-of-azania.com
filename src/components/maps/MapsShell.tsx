@@ -41,7 +41,7 @@ import type { LivePlayer } from '@/maps/players'
 import { PLACE_CATEGORIES, ROAD_KINDS, type MapLayer } from '@/maps/registry'
 import { azaniaSide, bySiegeWeight, siegeHeadline, siegeTitle } from '@/maps/sieges'
 import { settlements, siteFacts, siteTitle } from '@/maps/sites'
-import { FLAT_MIN_ZOOM, wrapPoint } from '@/maps/source'
+import { FLAT_MIN_ZOOM, WORLD_EAST, WORLD_NORTH, WORLD_SOUTH, WORLD_WEST, wrapPoint } from '@/maps/source'
 import { eventPhase, toLocalInput } from '@/maps/time'
 import {
   ALL_LAYERS,
@@ -167,6 +167,8 @@ function describe(
       const found = world?.nationBySlug.get(selection.slug)
       return found ? { title: spoken(found.name), kind: 'Nation' } : null
     }
+    case 'world':
+      return { title: 'The world in numbers', kind: 'Rulercraft' }
   }
 }
 
@@ -397,7 +399,8 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // The rest of the world: asked for once the map has settled, at once when the page is a town or a nation abroad, or for the globe, whose borders it is.
   const [mapReady, setMapReady] = useState(false)
   const foreign = selection?.kind === 'abroad' || selection?.kind === 'nation'
-  const worldState = useWorld(mapReady || globe, foreign || globe)
+  // The world view is made of the world: asked for at once, like a page abroad, though the map needn't wait for it.
+  const worldState = useWorld(mapReady || globe, foreign || globe || selection?.kind === 'world')
   const world = useMemo(
     () => (worldState.world ? abroadOf(worldState.world, data.towns) : null),
     [worldState.world, data.towns],
@@ -1972,6 +1975,9 @@ function lookFor(data: MapData, world: Abroad | null, selection: MapSelection): 
       const event = data.events.find((candidate) => candidate.id === selection.id)
       return event ? { centre: event.point, zoom: 1, minZoom: true } : null
     }
+    case 'world':
+      // The world in numbers: the map pulls out to the whole of it.
+      return { bounds: { minX: WORLD_WEST, maxX: WORLD_EAST, minZ: WORLD_NORTH, maxZ: WORLD_SOUTH } }
   }
 }
 

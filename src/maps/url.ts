@@ -13,6 +13,7 @@ import { MAP_LAYERS, type MapLayer } from './registry'
  *   /maps/event/<id>            an event
  *   /maps/abroad/<slug>         a town of another nation, or of none
  *   /maps/nation/<slug>         another nation
+ *   /maps/world                 the world in numbers: every continent, nation and town
  *
  * and the view itself travels in the query, on any of them:
  *
@@ -41,6 +42,7 @@ export type MapSelection =
   | { kind: 'event'; id: number }
   | { kind: 'abroad'; slug: string }
   | { kind: 'nation'; slug: string }
+  | { kind: 'world' }
 
 export type MapPosition = { centre: Point; zoom: number }
 
@@ -52,10 +54,13 @@ export const roadHref = (id: number) => `${MAPS_PATH}/road/${id}`
 export const eventHref = (id: number) => `${MAPS_PATH}/event/${id}`
 export const abroadHref = (slug: string) => `${MAPS_PATH}/abroad/${encodeURIComponent(slug)}`
 export const nationHref = (slug: string) => `${MAPS_PATH}/nation/${encodeURIComponent(slug)}`
+export const WORLD_PATH = `${MAPS_PATH}/world`
 
 export function selectionHref(selection: MapSelection | null): string {
   if (!selection) return MAPS_PATH
   switch (selection.kind) {
+    case 'world':
+      return WORLD_PATH
     case 'town':
       return townHref(selection.slug)
     case 'place':
@@ -77,6 +82,7 @@ const bySlug = (selection: MapSelection): selection is Extract<MapSelection, { s
 
 /** The selection a path names, or null for the plain map. */
 export function selectionOf(pathname: string): MapSelection | null {
+  if (/^\/maps\/world\/?$/.test(pathname)) return { kind: 'world' }
   const match = /^\/maps\/(town|place|road|event|abroad|nation)\/([^/?#]+)\/?$/.exec(pathname)
   if (!match) return null
   const [, kind, raw] = match
@@ -91,7 +97,7 @@ export const sameSelection = (a: MapSelection | null, b: MapSelection | null): b
   (a != null &&
     b != null &&
     a.kind === b.kind &&
-    (bySlug(a) ? a.slug === (b as { slug: string }).slug : a.id === (b as { id: number }).id))
+    (a.kind === 'world' || (bySlug(a) ? a.slug === (b as { slug: string }).slug : (a as { id: number }).id === (b as { id: number }).id)))
 
 /** "4296,4952,1.5": the `at` parameter. Coordinates to the block, zoom to a quarter step. */
 export const encodeAt = ({ centre: [x, z], zoom }: MapPosition): string =>

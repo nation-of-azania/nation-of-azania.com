@@ -19,6 +19,7 @@ import { OtherSieges, OurSieges } from './sieges'
 import { EYEBROW, PanelSection } from './shared'
 import { DiplomatHint } from './Stance'
 import { YourViews } from './views'
+import { WorldTeaser } from './WorldTeaser'
 
 /**
  * The map's own front: the nation at a glance (its totals, with the
@@ -66,6 +67,8 @@ export function HomePanel({ data, census }: { data: MapData; census: Coming<Cens
           ? `Recorded daily from the Rulercraft map since ${since}.`
           : 'Recorded daily from the Rulercraft map.'}
       </p>
+      {/* And the whole server beside the nation: the world view (./WorldPanel.tsx). */}
+      <WorldTeaser />
 
       {/* What the nation's towns chose, in game: their mayors' cultures and religions, by its people. */}
       <BeliefsSection beliefs={beliefsOf(data.towns)} towns={towns.length} />

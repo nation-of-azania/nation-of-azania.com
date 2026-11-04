@@ -285,7 +285,7 @@ export function Search({
               index === active ? 'bg-sea-100/70' : 'hover:bg-sand-100',
             )}
             id={`${listId}-${index}`}
-            key={`${result.selection.kind}-${'id' in result.selection ? result.selection.id : result.selection.slug}`}
+            key={`${result.selection.kind}-${'id' in result.selection ? result.selection.id : 'slug' in result.selection ? result.selection.slug : ''}`}
             onMouseDown={(event) => {
               event.preventDefault()
               pick(result)

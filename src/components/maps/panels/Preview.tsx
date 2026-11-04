@@ -24,6 +24,7 @@ import { RoadPanel } from './RoadPanel'
 import { EYEBROW } from './shared'
 import { SitePanel } from './SitePanel'
 import { TownPanel } from './TownPanel'
+import { WorldPanel } from './WorldPanel'
 
 /**
  * A page's panel before the page itself arrives, drawn by the shell the
@@ -98,6 +99,9 @@ export function Preview({ selection }: { selection: MapSelection | null }) {
       }
       return <Unknown kind="Nation" />
     }
+    case 'world':
+      // Whole already: the page sends the same panel, which the browser works out for itself.
+      return <WorldPanel />
   }
 }
 
