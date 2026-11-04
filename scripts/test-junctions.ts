@@ -44,6 +44,7 @@ check(into.length === 1 && into[0].id === 1 && same(into[0].line, [[20, 10], [20
 const grid = [road(1, into[0].line), road(2, joined.line)]
 check(junctionsOf(grid).length === 1 && same([junctionsOf(grid)[0].at], [[20, 20]]), 'the map finds the node both share')
 check(overpassesOf(grid).length === 0, '…and no bridge there')
+check(overpassesOf([north, road(2, joined.line)]).length === 0, '…nor just after saving, before the other street’s new line is back')
 check(sharedInto(road(2, joined.line), [road(1, into[0].line)]).length === 0, 'saving again changes nothing')
 check(crossingsOf({ ...drawn, id: 2, line: joined.line }, [road(1, into[0].line)])[0]?.shared === true, 'drawn again, the crossing shows as a junction already')
 

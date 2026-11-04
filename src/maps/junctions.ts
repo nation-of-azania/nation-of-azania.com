@@ -340,7 +340,10 @@ export function junctionsOf(roads: Pick<JunctionRoad, 'id' | 'line'>[]): { at: P
  * Where two roads' courses cross without a node they share: one passes
  * over the other, the higher class on top, between equals the later drawn
  * (the larger id). A crossing within SNAP of a node the two share is that
- * junction, not a bridge.
+ * junction, not a bridge; so is one by a point either road has on the
+ * other's course, which the server shares on saving (sharedInto): just
+ * after a save, before the other road's new line has come back, the map
+ * doesn't draw a bridge where a junction was made.
  */
 export function overpassesOf(roads: JunctionRoad[]): { at: Point; over: JunctionRoad['id']; under: JunctionRoad['id'] }[] {
   const traced = roads.filter((road) => road.line.length >= 2).map((road) => ({ road, ...trace(road) }))
@@ -350,7 +353,8 @@ export function overpassesOf(roads: JunctionRoad[]): { at: Point; over: Junction
       const a = traced[m]
       const b = traced[n]
       if (!near(a.box, b.box, 0)) continue
-      const nodes = a.road.line.filter((point) => b.road.line.some((p) => samePoint(p, point)))
+      const onCourse = (course: Point[]) => (point: Point) => (nearestOnCourse(course, point)?.distance ?? Infinity) <= ON_ROAD
+      const nodes = [...a.road.line.filter(onCourse(b.course)), ...b.road.line.filter(onCourse(a.course))]
       const spots: Point[] = []
       for (let i = 0; i < a.course.length - 1; i++)
         for (let j = 0; j < b.course.length - 1; j++) {

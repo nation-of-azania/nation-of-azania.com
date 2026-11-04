@@ -200,12 +200,13 @@ export function Notice({
     warning: 'border-coral-600/40 bg-coral-600/5 text-coral-700',
     success: 'border-sea-700/30 bg-sea-100/50 text-sea-800',
   }
+  // A div, not a p: a hint inside it (Hint.tsx) may carry a list for screen readers.
   return (
-    <p
+    <div
       className={cn('border px-3 py-2 text-[14px] leading-relaxed', tones[tone], className)}
       role={!live ? undefined : tone === 'warning' ? 'alert' : 'status'}
     >
       {children}
-    </p>
+    </div>
   )
 }
