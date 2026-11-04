@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { Design } from '@/contexts/designs'
 import { STYLES, styleSupports, type StyleId } from '@/contexts/styles'
 
+import { airmailTimes } from './airmail/times'
 import { blossomGazette } from './blossom/gazette'
 import { blossomTimes } from './blossom/times'
 import { boxVars, faceVars, slotVars } from './slots'
@@ -11,9 +12,9 @@ import type { Mark, Variant } from './types'
 /**
  * Every style's variants, one per design it supports (src/contexts/styles.ts
  * says which; TypeScript insists on each). A variant is a few colours, a
- * face or two, an optional mark and — where the design offers one — its
- * box switched on; never a component of its own: the Gazette stays the
- * Gazette and the Times the Times.
+ * face or two, an optional mark, a standing tag and note, and — where the
+ * design offers one — its box switched on; never a component of its own:
+ * the Gazette stays the Gazette and the Times the Times.
  *
  * Adding a style: declare it in src/contexts/styles.ts, add a folder here
  * with a variant per design (`Variant<'gazette'>` lists the slots to fill;
@@ -27,6 +28,7 @@ type Variants = {
 
 export const STYLE_VARIANTS: Variants = {
   blossom: { gazette: blossomGazette, times: blossomTimes },
+  airmail: { times: airmailTimes },
 }
 
 /** What a styled element wears. */
@@ -39,6 +41,10 @@ export type Dress = {
   Mark: Mark | null
   /** The design's box is on: set the element in the panel the design draws in `--box-*` (DESIGN_BOXES). Never for a design without one. */
   boxed: boolean
+  /** The style's standing tag, for the design to print where it tags its own kinds of post; null to tag as the design does. */
+  tag: string | null
+  /** The style's standing note, for the design to print under a byline; null to print its own, if any. */
+  note: string | null
 }
 
 const variantOf = <D extends Design>(design: D, style: StyleId | null): Variant<D> | null =>
@@ -67,5 +73,7 @@ export function dress<D extends Design>(design: D, style: StyleId | null): Dress
     wears,
     Mark: variant?.Mark ?? null,
     boxed: Boolean(variant?.box),
+    tag: variant?.tag ?? null,
+    note: variant?.note ?? null,
   }
 }

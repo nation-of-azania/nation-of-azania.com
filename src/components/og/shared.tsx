@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 
 import { CREST_BOX, CrestShapes } from '@/components/site/Crest'
+import { PLANE, PLANE_GRID } from '@/components/styles/airmail/Plane'
 import { PETALS, PETALS_GRID } from '@/components/styles/blossom/Blossom'
 
 import type { CardByline } from './model'
@@ -160,6 +161,21 @@ export function BlossomMark({ color, size }: { color: string; size: number }) {
       shapeRendering="crispEdges"
     >
       <path d={PETALS} fill={color} />
+    </svg>
+  )
+}
+
+/** Airmail's pixel paper plane, `size` px square, scaled without smoothing. */
+export function PlaneMark({ color, size }: { color: string; size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${PLANE_GRID} ${PLANE_GRID}`}
+      xmlns="http://www.w3.org/2000/svg"
+      shapeRendering="crispEdges"
+    >
+      <path d={PLANE} fill={color} />
     </svg>
   )
 }

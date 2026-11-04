@@ -13,6 +13,7 @@ import {
   resolveImage,
 } from '@/components/site/format'
 import { dress } from '@/components/styles'
+import { TIMES_BOX } from '@/components/times/TimesBox'
 import { TimesByline } from '@/components/times/TimesByline'
 import { contextHref } from '@/lib/site'
 
@@ -21,12 +22,11 @@ import type { ArticleProps } from '../types'
 const OPINION_NOTE = 'A signed view, not the paper’s reporting.'
 
 /**
- * The Times' box, for a style that switches it on (src/components/styles/slots.ts):
+ * The Times' box, for a style that switches it on (src/components/times/TimesBox.ts):
  * header and body in a rounded panel of the style's box colours, padded
  * generously, with the footer left outside on the newsprint.
  */
-const BOX =
-  'rounded-3xl border-2 border-(--box-edge) bg-(--box-ground) px-5 py-7 sm:px-8 sm:py-9 md:px-12 md:py-12'
+const BOX = `rounded-3xl ${TIMES_BOX} px-5 py-7 sm:px-8 sm:py-9 md:px-12 md:py-12`
 
 /**
  * A Times story: kicker ("Markets · News"), Archivo headline, dek, byline, a
@@ -35,7 +35,10 @@ const BOX =
  * at 64px, and the desk's standing note that this is a signed view. A story
  * in a style keeps all of this, in the style's colours and faces, with the
  * style's mark in the Opinion tag as the column's own badge — and, when the
- * style has the box on, sits in it, the quotation mark tucked inside.
+ * style has the box on, sits in it, the quotation mark tucked inside. A
+ * style with a tag of its own puts it in the solid tag on every story,
+ * "Opinion" moving into the kicker, and a style with a note prints it
+ * under every byline, in place of the desk's.
  */
 export function Article({ article, chain, style, draft }: ArticleProps) {
   const top = chain[0]
@@ -45,9 +48,12 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
   const dateTime = article.publishedAt ?? article.createdAt
   const date = formatDate(dateTime)
   const opinion = article.type === 'opinion'
-  const words = opinion ? parts.filter((part) => part !== 'Opinion') : parts
-  const note = (section?.name.toLowerCase() === 'opinion' && section.tagline) || OPINION_NOTE
-  const { attrs, Mark, boxed } = dress('times', style)
+  const { attrs, Mark, boxed, tag, note: standing } = dress('times', style)
+  // The solid tag: the style's word on every story, else "Opinion" on a signed view.
+  const badge = tag ?? (opinion ? 'Opinion' : null)
+  const words = opinion && !tag ? parts.filter((part) => part !== 'Opinion') : parts
+  const note =
+    standing ?? ((section?.name.toLowerCase() === 'opinion' && section.tagline) || OPINION_NOTE)
 
   return (
     <article {...attrs} className="mx-auto max-w-3xl px-6 py-12 md:py-16">
@@ -66,10 +72,10 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
             </span>
           ) : null}
           <p className="relative flex flex-wrap items-center gap-x-2 font-label text-[11px] font-semibold uppercase tracking-[0.16em] text-(--accent-ink)">
-            {opinion ? (
+            {badge ? (
               <span className="inline-flex items-center gap-1 bg-(--accent) px-1.5 py-0.5 text-[10px] text-news-50">
                 {Mark ? <Mark className="h-2.5 w-2.5 shrink-0" /> : null}
-                Opinion
+                {badge}
               </span>
             ) : null}
             {words.map((word, index) => (
@@ -123,7 +129,7 @@ export function Article({ article, chain, style, draft }: ArticleProps) {
               </div>
             </div>
           ) : byline ? (
-            <TimesByline byline={byline} className="mt-6" />
+            <TimesByline byline={byline} note={standing} className="mt-6" />
           ) : null}
           <div aria-hidden="true" className="mt-6 h-0.5 w-full bg-(--accent)" />
         </header>

@@ -28,6 +28,7 @@ const DESIGN_COLOURS: Record<Design, string> = {
 }
 const STYLE_COLOURS: Record<StyleId, string> = {
   blossom: '#9b2f5e', // blossom-700
+  airmail: '#2552b4', // airmail-700
 }
 
 const TIMEOUT_MS = 5000

@@ -235,8 +235,15 @@ and a GirlieTea column is still the Times, set off by pink accents and
 small blossom marks. A style can go further inside a post where its owner
 asks: Cherry Blossom sets headlines and labels in a bubbly face, and in the
 Times a GirlieTea post sits in a pink box, on its own page and on every
-card, while the page around it stays the paper's. Each style has a variant
-for every design it supports.
+card, while the page around it stays the paper's. **Airmail** is the Times'
+guest column's, for writers from outside Azania whose drafts a Times editor
+publishes: a post is still the Times, in the Times' box dressed as an
+envelope — cream, with airmail chevrons round the edge in the writer's
+cobalt and the paper's cinnabar — its kickers typed like a postmark, a
+paper plane in a tag that reads *From abroad* on every post, and a standing
+note under the byline that the views are the writer's own, so a reader sees
+at a glance that this is an outside voice the paper hosts. Each style has a
+variant for every design it supports.
 
 - **Admins give a context a style** (Contexts → Style), and everything below
   it inherits the style. A sub-context can set another style, or *Plain* to
