@@ -63,7 +63,7 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
                         <span className="block">
                           {describeLanes(road.lanes)} · {lanesWidth(road.lanes)} blocks across
                         </span>
-                        <LanesStrip className="mt-1.5 max-w-full" height={22} kind={road.kind} lanes={road.lanes} ppb={stripScale(road.lanes, 176, { min: 3, max: 12 })} />
+                        <LanesStrip className="mt-1.5 max-w-full" frame={176} height={22} kind={road.kind} lanes={road.lanes} ppb={stripScale(road.lanes, 176, { min: 3, max: 12 })} />
                       </span>
                     ),
                   },

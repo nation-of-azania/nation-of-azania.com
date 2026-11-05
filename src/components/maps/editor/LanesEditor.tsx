@@ -34,10 +34,11 @@ import { stripScale } from '../ui/lanesScale'
  * point, the cross-sections the road's own town has already (by example:
  * "as Löwenzahnweg") and then the presets, with the side traffic keeps to
  * and the pavements to add; chosen, the cross-section is a strip drawn to
- * scale (ui/LanesStrip.tsx), each part pressed to shape it: its width by
+ * scale (ui/LanesStrip.tsx) about the drawn line, which holds still at the
+ * middle as the road grows; each part pressed to shape it: its width by
  * the half block, a lane's direction, a line's style, a strip's surface;
- * parts added and taken away; and the drawn line dragged to where it lies.
- * The words are few; what a thing does is a hint away (ui/Hint.tsx).
+ * parts added and taken away. The words are few; what a thing does is a
+ * hint away (ui/Hint.tsx).
  */
 
 type Example = { lanes: RoadLanes; roads: MapRoad[] }
@@ -161,8 +162,9 @@ function exampleName(example: Example): string {
 const LANES_HINT = (
   <>
     The road as built, kerb to kerb and beyond: its lanes and which way each runs, the lines between them, a median or a verge,
-    the pavements. Seen looking along the road the way you drew it, left to right; the saffron line is where you drew it. Close
-    in, the map draws the road at this width, over the build.
+    the pavements. Seen looking along the road the way you drew it, left to right. The saffron line is where you drew it, down
+    the middle of the lanes: widen a part and the road grows from it both ways. Close in, the map draws the road at this
+    width, over the build.
   </>
 )
 
@@ -287,9 +289,10 @@ export function LanesEditor({
   )
 }
 
-/** A cross-section to start from: drawn small beside its name, pressed to take it. */
+/** A cross-section to start from: drawn small beside its name, pressed to take it. Every starter's frame is the same, so their drawn lines stand in one column. */
 function Starter({ lanes, kind, label, room, onChoose }: { lanes: RoadLanes; kind: RoadKind; label: string; room: number; onChoose: (lanes: RoadLanes) => void }) {
-  const ppb = stripScale(lanes, Math.min(150, room * 0.4), { min: 2.5, max: 7 })
+  const frame = Math.min(150, room * 0.4)
+  const ppb = stripScale(lanes, frame, { min: 2.5, max: 7 })
   return (
     <button
       className="flex w-full items-center gap-3 border border-sand-300 bg-sand-50 px-2.5 py-1.5 text-left text-[13px] text-ink-900 transition-colors hover:border-sea-700 hover:bg-sand-100 focus-visible:outline-saffron-500"
@@ -297,7 +300,7 @@ function Starter({ lanes, kind, label, room, onChoose }: { lanes: RoadLanes; kin
       type="button"
     >
       <span className="flex w-[40%] max-w-[150px] shrink-0 justify-start">
-        <LanesStrip height={18} kind={kind} lanes={lanes} ppb={ppb} />
+        <LanesStrip frame={frame} height={18} kind={kind} lanes={lanes} ppb={ppb} />
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
@@ -347,8 +350,9 @@ function Shaper({
 
   return (
     <div className="mt-2">
+      {/* The frame is the panel's width, so the drawn line stands still at its middle as the road grows. */}
       <div className="overflow-x-auto">
-        <LanesStrip kind={kind} lanes={lanes} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
+        <LanesStrip frame={room} kind={kind} lanes={lanes} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
       </div>
       <div className="mt-2 flex min-h-9 items-center gap-1">
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink-700">

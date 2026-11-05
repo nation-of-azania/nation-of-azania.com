@@ -1,11 +1,11 @@
 'use client'
 
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
-
 import { cn } from '@/blocks/components/shared'
-import { lanesWidth, partLabel, placedParts, type LanePart, type RoadLanes } from '@/maps/lanes'
+import { partLabel, placedParts, reachOf, type LanePart, type RoadLanes } from '@/maps/lanes'
 import { GROUND, LANE_PAINT, ROAD_STYLES } from '@/maps/palette'
 import type { RoadKind } from '@/maps/registry'
+
+import { stripSpan } from './lanesScale'
 
 /**
  * A road's cross-section drawn to scale, seen from above with the road
@@ -14,16 +14,20 @@ import type { RoadKind } from '@/maps/registry'
  * (src/maps/palette.ts → LANE_PAINT); an arrow in each lane the way its
  * traffic runs (up: with the road); the lines dashed or solid; a kerb
  * between the road and a verge or a pavement; and the drawn line itself,
- * in the editor's saffron, where it lies across them. On the road's page
- * it's a picture; in the editor (editor/LanesEditor.tsx) each part is
- * pressed to pick it and the drawn line is dragged across the road.
+ * in the editor's saffron, down the middle of the carriageway.
+ *
+ * The strip is laid out about that line, which stays at the middle of the
+ * frame: the frame reaches as far each side as the road does on its further
+ * side (lanesScale.ts → stripSpan), so a part widened grows the road
+ * outward both ways and the line holds still, and a pavement on one side
+ * leaves the other side bare ground. On the road's page it's a picture; in
+ * the editor (editor/LanesEditor.tsx) each part is pressed to pick it.
  */
 
 /** A part narrower on the page than this takes a hit area this wide, so a line a block wide is still found by a finger. */
 const LEAST_HIT = 22
-/** Room above the strip for the drawn line's handle: the handle's hit area, big enough for a finger, lies there and a little way into the strip, so the part under the line can still be pressed. */
-const HEAD = 18
-const HANDLE_REACH = 6
+/** Room above a live strip for the mark over the drawn line. */
+const HEAD = 7
 
 const paintOf = (part: LanePart, kind: RoadKind) =>
   part.kind === 'lane' ? ROAD_STYLES[kind].fill : part.kind === 'walk' ? LANE_PAINT.walk : part.kind === 'line' ? ROAD_STYLES[kind].casing ?? GROUND.inkSoft : LANE_PAINT[part.surface]
@@ -53,9 +57,9 @@ export function LanesStrip({
   kind,
   ppb,
   height = 56,
+  frame = 0,
   selected = null,
   onSelect,
-  onAxis,
   className,
 }: {
   lanes: RoadLanes
@@ -64,65 +68,40 @@ export function LanesStrip({
   ppb: number
   /** The road's run shown, in px. */
   height?: number
+  /**
+   * The frame at least this wide, in px, the road centred in it: strips in
+   * a list given the same frame share one centreline, and the editor's
+   * holds still as the road grows.
+   */
+  frame?: number
   /** The part picked in the editor, by index. */
   selected?: number | null
   /** A press on a part: the editor picks it. */
   onSelect?: (index: number) => void
-  /** The drawn line dragged across the road: the editor sets where it lies, in blocks from the left edge. */
-  onAxis?: (axis: number) => void
   className?: string
 }) {
-  const svg = useRef<SVGSVGElement>(null)
   const placed = placedParts(lanes)
-  const total = lanesWidth(lanes)
-  const width = total * ppb
-  const left = lanes.axis * ppb
-  const x = (offset: number) => (offset + lanes.axis) * ppb
-  const live = Boolean(onSelect || onAxis)
+  const { left, right } = reachOf(lanes)
+  const width = Math.max(stripSpan(lanes) * ppb, frame)
+  const half = width / 2
+  // The drawn line is the origin: a part's offset in blocks, right of it positive, is its place.
+  const x = (offset: number) => offset * ppb
+  const live = Boolean(onSelect)
   const top = live ? HEAD : 0
   const casing = ROAD_STYLES[kind].casing ?? GROUND.inkSoft
   const dash = Math.max(3, Math.min(height / 5, 3 * ppb))
-  const axisX = left
-
-  // The handle dragged along the strip: the line lands on the half block under the pointer.
-  const drag = (event: PointerEvent<SVGElement>) => {
-    if (!onAxis || !svg.current) return
-    const element = event.currentTarget
-    element.setPointerCapture(event.pointerId)
-    const at = (e: { clientX: number }) => {
-      const box = svg.current!.getBoundingClientRect()
-      onAxis(Math.round(((e.clientX - box.left) / ppb) * 2) / 2)
-    }
-    at(event)
-    const move = (e: globalThis.PointerEvent) => at(e)
-    const stop = () => {
-      element.removeEventListener('pointermove', move)
-      element.removeEventListener('pointerup', stop)
-      element.removeEventListener('pointercancel', stop)
-    }
-    element.addEventListener('pointermove', move)
-    element.addEventListener('pointerup', stop)
-    element.addEventListener('pointercancel', stop)
-  }
-  const key = (event: KeyboardEvent<SVGElement>) => {
-    if (!onAxis) return
-    const step = event.key === 'ArrowLeft' ? -0.5 : event.key === 'ArrowRight' ? 0.5 : event.key === 'Home' ? -total : event.key === 'End' ? total : 0
-    if (!step) return
-    event.preventDefault()
-    onAxis(lanes.axis + step)
-  }
 
   return (
     <svg
       aria-hidden={live ? undefined : true}
-      className={cn('block shrink-0 touch-none select-none', className)}
+      className={cn('block shrink-0 select-none', className)}
       height={height + top}
-      ref={svg}
       role={live ? 'group' : undefined}
-      style={{ touchAction: live ? 'none' : undefined }}
-      viewBox={`0 ${-top} ${width} ${height + top}`}
+      viewBox={`${-half} ${-top} ${width} ${height + top}`}
       width={width}
     >
+      {/* The ground across the frame: bare where the road doesn't reach. */}
+      <rect fill="currentColor" fillOpacity={0.06} height={height} width={width} x={-half} y={0} />
       {/* The parts, each as wide as it is. */}
       {placed.map(({ part, index, from, to }) => {
         const px = x(from)
@@ -152,8 +131,8 @@ export function LanesStrip({
         if (road(before) && road(part)) return null
         return <line key={`kerb-${index}`} stroke={casing} strokeOpacity={0.55} strokeWidth={1} x1={x(from)} x2={x(from)} y1={0} y2={height} />
       })}
-      <line stroke={casing} strokeWidth={1.5} x1={0.75} x2={0.75} y1={0} y2={height} />
-      <line stroke={casing} strokeWidth={1.5} x1={width - 0.75} x2={width - 0.75} y1={0} y2={height} />
+      <line stroke={casing} strokeWidth={1.5} x1={x(-left) + 0.75} x2={x(-left) + 0.75} y1={0} y2={height} />
+      <line stroke={casing} strokeWidth={1.5} x1={x(right) - 0.75} x2={x(right) - 0.75} y1={0} y2={height} />
       {/* Which way each lane runs. */}
       {placed.map(({ part, index, from, to }) =>
         part.kind === 'lane' ? (
@@ -167,17 +146,19 @@ export function LanesStrip({
           />
         ) : null,
       )}
-      {/* The drawn line where it lies, as the editor draws it on the map. */}
+      {/* The drawn line, down the middle, as the editor draws it on the map. */}
       <line
         stroke={GROUND.saffron}
         strokeDasharray={live ? '4 3' : '2 2'}
         strokeOpacity={live ? 0.95 : 0.8}
         strokeWidth={live ? 1.5 : 1}
-        x1={axisX}
-        x2={axisX}
+        x1={0}
+        x2={0}
         y1={0}
         y2={height}
       />
+      {/* The mark over it, in the editor: where the road was drawn, and so where it grows from. */}
+      {live ? <path d={`M-5 ${-HEAD}h10L0 -1z`} fill={GROUND.saffron} pointerEvents="none" /> : null}
       {/* The part picked. */}
       {selected != null && placed[selected] ? (
         <rect
@@ -221,24 +202,6 @@ export function LanesStrip({
               )
             })
         : null}
-      {/* The handle over the drawn line, dragged across the road. */}
-      {onAxis ? (
-        <g
-          aria-label="Where the drawn line lies"
-          aria-valuemax={total}
-          aria-valuemin={0}
-          aria-valuenow={lanes.axis}
-          aria-valuetext={`${lanes.axis} blocks from the left edge`}
-          className="cursor-ew-resize focus-visible:outline-saffron-500"
-          onKeyDown={key}
-          onPointerDown={drag}
-          role="slider"
-          tabIndex={0}
-        >
-          <rect fill="transparent" height={HEAD + HANDLE_REACH} width={36} x={axisX - 18} y={-HEAD} />
-          <path d={`M${axisX - 6} ${-HEAD + 3}h12l-6 ${HEAD - 5}z`} fill={GROUND.saffron} />
-        </g>
-      ) : null}
     </svg>
   )
 }
