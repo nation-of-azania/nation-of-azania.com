@@ -50,11 +50,23 @@ export type LanePart =
 
 export type LanePartKind = LanePart['kind']
 
+/**
+ * A change in a road's lanes along it: `at` blocks along the road from its
+ * start (as drawn, along its course), the cross-section goes over `over`
+ * blocks from the one before to `parts`, each part widening or narrowing
+ * as it goes (a median tapering away, a turn lane opening). Positions
+ * along the course, not points, so a node shared at a junction, or a point
+ * put in, moves nothing.
+ */
+export type LaneChange = { at: number; over: number; parts: LanePart[] }
+
 export type RoadLanes = {
-  /** Left to right, looking along the road the way it was drawn. */
+  /** Left to right, looking along the road the way it was drawn: from its start, until the first change. */
   parts: LanePart[]
   /** Where the drawn line lies across them, in blocks from the left edge: the carriageway's middle, always (lanesAxis). */
   axis: number
+  /** Where the lanes change along the road, in order, none overlapping; absent for a road the same all along. */
+  changes?: LaneChange[]
 }
 
 /** How wide each kind of part may be, in blocks, and how wide it starts. */
@@ -74,6 +86,11 @@ export const PART_LABELS: Record<LanePartKind, string> = {
 
 /** At most this many parts across a road. */
 export const MAX_PARTS = 24
+/** At most this many changes along a road. */
+export const MAX_CHANGES = 16
+/** A change runs over this many blocks unless set otherwise, and over no more than OVER_MAX. */
+export const OVER_USUAL = 12
+export const OVER_MAX = 400
 
 const DIRECTIONS: LaneDirection[] = ['with', 'against', 'both']
 const LINE_STYLES: LineStyle[] = ['dashed', 'solid']
@@ -137,12 +154,46 @@ const centred = (parts: LanePart[]): RoadLanes => ({ parts, axis: lanesAxis(part
  */
 export function parseLanes(value: unknown): RoadLanes | null {
   if (!value || typeof value !== 'object') return null
-  const raw = value as { parts?: unknown }
-  if (!Array.isArray(raw.parts)) return null
-  const parts = raw.parts.slice(0, MAX_PARTS).map(parsePart).filter((part): part is LanePart => part != null)
-  if (!parts.some((part) => part.kind === 'lane')) return null
-  return centred(parts)
+  const raw = value as { parts?: unknown; changes?: unknown }
+  const parts = parseParts(raw.parts)
+  if (!parts) return null
+  const changes = (Array.isArray(raw.changes) ? raw.changes.slice(0, MAX_CHANGES) : [])
+    .map(parseChange)
+    .filter((change): change is LaneChange => change != null)
+    .sort((a, b) => a.at - b.at)
+  // None overlapping: each starts once the one before has run its course.
+  let free = 0
+  for (const change of changes) {
+    change.at = Math.max(change.at, free)
+    free = change.at + change.over
+  }
+  return withChanges(centred(parts), changes)
 }
+
+/** Parts as kept, a lane among them at least; null where there's none. */
+function parseParts(value: unknown): LanePart[] | null {
+  if (!Array.isArray(value)) return null
+  const parts = value.slice(0, MAX_PARTS).map(parsePart).filter((part): part is LanePart => part != null)
+  return parts.some((part) => part.kind === 'lane') ? parts : null
+}
+
+function parseChange(value: unknown): LaneChange | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as { at?: unknown; over?: unknown; parts?: unknown }
+  const parts = parseParts(raw.parts)
+  if (!parts || typeof raw.at !== 'number' || !Number.isFinite(raw.at)) return null
+  const over = typeof raw.over === 'number' && Number.isFinite(raw.over) ? raw.over : OVER_USUAL
+  return { at: Math.max(0, half(raw.at)), over: Math.min(OVER_MAX, Math.max(0, half(over))), parts }
+}
+
+/** Lanes with these changes, or none: a road the same all along has no `changes` at all. */
+const withChanges = (lanes: RoadLanes, changes: LaneChange[] | undefined): RoadLanes => {
+  const { changes: _, ...rest } = lanes
+  return changes?.length ? { ...rest, changes } : rest
+}
+
+/** The cross-section shaped (a part widened, put in, taken out), the changes along the road kept. */
+const keeping = (lanes: RoadLanes, next: RoadLanes): RoadLanes => withChanges(next, lanes.changes)
 
 /** What's wrong with a cross-section as sent, for the form; null when it's fine. */
 export function lanesProblem(value: unknown): string | null {
@@ -218,18 +269,29 @@ export function oneWay(lanes: RoadLanes): LaneDirection | null {
 const flip = (dir: LaneDirection): LaneDirection => (dir === 'with' ? 'against' : dir === 'against' ? 'with' : 'both')
 
 /** The lanes with traffic on the other side: every lane's direction turned about. */
-export const otherSide = (lanes: RoadLanes): RoadLanes => ({
-  ...lanes,
-  parts: lanes.parts.map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part)),
-})
+export const otherSide = (lanes: RoadLanes): RoadLanes => {
+  const turned = (parts: LanePart[]) => parts.map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part))
+  return withChanges({ ...lanes, parts: turned(lanes.parts) }, lanes.changes?.map((change) => ({ ...change, parts: turned(change.parts) })))
+}
 
 /**
  * The lanes of the same road drawn the other way (as the editor turns a
  * road about to carry on from its start): the parts in the opposite order,
- * each lane's direction turned. The road's traffic is as it was.
+ * each lane's direction turned, and the changes along it from the other
+ * end (which takes the road's `length` along its course). The road's
+ * traffic is as it was.
  */
-export const reversedLanes = (lanes: RoadLanes): RoadLanes =>
-  centred([...lanes.parts].reverse().map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part)))
+export function reversedLanes(lanes: RoadLanes, length = 0): RoadLanes {
+  const turned = (parts: LanePart[]) => [...parts].reverse().map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part))
+  const changes = lanes.changes ?? []
+  if (!changes.length) return centred(turned(lanes.parts))
+  const profiles = profilesOf(lanes)
+  // From the far end: the last cross-section first, each change running back to the one before it.
+  const back: LaneChange[] = changes
+    .map((change, k) => ({ at: Math.max(0, half(length - change.at - change.over)), over: change.over, parts: turned(profiles[k]) }))
+    .reverse()
+  return withChanges(centred(turned(profiles[profiles.length - 1])), back)
+}
 
 /** The kinds of road a cross-section's lanes are offered for: roads that are driven or walked, not railways or waterways. */
 export const HAS_LANES = new Set(['highway', 'main', 'street', 'path'])
@@ -276,7 +338,7 @@ export function withPavements(lanes: RoadLanes, width: number, sides: 'both' | '
   const side: LanePart[] = verge > 0 ? [walk, { kind: 'strip', width: clampWidth('strip', verge), surface: 'grass' }] : [walk]
   const addLeft = sides !== 'right'
   const addRight = sides !== 'left'
-  return centred([...(addLeft ? side : []), ...lanes.parts, ...(addRight ? [...side].reverse() : [])])
+  return keeping(lanes, centred([...(addLeft ? side : []), ...lanes.parts, ...(addRight ? [...side].reverse() : [])]))
 }
 
 /** Two cross-sections alike: the same parts, as wide, the line where it lies. */
@@ -302,14 +364,14 @@ export function withWidth(lanes: RoadLanes, index: number, width: number): RoadL
   const part = lanes.parts[index]
   if (!part) return lanes
   const next = clampWidth(part.kind, width)
-  return centred(lanes.parts.map((p, i) => (i === index ? { ...p, width: next } : p)))
+  return keeping(lanes, centred(lanes.parts.map((p, i) => (i === index ? { ...p, width: next } : p))))
 }
 
 /** The lanes with `part` put in at `index` (before the part there now; at the end for `parts.length`). */
 export function withPartAt(lanes: RoadLanes, index: number, part: LanePart): RoadLanes {
   if (lanes.parts.length >= MAX_PARTS) return lanes
   const at = Math.max(0, Math.min(lanes.parts.length, index))
-  return centred([...lanes.parts.slice(0, at), part, ...lanes.parts.slice(at)])
+  return keeping(lanes, centred([...lanes.parts.slice(0, at), part, ...lanes.parts.slice(at)]))
 }
 
 /** The lanes without the part at `index`; the last lane can't go (null). */
@@ -317,12 +379,200 @@ export function withoutPart(lanes: RoadLanes, index: number): RoadLanes | null {
   if (!lanes.parts[index]) return lanes
   const parts = lanes.parts.filter((_, i) => i !== index)
   if (!parts.some((p) => p.kind === 'lane')) return null
-  return centred(parts)
+  return keeping(lanes, centred(parts))
 }
 
 /** The lanes with a part's own setting changed: a lane's direction, a line's style, a strip's surface. */
 export function withPart(lanes: RoadLanes, index: number, change: Partial<LanePart>): RoadLanes {
   return { ...lanes, parts: lanes.parts.map((p, i) => (i === index ? (parsePart({ ...p, ...change }) ?? p) : p)) }
+}
+
+/*
+ * Changes along the road: the cross-sections a road goes through, the
+ * first from its start, each next from a change on.
+ */
+
+/** Every cross-section a road has, from its start: its own parts, then each change's. */
+export const profilesOf = (lanes: RoadLanes): LanePart[][] => [lanes.parts, ...(lanes.changes ?? []).map((change) => change.parts)]
+
+/** The k-th cross-section (0 from the start, k from the k-th change on), as lanes to shape with the helpers above. */
+export const profileOf = (lanes: RoadLanes, k: number): RoadLanes => centred(profilesOf(lanes)[k] ?? lanes.parts)
+
+/** The lanes with their k-th cross-section (as profileOf) shaped; the rest as they were. */
+export function withProfile(lanes: RoadLanes, k: number, profile: RoadLanes): RoadLanes {
+  if (k <= 0) return keeping(lanes, centred(profile.parts))
+  return withChanges(
+    centred(lanes.parts),
+    (lanes.changes ?? []).map((change, i) => (i === k - 1 ? { ...change, parts: profile.parts } : change)),
+  )
+}
+
+/** Which cross-section holds `s` blocks along the road, as profileOf takes it: that of the last change begun by then. */
+export const profileIndexAt = (lanes: RoadLanes, s: number): number => (lanes.changes ?? []).filter((change) => change.at <= s).length
+
+/**
+ * The lanes with a change put in `at` blocks along the road, running over
+ * `over` blocks, to the cross-section holding there (for the drawer to
+ * shape), and its index as profileOf takes it; null where the road has as
+ * many changes as it may. Held between its neighbours (withChangeMoved).
+ */
+export function withChangeAt(lanes: RoadLanes, at: number, over = OVER_USUAL): { lanes: RoadLanes; k: number } | null {
+  const changes = lanes.changes ?? []
+  if (changes.length >= MAX_CHANGES) return null
+  const before = profileIndexAt(lanes, at)
+  const parts = profilesOf(lanes)[before].map((part) => ({ ...part }))
+  const added = withChanges(centred(lanes.parts), [...changes.slice(0, before), { at, over, parts }, ...changes.slice(before)])
+  return { lanes: withChangeMoved(added, before + 1, at, over), k: before + 1 }
+}
+
+/**
+ * The k-th change (as profileOf) moved to begin `at` blocks along the road
+ * and run over `over`, held between its neighbours: beginning no sooner
+ * than the one before has run, and done by where the next begins.
+ */
+export function withChangeMoved(lanes: RoadLanes, k: number, at: number, over: number): RoadLanes {
+  const changes = [...(lanes.changes ?? [])]
+  const i = k - 1
+  if (!changes[i]) return lanes
+  const earliest = i > 0 ? changes[i - 1].at + changes[i - 1].over : 0
+  const latest = changes[i + 1]?.at ?? Infinity
+  const begins = Math.min(latest, Math.max(earliest, half(at)))
+  const runs = Math.max(0, Math.min(OVER_MAX, half(over), latest - begins))
+  changes[i] = { ...changes[i], at: begins, over: runs }
+  return withChanges(centred(lanes.parts), changes)
+}
+
+/** The lanes without their k-th change (as profileOf): the cross-section before it holds on. */
+export const withoutChange = (lanes: RoadLanes, k: number): RoadLanes =>
+  withChanges(centred(lanes.parts), (lanes.changes ?? []).filter((_, i) => i !== k - 1))
+
+/** A part followed along a road whose lanes change: the same lane, line, strip or pavement in each cross-section, null where it isn't there. */
+export type LaneTrack = { kind: LanePartKind; parts: (LanePart | null)[] }
+
+/**
+ * A road's parts followed along it, through every change: each part of a
+ * cross-section is the same as one of the next where the two can be put
+ * side by side (align); one that has none there narrows away over the
+ * change, and one new to the next opens from nothing. So Hauptallee's
+ * median tapers out while a centre line comes in, and a turn lane opens
+ * beside the lanes it leaves.
+ */
+export function tracksOf(lanes: RoadLanes): LaneTrack[] {
+  const profiles = profilesOf(lanes)
+  let tracks: LaneTrack[] = profiles[0].map((part) => ({ kind: part.kind, parts: [part] }))
+  for (let k = 1; k < profiles.length; k++) {
+    const next = profiles[k]
+    // The tracks there before, in order, are the cross-section before, part for part.
+    const present = tracks.flatMap((track, i) => (track.parts[k - 1] ? [i] : []))
+    const matched = new Map(align(profiles[k - 1], next).map(([i, j]) => [present[i], j]))
+    const merged: LaneTrack[] = []
+    let j = 0
+    const opening = (upTo: number) => {
+      for (; j < upTo; j++) merged.push({ kind: next[j].kind, parts: [...new Array<LanePart | null>(k).fill(null), next[j]] })
+    }
+    tracks.forEach((track, i) => {
+      const m = matched.get(i)
+      if (m == null) {
+        merged.push({ ...track, parts: [...track.parts, null] })
+        return
+      }
+      opening(m)
+      merged.push({ ...track, parts: [...track.parts, next[m]] })
+      j = m + 1
+    })
+    opening(next.length)
+    tracks = merged
+  }
+  return tracks
+}
+
+/**
+ * Which parts of one cross-section are the same as which of the next: as
+ * many as can be, kind for kind and in order (a longest common
+ * subsequence), and of those the pairing lying nearest where they were
+ * across the road, so a lane added on the right leaves the others matched
+ * as they lie.
+ */
+function align(a: LanePart[], b: LanePart[]): [number, number][] {
+  const ca = placedParts(centred(a)).map((p) => p.centre)
+  const cb = placedParts(centred(b)).map((p) => p.centre)
+  const pair = (i: number, j: number) => 1e6 - Math.abs(ca[i] - cb[j])
+  const score = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0))
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      const skip = Math.max(score[i - 1][j], score[i][j - 1])
+      score[i][j] = a[i - 1].kind === b[j - 1].kind ? Math.max(skip, score[i - 1][j - 1] + pair(i - 1, j - 1)) : skip
+    }
+  const pairs: [number, number][] = []
+  for (let i = a.length, j = b.length; i > 0 && j > 0; ) {
+    if (a[i - 1].kind === b[j - 1].kind && score[i][j] === score[i - 1][j - 1] + pair(i - 1, j - 1)) {
+      pairs.unshift([i - 1, j - 1])
+      i--
+      j--
+    } else if (score[i][j] === score[i - 1][j]) i--
+    else j--
+  }
+  return pairs
+}
+
+/** Where along its changes a road stands `s` blocks along it: between cross-sections `from` and `to`, `t` of the way (0 or 1 outside a change). */
+function stageAt(changes: LaneChange[], s: number): { from: number; to: number; t: number } {
+  const k = changes.filter((change) => change.at <= s).length
+  if (!k) return { from: 0, to: 0, t: 0 }
+  const change = changes[k - 1]
+  if (change.over > 0 && s < change.at + change.over) return { from: k - 1, to: k, t: (s - change.at) / change.over }
+  return { from: k, to: k, t: 0 }
+}
+
+/** The way a road's widths run along it: each track's width, and where the drawn line lies across them, `s` blocks along. */
+function widthsAlong(lanes: RoadLanes) {
+  const changes = lanes.changes ?? []
+  const axes = profilesOf(lanes).map(lanesAxis)
+  const widthOf = (track: LaneTrack, k: number) => track.parts[k]?.width ?? 0
+  return {
+    width: (track: LaneTrack, s: number) => {
+      const { from, to, t } = stageAt(changes, s)
+      return widthOf(track, from) * (1 - t) + widthOf(track, to) * t
+    },
+    axis: (s: number) => {
+      const { from, to, t } = stageAt(changes, s)
+      return axes[from] * (1 - t) + axes[to] * t
+    },
+    /** The part a track is drawn as `s` blocks along: the one before a change until halfway through it, the one after from there. */
+    part: (track: LaneTrack, s: number): LanePart | null => {
+      const { from, to, t } = stageAt(changes, s)
+      return (t < 0.5 ? track.parts[from] ?? track.parts[to] : track.parts[to] ?? track.parts[from]) ?? null
+    },
+  }
+}
+
+/**
+ * The cross-section `s` blocks along the road, as it stands there: each
+ * part as wide as it is at that spot (a median half tapered away halfway
+ * through its change), those no blocks wide left out, the drawn line
+ * where it lies.
+ */
+export function lanesAt(lanes: RoadLanes, s: number): RoadLanes {
+  if (!lanes.changes?.length) return withChanges(lanes, undefined)
+  const tracks = tracksOf(lanes)
+  const along = widthsAlong(lanes)
+  const parts = tracks.flatMap((track) => {
+    const width = along.width(track, s)
+    const part = along.part(track, s)
+    return width > EPSILON && part ? [{ ...part, width }] : []
+  })
+  return { parts, axis: along.axis(s) }
+}
+
+/** How far a road's carriageway (lanesAxis) reaches each side of the drawn line, kerb to kerb: where its pavements and verges begin. */
+export function carriagewayReach(lanes: RoadLanes): { left: number; right: number } {
+  const onRoad = (p: LanePart) => p.kind === 'lane' || p.kind === 'line'
+  const first = lanes.parts.findIndex(onRoad)
+  const last = lanes.parts.length - 1 - [...lanes.parts].reverse().findIndex(onRoad)
+  if (first < 0) return reachOf(lanes)
+  const before = lanes.parts.slice(0, first).reduce((sum, p) => sum + p.width, 0)
+  const across = lanes.parts.slice(first, last + 1).reduce((sum, p) => sum + p.width, 0)
+  return { left: lanes.axis - before, right: before + across - lanes.axis }
 }
 
 /** Which sides have a pavement: at the left edge, the right, both or neither, by the outermost parts. */
@@ -365,9 +615,11 @@ export function lanesInUse<R extends { lanes: RoadLanes | null; name?: string | 
   const found: { lanes: RoadLanes; roads: R[] }[] = []
   for (const road of roads) {
     if (!road.lanes) continue
-    const same = found.find((entry) => sameLanes(entry.lanes, road.lanes!) || sameLanes(entry.lanes, reversedLanes(road.lanes!)))
+    // As a road starts out: where its lanes change along it, the editor offers its start.
+    const lanes = centred(road.lanes.parts)
+    const same = found.find((entry) => sameLanes(entry.lanes, lanes) || sameLanes(entry.lanes, reversedLanes(lanes)))
     if (same) same.roads.push(road)
-    else found.push({ lanes: road.lanes, roads: [road] })
+    else found.push({ lanes, roads: [road] })
   }
   return found.sort((a, b) => b.roads.length - a.roads.length)
 }
@@ -423,19 +675,28 @@ function joinOf(here: Piece, next: Piece, offset: number): Point[] {
  * backwards: it's dropped and its neighbours joined instead, until none
  * does, so the line cuts across the inside of the bend as a kerb would.
  * Loops it still ties in itself are cut out after (withoutLoops).
+ *
+ * `offset` is one distance all along, or one for each point of the course
+ * (a road narrowing over a change): each piece then runs from the one
+ * point's to the next's.
  */
-export function offsetCourse(course: Point[], offset: number): Point[] {
-  const points = course.filter((point, i) => i === 0 || length(sub(point, course[i - 1])) > EPSILON)
-  if (points.length < 2 || Math.abs(offset) < EPSILON) return points.slice()
-  let pieces: Piece[] = points.slice(1).map((b, i) => {
+export function offsetCourse(course: Point[], offset: number | number[]): Point[] {
+  const kept = course.flatMap((point, i) =>
+    i === 0 || length(sub(point, course[i - 1])) > EPSILON ? [{ point, offset: typeof offset === 'number' ? offset : (offset[i] ?? 0) }] : [],
+  )
+  const points = kept.map((entry) => entry.point)
+  const offsets = kept.map((entry) => entry.offset)
+  const widest = Math.max(0, ...offsets.map(Math.abs))
+  if (points.length < 2 || widest < EPSILON) return points.slice()
+  let pieces: (Piece & { at: number })[] = points.slice(1).map((b, i) => {
     const a = points[i]
     const along = scale(sub(b, a), 1 / length(sub(b, a)))
-    const aside = scale([-along[1], along[0]], offset)
-    return { a: add(a, aside), b: add(b, aside), along }
+    const normal: Point = [-along[1], along[0]]
+    return { a: add(a, scale(normal, offsets[i])), b: add(b, scale(normal, offsets[i + 1])), along, at: i + 1 }
   })
   let joins: Point[][] = []
   for (let guard = 0; guard <= points.length; guard++) {
-    joins = pieces.slice(0, -1).map((piece, i) => joinOf(piece, pieces[i + 1], offset))
+    joins = pieces.slice(0, -1).map((piece, i) => joinOf(piece, pieces[i + 1], offsets[piece.at]))
     const backwards = pieces.findIndex((piece, i) => {
       const start = i === 0 ? piece.a : joins[i - 1][joins[i - 1].length - 1]
       const end = i === pieces.length - 1 ? piece.b : joins[i][0]
@@ -448,7 +709,81 @@ export function offsetCourse(course: Point[], offset: number): Point[] {
   const out = [pieces[0].a, ...joins.flat(), pieces[pieces.length - 1].b].filter(
     (point, i, all) => i === 0 || length(sub(point, all[i - 1])) > EPSILON,
   )
-  return withoutLoops(out, Math.abs(offset))
+  return withoutLoops(out, widest)
+}
+
+/** How far along a course each of its points lies, in blocks. */
+function distancesOf(points: Point[]): number[] {
+  const along = [0]
+  for (let i = 1; i < points.length; i++) along.push(along[i - 1] + length(sub(points[i], points[i - 1])))
+  return along
+}
+
+/** The point `s` blocks along a course with its distances; the ends where `s` is beyond them. */
+function pointAlong(points: Point[], along: number[], s: number): Point {
+  if (s <= 0 || points.length < 2) return points[0]
+  for (let i = 1; i < points.length; i++) {
+    if (along[i] >= s) {
+      const t = (s - along[i - 1]) / Math.max(EPSILON, along[i] - along[i - 1])
+      return add(points[i - 1], scale(sub(points[i], points[i - 1]), t))
+    }
+  }
+  return points[points.length - 1]
+}
+
+/** A course with a point put in at each of `stations` (blocks along it) inside it, and each point's distance along. */
+function stationed(course: Point[], stations: number[]): { points: Point[]; along: number[] } {
+  const points = course.filter((point, i) => i === 0 || length(sub(point, course[i - 1])) > EPSILON)
+  const along = distancesOf(points)
+  const total = along[along.length - 1] ?? 0
+  const inside = [...new Set(stations.filter((s) => s > EPSILON && s < total - EPSILON))].sort((a, b) => a - b)
+  if (!inside.length) return { points, along }
+  const outPoints: Point[] = [points[0]]
+  const outAlong: number[] = [0]
+  let next = 0
+  for (let i = 1; i < points.length; i++) {
+    while (next < inside.length && inside[next] < along[i] - EPSILON) {
+      if (inside[next] > along[i - 1] + EPSILON) {
+        outPoints.push(pointAlong(points, along, inside[next]))
+        outAlong.push(inside[next])
+      }
+      next++
+    }
+    outPoints.push(points[i])
+    outAlong.push(along[i])
+  }
+  return { points: outPoints, along: outAlong }
+}
+
+/** The piece of a stationed course from `from` to `to` blocks along it, its ends put in where they fall between points. */
+function sliceAlong(points: Point[], along: number[], from: number, to: number): { points: Point[]; along: number[] } {
+  const outPoints: Point[] = [pointAlong(points, along, from)]
+  const outAlong: number[] = [from]
+  for (let i = 0; i < points.length; i++) {
+    if (along[i] > from + EPSILON && along[i] < to - EPSILON) {
+      outPoints.push(points[i])
+      outAlong.push(along[i])
+    }
+  }
+  outPoints.push(pointAlong(points, along, to))
+  outAlong.push(to)
+  return { points: outPoints, along: outAlong }
+}
+
+/** How far along a course the spot on it nearest `point` lies, in blocks: where along the road a change is put in. */
+export function distanceAlong(course: Point[], point: Point): number {
+  let best = { distance: Infinity, s: 0 }
+  let walked = 0
+  for (let i = 1; i < course.length; i++) {
+    const a = course[i - 1]
+    const ab = sub(course[i], a)
+    const span = length(ab)
+    const t = span < EPSILON ? 0 : Math.max(0, Math.min(1, ((point[0] - a[0]) * ab[0] + (point[1] - a[1]) * ab[1]) / (span * span)))
+    const distance = length(sub(point, add(a, scale(ab, t))))
+    if (distance < best.distance) best = { distance, s: walked + t * span }
+    walked += span
+  }
+  return best.s
 }
 
 /**
@@ -508,14 +843,23 @@ export function carriagewayWidth(lanes: RoadLanes): number {
 
 /** One part of a road laid along its course as an area: the ring round it, in blocks, and the line along its middle. */
 export type LaneArea = PlacedPart & {
-  /** The ring round the part: its left edge forward, its right edge back; null for a part no blocks wide. */
+  /** The ring round the part: its left edge forward, its right edge back; null for a part no blocks wide anywhere. */
   ring: Point[] | null
-  /** The line along its middle: for a line's dashes, a lane's marks. */
+  /** The line along its middle, the first stretch where it's there (runs): for a line's dashes, a lane's marks. */
   middle: Point[]
+  /**
+   * Each stretch along the road where the part is there and drawn as one
+   * part (a lane's direction, a line's style, a strip's surface can change
+   * halfway through a change): its line along the middle. A road the same
+   * all along has one, the whole way, for a lane or a line, and none for
+   * strips and pavements, which are only filled.
+   */
+  runs: { part: LanePart; middle: Point[] }[]
 }
 
 /** A road's cross-section laid along its course, ready to draw (laneAreas). */
 export type RoadAreas = {
+  /** Each part, or along a road whose lanes change each part followed through the changes (tracksOf), left to right. */
   parts: LaneArea[]
   /** The road's two edges, left and right, open at the ends: where the kerb lines run. */
   edges: { left: Point[]; right: Point[] }
@@ -525,9 +869,14 @@ export type RoadAreas = {
   middle: Point[]
   /** Each boundary between two parts, in order, as a line along the course: index i lies between parts i−1 and i. */
   boundaries: Point[][]
+  /** The kerbs: where the road (its lanes and lines) meets a strip or a pavement beside it, only where the two are there. */
+  kerbs: Point[][]
+  /** The widest the road is anywhere, pavements included, and its carriageway, in blocks. */
   width: number
   carriageway: number
 }
+
+const onTheRoad = (kind: LanePartKind) => kind === 'lane' || kind === 'line'
 
 /**
  * Every part of a road's cross-section laid along its course as an area to
@@ -536,26 +885,105 @@ export type RoadAreas = {
  * boundary forward and its right boundary back, so parts side by side meet
  * exactly, round a bend as on the straight. What the map draws once the
  * road is close enough to show at its true width.
+ *
+ * Where the lanes change along the road, every part is followed through
+ * the changes (tracksOf) and its width runs from one cross-section's to
+ * the next's over each change, so its boundaries narrow and widen along
+ * the course; a part gone, or not yet there, is no blocks wide, and its
+ * lines (runs) and kerbs are drawn only where it is. `start` is how far
+ * along the road the course given begins (a bridge's deck: a piece of it).
  */
-export function laneAreas(course: Point[], lanes: RoadLanes): RoadAreas {
-  const placed = placedParts(lanes)
-  const width = lanesWidth(lanes)
-  const boundaries = [-lanes.axis, ...placed.map((p) => p.to)].map((offset) => offsetCourse(course, offset))
-  const parts = placed.map((p) => ({
-    ...p,
-    ring: p.part.width > 0 ? [...boundaries[p.index], ...boundaries[p.index + 1].slice().reverse()] : null,
-    middle: p.part.kind === 'lane' || p.part.kind === 'line' ? offsetCourse(course, p.centre) : [],
-  }))
+export function laneAreas(course: Point[], lanes: RoadLanes, start = 0): RoadAreas {
+  const changes = lanes.changes ?? []
+  const tracks = tracksOf(lanes)
+  const along = widthsAlong(lanes)
+  const profiles = profilesOf(lanes)
+  // Points put in where the widths turn: where each change begins, where its parts switch, and where it's run.
+  const stations = changes.flatMap((change) => [change.at, change.at + change.over / 2, change.at + change.over].map((x) => x - start))
+  const { points, along: distances } = stationed(course, stations)
+  const total = distances[distances.length - 1] ?? 0
+  const widthAt = (t: number, s: number) => along.width(tracks[t], start + s)
+  const boundaryAt = (b: number, s: number) => {
+    let offset = -along.axis(start + s)
+    for (let t = 0; t < b; t++) offset += widthAt(t, s)
+    return offset
+  }
+  const offsetsOf = (at: number[], b: number, shift = 0) => at.map((s) => boundaryAt(b, s) + (shift ? shift * widthAt(b, s) : 0))
+  const boundaries = tracks.map((_, b) => b).concat(tracks.length).map((b) => offsetCourse(points, offsetsOf(distances, b)))
+
+  // The course cut where the widths turn: within each piece every part is there or not, and drawn as one part.
+  const cuts = [...new Set([0, ...stations.filter((x) => x > EPSILON && x < total - EPSILON), total])].sort((a, b) => a - b)
+  const pieces = cuts.slice(1).map((to, i) => ({ from: cuts[i], to, middle: (cuts[i] + to) / 2 }))
+  const there = (t: number, piece: (typeof pieces)[number]) => widthAt(t, piece.from) > EPSILON || widthAt(t, piece.to) > EPSILON
+  /** A stretch of the course, its own points: the line `b`'s boundary (or, with `shift` ½, the middle of part b) runs along it. */
+  const alongStretch = (from: number, to: number, b: number, shift = 0) => {
+    if (from <= EPSILON && to >= total - EPSILON && shift === 0) return boundaries[b]
+    const piece = sliceAlong(points, distances, from, to)
+    return offsetCourse(piece.points, offsetsOf(piece.along, b, shift))
+  }
+  /** Consecutive pieces joined where `key` gives the same (not null). */
+  const stretches = <K,>(key: (piece: (typeof pieces)[number]) => K | null) => {
+    const found: { from: number; to: number; key: K }[] = []
+    for (const piece of pieces) {
+      const k = key(piece)
+      const last = found[found.length - 1]
+      if (k == null) continue
+      if (last && last.key === k && Math.abs(last.to - piece.from) < EPSILON) last.to = piece.to
+      else found.push({ from: piece.from, to: piece.to, key: k })
+    }
+    return found
+  }
+
+  const first = placedParts(centred(profiles[0]))
+  const parts: LaneArea[] = tracks.map((track, t) => {
+    const part = track.parts.find((p) => p != null)!
+    // Where it lies at the start, for a part there from the start: it's that many parts into the first cross-section.
+    const placed = track.parts[0] ? first[tracks.slice(0, t).filter((other) => other.parts[0] != null).length] : null
+    const wide = pieces.some((piece) => there(t, piece))
+    const runs = onTheRoad(track.kind)
+      ? stretches((piece) => (there(t, piece) ? along.part(track, start + piece.middle) : null)).map((run) => ({
+          part: run.key,
+          middle: alongStretch(run.from, run.to, t, 0.5),
+        }))
+      : []
+    return {
+      part,
+      index: t,
+      from: placed?.from ?? 0,
+      to: placed?.to ?? 0,
+      centre: placed?.centre ?? 0,
+      ring: wide ? [...boundaries[t], ...boundaries[t + 1].slice().reverse()] : null,
+      middle: runs[0]?.middle ?? [],
+      runs,
+    }
+  })
+
+  // A kerb runs between the road and a strip or pavement beside it: at the boundary just right of a part there, where the
+  // next part there to its right is of the other sort.
+  const kerbs = tracks.slice(1).flatMap((_, i) => {
+    const b = i + 1
+    return stretches((piece) => {
+      if (!there(b - 1, piece)) return null
+      const right = tracks.findIndex((_, t) => t >= b && there(t, piece))
+      return right >= 0 && onTheRoad(tracks[b - 1].kind) !== onTheRoad(tracks[right].kind) ? true : null
+    }).map((run) => alongStretch(run.from, run.to, b))
+  })
+
   const left = boundaries[0]
   const right = boundaries[boundaries.length - 1]
+  const middle = offsetCourse(
+    points,
+    distances.map((s) => (boundaryAt(0, s) + boundaryAt(tracks.length, s)) / 2),
+  )
   return {
     parts,
     edges: { left, right },
     outline: [...left, ...right.slice().reverse()],
-    middle: offsetCourse(course, width / 2 - lanes.axis),
+    middle,
     boundaries,
-    width,
-    carriageway: carriagewayWidth(lanes),
+    kerbs,
+    width: Math.max(...profiles.map((parts) => lanesWidth({ parts }))),
+    carriageway: Math.max(...profiles.map((parts) => carriagewayWidth(centred(parts)))),
   }
 }
 
@@ -584,4 +1012,73 @@ export function marksAlong(line: Point[], every: number, against = false): LaneM
     walked += step
   }
   return marks
+}
+
+/*
+ * T-junctions: a road ending on another, not at that one's end. Drawn at
+ * its true width, the road ending there stops at the edge of the one it
+ * meets, along that road's own curve, instead of reaching across and
+ * beyond it with its square-cut end.
+ */
+
+/** A road (`stem`) ending, at its `end`, on a node in the middle of another (`through`): a T. */
+export type Tee<Id> = { stem: Id; through: Id; at: Point; end: 'start' | 'end' }
+
+const samePoint = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1]
+
+/** Every T among the roads: each end of a road that's a node another road has between its own ends (src/maps/junctions.ts). */
+export function teesOf<Id>(roads: { id: Id; line: Point[] }[]): Tee<Id>[] {
+  const found: Tee<Id>[] = []
+  for (const stem of roads) {
+    if (stem.line.length < 2) continue
+    const ends: [Point, 'start' | 'end'][] = [
+      [stem.line[0], 'start'],
+      [stem.line[stem.line.length - 1], 'end'],
+    ]
+    for (const [at, end] of ends)
+      for (const through of roads) {
+        if (through.id === stem.id) continue
+        const index = through.line.findIndex((point) => samePoint(point, at))
+        if (index > 0 && index < through.line.length - 1) found.push({ stem: stem.id, through: through.id, at, end })
+      }
+  }
+  return found
+}
+
+/**
+ * Which side of the through road the stem lies on, looking along the
+ * through road the way it was drawn: 1 right, −1 left. Judged a few
+ * blocks back up the stem from where it ends, on both roads' courses.
+ */
+export function teeSide(stem: Point[], end: 'start' | 'end', through: Point[], at: Point): 1 | -1 {
+  const line = end === 'start' ? stem : [...stem].reverse()
+  const back = pointAlong(line, distancesOf(line), Math.min(4, distancesOf(line).at(-1) ?? 0))
+  const s = distanceAlong(through, at)
+  const along = distancesOf(through)
+  const ahead = sub(pointAlong(through, along, s + 0.5), pointAlong(through, along, s - 0.5))
+  return cross(ahead, sub(back, at)) >= 0 ? 1 : -1
+}
+
+/**
+ * The ground beyond the through road's near edge, as seen from the stem:
+ * a ring from the line `offset` blocks off the through road's course on
+ * the stem's `side` (its kerb, or the edge it's drawn to), along `reach`
+ * blocks of it each way from `at`, out `reach` blocks away from the stem.
+ * What a T's stem is masked by, so it ends on the through road's edge as
+ * that road bends.
+ */
+export function beyondEdge(through: Point[], at: Point, side: 1 | -1, offset: number, reach: number): Point[] {
+  const { points, along } = stationed(through, [])
+  const s = distanceAlong(points, at)
+  const piece = sliceAlong(points, along, Math.max(0, s - reach), Math.min(along.at(-1) ?? 0, s + reach)).points
+  if (piece.length < 2) return []
+  const edge = offsetCourse(piece, side * offset)
+  // Away from the stem at each end of the piece: the through road's normal there, turned to the far side.
+  const away = (a: Point, b: Point): Point => {
+    const ab = sub(b, a)
+    const span = Math.max(EPSILON, length(ab))
+    return scale([-ab[1] / span, ab[0] / span], -side * reach)
+  }
+  const n = piece.length
+  return [...edge, add(edge[edge.length - 1], away(piece[n - 2], piece[n - 1])), add(edge[0], away(piece[0], piece[1]))]
 }

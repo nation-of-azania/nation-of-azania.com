@@ -1,4 +1,4 @@
-import { roadPoints, type MapRoad, type MapTown } from '@/maps/data'
+import { roadLength, roadPoints, type MapRoad, type MapTown } from '@/maps/data'
 import { inOutlines, samplePath, type Point } from '@/maps/geo'
 import { crossingKey, crossingsOf, overpassesOf, SNAP, snapToRoads, withJunctions, type Crossing } from '@/maps/junctions'
 import { reversedLanes } from '@/maps/lanes'
@@ -99,7 +99,7 @@ export function reversed(draft: RoadDraft): RoadDraft {
     ...draft,
     line: [...draft.line].reverse(),
     corners: draft.corners.map((c) => last - c).sort((a, b) => a - b),
-    lanes: draft.lanes ? reversedLanes(draft.lanes) : null,
+    lanes: draft.lanes ? reversedLanes(draft.lanes, roadLength(draft)) : null,
   }
 }
 

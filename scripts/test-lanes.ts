@@ -9,7 +9,7 @@
  *
  *   pnpm test:lanes
  */
-import { roadCourse, type Point } from '../src/maps/geo'
+import { inRing, roadCourse, type Point } from '../src/maps/geo'
 import {
   carriagewayWidth,
   describeLanes,
@@ -39,7 +39,19 @@ import {
   withPartAt,
   withPavements,
   withWidth,
+  type LanePart,
   type RoadLanes,
+  beyondEdge,
+  distanceAlong,
+  lanesAt,
+  profileOf,
+  teeSide,
+  teesOf,
+  tracksOf,
+  withChangeAt,
+  withChangeMoved,
+  withoutChange,
+  withProfile,
 } from '../src/maps/lanes'
 
 let failed = false
@@ -167,9 +179,9 @@ check(aside.every((p) => Math.abs(distanceTo(p, curve) - 3) < 0.15), 'along a cu
 // The parts along Hauptallee's straight, drawn north to south.
 const course: Point[] = [[-15002.5, 1721.5], [-15002.5, 1782.5]]
 const along = partCourses(course, hauptallee)
-const lanesAt = along.filter((p) => p.part.kind === 'lane').map((p) => p.middle[0][0])
+const laneXs = along.filter((p) => p.part.kind === 'lane').map((p) => p.middle[0][0])
 check(along.find((p) => p.part.kind === 'strip')!.middle[0][0] === -15002.5, 'the median runs along the drawn line')
-check(lanesAt.filter((x) => x > -15002.5).length === 2 && lanesAt.filter((x) => x < -15002.5).length === 2, '…two lanes either side of it')
+check(laneXs.filter((x) => x > -15002.5).length === 2 && laneXs.filter((x) => x < -15002.5).length === 2, '…two lanes either side of it')
 check(along.find((p) => p.part.kind === 'walk')!.middle[0][0] === -15002.5 - 11, '…the pavement on the west, right of a road drawn south')
 const edges = edgeCourses(course, hauptallee)
 check(edges.left[0][0] === -15002.5 + 8 && edges.right[0][0] === -15002.5 - 14, '…its edges 8 blocks east and 14 west')
@@ -217,6 +229,79 @@ const marks = marksAlong([[0, 0], [100, 0]], 10)
 check(marks.length === 10 && marks[0].at[0] === 5 && marks[9].at[0] === 95 && marks[0].heading === 0, 'marks every ten blocks along a line, from five in')
 check(marksAlong([[0, 0], [0, 50]], 10, true)[0].heading === -Math.PI / 2, '…turned about for a lane running against the road')
 check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corner')
+
+// Changes along a road: Hauptallee's median tapering out, a centre line coming in.
+{
+  const lane = (dir: 'with' | 'against'): LanePart => ({ kind: 'lane', width: 3, dir })
+  const dashed: LanePart = { kind: 'line', width: 1, style: 'dashed' }
+  const walk: LanePart = { kind: 'walk', width: 2 }
+  const wide = [walk, lane('against'), dashed, lane('against'), { kind: 'strip', width: 3.5, surface: 'grass' } as LanePart, lane('with'), dashed, lane('with'), walk]
+  const narrow = [walk, lane('against'), dashed, lane('against'), dashed, lane('with'), dashed, lane('with'), walk]
+  const allee = parseLanes({ parts: wide, changes: [{ at: 100, over: 20, parts: narrow }] })!
+  check(allee.changes?.length === 1 && allee.changes[0].at === 100 && allee.changes[0].over === 20, 'a change along the road is kept')
+  check(!('changes' in parseLanes({ parts: wide, changes: [] })!) && !('changes' in parseLanes({ parts: wide, changes: [{ at: 5, parts: [walk] }] })!), '…and none is no changes at all: a change with no lane is left out')
+  const two = parseLanes({ parts: wide, changes: [{ at: 50, over: 30, parts: narrow }, { at: 60, over: 10, parts: wide }, { at: -5, over: 2, parts: narrow }] })!
+  check(same(two.changes!.map((c) => [c.at, c.over]), [[0, 2], [50, 30], [80, 10]]), '…in order along the road, none overlapping')
+
+  const tracks = tracksOf(allee)
+  check(tracks.length === 10 && tracks.filter((t) => t.parts[0] && t.parts[1]).length === 8, 'followed through the change: eight parts go on, the median ends, a centre line begins')
+  const median = tracks.findIndex((t) => t.kind === 'strip')
+  check(tracks[median].parts[1] === null && tracks[median + 1].kind === 'line' && tracks[median + 1].parts[0] === null, '…the centre line opening where the median narrows away')
+  const halfway = lanesAt(allee, 110)
+  check(halfway.parts.find((p) => p.kind === 'strip')?.width === 1.75 && halfway.parts.filter((p) => p.kind === 'line').some((p) => p.width === 0.5), 'halfway through the change: the median half gone, the centre line half there')
+  check(!lanesAt(allee, 130).parts.some((p) => p.kind === 'strip') && lanesWidth(lanesAt(allee, 130)) === lanesWidth({ parts: narrow }), 'once run: as the cross-section after')
+  const halfwayLanes = placedParts(halfway).filter((p) => p.part.kind === 'lane')
+  check(Math.abs(halfwayLanes[0].from + halfwayLanes.at(-1)!.to) < 1e-9, 'the drawn line stays in the middle of the lanes all through the change')
+
+  const course: Point[] = [[0, 0], [200, 0]]
+  const areas = laneAreas(course, allee)
+  const across = (line: Point[], x: number) => {
+    for (let i = 1; i < line.length; i++) if (line[i - 1][0] <= x && line[i][0] >= x) return line[i - 1][1] + ((line[i][1] - line[i - 1][1]) * (x - line[i - 1][0])) / (line[i][0] - line[i - 1][0])
+    return NaN
+  }
+  const widthOfTrack = (t: number, x: number) => across(areas.boundaries[t + 1], x) - across(areas.boundaries[t], x)
+  check(Math.abs(widthOfTrack(median, 50) - 3.5) < 1e-6 && Math.abs(widthOfTrack(median, 110) - 1.75) < 1e-6 && Math.abs(widthOfTrack(median, 150)) < 1e-6, 'laid along the course: the median 3.5 blocks, narrowing over the change, then gone')
+  const centreLine = areas.parts[median + 1]
+  check(centreLine.runs.length === 1 && centreLine.runs[0].middle[0][0] >= 100 - 1e-6 && centreLine.runs[0].middle.at(-1)![0] === 200, '…the centre line drawn only from where it opens')
+  check(areas.kerbs.length > 0 && areas.kerbs.every((kerb) => kerb.every((p) => p[0] <= 120 + 1e-6) || kerb.some((p) => Math.abs(p[1]) > 7)), '…the median’s kerbs ending with it, the pavements’ running on')
+  check(Math.abs(across(areas.edges.left, 50) - -10.75) < 1e-6 && Math.abs(across(areas.edges.left, 150) - -9.5) < 1e-6, '…the road narrowing about the line, half the median each side')
+  const plain = laneAreas(course, lanePreset('two-way'))
+  check(plain.parts.every((p) => (p.part.kind === 'lane' || p.part.kind === 'line' ? p.runs.length === 1 : p.runs.length === 0)) && plain.kerbs.length === 0, 'a road the same all along: one run a lane, no kerbs without a verge or pavement')
+
+  // Shaping the changes.
+  const added = withChangeAt(lanePreset('two-way'), 40)!
+  check(added.k === 1 && added.lanes.changes?.[0].at === 40 && added.lanes.changes[0].over === 12 && same(added.lanes.changes[0].parts, lanePreset('two-way').parts), 'a change put in: the lanes holding there, to shape')
+  const shaped = withProfile(added.lanes, 1, withWidth(profileOf(added.lanes, 1), 1, 2))
+  check(shaped.changes?.[0].parts[1].width === 2 && shaped.parts[1].width === 1, '…shaped on its own, the start as it was')
+  check(withWidth(shaped, 0, 4).changes?.[0].parts[1].width === 2, '…and kept when the start is shaped')
+  const later = withChangeAt(shaped, 45)!
+  check(later.k === 2 && later.lanes.changes![1].at === 52 && same(later.lanes.changes![1].parts, shaped.changes![0].parts), 'another put in during the first: it begins once that one has run, from where it led')
+  check(withChangeMoved(later.lanes, 1, 30, 50).changes![0].over === 22, 'a change can’t run into the next')
+  check(same(withoutChange(later.lanes, 2), shaped), 'a change taken out')
+  const reversed = reversedLanes(allee, 200)
+  check(reversed.changes?.[0].at === 80 && reversed.changes[0].over === 20 && lanesWidth(reversed) === lanesWidth({ parts: narrow }), 'the road drawn the other way: its changes from the far end')
+  check(same(reversedLanes(reversed, 200), allee), '…and turned about twice is as it was')
+  check(otherSide(allee).changes![0].parts[1].kind === 'lane' && (otherSide(allee).changes![0].parts[1] as { dir: string }).dir === 'with', 'traffic turned about all along the road')
+  check(distanceAlong([[0, 0], [10, 0], [10, 10]], [11, 4]) === 14, 'a spot near the road: how far along it lies')
+}
+
+// T-junctions: a road ending on another, not at its end.
+{
+  const through = { id: 1, line: [[-20, 0], [0, 0], [20, 0]] as Point[] }
+  const stem = { id: 2, line: [[0, 30], [0, 0]] as Point[] }
+  const tees = teesOf([through, stem, { id: 3, line: [[20, 0], [40, 0]] as Point[] }])
+  check(tees.length === 1 && tees[0].stem === 2 && tees[0].through === 1 && tees[0].end === 'end', 'a T found where a road ends on another’s node; one end to end isn’t one')
+  check(teeSide(stem.line, 'end', through.line, [0, 0]) === 1, '…the stem right of the through road (south of a road drawn east)')
+  const beyond = beyondEdge(through.line, [0, 0], 1, 2, 12)
+  check(inRing([0, 0], beyond) && inRing([5, -5], beyond) && !inRing([0, 3], beyond) && !inRing([5, 2.5], beyond), '…the ground beyond its near edge, 2 blocks off its course, masked')
+  // The through road curving round toward the stem: the mask follows its edge, not a straight cut.
+  const arc: Point[] = Array.from({ length: 21 }, (_, k): Point => {
+    const angle = Math.PI + (k * Math.PI) / 20
+    return [30 * Math.cos(angle), 30 + 30 * Math.sin(angle)]
+  })
+  const bent = beyondEdge(arc, [0, 0], 1, 2, 14)
+  check(inRing([10, 0], bent) && !inRing([10, 4], bent) && inRing([-10, 2.5], bent), '…round a through road curving toward the stem, the mask follows its curve')
+}
 
 if (failed) {
   console.error('\nSome checks failed.')
