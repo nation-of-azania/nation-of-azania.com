@@ -18,9 +18,13 @@ import type { Point } from './geo'
  * and the editor offers a town's own ones first (lanesInUse).
  *
  * The drawn line (the road's points, and the nodes it shares at junctions,
- * src/maps/junctions.ts) lies somewhere across the cross-section: `axis`,
- * in blocks from its left edge. Hauptallee's lies on its median; a street
- * drawn down its middle has it at the middle.
+ * src/maps/junctions.ts) always runs down the middle of the carriageway:
+ * the lanes, the lines between them and any median, the pavements and
+ * verges along the edges not counted (lanesAxis). So a part widened grows
+ * the road about the line, both ways, and a pavement on one side leaves the
+ * lanes where they lie; Hauptallee's line lies on its median. `axis` keeps
+ * where that is, in blocks from the left edge, worked out from the parts
+ * and never set apart from them.
  *
  * One cross-section holds for the whole road for now; changes along it (a
  * median widening, a turn lane) are for later.
@@ -49,7 +53,7 @@ export type LanePartKind = LanePart['kind']
 export type RoadLanes = {
   /** Left to right, looking along the road the way it was drawn. */
   parts: LanePart[]
-  /** Where the drawn line lies across them, in blocks from the left edge. */
+  /** Where the drawn line lies across them, in blocks from the left edge: the carriageway's middle, always (lanesAxis). */
   axis: number
 }
 
@@ -105,20 +109,39 @@ function parsePart(value: unknown): LanePart | null {
 export const lanesWidth = (lanes: Pick<RoadLanes, 'parts'>): number => lanes.parts.reduce((sum, part) => sum + part.width, 0)
 
 /**
+ * Where the drawn line lies across these parts, in blocks from the left
+ * edge: the middle of the carriageway, from the first lane or line to the
+ * last (a median between them counted, the verges and pavements outside
+ * them not), so the road grows about the line both ways as a part of it
+ * widens, and a pavement on one side doesn't push the lanes off it.
+ */
+export function lanesAxis(parts: LanePart[]): number {
+  const onRoad = (p: LanePart) => p.kind === 'lane' || p.kind === 'line'
+  const first = parts.findIndex(onRoad)
+  if (first < 0) return lanesWidth({ parts }) / 2
+  const last = parts.length - 1 - [...parts].reverse().findIndex(onRoad)
+  const before = parts.slice(0, first).reduce((sum, p) => sum + p.width, 0)
+  const across = parts.slice(first, last + 1).reduce((sum, p) => sum + p.width, 0)
+  return before + across / 2
+}
+
+/** Parts with the drawn line down the middle of their carriageway (lanesAxis). */
+const centred = (parts: LanePart[]): RoadLanes => ({ parts, axis: lanesAxis(parts) })
+
+/**
  * A cross-section as kept: parts of the known kinds with their widths held
- * to what's built (half blocks, within PART_WIDTHS), and the axis within
+ * to what's built (half blocks, within PART_WIDTHS), and the drawn line
+ * down the middle of their carriageway, whatever axis was sent (lanesAxis);
  * them. Nothing (null) where there's no lane among the parts: a road is
  * driven, walked or sailed along a lane.
  */
 export function parseLanes(value: unknown): RoadLanes | null {
   if (!value || typeof value !== 'object') return null
-  const raw = value as { parts?: unknown; axis?: unknown }
+  const raw = value as { parts?: unknown }
   if (!Array.isArray(raw.parts)) return null
   const parts = raw.parts.slice(0, MAX_PARTS).map(parsePart).filter((part): part is LanePart => part != null)
   if (!parts.some((part) => part.kind === 'lane')) return null
-  const width = lanesWidth({ parts })
-  const axis = typeof raw.axis === 'number' && Number.isFinite(raw.axis) ? half(raw.axis) : half(width / 2)
-  return { parts, axis: Math.min(width, Math.max(0, axis)) }
+  return centred(parts)
 }
 
 /** What's wrong with a cross-section as sent, for the form; null when it's fine. */
@@ -203,16 +226,10 @@ export const otherSide = (lanes: RoadLanes): RoadLanes => ({
 /**
  * The lanes of the same road drawn the other way (as the editor turns a
  * road about to carry on from its start): the parts in the opposite order,
- * each lane's direction turned, the axis from the other edge. The road's
- * traffic is as it was.
+ * each lane's direction turned. The road's traffic is as it was.
  */
-export function reversedLanes(lanes: RoadLanes): RoadLanes {
-  const width = lanesWidth(lanes)
-  return {
-    parts: [...lanes.parts].reverse().map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part)),
-    axis: half(width - lanes.axis),
-  }
-}
+export const reversedLanes = (lanes: RoadLanes): RoadLanes =>
+  centred([...lanes.parts].reverse().map((part) => (part.kind === 'lane' ? { ...part, dir: flip(part.dir) } : part)))
 
 /** The kinds of road a cross-section's lanes are offered for: roads that are driven or walked, not railways or waterways. */
 export const HAS_LANES = new Set(['highway', 'main', 'street', 'path'])
@@ -246,23 +263,20 @@ export function lanePreset(id: LanePresetId, side: 'right' | 'left' = 'right'): 
         : id === 'divided'
           ? [lane(left), dashed, lane(left), { kind: 'strip', width: 2, surface: 'grass' }, lane(right), dashed, lane(right)]
           : [lane('with')]
-  return { parts, axis: half(lanesWidth({ parts }) / 2) }
+  return centred(parts)
 }
 
 /**
  * The lanes with a pavement of `width` blocks along each edge, or along
  * one, and a grass verge of `verge` blocks between it and the road where
- * the town builds one; the drawn line stays where it lay on the road.
+ * the town builds one; the lanes stay about the drawn line.
  */
 export function withPavements(lanes: RoadLanes, width: number, sides: 'both' | 'left' | 'right' = 'both', verge = 0): RoadLanes {
   const walk: LanePart = { kind: 'walk', width: clampWidth('walk', width) }
   const side: LanePart[] = verge > 0 ? [walk, { kind: 'strip', width: clampWidth('strip', verge), surface: 'grass' }] : [walk]
   const addLeft = sides !== 'right'
   const addRight = sides !== 'left'
-  return {
-    parts: [...(addLeft ? side : []), ...lanes.parts, ...(addRight ? [...side].reverse() : [])],
-    axis: lanes.axis + (addLeft ? lanesWidth({ parts: side }) : 0),
-  }
+  return centred([...(addLeft ? side : []), ...lanes.parts, ...(addRight ? [...side].reverse() : [])])
 }
 
 /** Two cross-sections alike: the same parts, as wide, the line where it lies. */
@@ -283,60 +297,33 @@ export function newPart(kind: LanePartKind): LanePart {
   }
 }
 
-/**
- * The axis moved as the parts left of it change by `delta` blocks from
- * `at` (the left edge of what changed), so the drawn line stays where it
- * lies on the road: on the median when the pavement left of it widens.
- */
-const axisAfter = (lanes: RoadLanes, at: number, delta: number): number => {
-  const axis = lanes.axis <= at ? lanes.axis : lanes.axis + delta
-  return Math.min(Math.max(0, axis), Math.max(0, lanesWidth(lanes) + delta))
-}
-
-/** The lanes with the part at `index` set `width` blocks wide (to the half block, within PART_WIDTHS); the drawn line stays put. */
+/** The lanes with the part at `index` set `width` blocks wide (to the half block, within PART_WIDTHS), growing about the drawn line. */
 export function withWidth(lanes: RoadLanes, index: number, width: number): RoadLanes {
   const part = lanes.parts[index]
   if (!part) return lanes
   const next = clampWidth(part.kind, width)
-  const from = placedParts(lanes)[index].from + lanes.axis
-  // A line widened inside the part keeps its place within it, in proportion.
-  const within = lanes.axis > from && lanes.axis < from + part.width ? ((lanes.axis - from) * next) / part.width - (lanes.axis - from) : 0
-  return {
-    parts: lanes.parts.map((p, i) => (i === index ? { ...p, width: next } : p)),
-    axis: half(within ? lanes.axis + within : axisAfter(lanes, from, next - part.width)),
-  }
+  return centred(lanes.parts.map((p, i) => (i === index ? { ...p, width: next } : p)))
 }
 
-/** The lanes with `part` put in at `index` (before the part there now; at the end for `parts.length`); the drawn line stays put. */
+/** The lanes with `part` put in at `index` (before the part there now; at the end for `parts.length`). */
 export function withPartAt(lanes: RoadLanes, index: number, part: LanePart): RoadLanes {
   if (lanes.parts.length >= MAX_PARTS) return lanes
   const at = Math.max(0, Math.min(lanes.parts.length, index))
-  const from = lanes.parts.slice(0, at).reduce((sum, p) => sum + p.width, 0)
-  return { parts: [...lanes.parts.slice(0, at), part, ...lanes.parts.slice(at)], axis: half(axisAfter(lanes, from, part.width)) }
+  return centred([...lanes.parts.slice(0, at), part, ...lanes.parts.slice(at)])
 }
 
-/** The lanes without the part at `index`; the last lane can't go (null). The drawn line stays put. */
+/** The lanes without the part at `index`; the last lane can't go (null). */
 export function withoutPart(lanes: RoadLanes, index: number): RoadLanes | null {
-  const part = lanes.parts[index]
-  if (!part) return lanes
+  if (!lanes.parts[index]) return lanes
   const parts = lanes.parts.filter((_, i) => i !== index)
   if (!parts.some((p) => p.kind === 'lane')) return null
-  const from = lanes.parts.slice(0, index).reduce((sum, p) => sum + p.width, 0)
-  // A line within the part that goes lands on its left edge.
-  const axis = lanes.axis > from && lanes.axis < from + part.width ? from : axisAfter(lanes, from, -part.width)
-  return { parts, axis: half(Math.min(axis, lanesWidth({ parts }))) }
+  return centred(parts)
 }
 
 /** The lanes with a part's own setting changed: a lane's direction, a line's style, a strip's surface. */
 export function withPart(lanes: RoadLanes, index: number, change: Partial<LanePart>): RoadLanes {
   return { ...lanes, parts: lanes.parts.map((p, i) => (i === index ? (parsePart({ ...p, ...change }) ?? p) : p)) }
 }
-
-/** The lanes with the drawn line at `axis` blocks from the left edge, to the half block, within the road. */
-export const withAxis = (lanes: RoadLanes, axis: number): RoadLanes => ({
-  ...lanes,
-  axis: Math.min(lanesWidth(lanes), Math.max(0, half(axis))),
-})
 
 /** Which sides have a pavement: at the left edge, the right, both or neither, by the outermost parts. */
 export function pavementSides(lanes: RoadLanes): { left: boolean; right: boolean } {

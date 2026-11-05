@@ -25,6 +25,7 @@ import {
   offsetCourse,
   oneWay,
   partLabel,
+  lanesAxis,
   lanesInUse,
   otherSide,
   parseLanes,
@@ -33,7 +34,6 @@ import {
   placedParts,
   reachOf,
   reversedLanes,
-  withAxis,
   withoutPart,
   withPart,
   withPartAt,
@@ -94,9 +94,9 @@ const kept = parseLanes(sent)
 check(kept?.parts.length === 4, 'a part of no known kind is left out')
 check(kept?.parts[1].width === 3, 'widths are kept to the half block')
 check(kept?.parts[3].kind === 'lane' && kept.parts[3].dir === 'both', 'a lane of no known direction is shared')
-check(kept?.axis === 6.5, 'without an axis, the drawn line lies at the middle')
+check(kept?.axis === 9.5, 'the drawn line lies down the middle of the carriageway, the pavement beside it not counted')
 check(parseLanes({ parts: [{ kind: 'walk', width: 2 }] }) === null, 'pavements alone are no road')
-check(parseLanes({ parts: [{ kind: 'lane', width: 3, dir: 'with' }], axis: 99 })?.axis === 3, 'the axis is kept within the road')
+check(parseLanes({ parts: [{ kind: 'lane', width: 3, dir: 'with' }], axis: 99 })?.axis === 1.5, 'an axis sent is no matter: the line is the middle, always')
 check(parseLanes({ parts: [{ kind: 'lane', width: 40, dir: 'with' }] })?.parts[0].width === 8, 'a lane is 8 blocks at most')
 check(lanesProblem(null) === null && lanesProblem(sent) !== null && lanesProblem(lanePreset('two-way')) === null, 'the form is told what’s wrong, and only then')
 
@@ -185,21 +185,24 @@ check(carriagewayWidth(hauptallee) === 16 && carriagewayWidth(verged) === 7, 'th
 const widerWalk = withWidth(hauptallee, hauptallee.parts.length - 1, 8)
 check(lanesWidth(widerWalk) === 24 && widerWalk.axis === 8, 'a pavement right of the line widened: the line stays on the median')
 const widerLeftLane = withWidth(hauptallee, 0, 4)
-check(widerLeftLane.axis === 9 && placedParts(widerLeftLane).find((p) => p.part.kind === 'strip')!.from === -1, 'a lane left of the line widened: the line still on the median')
+check(widerLeftLane.axis === 8.5 && placedParts(widerLeftLane)[0].from === -8.5 && placedParts(widerLeftLane).at(-2)!.to === 8.5, 'a lane widened: the road grows about the line, half a block each way')
 const widerMedian = withWidth(hauptallee, 3, 4)
-check(widerMedian.axis === 9 && placedParts(widerMedian)[3].centre === 0, '…the median itself widened about the line')
+check(widerMedian.axis === 9 && placedParts(widerMedian)[3].centre === 0, '…the median itself widened about the line, the line still on it')
+let stepped = hauptallee
+for (const width of [2.5, 3, 3.5, 4, 3.5]) stepped = withWidth(stepped, 3, width)
+check(placedParts(stepped)[3].centre === 0 && placedParts(stepped)[3].from === -1.75, '…half a block at a time, and back, the line never drifting off its middle')
 check(withWidth(hauptallee, 0, 99).parts[0].width === 8 && withWidth(hauptallee, 1, 0).parts[1].width === 0, 'widths held within PART_WIDTHS')
 const walked = withPartAt(hauptallee, 0, newPart('walk'))
-check(walked.parts[0].kind === 'walk' && walked.axis === 10 && lanesWidth(walked) === 24, 'a pavement put in at the left edge: the line moves along with the parts')
+check(walked.parts[0].kind === 'walk' && walked.axis === 10 && lanesWidth(walked) === 24 && placedParts(walked)[4].centre === 0, 'a pavement put in at the left edge: the lanes stay about the line')
 check(withPartAt(hauptallee, hauptallee.parts.length, newPart('strip')).axis === 8, '…one at the right edge leaves it be')
 const unwalked = withoutPart(hauptallee, hauptallee.parts.length - 1)!
 check(same(unwalked, lanePreset('divided', 'right')), 'the pavement taken off: the preset again')
 check(same(withoutPart(walked, 0), hauptallee), '…and the one on the left too')
 check(withoutPart(lanePreset('shared'), 0) === null, 'the last lane can’t go')
-check(withoutPart(withPartAt(lanePreset('two-way'), 1, { kind: 'strip', width: 4, surface: 'grass' }), 1)!.axis === 3.5, 'a part the line lay in removed: the line lands on its edge')
+check(withoutPart(withPartAt(lanePreset('two-way'), 1, { kind: 'strip', width: 4, surface: 'grass' }), 1)!.axis === 3.5, 'a part in the middle removed: the line in the middle still')
 check(withPart(hauptallee, 0, { dir: 'with' }).parts[0].kind === 'lane' && (withPart(hauptallee, 0, { dir: 'with' }).parts[0] as { dir: string }).dir === 'with', 'a lane turned')
 check(withPart(hauptallee, 1, { style: 'solid' }).parts[1].kind === 'line' && (withPart(hauptallee, 1, { style: 'solid' }).parts[1] as { style: string }).style === 'solid', 'a line made solid')
-check(withAxis(hauptallee, 3.2).axis === 3 && withAxis(hauptallee, 99).axis === 22, 'the line set across the road, to the half block, within it')
+check(lanesAxis(withPavements(lanePreset('two-way'), 3, 'left', 1).parts) === 7.5, 'a pavement and a verge on one side only: the line still down the middle of the lanes')
 
 // The parts as areas along a bend: side by side, they meet exactly.
 const areas = laneAreas(bend, hauptallee)

@@ -12,7 +12,6 @@ import {
   PART_LABELS,
   PART_WIDTHS,
   partLabel,
-  withAxis,
   withoutPart,
   withPart,
   withPartAt,
@@ -349,7 +348,7 @@ function Shaper({
   return (
     <div className="mt-2">
       <div className="overflow-x-auto">
-        <LanesStrip kind={kind} lanes={lanes} onAxis={(axis) => onChange(withAxis(lanes, axis))} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
+        <LanesStrip kind={kind} lanes={lanes} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
       </div>
       <div className="mt-2 flex min-h-9 items-center gap-1">
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink-700">
