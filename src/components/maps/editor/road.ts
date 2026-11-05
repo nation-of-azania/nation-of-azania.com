@@ -1,6 +1,7 @@
-import { roadPoints, type MapRoad } from '@/maps/data'
-import type { Point } from '@/maps/geo'
+import { roadPoints, type MapRoad, type MapTown } from '@/maps/data'
+import { inOutlines, samplePath, type Point } from '@/maps/geo'
 import { crossingKey, crossingsOf, overpassesOf, SNAP, snapToRoads, withJunctions, type Crossing } from '@/maps/junctions'
+import { reversedLanes } from '@/maps/lanes'
 
 import type { RoadDraft } from '../state'
 import { insertPoint, nearestOnPath, removePoint } from './points'
@@ -91,14 +92,29 @@ export function withCornerToggled(draft: RoadDraft, index: number): RoadDraft {
   return { ...draft, corners }
 }
 
-/** The same road run the other way, so drawing can carry on from what was its start. */
+/** The same road run the other way, so drawing can carry on from what was its start; its lanes turn with it, their traffic as it was. */
 export function reversed(draft: RoadDraft): RoadDraft {
   const last = draft.line.length - 1
   return {
     ...draft,
     line: [...draft.line].reverse(),
     corners: draft.corners.map((c) => last - c).sort((a, b) => a - b),
+    lanes: draft.lanes ? reversedLanes(draft.lanes) : null,
   }
+}
+
+/**
+ * The town a road being drawn belongs to, as the server will set it
+ * (src/collections/maps/shared.ts → townHolding): a road kept already has
+ * its town; a new one is the town whose claims hold its whole course, or
+ * no town's, a national road. For what the editor offers by example, the
+ * town's own roads (src/maps/lanes.ts → lanesInUse).
+ */
+export function townOfDraft(draft: RoadDraft, id: number | null, roads: MapRoad[], towns: MapTown[]): number | null {
+  if (id != null) return roads.find((road) => road.id === id)?.town ?? null
+  if (draft.line.length < 2) return null
+  const points = samplePath(roadPoints(draft))
+  return towns.find((town) => town.claims.length && points.every((point) => inOutlines(point, town.claims)))?.id ?? null
 }
 
 /*

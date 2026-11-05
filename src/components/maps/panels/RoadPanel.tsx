@@ -1,7 +1,10 @@
 import { roadLength, type MapData, type MapRoad } from '@/maps/data'
 import { junctionsOf } from '@/maps/junctions'
+import { describeLanes, lanesWidth } from '@/maps/lanes'
 import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
 
+import { LanesStrip } from '../ui/LanesStrip'
+import { stripScale } from '../ui/lanesScale'
 import { Look, RoadActions, Survey } from './islands'
 import { Facts, PanelHead, PanelSection, TownLink } from './shared'
 
@@ -50,6 +53,22 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
               value: town ? <TownLink town={town} /> : 'The nation: it runs between towns',
             },
             { label: 'Length', value: `${length.toLocaleString('en-GB')} blocks` },
+            // The cross-section as built: in a few words, and drawn to scale, as the editor shows it.
+            ...(road.lanes
+              ? [
+                  {
+                    label: 'Lanes',
+                    value: (
+                      <span className="block">
+                        <span className="block">
+                          {describeLanes(road.lanes)} · {lanesWidth(road.lanes)} blocks across
+                        </span>
+                        <LanesStrip className="mt-1.5 max-w-full" height={22} kind={road.kind} lanes={road.lanes} ppb={stripScale(road.lanes, 176, { min: 3, max: 12 })} />
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
             {
               label: 'Runs',
               value: (

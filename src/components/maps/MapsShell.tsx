@@ -1138,6 +1138,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
           line: road.line,
           shape: road.shape,
           corners: road.corners,
+          lanes: road.lanes,
         },
         drawing: false,
         vertex: null,
