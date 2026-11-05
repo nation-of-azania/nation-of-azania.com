@@ -52,6 +52,9 @@ import {
   withChangeMoved,
   withoutChange,
   withProfile,
+  acrossCourse,
+  describeChanges,
+  roomForChange,
 } from '../src/maps/lanes'
 
 let failed = false
@@ -283,6 +286,12 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   check(same(reversedLanes(reversed, 200), allee), '…and turned about twice is as it was')
   check(otherSide(allee).changes![0].parts[1].kind === 'lane' && (otherSide(allee).changes![0].parts[1] as { dir: string }).dir === 'with', 'traffic turned about all along the road')
   check(distanceAlong([[0, 0], [10, 0], [10, 10]], [11, 4]) === 14, 'a spot near the road: how far along it lies')
+  check(near(acrossCourse([[0, 0], [10, 0], [10, 10]], 5, 2, 3)!, [[5, -2], [5, 3]]), 'a line across the road five blocks along: two blocks left, three right')
+  check(near(acrossCourse([[0, 0], [10, 0], [10, 10]], 15, 1, 1)!, [[11, 5], [9, 5]]), '…and round the corner, turned with the road')
+  check(roomForChange(lanePreset('two-way'), 200) === 94 && roomForChange(allee, 200) === 44, 'a new change goes where there’s most room: mid-road, or mid the longest stretch left')
+  const words = describeChanges(allee)
+  check(words.length === 1 && words[0].at === 100 && words[0].words === 'narrows to 2 + 2 lanes · pavements both sides', 'a change in a few words: what the road narrows to')
+  check(describeChanges(parseLanes({ parts: narrow, changes: [{ at: 50, over: 10, parts: wide }] })!)[0].words.startsWith('widens to'), '…or widens to')
 }
 
 // T-junctions: a road ending on another, not at its end.
@@ -294,6 +303,7 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   check(teeSide(stem.line, 'end', through.line, [0, 0]) === 1, '…the stem right of the through road (south of a road drawn east)')
   const beyond = beyondEdge(through.line, [0, 0], 1, 2, 12)
   check(inRing([0, 0], beyond) && inRing([5, -5], beyond) && !inRing([0, 3], beyond) && !inRing([5, 2.5], beyond), '…the ground beyond its near edge, 2 blocks off its course, masked')
+  check(inRing([0, -9], beyond) && !inRing([0, -11], beyond) && !inRing([14, 0], beyond), '…as far beyond as asked, and as far along')
   // The through road curving round toward the stem: the mask follows its edge, not a straight cut.
   const arc: Point[] = Array.from({ length: 21 }, (_, k): Point => {
     const angle = Math.PI + (k * Math.PI) / 20
@@ -301,6 +311,13 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   })
   const bent = beyondEdge(arc, [0, 0], 1, 2, 14)
   check(inRing([10, 0], bent) && !inRing([10, 4], bent) && inRing([-10, 2.5], bent), '…round a through road curving toward the stem, the mask follows its curve')
+  // A tight bend, the stem on its inside: the band still covers the far half of the road at the apex.
+  const tight: Point[] = Array.from({ length: 21 }, (_, k): Point => {
+    const angle = Math.PI + (k * Math.PI) / 20
+    return [10 * Math.cos(angle), 10 + 10 * Math.sin(angle)]
+  })
+  const tightBand = beyondEdge(tight, [0, 0], 1, 2, 26)
+  check(inRing([0, -1], tightBand) && inRing([0, -4], tightBand) && inRing([0, 1], tightBand) && !inRing([0, 3], tightBand), '…and on a tight bend covers the whole road beyond the kerb, not only a sliver')
 }
 
 if (failed) {

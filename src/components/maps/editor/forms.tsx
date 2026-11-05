@@ -6,7 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { roadLength, roadPoints, spoken, type MapPlace } from '@/maps/data'
 import { samplePath, type RoadShape } from '@/maps/geo'
 import { PlaceIcon } from '@/maps/icons'
-import { HAS_LANES, lanesInUse } from '@/maps/lanes'
+import { distanceAlong, HAS_LANES, lanesInUse } from '@/maps/lanes'
 import { GROUP_COLOURS } from '@/maps/palette'
 import {
   PLACE_CATEGORIES,
@@ -555,7 +555,11 @@ export function RoadForm({
             examples={examples}
             kind={draft.kind}
             lanes={draft.lanes}
-            onChange={(lanes) => onChange({ ...editor, draft: { ...draft, lanes } })}
+            length={length}
+            onChange={(lanes, how) => onChange({ ...editor, section: how?.section ?? editor.section, draft: { ...draft, lanes } }, how?.gesture)}
+            onSection={(section) => onChange({ ...editor, section })}
+            pickedAt={picked ? distanceAlong(roadPoints(draft), picked) : null}
+            section={editor.section ?? 0}
           />
         ) : null}
       </div>

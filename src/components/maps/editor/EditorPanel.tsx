@@ -19,7 +19,8 @@ import { ViewForm } from './ViewForm'
 
 export type EditorPanelProps = {
   editor: Editor
-  onChange: (editor: Editor | null) => void
+  /** A change to the editor; `gesture` names a drag, for the shell to undo as one step (MapsShell → setEditor). */
+  onChange: (editor: Editor | null, gesture?: number) => void
   onClose: () => void
   onSaved: (kind: 'place' | 'road' | 'event', item: MapPlace | MapRoad | MapEvent) => void
   onViewSaved: (view: MapViewData) => void

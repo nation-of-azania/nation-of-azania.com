@@ -11,6 +11,9 @@ import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import type { Editor } from '../state'
 import { Hint } from '../ui/Hint'
 import { Icon, type IconName } from '../ui/icons'
+import { roadPoints } from '@/maps/data'
+import { distanceAlong, HAS_LANES, withChangeAt } from '@/maps/lanes'
+
 import { removePoint } from './points'
 import { reversed, withCornerToggled, withoutPointAt } from './road'
 
@@ -22,6 +25,8 @@ type Picked = {
   corner?: { on: boolean; toggle: () => void }
   /** Carry on drawing from this end of the line. */
   carryOn?: () => void
+  /** The road's lanes change from here on (a road with lanes); absent at the ends, or with as many changes as a road may have. */
+  changeLanes?: () => void
   unpick: () => void
 }
 
@@ -32,6 +37,7 @@ function pickedOf(editor: Editor, onEditor: (update: EditorUpdate) => void): Pic
       if (vertex == null || !draft.line[vertex] || editor.drawing) return null
       const last = draft.line.length - 1
       const inner = vertex >= 1 && vertex <= last - 1
+      const changed = inner && draft.lanes && HAS_LANES.has(draft.kind) ? withChangeAt(draft.lanes, distanceAlong(roadPoints(draft), draft.line[vertex])) : null
       return {
         point: draft.line[vertex],
         remove:
@@ -54,8 +60,11 @@ function pickedOf(editor: Editor, onEditor: (update: EditorUpdate) => void): Pic
                   drawing: true,
                   // From what was the start, the road is run the other way first.
                   draft: vertex === 0 ? reversed(draft) : draft,
+                  // The picked cross-section is counted from the other end once the road runs the other way.
+                  section: vertex === 0 ? (draft.lanes?.changes?.length ?? 0) - (editor.section ?? 0) : editor.section,
                 })
             : undefined,
+        changeLanes: changed ? () => onEditor({ ...editor, section: changed.k, draft: { ...draft, lanes: changed.lanes } }) : undefined,
         unpick: () => onEditor({ ...editor, vertex: null }),
       }
     }
@@ -267,6 +276,15 @@ export function PointChip({
           title="Carry on drawing from this end: click along the map, Enter to finish."
         >
           Continue from here
+        </ChipButton>
+      ) : null}
+      {picked.changeLanes ? (
+        <ChipButton
+          icon="road"
+          onClick={picked.changeLanes}
+          title="The lanes change from this point on: shape what they become in the panel, and drag the mark to move it."
+        >
+          Lanes change here
         </ChipButton>
       ) : null}
       <ChipButton icon="close" label="Done with this point" onClick={picked.unpick} />

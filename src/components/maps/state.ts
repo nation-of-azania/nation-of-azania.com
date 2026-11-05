@@ -78,6 +78,12 @@ export type Editor =
        * (true) or a bridge (false). A crossing not here takes its default.
        */
       junctions: Record<string, boolean>
+      /**
+       * The cross-section being shaped in the lanes editor, as
+       * src/maps/lanes.ts → profileOf takes it: 0 the start's (the usual),
+       * k the k-th change's along the road. Absent, the start's.
+       */
+      section?: number
     }
   | { kind: 'event'; id: number | null; draft: EventDraft; picking: boolean }
   | {

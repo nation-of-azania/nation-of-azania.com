@@ -443,6 +443,20 @@ export function withChangeMoved(lanes: RoadLanes, k: number, at: number, over: n
   return withChanges(centred(lanes.parts), changes)
 }
 
+/**
+ * Where along a road of `length` blocks a new change has most room: the
+ * middle of the longest stretch between the changes there already (and
+ * the road's ends), so it begins `over` blocks before that middle; the
+ * editor puts a change there when the drawer hasn't said where.
+ */
+export function roomForChange(lanes: RoadLanes, length: number, over = OVER_USUAL): number {
+  const changes = lanes.changes ?? []
+  const stops = [0, ...changes.flatMap((change) => [change.at, change.at + change.over]), Math.max(0, length)]
+  let best = { from: 0, to: 0 }
+  for (let i = 0; i + 1 < stops.length; i += 2) if (stops[i + 1] - stops[i] > best.to - best.from) best = { from: stops[i], to: stops[i + 1] }
+  return half(Math.max(best.from, (best.from + best.to) / 2 - over / 2))
+}
+
 /** The lanes without their k-th change (as profileOf): the cross-section before it holds on. */
 export const withoutChange = (lanes: RoadLanes, k: number): RoadLanes =>
   withChanges(centred(lanes.parts), (lanes.changes ?? []).filter((_, i) => i !== k - 1))

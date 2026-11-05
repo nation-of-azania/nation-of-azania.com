@@ -6,7 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { curvePath } from '@/maps/curves'
 import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
-import { HAS_LANES } from '@/maps/lanes'
+import { acrossCourse, distanceAlong, HAS_LANES, lanesAt, reachOf, withChangeMoved, type RoadLanes } from '@/maps/lanes'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
 import { ROAD_KINDS, type Drawing } from '@/maps/registry'
 import { clampToWorld } from '@/maps/source'
@@ -491,6 +491,128 @@ function CrossingMark({
   )
 }
 
+/*
+ * Where a road's lanes change along it (src/maps/lanes.ts → changes): a
+ * bar across the road where each change begins and a dashed one where
+ * it's run, the picked change's in the editor's colour. Pressed, a bar
+ * picks its change, so the panel's strip shows that cross-section; dragged
+ * along the road, the first bar slides the change and the second sets how
+ * far it runs. The same marks as the panel's ribbon (./ChangesRibbon.tsx).
+ */
+
+/** The bar reaches this far past the road's edges each side, in blocks. */
+const BAR_PAST = 1.5
+
+function ChangeBar({
+  ends,
+  projection,
+  colour,
+  picked,
+  dashed,
+  title,
+  onDrag,
+  onPick,
+}: {
+  ends: [Point, Point]
+  projection: Projection
+  colour: string
+  picked: boolean
+  dashed?: boolean
+  title: string
+  onDrag: (at: Point, press: number) => void
+  onPick: () => void
+}) {
+  const ref = useRef<SVGGElement>(null)
+  usePress(ref, {
+    onDown: () => onPick(),
+    onMove: onDrag,
+  })
+  const [ax, ay] = projection.project(ends[0])
+  const [bx, by] = projection.project(ends[1])
+  const d = `M${ax.toFixed(1)} ${ay.toFixed(1)}L${bx.toFixed(1)} ${by.toFixed(1)}`
+  const ink = picked ? colour : GROUND.inkSoft
+  return (
+    <g className="az-handle az-change" ref={ref}>
+      <title>{title}</title>
+      {/* Room for a finger. */}
+      <path d={d} fill="none" stroke="transparent" strokeLinecap="round" strokeWidth={18} />
+      <path d={d} fill="none" stroke={GROUND.whitewash} strokeLinecap="round" strokeOpacity={0.85} strokeWidth={picked ? 6 : 5} />
+      <path
+        d={d}
+        fill="none"
+        stroke={ink}
+        strokeDasharray={dashed ? '4 3' : undefined}
+        strokeLinecap="round"
+        strokeOpacity={picked ? 1 : 0.8}
+        strokeWidth={picked ? 2.5 : 2}
+      />
+    </g>
+  )
+}
+
+function ChangeMarks({
+  lanes,
+  course,
+  section,
+  projection,
+  colour,
+  onLanes,
+  onPick,
+}: {
+  lanes: RoadLanes
+  course: Point[]
+  section: number
+  projection: Projection
+  colour: string
+  onLanes: (lanes: RoadLanes, press: number) => void
+  onPick: (k: number) => void
+}) {
+  const changes = lanes.changes ?? []
+  if (!changes.length || course.length < 2) return null
+  // Across the road as wide as it is at the spot, and a little past its edges.
+  const across = (s: number) => {
+    const { left, right } = reachOf(lanesAt(lanes, s))
+    return acrossCourse(course, s, left + BAR_PAST, right + BAR_PAST)
+  }
+  return (
+    <>
+      {changes.map((change, i) => {
+        const k = i + 1
+        const begins = across(change.at)
+        const runs = across(change.at + change.over)
+        const picked = section === k
+        return (
+          <g key={k}>
+            {begins ? (
+              <ChangeBar
+                colour={colour}
+                ends={begins}
+                onDrag={(at, press) => onLanes(withChangeMoved(lanes, k, distanceAlong(course, at), change.over), press)}
+                onPick={() => onPick(k)}
+                picked={picked}
+                projection={projection}
+                title={`The lanes change from here, over ${change.over} blocks. Drag along the road to move it; press to shape the lanes from here on.`}
+              />
+            ) : null}
+            {runs ? (
+              <ChangeBar
+                colour={colour}
+                dashed
+                ends={runs}
+                onDrag={(at, press) => onLanes(withChangeMoved(lanes, k, change.at, distanceAlong(course, at) - change.at), press)}
+                onPick={() => onPick(k)}
+                picked={picked}
+                projection={projection}
+                title="The change has run its course here. Drag along the road to set how far it runs."
+              />
+            ) : null}
+          </g>
+        )
+      })}
+    </>
+  )
+}
+
 /** Where the road being drawn meets the others, worked out again only as the draft or the roads change. */
 function useMeetings(editor: Editor, data: MapData): Meeting[] {
   const road = editor.kind === 'road' ? editor : null
@@ -880,6 +1002,18 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           {meetings.map((meeting) =>
             meeting.fixed ? <CrossingMark colour={colour} key={meeting.key} meeting={meeting} projection={projection} /> : null,
           )}
+          {/* Where the lanes change along the road: bars across it, under the handles. */}
+          {draft.lanes?.changes && draft.line.length >= 2 && HAS_LANES.has(draft.kind) ? (
+            <ChangeMarks
+              colour={colour}
+              course={roadPoints(draft)}
+              lanes={draft.lanes}
+              onLanes={(lanes, press) => road((d) => ({ ...d, lanes }), {}, press)}
+              onPick={(section) => onEditor((current) => (current?.kind === 'road' ? { ...current, section } : current))}
+              projection={projection}
+              section={editor.section ?? 0}
+            />
+          ) : null}
           {/* The points joined up: the road itself when straight, the thread the curve follows when curved. */}
           {draft.line.length >= 1 ? (
             <path

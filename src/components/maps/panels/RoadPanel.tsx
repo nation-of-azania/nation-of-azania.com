@@ -1,6 +1,6 @@
 import { roadLength, type MapData, type MapRoad } from '@/maps/data'
 import { junctionsOf } from '@/maps/junctions'
-import { describeLanes, lanesWidth } from '@/maps/lanes'
+import { describeChanges, describeLanes, lanesWidth, profileOf } from '@/maps/lanes'
 import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
 
 import { LanesStrip } from '../ui/LanesStrip'
@@ -53,7 +53,8 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
               value: town ? <TownLink town={town} /> : 'The nation: it runs between towns',
             },
             { label: 'Length', value: `${length.toLocaleString('en-GB')} blocks` },
-            // The cross-section as built: in a few words, and drawn to scale, as the editor shows it.
+            // The cross-section as built: in a few words, and drawn to scale, as the editor shows it; where the lanes
+            // change along the road, each change after it, with what the road comes to.
             ...(road.lanes
               ? [
                   {
@@ -62,8 +63,24 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
                       <span className="block">
                         <span className="block">
                           {describeLanes(road.lanes)} · {lanesWidth(road.lanes)} blocks across
+                          {road.lanes.changes?.length ? (road.lanes.changes.length === 1 ? ' at the start' : ` at the start, changing ${road.lanes.changes.length} times`) : ''}
                         </span>
                         <LanesStrip className="mt-1.5 max-w-full" frame={176} height={22} kind={road.kind} lanes={road.lanes} ppb={stripScale(road.lanes, 176, { min: 3, max: 12 })} />
+                        {describeChanges(road.lanes).map((change, i) => {
+                          const after = profileOf(road.lanes!, i + 1)
+                          return (
+                            <span className="mt-2 block" key={i}>
+                              <span className="block">
+                                <span className="font-mono text-[13px] tabular-nums text-ink-500">
+                                  {change.at.toLocaleString('en-GB')} blocks in, over {change.over}
+                                </span>
+                                {' · '}
+                                {change.words} · {lanesWidth(after)} across
+                              </span>
+                              <LanesStrip className="mt-1.5 max-w-full" frame={176} height={22} kind={road.kind} lanes={after} ppb={stripScale(after, 176, { min: 3, max: 12 })} />
+                            </span>
+                          )
+                        })}
                       </span>
                     ),
                   },
