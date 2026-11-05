@@ -268,6 +268,105 @@ export function withPavements(lanes: RoadLanes, width: number, sides: 'both' | '
 /** Two cross-sections alike: the same parts, as wide, the line where it lies. */
 export const sameLanes = (a: RoadLanes, b: RoadLanes): boolean => JSON.stringify(a) === JSON.stringify(b)
 
+/** A part of `kind` as it starts out, at its usual width. */
+export function newPart(kind: LanePartKind): LanePart {
+  const width = PART_WIDTHS[kind].usual
+  switch (kind) {
+    case 'lane':
+      return { kind, width, dir: 'both' }
+    case 'line':
+      return { kind, width, style: 'dashed' }
+    case 'strip':
+      return { kind, width, surface: 'grass' }
+    case 'walk':
+      return { kind, width }
+  }
+}
+
+/**
+ * The axis moved as the parts left of it change by `delta` blocks from
+ * `at` (the left edge of what changed), so the drawn line stays where it
+ * lies on the road: on the median when the pavement left of it widens.
+ */
+const axisAfter = (lanes: RoadLanes, at: number, delta: number): number => {
+  const axis = lanes.axis <= at ? lanes.axis : lanes.axis + delta
+  return Math.min(Math.max(0, axis), Math.max(0, lanesWidth(lanes) + delta))
+}
+
+/** The lanes with the part at `index` set `width` blocks wide (to the half block, within PART_WIDTHS); the drawn line stays put. */
+export function withWidth(lanes: RoadLanes, index: number, width: number): RoadLanes {
+  const part = lanes.parts[index]
+  if (!part) return lanes
+  const next = clampWidth(part.kind, width)
+  const from = placedParts(lanes)[index].from + lanes.axis
+  // A line widened inside the part keeps its place within it, in proportion.
+  const within = lanes.axis > from && lanes.axis < from + part.width ? ((lanes.axis - from) * next) / part.width - (lanes.axis - from) : 0
+  return {
+    parts: lanes.parts.map((p, i) => (i === index ? { ...p, width: next } : p)),
+    axis: half(within ? lanes.axis + within : axisAfter(lanes, from, next - part.width)),
+  }
+}
+
+/** The lanes with `part` put in at `index` (before the part there now; at the end for `parts.length`); the drawn line stays put. */
+export function withPartAt(lanes: RoadLanes, index: number, part: LanePart): RoadLanes {
+  if (lanes.parts.length >= MAX_PARTS) return lanes
+  const at = Math.max(0, Math.min(lanes.parts.length, index))
+  const from = lanes.parts.slice(0, at).reduce((sum, p) => sum + p.width, 0)
+  return { parts: [...lanes.parts.slice(0, at), part, ...lanes.parts.slice(at)], axis: half(axisAfter(lanes, from, part.width)) }
+}
+
+/** The lanes without the part at `index`; the last lane can't go (null). The drawn line stays put. */
+export function withoutPart(lanes: RoadLanes, index: number): RoadLanes | null {
+  const part = lanes.parts[index]
+  if (!part) return lanes
+  const parts = lanes.parts.filter((_, i) => i !== index)
+  if (!parts.some((p) => p.kind === 'lane')) return null
+  const from = lanes.parts.slice(0, index).reduce((sum, p) => sum + p.width, 0)
+  // A line within the part that goes lands on its left edge.
+  const axis = lanes.axis > from && lanes.axis < from + part.width ? from : axisAfter(lanes, from, -part.width)
+  return { parts, axis: half(Math.min(axis, lanesWidth({ parts }))) }
+}
+
+/** The lanes with a part's own setting changed: a lane's direction, a line's style, a strip's surface. */
+export function withPart(lanes: RoadLanes, index: number, change: Partial<LanePart>): RoadLanes {
+  return { ...lanes, parts: lanes.parts.map((p, i) => (i === index ? (parsePart({ ...p, ...change }) ?? p) : p)) }
+}
+
+/** The lanes with the drawn line at `axis` blocks from the left edge, to the half block, within the road. */
+export const withAxis = (lanes: RoadLanes, axis: number): RoadLanes => ({
+  ...lanes,
+  axis: Math.min(lanesWidth(lanes), Math.max(0, half(axis))),
+})
+
+/** Which sides have a pavement: at the left edge, the right, both or neither, by the outermost parts. */
+export function pavementSides(lanes: RoadLanes): { left: boolean; right: boolean } {
+  const outer = (parts: LanePart[]) => parts.find((p) => p.kind !== 'strip')
+  return { left: outer(lanes.parts)?.kind === 'walk', right: outer([...lanes.parts].reverse())?.kind === 'walk' }
+}
+
+/**
+ * The cross-section in a few words, for the road's page: "2 + 2 lanes,
+ * divided", "1 + 1 lanes", "One shared lane", "One-way, 2 lanes"; then the
+ * pavements, where there are any.
+ */
+export function describeLanes(lanes: RoadLanes): string {
+  const lanesOf = (dir: LaneDirection) => lanes.parts.filter((p) => p.kind === 'lane' && p.dir === dir).length
+  const withs = lanesOf('with')
+  const againsts = lanesOf('against')
+  const boths = lanesOf('both')
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+  let words: string
+  if (oneWay(lanes)) words = `One-way, ${plural(withs + againsts, 'lane')}`
+  else if (!withs && !againsts) words = boths === 1 ? 'One shared lane' : `${boths} shared lanes`
+  else {
+    const [a, b] = drivingSide(lanes) === 'left' ? [withs, againsts] : [againsts, withs]
+    words = `${a} + ${b} lanes${boths ? `, ${plural(boths, 'shared lane')}` : ''}${isDivided(lanes) ? ', divided' : ''}`
+  }
+  const { left, right } = pavementSides(lanes)
+  const pavements = left && right ? 'pavements both sides' : left ? 'pavement on the left' : right ? 'pavement on the right' : ''
+  return pavements ? `${words} · ${pavements}` : words
+}
+
 /**
  * The cross-sections a town's roads have already, most used first, each
  * once with the roads that have it: what the editor offers first for a
@@ -407,4 +506,95 @@ export function partCourses(course: Point[], lanes: RoadLanes): PartCourse[] {
 export function edgeCourses(course: Point[], lanes: RoadLanes): { left: Point[]; right: Point[] } {
   const { left, right } = reachOf(lanes)
   return { left: offsetCourse(course, -left), right: offsetCourse(course, right) }
+}
+
+/**
+ * The carriageway: from the first lane to the last, lines and medians
+ * between them included, verges and pavements outside them not. What the
+ * map weighs against a road's class to decide when its true width shows.
+ */
+export function carriagewayWidth(lanes: RoadLanes): number {
+  const first = lanes.parts.findIndex((p) => p.kind === 'lane')
+  const last = lanes.parts.length - 1 - [...lanes.parts].reverse().findIndex((p) => p.kind === 'lane')
+  return first < 0 ? 0 : lanes.parts.slice(first, last + 1).reduce((sum, p) => sum + p.width, 0)
+}
+
+/** One part of a road laid along its course as an area: the ring round it, in blocks, and the line along its middle. */
+export type LaneArea = PlacedPart & {
+  /** The ring round the part: its left edge forward, its right edge back; null for a part no blocks wide. */
+  ring: Point[] | null
+  /** The line along its middle: for a line's dashes, a lane's marks. */
+  middle: Point[]
+}
+
+/** A road's cross-section laid along its course, ready to draw (laneAreas). */
+export type RoadAreas = {
+  parts: LaneArea[]
+  /** The road's two edges, left and right, open at the ends: where the kerb lines run. */
+  edges: { left: Point[]; right: Point[] }
+  /** The ring round the whole road. */
+  outline: Point[]
+  /** The line down the middle of the road, kerb to kerb, which may lie off the drawn line. */
+  middle: Point[]
+  /** Each boundary between two parts, in order, as a line along the course: index i lies between parts i−1 and i. */
+  boundaries: Point[][]
+  width: number
+  carriageway: number
+}
+
+/**
+ * Every part of a road's cross-section laid along its course as an area to
+ * fill: the line beside the course at each boundary between two parts is
+ * worked out once (offsetCourse), and each part's ring is its left
+ * boundary forward and its right boundary back, so parts side by side meet
+ * exactly, round a bend as on the straight. What the map draws once the
+ * road is close enough to show at its true width.
+ */
+export function laneAreas(course: Point[], lanes: RoadLanes): RoadAreas {
+  const placed = placedParts(lanes)
+  const width = lanesWidth(lanes)
+  const boundaries = [-lanes.axis, ...placed.map((p) => p.to)].map((offset) => offsetCourse(course, offset))
+  const parts = placed.map((p) => ({
+    ...p,
+    ring: p.part.width > 0 ? [...boundaries[p.index], ...boundaries[p.index + 1].slice().reverse()] : null,
+    middle: p.part.kind === 'lane' || p.part.kind === 'line' ? offsetCourse(course, p.centre) : [],
+  }))
+  const left = boundaries[0]
+  const right = boundaries[boundaries.length - 1]
+  return {
+    parts,
+    edges: { left, right },
+    outline: [...left, ...right.slice().reverse()],
+    middle: offsetCourse(course, width / 2 - lanes.axis),
+    boundaries,
+    width,
+    carriageway: carriagewayWidth(lanes),
+  }
+}
+
+/** A mark along a lane: where it sits and which way the lane runs there, in radians on the plane (x east, z south). */
+export type LaneMark = { at: Point; heading: number }
+
+/**
+ * Marks every `every` blocks along a line, from half that in, each with the
+ * line's heading there: where a lane's direction is drawn. Turned about for
+ * a lane running against the road.
+ */
+export function marksAlong(line: Point[], every: number, against = false): LaneMark[] {
+  const marks: LaneMark[] = []
+  let next = every / 2
+  let walked = 0
+  for (let i = 1; i < line.length; i++) {
+    const [ax, az] = line[i - 1]
+    const [bx, bz] = line[i]
+    const step = Math.hypot(bx - ax, bz - az)
+    const heading = against ? Math.atan2(az - bz, ax - bx) : Math.atan2(bz - az, bx - ax)
+    while (next <= walked + step && step > 0) {
+      const t = (next - walked) / step
+      marks.push({ at: [ax + (bx - ax) * t, az + (bz - az) * t], heading })
+      next += every
+    }
+    walked += step
+  }
+  return marks
 }

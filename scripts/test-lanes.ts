@@ -11,12 +11,17 @@
  */
 import { roadCourse, type Point } from '../src/maps/geo'
 import {
+  carriagewayWidth,
+  describeLanes,
   drivingSide,
   edgeCourses,
   isDivided,
+  laneAreas,
   lanePreset,
   lanesProblem,
   lanesWidth,
+  marksAlong,
+  newPart,
   offsetCourse,
   oneWay,
   partLabel,
@@ -24,10 +29,16 @@ import {
   otherSide,
   parseLanes,
   partCourses,
+  pavementSides,
   placedParts,
   reachOf,
   reversedLanes,
+  withAxis,
+  withoutPart,
+  withPart,
+  withPartAt,
   withPavements,
+  withWidth,
   type RoadLanes,
 } from '../src/maps/lanes'
 
@@ -162,6 +173,47 @@ check(lanesAt.filter((x) => x > -15002.5).length === 2 && lanesAt.filter((x) => 
 check(along.find((p) => p.part.kind === 'walk')!.middle[0][0] === -15002.5 - 11, '…the pavement on the west, right of a road drawn south')
 const edges = edgeCourses(course, hauptallee)
 check(edges.left[0][0] === -15002.5 + 8 && edges.right[0][0] === -15002.5 - 14, '…its edges 8 blocks east and 14 west')
+
+// In a few words, for the road's page.
+check(describeLanes(hauptallee) === '2 + 2 lanes, divided · pavement on the right', 'Hauptallee in a few words')
+check(describeLanes(verged) === '1 + 1 lanes · pavements both sides', '…a verged street too')
+check(describeLanes(lanePreset('shared')) === 'One shared lane' && describeLanes(lanePreset('one-way')) === 'One-way, 1 lane', '…a shared lane, a one-way')
+check(same(pavementSides(verged), { left: true, right: true }) && same(pavementSides(hauptallee), { left: false, right: true }), 'which sides have a pavement, a verge between or not')
+check(carriagewayWidth(hauptallee) === 16 && carriagewayWidth(verged) === 7, 'the carriageway: kerb to kerb, pavements and verges not counted')
+
+// Shaping a cross-section: the drawn line stays where it lies on the road.
+const widerWalk = withWidth(hauptallee, hauptallee.parts.length - 1, 8)
+check(lanesWidth(widerWalk) === 24 && widerWalk.axis === 8, 'a pavement right of the line widened: the line stays on the median')
+const widerLeftLane = withWidth(hauptallee, 0, 4)
+check(widerLeftLane.axis === 9 && placedParts(widerLeftLane).find((p) => p.part.kind === 'strip')!.from === -1, 'a lane left of the line widened: the line still on the median')
+const widerMedian = withWidth(hauptallee, 3, 4)
+check(widerMedian.axis === 9 && placedParts(widerMedian)[3].centre === 0, '…the median itself widened about the line')
+check(withWidth(hauptallee, 0, 99).parts[0].width === 8 && withWidth(hauptallee, 1, 0).parts[1].width === 0, 'widths held within PART_WIDTHS')
+const walked = withPartAt(hauptallee, 0, newPart('walk'))
+check(walked.parts[0].kind === 'walk' && walked.axis === 10 && lanesWidth(walked) === 24, 'a pavement put in at the left edge: the line moves along with the parts')
+check(withPartAt(hauptallee, hauptallee.parts.length, newPart('strip')).axis === 8, '…one at the right edge leaves it be')
+const unwalked = withoutPart(hauptallee, hauptallee.parts.length - 1)!
+check(same(unwalked, lanePreset('divided', 'right')), 'the pavement taken off: the preset again')
+check(same(withoutPart(walked, 0), hauptallee), '…and the one on the left too')
+check(withoutPart(lanePreset('shared'), 0) === null, 'the last lane can’t go')
+check(withoutPart(withPartAt(lanePreset('two-way'), 1, { kind: 'strip', width: 4, surface: 'grass' }), 1)!.axis === 3.5, 'a part the line lay in removed: the line lands on its edge')
+check(withPart(hauptallee, 0, { dir: 'with' }).parts[0].kind === 'lane' && (withPart(hauptallee, 0, { dir: 'with' }).parts[0] as { dir: string }).dir === 'with', 'a lane turned')
+check(withPart(hauptallee, 1, { style: 'solid' }).parts[1].kind === 'line' && (withPart(hauptallee, 1, { style: 'solid' }).parts[1] as { style: string }).style === 'solid', 'a line made solid')
+check(withAxis(hauptallee, 3.2).axis === 3 && withAxis(hauptallee, 99).axis === 22, 'the line set across the road, to the half block, within it')
+
+// The parts as areas along a bend: side by side, they meet exactly.
+const areas = laneAreas(bend, hauptallee)
+check(areas.parts.length === 8 && areas.parts.every((p) => p.ring && p.ring.length >= 4), 'every part an area along the road')
+check(areas.width === 22 && areas.carriageway === 16, '…as wide as the road')
+check(same(areas.parts[0].ring!.slice(0, areas.boundaries[0].length), areas.boundaries[0]), '…a part’s ring runs along its left boundary')
+check(same(areas.parts[3].ring!.slice(0, areas.boundaries[3].length), areas.boundaries[3]) && same(areas.parts[2].ring!.slice(areas.boundaries[2].length), areas.boundaries[3].slice().reverse()), '…and neighbours share the boundary between them')
+check(areas.edges.left === areas.boundaries[0] && areas.edges.right === areas.boundaries[8], '…the edges are the outermost boundaries')
+check(areas.parts.filter((p) => p.middle.length).length === 6 && areas.parts.every((p) => (p.part.kind === 'lane' || p.part.kind === 'line') === p.middle.length > 0), '…lanes and lines carry the line along their middle')
+check(laneAreas(course, { parts: [{ kind: 'lane', width: 3, dir: 'with' }, { kind: 'line', width: 0, style: 'solid' }, { kind: 'lane', width: 3, dir: 'against' }], axis: 3 }).parts[1].ring === null, 'a line no blocks wide is no area')
+const marks = marksAlong([[0, 0], [100, 0]], 10)
+check(marks.length === 10 && marks[0].at[0] === 5 && marks[9].at[0] === 95 && marks[0].heading === 0, 'marks every ten blocks along a line, from five in')
+check(marksAlong([[0, 0], [0, 50]], 10, true)[0].heading === -Math.PI / 2, '…turned about for a lane running against the road')
+check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corner')
 
 if (failed) {
   console.error('\nSome checks failed.')

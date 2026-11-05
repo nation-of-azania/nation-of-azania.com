@@ -115,6 +115,23 @@ export const ROAD_STYLES: Record<RoadKind, RoadStyle> = {
   canal: { blocks: 4, minPx: 2.5, maxPx: 12, fill: GROUND.sea500, casing: '#c3d3df' },
 }
 
+/**
+ * What a road's lanes are painted in, drawn at true width
+ * (src/components/maps/layers/RoadsLayer.tsx) and in the editor's strip
+ * (src/components/maps/ui/LanesStrip.tsx): the lanes in the class's own
+ * fill and its lines and kerbs in the class's casing (a line is white in
+ * the build, but white on a whitewash lane is nothing), so a road with
+ * lanes is the same road, only closer; the rest its own. A verge or a
+ * median of grass is a leaf green that sits on the tiles' own grass; a
+ * paved one a cool grey; a pavement a stone sand, a shade off the
+ * whitewash of a street, so the kerb between them reads.
+ */
+export const LANE_PAINT = {
+  grass: '#8fb46a',
+  paved: '#cdd1d8',
+  walk: '#e3dccc',
+} as const
+
 /** Roads draw in this order, so a national road lies over a path at a crossing. */
 export const ROAD_ORDER: RoadKind[] = [
   'path',
