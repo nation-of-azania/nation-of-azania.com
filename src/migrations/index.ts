@@ -36,6 +36,7 @@ import * as migration_20261104_142338_airmail_style from './20261104_142338_airm
 import * as migration_20261104_142400_guest_column from './20261104_142400_guest_column';
 import * as migration_20261104_150000_road_junctions from './20261104_150000_road_junctions';
 import * as migration_20261104_233645_road_lanes from './20261104_233645_road_lanes';
+import * as migration_20261105_120000_merge_hauptallee from './20261105_120000_merge_hauptallee';
 
 export const migrations = [
   {
@@ -227,5 +228,10 @@ export const migrations = [
     up: migration_20261104_233645_road_lanes.up,
     down: migration_20261104_233645_road_lanes.down,
     name: '20261104_233645_road_lanes'
+  },
+  {
+    up: migration_20261105_120000_merge_hauptallee.up,
+    down: migration_20261105_120000_merge_hauptallee.down,
+    name: '20261105_120000_merge_hauptallee',
   },
 ];
