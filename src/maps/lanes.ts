@@ -26,8 +26,9 @@ import type { Point } from './geo'
  * where that is, in blocks from the left edge, worked out from the parts
  * and never set apart from them.
  *
- * One cross-section holds for the whole road for now; changes along it (a
- * median widening, a turn lane) are for later.
+ * A road's lanes can change along it (`changes`): from so many blocks along
+ * its course, over so many, to another cross-section, each part narrowing
+ * or widening to meet it (a median tapering away, a turn lane opening).
  */
 
 /** Which way a lane's traffic runs, beside the way the road was drawn. */
@@ -604,6 +605,24 @@ export function describeLanes(lanes: RoadLanes): string {
   return pavements ? `${words} · ${pavements}` : words
 }
 
+/** A change along the road in a few words, for the road's page: where it begins, how long it runs, and what it comes to. */
+export type ChangeWords = { at: number; over: number; words: string }
+
+/**
+ * Each change along the road in a few words: "narrows to 1 + 1 lanes" where
+ * the road comes out narrower kerb to kerb, "widens to…" where wider, else
+ * "changes to…"; the cross-section after it as describeLanes gives it.
+ */
+export function describeChanges(lanes: RoadLanes): ChangeWords[] {
+  const profiles = profilesOf(lanes).map(centred)
+  return (lanes.changes ?? []).map((change, i) => {
+    const before = lanesWidth(profiles[i])
+    const after = lanesWidth(profiles[i + 1])
+    const verb = after < before ? 'narrows' : after > before ? 'widens' : 'changes'
+    return { at: change.at, over: change.over, words: `${verb} to ${describeLanes(profiles[i + 1]).replace(/^One/, 'one')}` }
+  })
+}
+
 /**
  * The cross-sections a town's roads have already, most used first, each
  * once with the roads that have it: what the editor offers first for a
@@ -784,6 +803,23 @@ export function distanceAlong(course: Point[], point: Point): number {
     walked += span
   }
   return best.s
+}
+
+/**
+ * The line across a course `s` blocks along it, from `left` blocks left of
+ * it to `right` blocks right of it (looking along the course): the ends of
+ * a mark drawn across the road there, as the editor marks where its lanes
+ * change. Null for a course of fewer than two points.
+ */
+export function acrossCourse(course: Point[], s: number, left: number, right: number): [Point, Point] | null {
+  const { points, along } = stationed(course, [])
+  if (points.length < 2) return null
+  const total = along[along.length - 1]
+  const at = pointAlong(points, along, s)
+  const ahead = sub(pointAlong(points, along, Math.min(total, s + 0.5)), pointAlong(points, along, Math.max(0, s - 0.5)))
+  const span = Math.max(EPSILON, length(ahead))
+  const normal: Point = [-ahead[1] / span, ahead[0] / span]
+  return [add(at, scale(normal, -left)), add(at, scale(normal, right))]
 }
 
 /**
@@ -1061,24 +1097,20 @@ export function teeSide(stem: Point[], end: 'start' | 'end', through: Point[], a
 
 /**
  * The ground beyond the through road's near edge, as seen from the stem:
- * a ring from the line `offset` blocks off the through road's course on
+ * a band from the line `offset` blocks off the through road's course on
  * the stem's `side` (its kerb, or the edge it's drawn to), along `reach`
- * blocks of it each way from `at`, out `reach` blocks away from the stem.
- * What a T's stem is masked by, so it ends on the through road's edge as
- * that road bends.
+ * blocks of it each way from `at`, to the line `reach` blocks further
+ * from the stem, both following the road's curve (so a tight bend is
+ * covered as a straight is; corners struck out from the ends' normals
+ * would fall short of it). What a T's stem is masked by, so it ends on
+ * the through road's edge as that road bends.
  */
 export function beyondEdge(through: Point[], at: Point, side: 1 | -1, offset: number, reach: number): Point[] {
   const { points, along } = stationed(through, [])
   const s = distanceAlong(points, at)
   const piece = sliceAlong(points, along, Math.max(0, s - reach), Math.min(along.at(-1) ?? 0, s + reach)).points
   if (piece.length < 2) return []
-  const edge = offsetCourse(piece, side * offset)
-  // Away from the stem at each end of the piece: the through road's normal there, turned to the far side.
-  const away = (a: Point, b: Point): Point => {
-    const ab = sub(b, a)
-    const span = Math.max(EPSILON, length(ab))
-    return scale([-ab[1] / span, ab[0] / span], -side * reach)
-  }
-  const n = piece.length
-  return [...edge, add(edge[edge.length - 1], away(piece[n - 2], piece[n - 1])), add(edge[0], away(piece[0], piece[1]))]
+  const near = offsetCourse(piece, side * offset)
+  const far = offsetCourse(piece, side * (offset - reach))
+  return [...near, ...far.reverse()]
 }

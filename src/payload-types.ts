@@ -778,7 +778,7 @@ export interface Road {
     | boolean
     | null;
   /**
-   * Optional: the road’s cross-section as built, left to right looking along it the way it was drawn: lanes (width, dir with/against/both), lines (dashed/solid), strips (grass/paved: a median between lanes, a verge beside them) and pavements, in blocks; axis is where the drawn line lies, in blocks from the left edge. Set in the road editor on Azania Maps (src/maps/lanes.ts).
+   * Optional: the road’s cross-section as built, left to right looking along it the way it was drawn: lanes (width, dir with/against/both), lines (dashed/solid), strips (grass/paved: a median between lanes, a verge beside them) and pavements, in blocks; the drawn line always runs down the middle of the lanes. Changes along the road (changes: at and over, in blocks along it, to other parts) narrow or widen it. Set in the road editor on Azania Maps (src/maps/lanes.ts).
    */
   lanes?:
     | {
