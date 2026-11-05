@@ -6,6 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { roadLength, roadPoints, spoken, type MapPlace } from '@/maps/data'
 import { samplePath, type RoadShape } from '@/maps/geo'
 import { PlaceIcon } from '@/maps/icons'
+import { HAS_LANES, lanesInUse } from '@/maps/lanes'
 import { GROUP_COLOURS } from '@/maps/palette'
 import {
   PLACE_CATEGORIES,
@@ -27,8 +28,9 @@ import { BUTTON, FIELD, Field, Notice, TextButton } from '../ui/chrome'
 import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { EditorFrame, UndoRedo, type EditorPanelProps } from './EditorPanel'
+import { LanesEditor } from './LanesEditor'
 import { withinRights } from './rights'
-import { meetingsOf, otherRoads, withKeptJunctions } from './road'
+import { meetingsOf, otherRoads, townOfDraft, withKeptJunctions } from './road'
 
 /** The handle as the map draws it, for the how-to: a point, a "+" between two, a picked one. */
 function HandleGlyph({ kind }: { kind: 'point' | 'plus' | 'picked' }) {
@@ -416,6 +418,13 @@ export function RoadForm({
   const bridges = meetings.length - junctions
   const setShape = (shape: RoadShape) =>
     onChange({ ...editor, draft: { ...draft, shape, corners: shape === 'curved' ? draft.corners : [] } })
+  // A railway or a waterway has no lanes: the class changed to one, they go.
+  const setKind = (kind: RoadKind) => onChange({ ...editor, draft: { ...draft, kind, lanes: HAS_LANES.has(kind) ? draft.lanes : null } })
+  const hasLanes = HAS_LANES.has(draft.kind)
+  // What the road's own town builds already, by example, worked out again only as the course leaves or enters a town.
+  const { towns } = data
+  const town = useMemo(() => townOfDraft(draft, editor.id, roads, towns), [draft, editor.id, roads, towns])
+  const examples = useMemo(() => lanesInUse(roads.filter((road) => road.town === town && road.id !== editor.id)), [roads, town, editor.id])
 
   const save = async () => {
     setBusy(true)
@@ -428,6 +437,7 @@ export function RoadForm({
         line: kept.line,
         shape: draft.shape,
         corners: draft.shape === 'curved' ? kept.corners : [],
+        lanes: hasLanes ? draft.lanes : null,
       })
       onSaved('road', road)
     } catch (caught) {
@@ -532,13 +542,7 @@ export function RoadForm({
           />
         </Field>
         <Field label="Class">
-          <select
-            className={FIELD}
-            onChange={(event) =>
-              onChange({ ...editor, draft: { ...draft, kind: event.target.value as RoadKind } })
-            }
-            value={draft.kind}
-          >
+          <select className={FIELD} onChange={(event) => setKind(event.target.value as RoadKind)} value={draft.kind}>
             {(Object.keys(ROAD_KINDS) as RoadKind[]).map((kind) => (
               <option key={kind} value={kind}>
                 {ROAD_KINDS[kind].label}
@@ -546,6 +550,14 @@ export function RoadForm({
             ))}
           </select>
         </Field>
+        {hasLanes ? (
+          <LanesEditor
+            examples={examples}
+            kind={draft.kind}
+            lanes={draft.lanes}
+            onChange={(lanes) => onChange({ ...editor, draft: { ...draft, lanes } })}
+          />
+        ) : null}
       </div>
       {error ? (
         <Notice className="mt-4" tone="warning">

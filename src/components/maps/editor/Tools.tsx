@@ -6,6 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { curvePath } from '@/maps/curves'
 import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
+import { HAS_LANES } from '@/maps/lanes'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
 import { ROAD_KINDS, type Drawing } from '@/maps/registry'
 import { clampToWorld } from '@/maps/source'
@@ -872,7 +873,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           {draft.line.length >= 2 ? (
             <RoadsLayer
               projection={projection}
-              roads={[{ id: -1, ...draft, name: draft.name || null, town: null, lanes: null }]}
+              roads={[{ id: -1, ...draft, name: draft.name || null, town: null, lanes: HAS_LANES.has(draft.kind) ? draft.lanes : null }]}
             />
           ) : null}
           {/* Junctions the road has already, at its own points: under the handles, which are their nodes. */}

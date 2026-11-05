@@ -1,4 +1,5 @@
 import type { Point, RoadShape } from '@/maps/geo'
+import { sameLanes, type RoadLanes } from '@/maps/lanes'
 import type { Drawing, Ink, MapLayer, PlaceCategory, RoadKind, ViewAspect } from '@/maps/registry'
 
 import { samePoints } from './editor/points'
@@ -27,6 +28,8 @@ export type RoadDraft = {
   shape: RoadShape
   /** In a curved road, the points kept as sharp turns, by index. */
   corners: number[]
+  /** Its cross-section as built (src/maps/lanes.ts), or none: most roads have none. */
+  lanes: RoadLanes | null
 }
 
 export type EventDraft = {
@@ -113,6 +116,7 @@ export const emptyRoad = (): RoadDraft => ({
   line: [],
   shape: 'straight',
   corners: [],
+  lanes: null,
 })
 export const emptyEvent = (): EventDraft => ({
   title: '',
@@ -171,12 +175,14 @@ export function editorWantsClicks(editor: Editor | null): boolean {
 
 /**
  * What undo and redo step through: the shape of what's drawn — points,
- * corners, highlights — and not the words typed beside it, which the
- * fields undo themselves. Taken from the editor after every change.
+ * corners, a road's lanes, highlights — and not the words typed beside
+ * it, which the fields undo themselves. Taken from the editor after every
+ * change. A road's lanes go with its line: turned about to carry on from
+ * its start, the two turn together, and come back together.
  */
 export type Snapshot =
   | { kind: 'place'; point: Point | null; outline: Point[] }
-  | { kind: 'road'; line: Point[]; shape: RoadShape; corners: number[] }
+  | { kind: 'road'; line: Point[]; shape: RoadShape; corners: number[]; lanes: RoadLanes | null }
   | { kind: 'view'; drawings: Drawing[]; pending: Point[] }
 
 export function snapshotOf(editor: Editor | null): Snapshot | null {
@@ -190,6 +196,7 @@ export function snapshotOf(editor: Editor | null): Snapshot | null {
         line: editor.draft.line,
         shape: editor.draft.shape,
         corners: editor.draft.corners,
+        lanes: editor.draft.lanes,
       }
     case 'view':
       return { kind: 'view', drawings: editor.draft.drawings, pending: editor.pending }
@@ -213,7 +220,8 @@ export function sameSnapshot(a: Snapshot | null, b: Snapshot | null): boolean {
         a.shape === other.shape &&
         a.corners.length === other.corners.length &&
         a.corners.every((c, i) => c === other.corners[i]) &&
-        samePoints(a.line, other.line)
+        samePoints(a.line, other.line) &&
+        (a.lanes === other.lanes || (a.lanes != null && other.lanes != null && sameLanes(a.lanes, other.lanes)))
       )
     }
     case 'view': {
@@ -240,7 +248,7 @@ export function withSnapshot(editor: Editor, snapshot: Snapshot): Editor {
     return {
       ...editor,
       vertex: null,
-      draft: { ...editor.draft, line: snapshot.line, shape: snapshot.shape, corners: snapshot.corners },
+      draft: { ...editor.draft, line: snapshot.line, shape: snapshot.shape, corners: snapshot.corners, lanes: snapshot.lanes },
     }
   }
   if (editor.kind === 'view' && snapshot.kind === 'view') {
