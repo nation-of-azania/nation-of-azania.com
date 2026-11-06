@@ -383,6 +383,20 @@ export function withoutPart(lanes: RoadLanes, index: number): RoadLanes | null {
   return keeping(lanes, centred(parts))
 }
 
+/**
+ * The lanes with the part at `from` moved to `to` (its place among the
+ * parts once moved: 0 the left edge, the last index the right), as a part
+ * is dragged along the strip; the drawn line stays the middle of the lanes.
+ */
+export function withPartMoved(lanes: RoadLanes, from: number, to: number): RoadLanes {
+  const part = lanes.parts[from]
+  if (!part) return lanes
+  const rest = lanes.parts.filter((_, i) => i !== from)
+  const at = Math.max(0, Math.min(rest.length, to))
+  if (at === from) return lanes
+  return keeping(lanes, centred([...rest.slice(0, at), part, ...rest.slice(at)]))
+}
+
 /** The lanes with a part's own setting changed: a lane's direction, a line's style, a strip's surface. */
 export function withPart(lanes: RoadLanes, index: number, change: Partial<LanePart>): RoadLanes {
   return { ...lanes, parts: lanes.parts.map((p, i) => (i === index ? (parsePart({ ...p, ...change }) ?? p) : p)) }

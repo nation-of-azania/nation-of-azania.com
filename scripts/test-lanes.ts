@@ -62,6 +62,7 @@ import {
   laneMouth,
   lanePathsOf,
   onLane,
+  withPartMoved,
 } from '../src/maps/lanes'
 
 let failed = false
@@ -392,6 +393,17 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   const added = { ...road, lanes: withPartAt(withPartAt(divided, 7, { kind: 'lane', width: 3, dir: 'with' }), 7, { kind: 'line', width: 1, style: 'dashed' }) }
   check(same(followLaneEnds(road, added, [placed])[0]?.line[0], [40, 8.5]), '…a lane added outside it: to the new outer lane, as many in from its side as before')
   check(followLaneEnds(road, widened, [placed], () => false).length === 0, '…unless the slip road isn’t the drawer’s to change')
+}
+
+// Parts dragged along the strip.
+{
+  const verged = withPavements(lanePreset('two-way'), 2, 'right')
+  const moved = withPartMoved(verged, verged.parts.length - 1, 0)
+  check(same(moved.parts.map((p) => p.kind), ['walk', 'lane', 'line', 'lane']) && moved.axis === 5.5, 'a pavement dragged from the right edge to the left: the line still mid-road')
+  check(same(withPartMoved(moved, 0, 3), verged), '…and back')
+  check(withPartMoved(verged, 1, 1) === verged && withPartMoved(verged, 9, 0) === verged, 'dropped where it was, or no such part: nothing changes')
+  const changing = withChangeAt(verged, 30)!.lanes
+  check(withPartMoved(changing, 3, 0).changes?.length === 1, '…the changes along the road kept')
 }
 
 if (failed) {
