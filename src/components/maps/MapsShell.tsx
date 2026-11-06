@@ -1792,10 +1792,14 @@ export function MapsShell({ data: served, children }: ShellProps) {
             </div>
           ) : null}
 
-          {/* The controls, and hanging under them the globe's notes, that it couldn't be loaded or drawn (./globe/GlobeHost.tsx), moving none of them. */}
+          {/*
+            The controls, and hanging under them the globe's notes, that it couldn't be loaded or drawn (./globe/GlobeHost.tsx),
+            moving none of them. The box itself lets presses through to the map (on a phone it spans the map's top corner,
+            where a road's lane may lie under a finger); its pieces take their own.
+          */}
           <div
             className={cn(
-              'absolute right-3 z-10 flex flex-col items-end gap-2',
+              'pointer-events-none absolute right-3 z-10 flex flex-col items-end gap-2 [&>*]:pointer-events-auto',
               wide ? 'top-3' : 'top-16',
             )}
           >

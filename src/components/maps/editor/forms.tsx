@@ -73,6 +73,17 @@ function CrossingGlyph({ joined }: { joined: boolean }) {
   )
 }
 
+/** A lane end's mark as the map draws it (Tools.tsx → LaneEndMark): the lane through the disc as a band, the road ending on it from the centre out. */
+function LaneEndGlyph() {
+  return (
+    <svg aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 16 16">
+      <circle cx={8} cy={8} fill={GROUND.whitewash} r={7.25} stroke={GROUND.saffron} strokeWidth={1} />
+      <path d="M8 1.5v13" fill="none" stroke={GROUND.inkSoft} strokeOpacity={0.3} strokeWidth={4} />
+      <path d="M8 8h6" fill="none" stroke={GROUND.saffron} strokeLinecap="round" strokeWidth={1.8} />
+    </svg>
+  )
+}
+
 /**
  * The line grammar, a hint wherever a line is edited, with the marks as
  * they're drawn: how to move a point, add one on the line, and get at the
@@ -109,16 +120,25 @@ export function LineHowTo({ curved, what }: { curved?: boolean; what: 'road' | '
             </span>
           </li>
           {what === 'road' ? (
-            <li className="flex gap-2">
-              <span className="flex shrink-0 gap-0.5">
-                <CrossingGlyph joined />
-                <CrossingGlyph joined={false} />
-              </span>
-              <span>
-                Where it crosses another road, a <strong>junction</strong> joins them. <strong>Tap</strong> the mark for a bridge
-                instead, and back.
-              </span>
-            </li>
+            <>
+              <li className="flex gap-2">
+                <span className="flex shrink-0 gap-0.5">
+                  <CrossingGlyph joined />
+                  <CrossingGlyph joined={false} />
+                </span>
+                <span>
+                  Where it crosses another road, a <strong>junction</strong> joins them. <strong>Tap</strong> the mark for a bridge
+                  instead, and back.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <LaneEndGlyph />
+                <span>
+                  An end put on another road’s <strong>lane</strong> joins that lane: a slip road off the outer lane, a turn into
+                  the far one.
+                </span>
+              </li>
+            </>
           ) : null}
         </ul>
       }

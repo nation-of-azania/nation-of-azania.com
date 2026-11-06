@@ -1,6 +1,6 @@
 import { roadLength, type MapData, type MapRoad } from '@/maps/data'
 import { junctionsOf } from '@/maps/junctions'
-import { describeChanges, describeLanes, lanesWidth, profileOf } from '@/maps/lanes'
+import { describeChanges, describeLanes, laneEndsOf, laneEndWords, lanesWidth, profileOf } from '@/maps/lanes'
 import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
 
 import { LanesStrip } from '../ui/LanesStrip'
@@ -8,14 +8,34 @@ import { stripScale } from '../ui/lanesScale'
 import { Look, RoadActions, Survey } from './islands'
 import { Facts, PanelHead, PanelSection, TownLink } from './shared'
 
-/** The roads this one shares a node with (src/maps/junctions.ts), each once, as named. */
+const nameOf = (road: MapRoad) => road.name ?? `an unnamed ${ROAD_KINDS[road.kind].label.toLowerCase()}`
+
+/**
+ * The roads this one meets, each once, as named: those it shares a node
+ * with (src/maps/junctions.ts), and those met at a lane (src/maps/lanes.ts
+ * → laneEndsOf), with which lane: "Hauptallee (at its outer right lane)"
+ * on the slip road's page, "Abfahrt (at the outer right lane)" on
+ * Hauptallee's; a road on two of its lanes names both.
+ */
 function meets(road: MapRoad, roads: MapRoad[]): string[] {
+  const byId = new Map(roads.map((other) => [other.id, other]))
   const ids = new Set<number>()
   for (const node of junctionsOf(roads)) if (node.roads.includes(road.id)) for (const id of node.roads) if (id !== road.id) ids.add(Number(id))
-  return [...ids]
-    .map((id) => roads.find((other) => other.id === id))
-    .filter((other): other is MapRoad => Boolean(other))
-    .map((other) => other.name ?? `an unnamed ${ROAD_KINDS[other.kind].label.toLowerCase()}`)
+  const named = [...ids].flatMap((id) => (byId.has(id) ? [nameOf(byId.get(id)!)] : []))
+  // At a lane: by the other road, its lanes met in order.
+  const atLanes = new Map<number, string[]>()
+  for (const end of laneEndsOf(roads)) {
+    if (end.road !== road.id && end.onto !== road.id) continue
+    const other = byId.get(end.road === road.id ? end.onto : end.road)
+    const onto = byId.get(end.onto)
+    if (!other || !onto || ids.has(other.id)) continue
+    const words = `${end.onto === road.id ? 'the' : 'its'} ${laneEndWords(onto, end)}`
+    const lanes = atLanes.get(other.id) ?? []
+    if (!lanes.includes(words)) lanes.push(words)
+    atLanes.set(other.id, lanes)
+  }
+  for (const [id, lanes] of atLanes) named.push(`${nameOf(byId.get(id)!)} (at ${lanes.join(' and ')})`)
+  return named
 }
 
 /** A road's page: its class, length, whose it is, and what it meets. */

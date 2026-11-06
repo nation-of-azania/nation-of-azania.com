@@ -1275,6 +1275,42 @@ export function laneEndsOf<Id>(roads: LanedRoad<Id>[]): LaneEnd<Id>[] {
   return found
 }
 
+const ORDINALS = ['1st', '2nd', '3rd']
+const ordinal = (n: number) => ORDINALS[n - 1] ?? `${n}th`
+
+/**
+ * Which lane of a road an end lies on, in a few words, for the road's
+ * page: "right lane" on a road with one lane that side, "outer right lane"
+ * or "inner right lane" with two, "2nd right lane from the kerb" with
+ * more; "lane" on a one-lane road, "middle lane" for one astride the
+ * drawn line. Left and right looking along the road the way it was drawn,
+ * as the editor's strip has them, whichever side the end came from.
+ */
+export function laneEndWords(onto: LanedRoad<unknown>, laneEnd: Pick<LaneEnd<unknown>, 'track' | 's'>): string {
+  if (!onto.lanes) return 'lane'
+  const tracks = tracksOf(onto.lanes)
+  const along = widthsAlong(onto.lanes)
+  const { s } = laneEnd
+  // Each lane there, by the middle of it beside the drawn line.
+  let offset = -along.axis(s)
+  const lanes = tracks.flatMap((track, t) => {
+    const width = along.width(track, s)
+    const centre = offset + width / 2
+    offset += width
+    return track.kind === 'lane' && width > EPSILON ? [{ t, centre }] : []
+  })
+  const lane = lanes.find((entry) => entry.t === laneEnd.track)
+  if (!lane) return 'lane'
+  if (Math.abs(lane.centre) < EPSILON) return lanes.length === 1 ? 'lane' : 'middle lane'
+  const side = lane.centre > 0 ? 'right' : 'left'
+  const beside = lanes.filter((entry) => Math.sign(entry.centre) === Math.sign(lane.centre)).sort((a, b) => Math.abs(b.centre) - Math.abs(a.centre))
+  const rank = beside.findIndex((entry) => entry.t === lane.t)
+  if (beside.length === 1) return `${side} lane`
+  if (rank === 0) return `outer ${side} lane`
+  if (rank === beside.length - 1) return `inner ${side} lane`
+  return `${ordinal(rank + 1)} ${side} lane from the kerb`
+}
+
 /**
  * What's cut where a road leaves (or joins) a lane, as rings in blocks:
  *
@@ -1296,19 +1332,31 @@ export function laneEndsOf<Id>(roads: LanedRoad<Id>[]): LaneEnd<Id>[] {
  * up beyond the lane's edge, so nothing is drawn twice and nothing left
  * bare. `stemReach` is how far the stem's carriageway reaches either side
  * of its drawn line at that end, in blocks (carriagewayReach of its lanes
- * there where it's drawn at its true width, else half its drawn width).
+ * there where it's drawn at its true width, else half its drawn width);
+ * `stemEdges` how far its whole width reaches, pavements and verges
+ * included (reachOf), where it has any: the road's outer edge is then
+ * cut over that whole width (`outsideCut`), so the stem's pavement runs
+ * into the road's with no edge drawn between them.
  */
 export type LaneMouth = {
   carriageway: Point[]
   kerbs: Point[]
   outside: Point[]
   cut: Point[]
+  /** The stem's whole width from the lane outward: what the road's edge on `cutEdge` is drawn outside of. The same as `cut` for a stem with no pavement or verge. */
+  outsideCut: Point[]
   cutTracks: number[]
   cutBoundaries: number[]
   cutEdge: 'left' | 'right'
 }
 
-export function laneMouth(laneEnd: LaneEnd<unknown>, onto: LanedRoad<unknown>, stem: LanedRoad<unknown>, stemReach: { left: number; right: number }): LaneMouth | null {
+export function laneMouth(
+  laneEnd: LaneEnd<unknown>,
+  onto: LanedRoad<unknown>,
+  stem: LanedRoad<unknown>,
+  stemReach: { left: number; right: number },
+  stemEdges: { left: number; right: number } = stemReach,
+): LaneMouth | null {
   if (!onto.lanes) return null
   const { course } = lanePathsOf(onto)
   const tracks = tracksOf(onto.lanes)
@@ -1333,15 +1381,20 @@ export function laneMouth(laneEnd: LaneEnd<unknown>, onto: LanedRoad<unknown>, s
   const fromEnd = laneEnd.end === 'start' ? own : [...own].reverse()
   const outward = stationed(fromEnd, [])
   const piece = sliceAlong(outward.points, outward.along, 0, Math.min(outward.along.at(-1) ?? 0, reach)).points
-  const [left, right] = laneEnd.end === 'start' ? [stemReach.left, stemReach.right] : [stemReach.right, stemReach.left]
-  const cut = piece.length >= 2 ? [...offsetCourse(piece, -left), ...offsetCourse(piece, right).reverse()] : []
+  // Its own left and right turned about where it's followed from its end.
+  const footprint = (reach: { left: number; right: number }) => {
+    const [left, right] = laneEnd.end === 'start' ? [reach.left, reach.right] : [reach.right, reach.left]
+    return piece.length >= 2 ? [...offsetCourse(piece, -left), ...offsetCourse(piece, right).reverse()] : []
+  }
 
   const all = tracks.length
+  const cut = footprint(stemReach)
   return {
     carriageway: band(boundary(side > 0 ? track + 1 : track)),
     kerbs: band(side > 0 ? kerb.right : -kerb.left),
     outside: band(side > 0 ? boundary(all) : boundary(0)),
     cut,
+    outsideCut: stemEdges === stemReach ? cut : footprint(stemEdges),
     cutTracks: tracks.flatMap((_, t) => ((side > 0 ? t > track : t < track) ? [t] : [])),
     cutBoundaries: Array.from({ length: all + 1 }, (_, b) => b).filter((b) => (side > 0 ? b >= track + 1 : b <= track)),
     cutEdge: side > 0 ? 'right' : 'left',
