@@ -360,6 +360,12 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   const inner = laneMouth({ ...ends[0], track: 4 }, road, placed, { left: 1.5, right: 1.5 })!
   check(same(inner.cutTracks, [5, 6, 7]), 'leaving an inner lane: the line and the outer lane it crosses open too')
 
+  // A slip road leaving alongside the lane, against the road's way, before it bends off: told by where it bends to.
+  const alongside = { id: 5, kind: 'street' as const, line: [[40, -6.5], [30, -6.2], [22, -9], [18, -16], [17, -30]] as Point[], shape: 'curved' as const, corners: [], lanes: null }
+  const tangent = laneEndsOf([road, alongside])
+  check(tangent.length === 1 && tangent[0].track === 0 && tangent[0].side === -1, 'a slip road running alongside its lane before it bends off: from the side it bends to')
+  check(teeSide(alongside.line, 'start', road.line, [40, -6.5]) === -1, '…as teeSide judges it')
+
   // Across to the far lane: the median opens, and the road's line crossed on the way is no junction and no bridge.
   const across = { id: 4, kind: 'street' as const, line: [[40, -6.5], [60, 20]] as Point[], shape: 'straight' as const, corners: [], lanes: null }
   const far = laneEndsOf([road, across])

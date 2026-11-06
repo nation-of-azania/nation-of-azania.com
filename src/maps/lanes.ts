@@ -1123,11 +1123,26 @@ export function teesOf<Id>(roads: { id: Id; line: Point[] }[]): Tee<Id>[] {
  */
 export function teeSide(stem: Point[], end: 'start' | 'end', through: Point[], at: Point): 1 | -1 {
   const line = end === 'start' ? stem : [...stem].reverse()
-  const back = pointAlong(line, distancesOf(line), Math.min(4, distancesOf(line).at(-1) ?? 0))
-  const s = distanceAlong(through, at)
-  const along = distancesOf(through)
-  const ahead = sub(pointAlong(through, along, s + 0.5), pointAlong(through, along, s - 0.5))
-  return cross(ahead, sub(back, at)) >= 0 ? 1 : -1
+  const { points, along } = stationed(line, [])
+  const total = along.at(-1) ?? 0
+  // How far right of the through road's line a spot lies (left negative), by the line where it's nearest.
+  const offsetOf = (point: Point) => {
+    const s = distanceAlong(through, point)
+    const distances = distancesOf(through)
+    const foot = pointAlong(through, distances, s)
+    const ahead = sub(pointAlong(through, distances, s + 0.5), pointAlong(through, distances, s - 0.5))
+    const span = length(ahead)
+    return span < EPSILON ? 0 : cross(ahead, sub(point, foot)) / span
+  }
+  // Judged where the stem gets furthest from where it ends, within its first stretch: a slip road leaving a lane
+  // alongside the road is told by where it bends away, not by its first blocks, which run along the lane.
+  const from = offsetOf(at)
+  let furthest = 0
+  for (let d = 1; d <= Math.min(40, total); d += 1) {
+    const off = offsetOf(pointAlong(points, along, d)) - from
+    if (Math.abs(off) > Math.abs(furthest)) furthest = off
+  }
+  return furthest >= 0 ? 1 : -1
 }
 
 /**
