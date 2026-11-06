@@ -19,6 +19,7 @@ import {
   withoutPart,
   withPart,
   withPartAt,
+  withPartMoved,
   withPavements,
   withProfile,
   withWidth,
@@ -43,7 +44,8 @@ import { ChangesRibbon } from './ChangesRibbon'
  * scale (ui/LanesStrip.tsx) about the drawn line, which holds still at the
  * middle as the road grows; each part pressed to shape it: its width by
  * the half block, a lane's direction, a line's style, a strip's surface;
- * parts added and taken away. Where the lanes change along the road
+ * parts added and taken away, and dragged along the strip to another
+ * place. Where the lanes change along the road
  * (lanes.ts → changes), a ribbon over the strip shows the road unrolled
  * with each change on it (./ChangesRibbon.tsx): pressed, the strip shows
  * that change's cross-section to shape; dragged, it slides along the
@@ -175,8 +177,8 @@ const LANES_HINT = (
   <>
     The road as built, kerb to kerb and beyond: its lanes and which way each runs, the lines between them, a median or a verge,
     the pavements. Seen looking along the road the way you drew it, left to right. The saffron line is where you drew it, down
-    the middle of the lanes: widen a part and the road grows from it both ways. Close in, the map draws the road at this
-    width, over the build. Where the road changes along its length (a median ending, a turn lane opening), add a change: from
+    the middle of the lanes: widen a part and the road grows from it both ways. Drag a part along the strip to move it
+    (shift and an arrow key do the same). Close in, the map draws the road at this width, over the build. Where the road changes along its length (a median ending, a turn lane opening), add a change: from
     there on, over so many blocks, the lanes become what you shape.
   </>
 )
@@ -445,6 +447,10 @@ function Shaper({
     shape(next)
     onSelect(null)
   }
+  const move = (from: number, to: number) => {
+    shape(withPartMoved(lanes, from, to))
+    onSelect(to)
+  }
   const set = (change: Parameters<typeof withPart>[2]) => selected != null && shape(withPart(lanes, selected, change))
   const setWidth = (width: number) => selected != null && shape(withWidth(lanes, selected, width))
   // The last lane stays.
@@ -454,7 +460,7 @@ function Shaper({
     <div className="mt-2">
       {/* The frame is the panel's width, so the drawn line stands still at its middle as the road grows. */}
       <div className="overflow-x-auto">
-        <LanesStrip frame={room} kind={kind} lanes={lanes} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
+        <LanesStrip frame={room} kind={kind} lanes={lanes} onMove={move} onSelect={(i) => onSelect(selected === i ? null : i)} ppb={ppb} selected={selected} />
       </div>
       <div className="mt-2 flex min-h-9 items-center gap-1">
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink-700">
