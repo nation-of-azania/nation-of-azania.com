@@ -1,4 +1,4 @@
-import type { Point } from './geo'
+import { roadCourse, type Point, type RoadShape } from './geo'
 
 /**
  * A road's lanes on Azania Maps: its cross-section, the parts across it
@@ -540,6 +540,14 @@ function stageAt(changes: LaneChange[], s: number): { from: number; to: number; 
 }
 
 /** The way a road's widths run along it: each track's width, and where the drawn line lies across them, `s` blocks along. */
+/**
+ * How far through a change its widths have gone, `t` of the way along it:
+ * eased in and out (a smoothstep), so each edge leaves the old line and
+ * meets the new one running along the road, an S rather than a kinked
+ * taper; halfway is still halfway.
+ */
+const eased = (t: number) => t * t * (3 - 2 * t)
+
 function widthsAlong(lanes: RoadLanes) {
   const changes = lanes.changes ?? []
   const axes = profilesOf(lanes).map(lanesAxis)
@@ -547,11 +555,13 @@ function widthsAlong(lanes: RoadLanes) {
   return {
     width: (track: LaneTrack, s: number) => {
       const { from, to, t } = stageAt(changes, s)
-      return widthOf(track, from) * (1 - t) + widthOf(track, to) * t
+      const e = eased(t)
+      return widthOf(track, from) * (1 - e) + widthOf(track, to) * e
     },
     axis: (s: number) => {
       const { from, to, t } = stageAt(changes, s)
-      return axes[from] * (1 - t) + axes[to] * t
+      const e = eased(t)
+      return axes[from] * (1 - e) + axes[to] * e
     },
     /** The part a track is drawn as `s` blocks along: the one before a change until halfway through it, the one after from there. */
     part: (track: LaneTrack, s: number): LanePart | null => {
@@ -904,7 +914,7 @@ export type LaneArea = PlacedPart & {
    * all along has one, the whole way, for a lane or a line, and none for
    * strips and pavements, which are only filled.
    */
-  runs: { part: LanePart; middle: Point[] }[]
+  runs: { part: LanePart; middle: Point[]; from: number; to: number }[]
 }
 
 /** A road's cross-section laid along its course, ready to draw (laneAreas). */
@@ -921,6 +931,8 @@ export type RoadAreas = {
   boundaries: Point[][]
   /** The kerbs: where the road (its lanes and lines) meets a strip or a pavement beside it, only where the two are there. */
   kerbs: Point[][]
+  /** Which boundary each kerb runs along (as `boundaries`), kerb for kerb: which side of a lane it lies. */
+  kerbBoundaries: number[]
   /** The widest the road is anywhere, pavements included, and its carriageway, in blocks. */
   width: number
   carriageway: number
@@ -948,8 +960,12 @@ export function laneAreas(course: Point[], lanes: RoadLanes, start = 0): RoadAre
   const tracks = tracksOf(lanes)
   const along = widthsAlong(lanes)
   const profiles = profilesOf(lanes)
-  // Points put in where the widths turn: where each change begins, where its parts switch, and where it's run.
-  const stations = changes.flatMap((change) => [change.at, change.at + change.over / 2, change.at + change.over].map((x) => x - start))
+  // Points put in where the widths turn: where each change begins and is run, its middle (where its parts switch), and
+  // enough between for its S to be drawn smooth.
+  const stations = changes.flatMap((change) => {
+    const steps = Math.max(2, Math.min(24, Math.ceil(change.over / 1.5)))
+    return [...Array.from({ length: steps + 1 }, (_, i) => change.at + (change.over * i) / steps), change.at + change.over / 2].map((x) => x - start)
+  })
   const { points, along: distances } = stationed(course, stations)
   const total = distances[distances.length - 1] ?? 0
   const widthAt = (t: number, s: number) => along.width(tracks[t], start + s)
@@ -994,6 +1010,9 @@ export function laneAreas(course: Point[], lanes: RoadLanes, start = 0): RoadAre
       ? stretches((piece) => (there(t, piece) ? along.part(track, start + piece.middle) : null)).map((run) => ({
           part: run.key,
           middle: alongStretch(run.from, run.to, t, 0.5),
+          // Where along the road it runs, in blocks from the road's start.
+          from: start + run.from,
+          to: start + run.to,
         }))
       : []
     return {
@@ -1010,14 +1029,15 @@ export function laneAreas(course: Point[], lanes: RoadLanes, start = 0): RoadAre
 
   // A kerb runs between the road and a strip or pavement beside it: at the boundary just right of a part there, where the
   // next part there to its right is of the other sort.
-  const kerbs = tracks.slice(1).flatMap((_, i) => {
+  const kerbRuns = tracks.slice(1).flatMap((_, i) => {
     const b = i + 1
     return stretches((piece) => {
       if (!there(b - 1, piece)) return null
       const right = tracks.findIndex((_, t) => t >= b && there(t, piece))
       return right >= 0 && onTheRoad(tracks[b - 1].kind) !== onTheRoad(tracks[right].kind) ? true : null
-    }).map((run) => alongStretch(run.from, run.to, b))
+    }).map((run) => ({ boundary: b, line: alongStretch(run.from, run.to, b) }))
   })
+  const kerbs = kerbRuns.map((run) => run.line)
 
   const left = boundaries[0]
   const right = boundaries[boundaries.length - 1]
@@ -1032,6 +1052,7 @@ export function laneAreas(course: Point[], lanes: RoadLanes, start = 0): RoadAre
     middle,
     boundaries,
     kerbs,
+    kerbBoundaries: kerbRuns.map((run) => run.boundary),
     width: Math.max(...profiles.map((parts) => lanesWidth({ parts }))),
     carriageway: Math.max(...profiles.map((parts) => carriagewayWidth(centred(parts)))),
   }
@@ -1127,4 +1148,226 @@ export function beyondEdge(through: Point[], at: Point, side: 1 | -1, offset: nu
   const near = offsetCourse(piece, side * offset)
   const far = offsetCourse(piece, side * (offset - reach))
   return [...near, ...far.reverse()]
+}
+
+/*
+ * Lanes as paths. Each lane of a road with lanes is a path of its own: its
+ * middle line, the way its traffic runs, and where along the road it runs
+ * (a lane opened by a change runs from there on). A road can end on one: a
+ * slip road leaving the outer lane, a ramp joining it, a turn into the far
+ * lane across a median. Its end then lies on the lane's middle, and
+ * nothing is kept but the point: the connection is the geometry, as a
+ * junction is a point two roads share (src/maps/junctions.ts).
+ */
+
+/** A road whose lanes may be followed: its points as drawn, its shape, and its lanes, if it has any. */
+export type LanedRoad<Id = number | string> = { id: Id; line: Point[]; shape?: RoadShape; corners?: number[]; lanes?: RoadLanes | null }
+
+/** One lane of a road as a path: which part it is (its track, tracksOf), the part, where along the road it runs, and its middle. */
+export type LanePath = { track: number; part: Extract<LanePart, { kind: 'lane' }>; from: number; to: number; middle: Point[] }
+
+/** How near a lane's middle a road's end must lie to end on it, in blocks, at the least; within half the lane's width counts too. */
+export const ON_LANE = 1
+/** A road's end nearer the other road's drawn line than this meets it at a point both share instead (junctions.ts → ON_ROAD). */
+const ON_LINE = 1
+
+const pathsKept = new WeakMap<object, { line: Point[]; lanes: RoadLanes | null | undefined; course: Point[]; paths: LanePath[] }>()
+
+/** A road's course (src/maps/geo.ts → roadCourse) and its lanes as paths: worked out once per road object while it stays as it is. */
+export function lanePathsOf(road: LanedRoad<unknown>): { course: Point[]; paths: LanePath[] } {
+  const kept = pathsKept.get(road)
+  if (kept && kept.line === road.line && kept.lanes === road.lanes) return kept
+  const course = roadCourse(road.line, road.shape ?? 'straight', road.corners ?? [])
+  const paths: LanePath[] = road.lanes
+    ? laneAreas(course, road.lanes).parts.flatMap((area) =>
+        area.part.kind === 'lane'
+          ? area.runs.map((run) => ({ track: area.index, part: run.part as LanePath['part'], from: run.from, to: run.to, middle: run.middle }))
+          : [],
+      )
+    : []
+  const laid = { line: road.line, lanes: road.lanes, course, paths }
+  pathsKept.set(road, laid)
+  return laid
+}
+
+/** The spot on a line nearest a point, and how far off it is. */
+function nearestOnLine(line: Point[], point: Point): { point: Point; distance: number } | null {
+  let best: { point: Point; distance: number } | null = null
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1]
+    const ab = sub(line[i], a)
+    const span2 = ab[0] * ab[0] + ab[1] * ab[1]
+    const t = span2 < EPSILON ? 0 : Math.max(0, Math.min(1, ((point[0] - a[0]) * ab[0] + (point[1] - a[1]) * ab[1]) / span2))
+    const at = add(a, scale(ab, t))
+    const distance = length(sub(point, at))
+    if (!best || distance < best.distance) best = { point: at, distance }
+  }
+  return best
+}
+
+/** Whether a point lies near enough a course's box to be on it, with `margin` blocks round it. */
+const nearBox = (course: Point[], point: Point, margin: number) =>
+  course.length > 0 &&
+  point[0] >= Math.min(...course.map((p) => p[0])) - margin &&
+  point[0] <= Math.max(...course.map((p) => p[0])) + margin &&
+  point[1] >= Math.min(...course.map((p) => p[1])) - margin &&
+  point[1] <= Math.max(...course.map((p) => p[1])) + margin
+
+/**
+ * Where a point lies on one of a road's lanes, if it does: within half the
+ * lane's width of its middle (ON_LANE at the least), and not on the
+ * road's own drawn line, where the two would share a point instead. The
+ * lane, the spot on its middle, how far along the road, how far off.
+ */
+export function onLane(point: Point, road: LanedRoad<unknown>): { path: LanePath; at: Point; s: number; distance: number } | null {
+  if (!road.lanes) return null
+  const { course, paths } = lanePathsOf(road)
+  const widest = Math.max(...profilesOf(road.lanes).map((parts) => lanesWidth({ parts })))
+  if (!nearBox(course, point, widest)) return null
+  const centre = nearestOnLine(course, point)
+  if (!centre || centre.distance <= ON_LINE) return null
+  let best: { path: LanePath; at: Point; distance: number } | null = null
+  for (const path of paths) {
+    const near = nearestOnLine(path.middle, point)
+    if (!near || near.distance > Math.max(ON_LANE, path.part.width / 2)) continue
+    if (!best || near.distance < best.distance) best = { path, at: near.point, distance: near.distance }
+  }
+  return best ? { ...best, s: distanceAlong(course, best.at) } : null
+}
+
+/** A road (`road`) ending, at its `end`, on a lane of another (`onto`): its track, the side of `onto` it comes from (1 right, −1 left), and where. */
+export type LaneEnd<Id> = { road: Id; end: 'start' | 'end'; onto: Id; track: number; side: 1 | -1; s: number; at: Point }
+
+/** Every road's end lying on another road's lane (onLane): the slip roads, ramps and turns that leave or join a lane. */
+export function laneEndsOf<Id>(roads: LanedRoad<Id>[]): LaneEnd<Id>[] {
+  const laned = roads.filter((road) => road.lanes && road.line.length >= 2)
+  const found: LaneEnd<Id>[] = []
+  for (const road of roads) {
+    if (road.line.length < 2) continue
+    const ends: ['start' | 'end', Point][] = [
+      ['start', road.line[0]],
+      ['end', road.line[road.line.length - 1]],
+    ]
+    for (const [end, point] of ends)
+      for (const onto of laned) {
+        if (onto.id === road.id || onto.line.some((p) => samePoint(p, point))) continue
+        const hit = onLane(point, onto)
+        if (!hit) continue
+        const side = teeSide(lanePathsOf(road).course, end, lanePathsOf(onto).course, hit.at)
+        found.push({ road: road.id, end, onto: onto.id, track: hit.path.track, side, s: hit.s, at: hit.at })
+      }
+  }
+  return found
+}
+
+/**
+ * What's cut where a road leaves (or joins) a lane, as rings in blocks:
+ *
+ * - the stem's lanes, lines and median are drawn only outside
+ *   `carriageway`, the ground beyond the edge of the lane it leaves (on
+ *   its side), so its surface meets that lane edge to edge;
+ * - its kerbs and edges only outside `kerbs`, beyond the road's kerb on
+ *   its side, so they run on from the road's own;
+ * - its pavements and verges only outside `outside`, beyond the road's
+ *   outer edge, so they begin where the road's own end;
+ * - and of the road it leaves, every part between that lane and the stem
+ *   (`cutTracks`: the lanes, lines, strips and pavements on the stem's
+ *   side of it; the kerbs along `cutBoundaries`; its edge on that side,
+ *   `cutEdge`) is drawn only outside `cut`, the stem's carriageway where
+ *   it passes: its kerb and pavement open there, and lanes it crosses to
+ *   reach an inner one, or a median, open too.
+ *
+ * Where the stem is drawn its surface fills exactly what the road gives
+ * up beyond the lane's edge, so nothing is drawn twice and nothing left
+ * bare. `stemReach` is how far the stem's carriageway reaches either side
+ * of its drawn line at that end, in blocks (carriagewayReach of its lanes
+ * there where it's drawn at its true width, else half its drawn width).
+ */
+export type LaneMouth = {
+  carriageway: Point[]
+  kerbs: Point[]
+  outside: Point[]
+  cut: Point[]
+  cutTracks: number[]
+  cutBoundaries: number[]
+  cutEdge: 'left' | 'right'
+}
+
+export function laneMouth(laneEnd: LaneEnd<unknown>, onto: LanedRoad<unknown>, stem: LanedRoad<unknown>, stemReach: { left: number; right: number }): LaneMouth | null {
+  if (!onto.lanes) return null
+  const { course } = lanePathsOf(onto)
+  const tracks = tracksOf(onto.lanes)
+  const along = widthsAlong(onto.lanes)
+  const { s, side, track } = laneEnd
+  const boundary = (b: number) => {
+    let offset = -along.axis(s)
+    for (let t = 0; t < b; t++) offset += along.width(tracks[t], s)
+    return offset
+  }
+  const here = lanesAt(onto.lanes, s)
+  const kerb = carriagewayReach(here)
+  const stemWidth = stemReach.left + stemReach.right
+  const reach = lanesWidth(here) + stemWidth + 8
+  const { points, along: distances } = stationed(course, [])
+  const foot = pointAlong(points, distances, s)
+  // The ground beyond the line `offset` blocks off the road's drawn line, seen from the stem.
+  const band = (offset: number) => beyondEdge(course, foot, side, side * offset, reach)
+
+  // The stem's carriageway from where it ends, out: followed from that end, its own left and right turned about.
+  const own = lanePathsOf(stem).course
+  const fromEnd = laneEnd.end === 'start' ? own : [...own].reverse()
+  const outward = stationed(fromEnd, [])
+  const piece = sliceAlong(outward.points, outward.along, 0, Math.min(outward.along.at(-1) ?? 0, reach)).points
+  const [left, right] = laneEnd.end === 'start' ? [stemReach.left, stemReach.right] : [stemReach.right, stemReach.left]
+  const cut = piece.length >= 2 ? [...offsetCourse(piece, -left), ...offsetCourse(piece, right).reverse()] : []
+
+  const all = tracks.length
+  return {
+    carriageway: band(boundary(side > 0 ? track + 1 : track)),
+    kerbs: band(side > 0 ? kerb.right : -kerb.left),
+    outside: band(side > 0 ? boundary(all) : boundary(0)),
+    cut,
+    cutTracks: tracks.flatMap((_, t) => ((side > 0 ? t > track : t < track) ? [t] : [])),
+    cutBoundaries: Array.from({ length: all + 1 }, (_, b) => b).filter((b) => (side > 0 ? b >= track + 1 : b <= track)),
+    cutEdge: side > 0 ? 'right' : 'left',
+  }
+}
+
+/**
+ * The ends of other roads that lay on a road's lanes, followed to where the
+ * same lanes lie once the road has changed (its points moved, its lanes
+ * widened or added to): each to the lane as many lanes in from its own side
+ * as before, as far along the road as before, where that lane runs. An end
+ * whose lane has gone stays where it was; one on a road `mayChange` says
+ * no to stays too. What's returned is each road moved, with its line.
+ */
+export function followLaneEnds<Id, R extends LanedRoad<Id>>(
+  before: LanedRoad<Id>,
+  after: LanedRoad<Id>,
+  others: R[],
+  mayChange: (road: R) => boolean = () => true,
+): { id: Id; line: Point[] }[] {
+  if (!before.lanes || !after.lanes) return []
+  const ends = laneEndsOf([before, ...others.filter((other) => other.id !== before.id)]).filter((end) => end.onto === before.id)
+  const moved = new Map<Id, Point[]>()
+  const { course } = lanePathsOf(after)
+  const { points, along } = stationed(course, [])
+  const lanesBy = (road: LanedRoad<Id>, s: number) => lanePathsOf(road).paths.filter((path) => path.from - EPSILON <= s && s <= path.to + EPSILON)
+  for (const end of ends) {
+    const other = others.find((road) => road.id === end.road)
+    if (!other || !mayChange(other)) continue
+    // As many lanes in from its own side as before.
+    const fromSide = (paths: LanePath[]) => [...paths].sort((a, b) => (end.side > 0 ? b.track - a.track : a.track - b.track))
+    const was = fromSide(lanesBy(before, end.s))
+    const rank = was.findIndex((path) => path.track === end.track)
+    const now = fromSide(lanesBy(after, end.s))
+    const lane = now[Math.min(Math.max(0, rank), now.length - 1)]
+    if (!lane) continue
+    const to = nearestOnLine(lane.middle, pointAlong(points, along, end.s))?.point
+    const line = moved.get(other.id) ?? other.line
+    const at = end.end === 'start' ? 0 : line.length - 1
+    if (!to || samePoint(to, line[at])) continue
+    moved.set(other.id, line.map((point, i) => (i === at ? to : point)))
+  }
+  return [...moved].map(([id, line]) => ({ id, line }))
 }

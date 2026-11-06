@@ -1,4 +1,5 @@
 import { roadCourse, roundPoint, type Point, type RoadShape } from './geo'
+import { laneEndsOf, lanesWidth, onLane, profilesOf, type LanedRoad, type RoadLanes } from './lanes'
 import type { RoadKind } from './registry'
 
 /**
@@ -31,6 +32,8 @@ export type JunctionRoad = {
   line: Point[]
   shape: RoadShape
   corners: number[]
+  /** Its lanes, where it has any (src/maps/lanes.ts): a road's end may lie on one of them instead of on its line. */
+  lanes?: RoadLanes | null
 }
 
 /** A road being drawn: not saved yet, or being changed. */
@@ -188,6 +191,9 @@ export function crossingsOf(drawn: DrawnRoad, others: JunctionRoad[]): Crossing[
       const onDrawn = nearestOnCourse(a.course, point)
       if (onDrawn && onDrawn.distance <= ON_ROAD) spots.push({ point: onDrawn.point, along: onDrawn.segment + onDrawn.t, segment: onDrawn.segment })
     }
+    // Where the two meet at a lane (one's end on the other's), crossings of their lines there are that meeting's.
+    const atLanes = laneMeetings({ ...drawn, id: drawn.id ?? null }, other)
+    if (atLanes.length) spots.splice(0, spots.length, ...spots.filter((spot) => atLanes.every((meeting) => distance(meeting.at, spot.point) > meeting.within)))
     spots.sort((x, y) => x.along - y.along)
     // Spots close together are one meeting.
     const groups: (typeof spots)[] = []
@@ -252,7 +258,8 @@ export function withJunctions<R extends Pick<DrawnRoad, 'line' | 'corners'>>(dra
  */
 export function snapToRoads(road: Pick<DrawnRoad, 'id' | 'line'>, others: JunctionRoad[]): Point[] {
   const traced = others.filter((other) => other.id !== road.id && other.line.length >= 2).map((other) => ({ other, ...trace(other) }))
-  return road.line.map((point) => {
+  const last = road.line.length - 1
+  return road.line.map((point, k) => {
     let best: { to: Point; distance: number } | null = null
     for (const { other, course } of traced) {
       if (other.line.some((p) => samePoint(p, point))) return point
@@ -263,8 +270,32 @@ export function snapToRoads(road: Pick<DrawnRoad, 'id' | 'line'>, others: Juncti
       const d = distance(to, point)
       if (!best || d < best.distance) best = { to, distance: d }
     }
-    return best ? best.to : point
+    if (best) return best.to
+    // An end put down on another road's lane, off its line, ends on that lane: set on the lane's middle (lanes.ts → onLane).
+    if (k !== 0 && k !== last) return point
+    let lane: { at: Point; distance: number } | null = null
+    for (const { other } of traced) {
+      const hit = onLane(point, other)
+      if (hit && (!lane || hit.distance < lane.distance)) lane = hit
+    }
+    return lane ? lane.at : point
   })
+}
+
+/** How far a road with lanes reaches from its line, at its widest, in blocks; 0 for one without. */
+const reachOfLanes = (road: Pick<LanedRoad<unknown>, 'lanes'>): number =>
+  road.lanes ? Math.max(...profilesOf(road.lanes).map((parts) => lanesWidth({ parts }))) / 2 : 0
+
+/**
+ * Where two roads meet at a lane rather than at a point both share: one's
+ * end on the other's lane (lanes.ts → laneEndsOf), with how far round it
+ * a crossing of their lines is part of that meeting, not a junction or a
+ * bridge of its own (a road reaching across to a far lane crosses the
+ * other's line on the way).
+ */
+function laneMeetings(a: LanedRoad<unknown>, b: LanedRoad<unknown>): { at: Point; within: number }[] {
+  if (!a.lanes && !b.lanes) return []
+  return laneEndsOf([a, b]).map((end) => ({ at: end.at, within: reachOfLanes(end.onto === a.id ? a : b) * 2 + SNAP }))
 }
 
 /** Another road given a point: its new line and corners. */
@@ -355,12 +386,15 @@ export function overpassesOf(roads: JunctionRoad[]): { at: Point; over: Junction
       if (!near(a.box, b.box, 0)) continue
       const onCourse = (course: Point[]) => (point: Point) => (nearestOnCourse(course, point)?.distance ?? Infinity) <= ON_ROAD
       const nodes = [...a.road.line.filter(onCourse(b.course)), ...b.road.line.filter(onCourse(a.course))]
+      // Where one ends on the other's lane, their lines crossing there is part of that meeting, no bridge.
+      const atLanes = laneMeetings(a.road, b.road)
       const spots: Point[] = []
       for (let i = 0; i < a.course.length - 1; i++)
         for (let j = 0; j < b.course.length - 1; j++) {
           const hit = crossing(a.course[i], a.course[i + 1], b.course[j], b.course[j + 1])
           if (!hit) continue
           if (nodes.some((node) => distance(node, hit.point) <= SNAP)) continue
+          if (atLanes.some((meeting) => distance(meeting.at, hit.point) <= meeting.within)) continue
           if (spots.some((spot) => distance(spot, hit.point) <= SNAP)) continue
           spots.push(hit.point)
         }

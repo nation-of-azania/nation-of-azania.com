@@ -10,6 +10,7 @@
  *   pnpm test:lanes
  */
 import { inRing, roadCourse, type Point } from '../src/maps/geo'
+import { crossingsOf, overpassesOf, sharedInto, snapToRoads } from '../src/maps/junctions'
 import {
   carriagewayWidth,
   describeLanes,
@@ -55,6 +56,11 @@ import {
   acrossCourse,
   describeChanges,
   roomForChange,
+  followLaneEnds,
+  laneEndsOf,
+  laneMouth,
+  lanePathsOf,
+  onLane,
 } from '../src/maps/lanes'
 
 let failed = false
@@ -318,6 +324,56 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   })
   const tightBand = beyondEdge(tight, [0, 0], 1, 2, 26)
   check(inRing([0, -1], tightBand) && inRing([0, -4], tightBand) && inRing([0, 1], tightBand) && !inRing([0, 3], tightBand), '…and on a tight bend covers the whole road beyond the kerb, not only a sliver')
+}
+
+// Transitions are S-curves: eased in and out, halfway still halfway.
+{
+  const lane = (dir: 'with' | 'against'): LanePart => ({ kind: 'lane', width: 3, dir })
+  const wide = parseLanes({ parts: [lane('against'), { kind: 'strip', width: 4, surface: 'grass' }, lane('with')], changes: [{ at: 0, over: 20, parts: [lane('against'), lane('with')] }] })!
+  const medianAt = (s: number) => lanesAt(wide, s).parts.find((p) => p.kind === 'strip')?.width ?? 0
+  check(Math.abs(medianAt(10) - 2) < 1e-9 && Math.abs(medianAt(5) - 4 * (1 - 0.15625)) < 1e-9, 'a change runs as an S: a quarter of the way through, a sixth of the way narrowed')
+  check(medianAt(1) > 3.95 && medianAt(19) < 0.05, '…leaving the old width and meeting the new one along the road')
+}
+
+// Lanes as paths: a road ending on another's lane (a slip road off the outer lane).
+{
+  const divided = withPavements(lanePreset('divided', 'right'), 3, 'right')
+  const road = { id: 1, kind: 'main' as const, line: [[0, 0], [100, 0]] as Point[], shape: 'straight' as const, corners: [], lanes: divided }
+  const paths = lanePathsOf(road).paths
+  check(same(paths.map((p) => [p.track, p.middle[0][1], p.from, p.to]), [[0, -6.5, 0, 100], [2, -2.5, 0, 100], [4, 2.5, 0, 100], [6, 6.5, 0, 100]]), 'each lane a path of its own, along its middle, the whole way')
+  check(onLane([40, 6.9], road)?.path.track === 6 && same(onLane([40, 6.9], road)?.at, [40, 6.5]) && onLane([40, 6.9], road)?.s === 40, 'a spot on the outer lane: that lane, its middle, 40 blocks along')
+  check(onLane([40, 0.5], road) === null && onLane([40, 9.5], road) === null, '…not on the drawn line (a shared point’s place), nor on the pavement')
+
+  const slip = { id: 2, kind: 'street' as const, line: [[40, 7], [60, 20]] as Point[], shape: 'straight' as const, corners: [], lanes: null }
+  check(same(snapToRoads(slip, [road]), [[40, 6.5], [60, 20]]), 'a road’s end put down on the lane is set on its middle')
+  check(same(snapToRoads({ id: 3, line: [[30, 20], [40, 7], [60, 20]] }, [road])[1], [40, 7]), '…an end only: a point on the way is left be')
+  const placed = { ...slip, line: [[40, 6.5], [60, 20]] as Point[] }
+  const ends = laneEndsOf([road, placed])
+  check(ends.length === 1 && ends[0].road === 2 && ends[0].onto === 1 && ends[0].track === 6 && ends[0].side === 1 && ends[0].end === 'start', '…and ends on it: the outer lane, from the right')
+  check(sharedInto(placed, [road]).length === 0 && teesOf([road, placed]).length === 0, '…no point shared, and no T')
+
+  const mouth = laneMouth(ends[0], road, placed, { left: 1.5, right: 1.5 })!
+  check(inRing([40, 7], mouth.carriageway) && inRing([40, 3], mouth.carriageway) && !inRing([45, 8.5], mouth.carriageway), 'the slip road drawn only beyond the lane’s edge')
+  check(inRing([40, 7.5], mouth.kerbs) && !inRing([45, 9], mouth.kerbs) && inRing([40, 10], mouth.outside) && !inRing([45, 12], mouth.outside), '…its kerbs from the road’s kerb, its pavements from the road’s outer edge')
+  check(inRing([44.1, 9.3], mouth.cut) && !inRing([30, 9.5], mouth.cut), 'the road’s pavement opened where the slip road passes, and only there')
+  check(same(mouth.cutTracks, [7]) && same(mouth.cutBoundaries, [7, 8]) && mouth.cutEdge === 'right', '…its pavement, the kerb and edge on that side: nothing of the lane it leaves')
+  const inner = laneMouth({ ...ends[0], track: 4 }, road, placed, { left: 1.5, right: 1.5 })!
+  check(same(inner.cutTracks, [5, 6, 7]), 'leaving an inner lane: the line and the outer lane it crosses open too')
+
+  // Across to the far lane: the median opens, and the road's line crossed on the way is no junction and no bridge.
+  const across = { id: 4, kind: 'street' as const, line: [[40, -6.5], [60, 20]] as Point[], shape: 'straight' as const, corners: [], lanes: null }
+  const far = laneEndsOf([road, across])
+  check(far.length === 1 && far[0].track === 0 && far[0].side === 1, 'a turn into the far lane, from the right')
+  check(same(laneMouth(far[0], road, across, { left: 1.5, right: 1.5 })!.cutTracks, [1, 2, 3, 4, 5, 6, 7]), '…opening the median and the near carriageway as it crosses')
+  check(crossingsOf(across, [road]).length === 0 && overpassesOf([road, across]).length === 0, '…its crossing of the road’s line no junction offered, and no bridge')
+
+  // The road changed: the slip road's end follows its lane.
+  const widened = { ...road, lanes: withWidth(withWidth(withWidth(withWidth(divided, 0, 4), 2, 4), 4, 4), 6, 4) }
+  const followed = followLaneEnds(road, widened, [placed])
+  check(followed.length === 1 && same(followed[0].line[0], [40, 8]), 'the road’s lanes widened: the slip road’s end follows the outer lane')
+  const added = { ...road, lanes: withPartAt(withPartAt(divided, 7, { kind: 'lane', width: 3, dir: 'with' }), 7, { kind: 'line', width: 1, style: 'dashed' }) }
+  check(same(followLaneEnds(road, added, [placed])[0]?.line[0], [40, 8.5]), '…a lane added outside it: to the new outer lane, as many in from its side as before')
+  check(followLaneEnds(road, widened, [placed], () => false).length === 0, '…unless the slip road isn’t the drawer’s to change')
 }
 
 if (failed) {

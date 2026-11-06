@@ -3,7 +3,7 @@ import type { CollectionAfterChangeHook, CollectionBeforeChangeHook, CollectionC
 import { createMapFeature, editMapFeature, getMapRights } from '../../access/maps'
 import { isPoint, roadCourse, samplePath, type Point } from '../../maps/geo'
 import { followMoves, sharedInto, snapToRoads, type JunctionRoad } from '../../maps/junctions'
-import { HAS_LANES, lanesProblem, parseLanes } from '../../maps/lanes'
+import { followLaneEnds, HAS_LANES, lanesProblem, parseLanes } from '../../maps/lanes'
 import { options, ROAD_KINDS, ROAD_SHAPES, type RoadKind } from '../../maps/registry'
 import { authorshipFields, JUNCTIONS, pathField, placeOnMap, townField } from './shared'
 
@@ -24,7 +24,7 @@ async function otherRoads(req: PayloadRequest, except: unknown): Promise<Other[]
     collection: 'roads',
     pagination: false,
     depth: 0,
-    select: { kind: true, line: true, shape: true, corners: true, town: true },
+    select: { kind: true, line: true, shape: true, corners: true, town: true, lanes: true },
     req,
   })
   return docs
@@ -35,6 +35,7 @@ async function otherRoads(req: PayloadRequest, except: unknown): Promise<Other[]
       line: lineOf(road.line),
       shape: road.shape === 'curved' ? 'curved' : 'straight',
       corners: cornersOf(road.corners),
+      lanes: parseLanes(road.lanes),
       town: idOf(road.town),
     }))
 }
@@ -80,6 +81,14 @@ const shareNodes: CollectionAfterChangeHook = async ({ doc, previousDoc, operati
     }
   }
   for (const shared of sharedInto({ id: doc.id, line }, others)) changed.set(shared.id, { line: shared.line, corners: shared.corners })
+  if (operation === 'update') {
+    // The ends of other roads lying on this one's lanes (a slip road, a ramp) follow their lanes to where they now lie.
+    const shapeOf = (value: unknown): 'curved' | 'straight' => (value === 'curved' ? 'curved' : 'straight')
+    const before = { id: doc.id, line: lineOf(previousDoc?.line), shape: shapeOf(previousDoc?.shape), corners: cornersOf(previousDoc?.corners), lanes: parseLanes(previousDoc?.lanes) }
+    const after = { id: doc.id, line, shape: shapeOf(doc.shape), corners: cornersOf(doc.corners), lanes: parseLanes(doc.lanes) }
+    const current = others.map((road) => ({ ...road, line: changed.get(road.id)?.line ?? road.line }))
+    for (const moved of followLaneEnds(before, after, current, mayChange)) changed.set(moved.id, { ...changed.get(moved.id), line: moved.line })
+  }
   if (!changed.size) return doc
   const before = req.context[JUNCTIONS]
   try {
