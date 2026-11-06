@@ -6,7 +6,19 @@ import { cn } from '@/blocks/components/shared'
 import { curvePath } from '@/maps/curves'
 import { roadPoints, type MapData, type MapRights } from '@/maps/data'
 import { roundPoint, samplePath, type Point } from '@/maps/geo'
-import { acrossCourse, distanceAlong, HAS_LANES, lanesAt, reachOf, withChangeMoved, type RoadLanes } from '@/maps/lanes'
+import {
+  acrossCourse,
+  distanceAlong,
+  HAS_LANES,
+  laneEndsOf,
+  lanePathsOf,
+  lanesAt,
+  reachOf,
+  withChangeMoved,
+  type LaneEnd,
+  type LanedRoad,
+  type RoadLanes,
+} from '@/maps/lanes'
 import { GROUND, INK_COLOURS } from '@/maps/palette'
 import { ROAD_KINDS, type Drawing } from '@/maps/registry'
 import { clampToWorld } from '@/maps/source'
@@ -492,6 +504,101 @@ function CrossingMark({
 }
 
 /*
+ * A road's end on another road's lane (src/maps/lanes.ts → laneEndsOf): a
+ * slip road leaving the outer lane, a turn into the far one. It's a lane
+ * end because the end lies on the lane, so there's nothing to toggle: the
+ * mark only says so, under the end's handle as a junction's does. The
+ * lane runs through the disc as a soft band, the ending road from the
+ * centre out; the drawn road's part in the editor's colour, the other's
+ * in ink, whichever ends on which.
+ */
+
+/** The width of the lane's band through the mark, in px. */
+const LANE_BAND = 6
+
+/** Which way a line runs where it passes nearest `at`, in degrees on the page. */
+function headingNear(line: Point[], at: Point): number {
+  const found = nearestOnPath(line, at)
+  if (!found || line.length < 2) return 0
+  const [a, b] = [line[found.segment], line[found.segment + 1] ?? line[found.segment]]
+  return (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI
+}
+
+/** The way out of a course from one of its ends: along its first piece, or back along its last. */
+function headingOut(course: Point[], end: 'start' | 'end'): number {
+  if (course.length < 2) return 0
+  const [a, b] = end === 'start' ? [course[0], course[1]] : [course[course.length - 1], course[course.length - 2]]
+  return (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI
+}
+
+function LaneEndMark({
+  laneEnd,
+  road,
+  onto,
+  mine,
+  projection,
+  colour,
+}: {
+  laneEnd: LaneEnd<number>
+  /** The road ending here, and the one whose lane it ends on: either may be the draft. */
+  road: LanedRoad<number>
+  onto: LanedRoad<number>
+  /** Whether the draft is the road ending here (true) or the one whose lane it ends on (false). */
+  mine: boolean
+  projection: Projection
+  colour: string
+}) {
+  const [x, y] = projection.project(laneEnd.at)
+  const lane = lanePathsOf(onto).paths.find((path) => path.track === laneEnd.track && path.from - 1e-9 <= laneEnd.s && laneEnd.s <= path.to + 1e-9)
+  const laneHeading = headingNear(lane?.middle ?? lanePathsOf(onto).course, laneEnd.at)
+  const roadHeading = headingOut(lanePathsOf(road).course, laneEnd.end)
+  return (
+    <g className="az-crossing az-crossing-fixed az-lane-end" pointerEvents="none" {...upright(x, y)}>
+      <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+        <circle fill={GROUND.whitewash} fillOpacity={0.96} r={MARK.disc} stroke={colour} strokeWidth={1.5} />
+        <path
+          d={across(false)}
+          fill="none"
+          stroke={mine ? GROUND.inkSoft : colour}
+          strokeOpacity={mine ? 0.3 : 0.45}
+          strokeWidth={LANE_BAND}
+          transform={`rotate(${laneHeading.toFixed(1)})`}
+        />
+        <path
+          d={across(true)}
+          fill="none"
+          stroke={mine ? colour : GROUND.inkSoft}
+          strokeLinecap="round"
+          strokeWidth={2.5}
+          transform={`rotate(${roadHeading.toFixed(1)})`}
+        />
+      </g>
+    </g>
+  )
+}
+
+/** A road not saved yet, among the others, for the lane ends: no saved road has this id. */
+const DRAFT_ID = -1
+
+/**
+ * The draft as a road among the others (its lanes only for a kind that has
+ * any), with its ends on other roads' lanes and other roads' ends on its
+ * lanes; worked out again only as the draft or the roads change, and the
+ * one object kept, so the lanes laid along it are too (lanePathsOf).
+ */
+function useLaneEnds(editor: Editor, data: MapData): { draftRoad: LanedRoad<number> | null; laneEnds: LaneEnd<number>[] } {
+  const road = editor.kind === 'road' ? editor : null
+  const draft = road?.draft ?? null
+  const id = road?.id ?? DRAFT_ID
+  const { roads } = data
+  return useMemo(() => {
+    if (!draft || draft.line.length < 2) return { draftRoad: null, laneEnds: [] }
+    const draftRoad = { ...draft, lanes: HAS_LANES.has(draft.kind) ? draft.lanes : null, id }
+    return { draftRoad, laneEnds: laneEndsOf([draftRoad, ...otherRoads(roads, id)]).filter((end) => end.road === id || end.onto === id) }
+  }, [draft, id, roads])
+}
+
+/*
  * Where a road's lanes change along it (src/maps/lanes.ts → changes): a
  * bar across the road where each change begins and a dashed one where
  * it's run, the picked change's in the editor's colour. Pressed, a bar
@@ -668,6 +775,7 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
   const [stroke, setStroke] = useState<Point[] | null>(null)
   const penning = editor.kind === 'view' && editor.tool === 'pen'
   const meetings = useMeetings(editor, data)
+  const { draftRoad, laneEnds } = useLaneEnds(editor, data)
 
   // The pen: a press on the map starts a stroke, a release keeps it.
   useEffect(() => {
@@ -1002,6 +1110,25 @@ export function Tools({ data, rights, editor, onEditor, projection }: Props) {
           {meetings.map((meeting) =>
             meeting.fixed ? <CrossingMark colour={colour} key={meeting.key} meeting={meeting} projection={projection} /> : null,
           )}
+          {/* Its ends on other roads' lanes, and theirs on its own: under the handles too. */}
+          {draftRoad
+            ? laneEnds.map((end) => {
+                const mine = end.road === draftRoad.id
+                const other = others.find((road) => road.id === (mine ? end.onto : end.road))
+                if (!other) return null
+                return (
+                  <LaneEndMark
+                    colour={colour}
+                    key={`${end.road}-${end.end}-${end.onto}`}
+                    laneEnd={end}
+                    mine={mine}
+                    onto={mine ? other : draftRoad}
+                    projection={projection}
+                    road={mine ? draftRoad : other}
+                  />
+                )
+              })
+            : null}
           {/* Where the lanes change along the road: bars across it, under the handles. */}
           {draft.lanes?.changes && draft.line.length >= 2 && HAS_LANES.has(draft.kind) ? (
             <ChangeMarks

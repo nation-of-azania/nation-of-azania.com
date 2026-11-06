@@ -58,6 +58,7 @@ import {
   roomForChange,
   followLaneEnds,
   laneEndsOf,
+  laneEndWords,
   laneMouth,
   lanePathsOf,
   onLane,
@@ -357,8 +358,19 @@ check(marksAlong([[0, 0], [30, 0], [30, 30]], 10).length === 6, '…round a corn
   check(inRing([40, 7.5], mouth.kerbs) && !inRing([45, 9], mouth.kerbs) && inRing([40, 10], mouth.outside) && !inRing([45, 12], mouth.outside), '…its kerbs from the road’s kerb, its pavements from the road’s outer edge')
   check(inRing([44.1, 9.3], mouth.cut) && !inRing([30, 9.5], mouth.cut), 'the road’s pavement opened where the slip road passes, and only there')
   check(same(mouth.cutTracks, [7]) && same(mouth.cutBoundaries, [7, 8]) && mouth.cutEdge === 'right', '…its pavement, the kerb and edge on that side: nothing of the lane it leaves')
+  check(mouth.outsideCut === mouth.cut, '…a stem with no pavement opens the road’s edge over its carriageway alone')
+  const paved = laneMouth(ends[0], road, placed, { left: 1.5, right: 1.5 }, { left: 3.5, right: 3.5 })!
+  check(inRing([42, 11.2], paved.outsideCut) && !inRing([42, 11.2], paved.cut) && same(paved.carriageway, mouth.carriageway), '…one with pavements opens the edge over its whole width, its lanes cut as before')
   const inner = laneMouth({ ...ends[0], track: 4 }, road, placed, { left: 1.5, right: 1.5 })!
   check(same(inner.cutTracks, [5, 6, 7]), 'leaving an inner lane: the line and the outer lane it crosses open too')
+  check(laneEndWords(road, ends[0]) === 'outer right lane' && laneEndWords(road, { ...ends[0], track: 4 }) === 'inner right lane', 'which lane, in words: the outer right lane, the inner right lane')
+  check(laneEndWords(road, { ...ends[0], track: 0 }) === 'outer left lane', '…the outer left lane across the median, whichever side the end came from')
+  const twoWay = { id: 5, line: [[0, 0], [50, 0]] as Point[], lanes: lanePreset('two-way') }
+  check(laneEndWords(twoWay, { track: 2, s: 10 }) === 'right lane' && laneEndWords(twoWay, { track: 0, s: 10 }) === 'left lane', '…the right lane and the left of a lane each way')
+  check(laneEndWords({ id: 6, line: [[0, 0], [50, 0]] as Point[], lanes: lanePreset('shared') }, { track: 0, s: 10 }) === 'lane', '…a one-lane road’s lane')
+  const threeWide = { id: 7, line: [[0, 0], [50, 0]] as Point[], lanes: lanePreset('divided') }
+  const wider = { ...threeWide, lanes: withPartAt(withPartAt(threeWide.lanes, 7, { kind: 'lane', width: 3, dir: 'with' }), 7, { kind: 'line', width: 1, style: 'dashed' }) }
+  check(laneEndWords(wider, { track: 6, s: 10 }) === '2nd right lane from the kerb', '…and the middle one of three, counted from the kerb')
 
   // Across to the far lane: the median opens, and the road's line crossed on the way is no junction and no bridge.
   const across = { id: 4, kind: 'street' as const, line: [[40, -6.5], [60, 20]] as Point[], shape: 'straight' as const, corners: [], lanes: null }

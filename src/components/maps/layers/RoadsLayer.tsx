@@ -6,13 +6,17 @@ import {
   carriagewayReach,
   distanceAlong,
   laneAreas,
+  laneEndsOf,
+  laneMouth,
   lanesAt,
   lanesWidth,
   marksAlong,
   reachOf,
   teeSide,
   teesOf,
+  type LaneEnd,
   type LaneMark,
+  type LanePart,
   type RoadAreas,
   type RoadLanes,
   type Tee,
@@ -51,7 +55,12 @@ import {
  * their part is there. Where a road at true width ends on another in a T
  * (teesOf), its drawing is clipped at the other road's near edge, along
  * that road's curve, so its lanes stop at the kerb instead of reaching
- * across and beyond with a square-cut end.
+ * across and beyond with a square-cut end. Where a road ends on another's
+ * lane (laneEndsOf: a slip road off the outer lane, a turn into the far
+ * one), the two are cut to meet edge to edge (laneMouth): the stem's lanes
+ * run to the edge of the lane it leaves, and the road it leaves opens
+ * where the stem passes, its pavement, kerb and edge, and any lane or
+ * median crossed on the way to an inner lane.
  */
 
 type Props = {
@@ -115,6 +124,7 @@ function amongRoads<T>(compute: (roads: MapRoad[]) => T) {
 
 const overpassesAmong = amongRoads<Overpass[]>((roads) => (roads.length > 1 ? overpassesOf(roads) : []))
 const teesAmong = amongRoads<Tee<number>[]>((roads) => (roads.length > 1 ? teesOf(roads) : []))
+const laneEndsAmong = amongRoads<LaneEnd<number>[]>((roads) => (roads.length > 1 ? laneEndsOf(roads) : []))
 
 /** How much wider than its road a bridge's deck is drawn, in px: its edges, across the road below, are what say "bridge". */
 const DECK = 7
@@ -256,18 +266,64 @@ function chevrons(projection: Projection, marks: LaneMark[], nth: number, size: 
   return d
 }
 
+/*
+ * The clip paths a road's paths are cut by, by what each path draws: a
+ * T's stem is cut whole (teeClips), but a road leaving another's lane is
+ * cut in three depths (laneMouth: its lanes to the lane's edge, its kerbs
+ * to the road's kerb, its pavements to the road's outer edge), and the
+ * road left is cut part by part where the stem passes. Set on each path:
+ * the live map moves the paths one by one mid-zoom, and a clip set on a
+ * path moves with it.
+ */
+type RoadClips = {
+  /** Its lanes, lines and medians, and the chevrons along the lanes. */
+  carriageway?: string
+  /** Its kerbs, and its edges beside a lane. */
+  kerbs?: string
+  /** Its pavements and verges, and its edges beside them. */
+  outside?: string
+  /** A part opened where another road leaves one of its lanes, by its track; the rest as above. */
+  tracks?: Map<number, string>
+  /** A kerb opened likewise, by its boundary. */
+  boundaries?: Map<number, string>
+  /** An edge opened likewise. */
+  edges?: { left?: string; right?: string }
+}
+
+const onTheRoad = (kind: LanePart['kind']) => kind === 'lane' || kind === 'line'
+
+/** Does the part at `index` lie between lanes (a median), rather than at the side (a verge)? */
+const between = (areas: RoadAreas, index: number) =>
+  areas.parts.some((p) => p.index < index && p.part.kind === 'lane') && areas.parts.some((p) => p.index > index && p.part.kind === 'lane')
+
+/** The clip a part is cut by: its own, where a stem opens it, else by its depth across the road. */
+function clipOfPart(clips: RoadClips | undefined, areas: RoadAreas, index: number): string | undefined {
+  if (!clips) return undefined
+  const own = clips.tracks?.get(index)
+  if (own) return own
+  const { kind } = areas.parts[index].part
+  return onTheRoad(kind) || (kind === 'strip' && between(areas, index)) ? clips.carriageway : clips.outside
+}
+
+/** The clip an edge is cut by: its own where a stem opens it, else as a kerb beside a lane or as the edge of a pavement or verge. */
+function clipOfEdge(clips: RoadClips | undefined, areas: RoadAreas, side: 'left' | 'right'): string | undefined {
+  if (!clips) return undefined
+  const own = clips.edges?.[side]
+  if (own) return own
+  const outermost = side === 'left' ? areas.parts[0] : areas.parts[areas.parts.length - 1]
+  return outermost && onTheRoad(outermost.part.kind) ? clips.kerbs : clips.outside
+}
+
 /**
  * A road's two kerbs, open at the ends: its casing, drawn with every other
- * road's before any fill, so roads meeting merge. `clip` names the clip
- * path a T's stem is cut by (teeClips), on each path: the live map moves
- * the paths one by one mid-zoom, and a clip set on a path moves with it.
+ * road's before any fill, so roads meeting merge.
  */
-function TrueEdges({ projection, laid, casing, edge, clip }: { projection: Projection; laid: Laid; casing: string; edge: number; clip?: string }) {
-  const stroke = { fill: 'none', stroke: casing, strokeLinecap: 'butt' as const, strokeLinejoin: 'round' as const, strokeWidth: edge, clipPath: clip }
+function TrueEdges({ projection, laid, casing, edge, clips }: { projection: Projection; laid: Laid; casing: string; edge: number; clips?: RoadClips }) {
+  const stroke = { fill: 'none', stroke: casing, strokeLinecap: 'butt' as const, strokeLinejoin: 'round' as const, strokeWidth: edge }
   return (
     <>
-      <path d={open(onPaper(projection, laid.edges.left))} {...stroke} />
-      <path d={open(onPaper(projection, laid.edges.right))} {...stroke} />
+      <path clipPath={clipOfEdge(clips, laid, 'left')} d={open(onPaper(projection, laid.edges.left))} {...stroke} />
+      <path clipPath={clipOfEdge(clips, laid, 'right')} d={open(onPaper(projection, laid.edges.right))} {...stroke} />
     </>
   )
 }
@@ -278,15 +334,15 @@ function TrueRoad({
   areas,
   style,
   marks,
-  clip,
+  clips,
 }: {
   projection: Projection
   areas: RoadAreas
   style: RoadStyle
   /** The marks along the lanes; none on a bridge's deck. */
   marks?: Laid['marks']
-  /** The clip path a T's stem is cut by, on each path (TrueEdges). */
-  clip?: string
+  /** What cuts each path (RoadClips). */
+  clips?: RoadClips
 }) {
   const { ppb } = projection
   const casing = style.casing ?? GROUND.inkSoft
@@ -297,6 +353,7 @@ function TrueRoad({
   return (
     <>
       {areas.parts.map(({ part, index, ring: area, runs }) => {
+        const clip = clipOfPart(clips, areas, index)
         if (part.kind === 'line') {
           // Each run of the line as its own part there: dashed or solid, as wide as it is.
           if (!lined) return null
@@ -325,7 +382,15 @@ function TrueRoad({
       {/* The kerbs between the road and its verges and pavements, where both are there. */}
       {kerbed
         ? areas.kerbs.map((line, i) => (
-            <path clipPath={clip} d={open(onPaper(projection, line))} fill="none" key={`kerb-${i}`} stroke={casing} strokeOpacity={0.5} strokeWidth={1} />
+            <path
+              clipPath={clips?.boundaries?.get(areas.kerbBoundaries[i]) ?? clips?.kerbs}
+              d={open(onPaper(projection, line))}
+              fill="none"
+              key={`kerb-${i}`}
+              stroke={casing}
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
           ))
         : null}
       {/* Which way each lane runs: chevrons along it, once a lane is wide enough on the page to carry them. */}
@@ -335,7 +400,7 @@ function TrueRoad({
         const size = Math.min(9, Math.max(4, lanePx * 0.38))
         return (
           <path
-            clipPath={clip}
+            clipPath={clipOfPart(clips, areas, index)}
             d={chevrons(projection, along, nth, size)}
             fill="none"
             key={`marks-${index}-${i}`}
@@ -368,27 +433,32 @@ function TrueRoad({
 /** The ground this far beyond the stem's own width is masked each way along the edge, in blocks: room for a stem meeting at a slant. */
 const TEE_ROOM = 4
 
-type TeeClip = { id: string; d: string; within?: string }
-/** A stem drawn again over the fills about one T, clipped to a box there less the ground beyond the edge. */
-type TeeOverlay = { stem: MapRoad; clip: string }
+type ClipDef = { id: string; d: string; within?: string }
+/** A stem drawn again over the fills about one T, its clips each cut to a box there. */
+type Overlay = { stem: MapRoad; clips: RoadClips }
 
 /**
  * The clip paths cutting each road at true width that's the stem of a T,
- * by the road's id: the element's defs, and the `url(#…)` each road's
- * paths are clipped by.
+ * and each road that leaves another's lane or is left by one (laneMouths),
+ * by the road's id: the element's defs, and the clips each road's paths
+ * are cut by. Each clip is a ring to draw outside of, taken from the page
+ * even-odd; where a road is cut by several (a stem ending on a road at
+ * both ends, a road with several slip roads off one side) they're chained,
+ * each clip path cut by the one before, so two rings overlapping still cut.
  */
-function teeClips(
+function roadClips(
   projection: Projection,
   tees: Tee<number>[],
+  laneEnds: LaneEnd<number>[],
   roads: Map<number, MapRoad>,
   courses: Map<number, Point[]>,
   laidOfRoad: (road: MapRoad) => Laid | null,
-): { defs: TeeClip[]; clipOf: Map<number, string>; overlays: TeeOverlay[] } {
+): { defs: ClipDef[]; clipsOf: Map<number, RoadClips>; overlays: Overlay[] } {
   const { ppb, bounds, id } = projection
-  const defs: TeeClip[] = []
-  const clipOf = new Map<number, string>()
-  const overlays: TeeOverlay[] = []
-  if (!tees.length) return { defs, clipOf, overlays }
+  const defs: ClipDef[] = []
+  const clipsOf = new Map<number, RoadClips>()
+  const overlays: Overlay[] = []
+  if (!tees.length && !laneEnds.length) return { defs, clipsOf, overlays }
   // The page, and well beyond it: the clip must hold mid-zoom, when the drawing is scaled about the view.
   const across = bounds.maxX - bounds.minX
   const down = bounds.maxZ - bounds.minZ
@@ -400,6 +470,25 @@ function teeClips(
   ] as Point[]
   const pageRing = pathOf(projection, page, true)
   const edge = ease(projection.zoom, 0, 2, 2, 1.2)
+  const made = new Set<string>()
+  /** The clip cutting outside `ring`, within `within`: made once by its id. */
+  const outside = (clipId: string, ring: Point[], within: string | undefined): string => {
+    if (!made.has(clipId)) {
+      made.add(clipId)
+      defs.push({ id: clipId, d: pageRing + pathOf(projection, ring, true), within })
+    }
+    return `url(#${clipId})`
+  }
+  /** The clips a road has so far: none, until something cuts it. */
+  const clipsFor = (road: MapRoad): RoadClips => {
+    const kept = clipsOf.get(road.id)
+    if (kept) return kept
+    const fresh: RoadClips = {}
+    clipsOf.set(road.id, fresh)
+    return fresh
+  }
+
+  // T-junctions: the stem cut whole at the through road's near edge.
   const boxes: { stem: MapRoad; at: Point; half: number; id: string }[] = []
   for (const tee of tees) {
     const stem = roads.get(tee.stem)
@@ -427,12 +516,81 @@ function teeClips(
     const ring = beyondEdge(throughCourse, tee.at, side, offset, reach)
     if (ring.length < 3) continue
     const clipId = `${id}-tee-${stem.id}-${tee.end}`
-    const within = clipOf.get(stem.id)
-    defs.push({ id: clipId, d: pageRing + pathOf(projection, ring, true), within })
-    clipOf.set(stem.id, `url(#${clipId})`)
+    const clips = clipsFor(stem)
+    // Cut whole: the same clip at every depth, within whatever cuts the stem already.
+    const clip = outside(clipId, ring, clips.carriageway)
+    clips.carriageway = clip
+    clips.kerbs = clip
+    clips.outside = clip
     if (beyond > 0) boxes.push({ stem, at: tee.at, half: reach + beyond, id: `${clipId}-over` })
   }
-  // The boxes the stems are drawn again in, each cut by its stem's whole clip (every T of the stem's).
+
+  // Lane mouths: the stem cut in three depths, then the road it leaves opened part by part where the stem passes.
+  type Cut = { end: LaneEnd<number>; stem: MapRoad; cut: Point[]; outsideCut: Point[]; cutTracks: number[]; cutBoundaries: number[]; cutEdge: 'left' | 'right' }
+  const cutsOf = new Map<number, Cut[]>()
+  for (const end of laneEnds) {
+    const stem = roads.get(end.road)
+    const onto = roads.get(end.onto)
+    if (!stem || !onto || !onto.lanes || !inBounds(bounds, end.at)) continue
+    // Only where the road left is drawn at true width: by its class, there's no lane on the page to leave.
+    if (!atTrueWidth(onto, laidOfRoad(onto), ppb)) continue
+    const laid = laidOfRoad(stem)
+    const stemCourse = courses.get(stem.id)!
+    // The stem's carriageway and its whole width either side of its line at that end: of its lanes there where it's
+    // drawn at true width, else half its drawn class width.
+    let reach: { left: number; right: number }
+    let edges: { left: number; right: number }
+    if (atTrueWidth(stem, laid, ppb) && stem.lanes) {
+      const there = lanesAt(stem.lanes, end.end === 'start' ? 0 : pathLength(stemCourse))
+      reach = carriagewayReach(there)
+      edges = reachOf(there)
+    } else {
+      const half = roadWidth(stem, ppb) / 2 / ppb
+      reach = { left: half, right: half }
+      edges = reach
+    }
+    const mouth = laneMouth(end, onto, stem, reach, edges)
+    if (!mouth || mouth.cut.length < 3) continue
+    const clips = clipsFor(stem)
+    const key = `${id}-mouth-${stem.id}-${end.end}`
+    clips.carriageway = outside(`${key}-lanes`, mouth.carriageway, clips.carriageway)
+    clips.kerbs = outside(`${key}-kerbs`, mouth.kerbs, clips.kerbs)
+    clips.outside = outside(`${key}-outside`, mouth.outside, clips.outside)
+    const cuts = cutsOf.get(onto.id) ?? []
+    cuts.push({ end, stem, ...mouth })
+    cutsOf.set(onto.id, cuts)
+  }
+  for (const [ontoId, cuts] of cutsOf) {
+    const onto = roads.get(ontoId)!
+    const laid = laidOfRoad(onto)!
+    const clips = clipsFor(onto)
+    /** The clip cutting outside every ring of the cuts that open this part, chained in order, within `base`. */
+    const opened = (what: string, base: string | undefined, through: Cut[], ring: (cut: Cut) => Point[]) =>
+      through.reduce<string | undefined>((within, cut) => outside(`${id}-cut-${ontoId}-${what}-${cut.stem.id}-${cut.end.end}`, ring(cut), within), base)
+    // A part is drawn outside each stem's carriageway that crosses it; a stem leaving an outer lane opens only the
+    // pavement and verge beyond it, one leaving an inner lane the lanes and lines it crosses too.
+    const tracks = new Map<number, string>()
+    for (const { index } of laid.parts) {
+      const through = cuts.filter((cut) => cut.cutTracks.includes(index))
+      if (through.length) tracks.set(index, opened(`t${index}`, clipOfPart(clips, laid, index), through, (cut) => cut.cut)!)
+    }
+    const boundaries = new Map<number, string>()
+    for (const boundary of new Set(laid.kerbBoundaries)) {
+      const through = cuts.filter((cut) => cut.cutBoundaries.includes(boundary))
+      if (through.length) boundaries.set(boundary, opened(`b${boundary}`, clips.kerbs, through, (cut) => cut.cut)!)
+    }
+    // Its edge on the stem's side opens over the stem's whole width, pavements and all, so the two pavements merge.
+    const edges: RoadClips['edges'] = {}
+    for (const side of ['left', 'right'] as const) {
+      const through = cuts.filter((cut) => cut.cutEdge === side)
+      if (through.length) edges[side] = opened(`e-${side}`, clipOfEdge(clips, laid, side), through, (cut) => cut.outsideCut)
+    }
+    clips.tracks = tracks
+    clips.boundaries = boundaries
+    clips.edges = edges
+  }
+
+  // The boxes the T's stems are drawn again in, each of the stem's clips cut to the box (every T and mouth of the stem's).
   for (const box of boxes) {
     const [x, z] = box.at
     const corners: Point[] = [
@@ -441,10 +599,30 @@ function teeClips(
       [x + box.half, z + box.half],
       [x - box.half, z + box.half],
     ]
-    defs.push({ id: box.id, d: pathOf(projection, corners, true), within: clipOf.get(box.stem.id) })
-    overlays.push({ stem: box.stem, clip: `url(#${box.id})` })
+    const clips = clipsOf.get(box.stem.id) ?? {}
+    const boxed = new Map<string | undefined, string>()
+    const inBox = (clip: string | undefined): string => {
+      const kept = boxed.get(clip)
+      if (kept) return kept
+      const boxId = `${box.id}-${boxed.size}`
+      defs.push({ id: boxId, d: pathOf(projection, corners, true), within: clip })
+      const url = `url(#${boxId})`
+      boxed.set(clip, url)
+      return url
+    }
+    overlays.push({
+      stem: box.stem,
+      clips: {
+        carriageway: inBox(clips.carriageway),
+        kerbs: inBox(clips.kerbs),
+        outside: inBox(clips.outside),
+        tracks: clips.tracks && new Map([...clips.tracks].map(([track, clip]) => [track, inBox(clip)])),
+        boundaries: clips.boundaries && new Map([...clips.boundaries].map(([boundary, clip]) => [boundary, inBox(clip)])),
+        edges: clips.edges && { left: clips.edges.left && inBox(clips.edges.left), right: clips.edges.right && inBox(clips.edges.right) },
+      },
+    })
   }
-  return { defs, clipOf, overlays }
+  return { defs, clipsOf, overlays }
 }
 
 /**
@@ -583,9 +761,12 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
             },
           ]
         })
-  // The Ts among the roads: each stem at true width is cut at the through road's near edge.
-  const { defs: clips, clipOf, overlays } =
-    part === 'names' ? { defs: [], clipOf: new Map<number, string>(), overlays: [] } : teeClips(projection, teesAmong(roads), byId, courses, laidOfRoad)
+  // The Ts and the lane mouths among the roads: each stem at true width is cut at the through road's near edge, and
+  // where a road leaves another's lane the two are cut to meet.
+  const { defs: clips, clipsOf, overlays } =
+    part === 'names'
+      ? { defs: [], clipsOf: new Map<number, RoadClips>(), overlays: [] }
+      : roadClips(projection, teesAmong(roads), laneEndsAmong(roads), byId, courses, laidOfRoad)
 
   return (
     <g className="az-roads">
@@ -630,10 +811,11 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
               const style = ROAD_STYLES[road.kind]
               if (!style.casing) return null
               const laid = trueOf(road)
-              if (laid) return <TrueEdges casing={style.casing} clip={clipOf.get(road.id)} edge={edge} key={road.id} laid={laid} projection={projection} />
+              if (laid) return <TrueEdges casing={style.casing} clips={clipsOf.get(road.id)} edge={edge} key={road.id} laid={laid} projection={projection} />
               return (
                 <path
                   key={road.id}
+                  clipPath={clipsOf.get(road.id)?.kerbs}
                   d={paths.get(road.id)}
                   fill="none"
                   stroke={style.casing}
@@ -659,8 +841,8 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
                     style={interactive ? { cursor: 'pointer' } : undefined}
                   >
                     {/* The whole road, kerb to kerb, takes the click. */}
-                    {interactive ? <path clipPath={clipOf.get(road.id)} d={pathOf(projection, laid.outline, true)} fill="transparent" stroke="none" /> : null}
-                    <TrueRoad areas={laid} clip={clipOf.get(road.id)} marks={laid.marks} projection={projection} style={style} />
+                    {interactive ? <path clipPath={clipsOf.get(road.id)?.outside} d={pathOf(projection, laid.outline, true)} fill="transparent" stroke="none" /> : null}
+                    <TrueRoad areas={laid} clips={clipsOf.get(road.id)} marks={laid.marks} projection={projection} style={style} />
                   </g>
                 )
               }
@@ -674,6 +856,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
                   {/* A wide, invisible stroke makes a thin road easy to click. */}
                   {interactive ? (
                     <path
+                      clipPath={clipsOf.get(road.id)?.outside}
                       d={paths.get(road.id)}
                       fill="none"
                       stroke="transparent"
@@ -682,6 +865,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
                     />
                   ) : null}
                   <path
+                    clipPath={clipsOf.get(road.id)?.carriageway}
                     d={paths.get(road.id)}
                     fill="none"
                     stroke={style.fill}
@@ -695,6 +879,7 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
                   />
                   {style.over ? (
                     <path
+                      clipPath={clipsOf.get(road.id)?.carriageway}
                       d={paths.get(road.id)}
                       fill="none"
                       stroke={style.over.colour}
@@ -715,14 +900,14 @@ export function RoadsLayer({ projection, roads, labels, selected, onSelect, part
           {/* A T's stem again over the fills, about the T: its lanes across the through road's pavement to the kerb. */}
           {overlays.length ? (
             <g className="az-road-tees" pointerEvents="none">
-              {overlays.map(({ stem, clip }) => {
+              {overlays.map(({ stem, clips: boxed }) => {
                 const style = ROAD_STYLES[stem.kind]
                 const laid = trueOf(stem)
                 if (!laid) return null
                 return (
-                  <g key={clip}>
-                    {style.casing ? <TrueEdges casing={style.casing} clip={clip} edge={edge} laid={laid} projection={projection} /> : null}
-                    <TrueRoad areas={laid} clip={clip} marks={laid.marks} projection={projection} style={style} />
+                  <g key={boxed.carriageway}>
+                    {style.casing ? <TrueEdges casing={style.casing} clips={boxed} edge={edge} laid={laid} projection={projection} /> : null}
+                    <TrueRoad areas={laid} clips={boxed} marks={laid.marks} projection={projection} style={style} />
                   </g>
                 )
               })}
