@@ -1616,3 +1616,153 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     transition: none;
   }
 }
+
+/*
+ * The panels' small marks (ui/Marks.tsx, the sums in src/maps/marks.ts):
+ * pips, a meter, a tally, the capped balance, a rank strip, a reach bar,
+ * head slots and a delta chip. Each is drawn in the panel's own ink and
+ * the sides' colours (--az-atk, --az-def) on a faint track, every colour
+ * a token, so the dark appearance follows of itself; in the war sidebar,
+ * or told `data-tone='war'`, the sand's tokens, which the sidebar already
+ * mirrors for either appearance. Two sizes: in a row (`data-size='row'`,
+ * the default) and on a panel. Parts are told apart by pattern as well as
+ * colour: solid, hatched, hollow, dotted. In the components layer, so a
+ * utility class on a mark (a size of type, a width) wins over these.
+ */
+@layer components {
+  .az-mark {
+    --az-mark-ink: var(--color-ink-900);
+    --az-mark-soft: var(--color-ink-500);
+    --az-mark-track: var(--color-sand-200);
+    --az-mark-line: var(--color-ink-400);
+    --az-mark-paper: var(--color-sand-50);
+    --az-mark-good: var(--color-lagoon-600);
+    --az-mark-bad: var(--color-coral-600);
+    --az-mark-colour: var(--az-mark-ink);
+    --az-mark-bar: 6px;
+    --az-mark-pip-w: 10px;
+    --az-mark-pip-h: 8px;
+    --az-mark-pip-gap: 2px;
+    --az-mark-group-gap: 6px;
+    --az-mark-slot: 12px;
+    --az-mark-slot-mark: 8px;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .az-mark[data-size='panel'] {
+    --az-mark-bar: 10px;
+    --az-mark-pip-w: 14px;
+    --az-mark-pip-h: 12px;
+    --az-mark-pip-gap: 3px;
+    --az-mark-group-gap: 9px;
+    --az-mark-slot: 18px;
+    --az-mark-slot-mark: 12px;
+    font-size: 15px;
+  }
+  .az-war .az-mark:not([data-tone='panel']),
+  .az-mark[data-tone='war'] {
+    --az-mark-ink: var(--color-sand-50);
+    --az-mark-soft: color-mix(in srgb, var(--color-sand-200) 78%, transparent);
+    --az-mark-track: color-mix(in srgb, var(--color-sand-50) 12%, transparent);
+    --az-mark-line: color-mix(in srgb, var(--color-sand-50) 55%, transparent);
+    --az-mark-paper: var(--color-sea-950);
+    --az-mark-good: var(--color-lagoon-300);
+    --az-mark-bad: var(--color-coral-300);
+  }
+  /* The figure beside a mark: mono and tabular, the whole in ink and the "of Y" softer. */
+  .az-mark-figure {
+    font-family: var(--font-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--az-mark-ink);
+    white-space: nowrap;
+  }
+  .az-mark-figure small {
+    font-size: inherit;
+    font-weight: 400;
+    color: var(--az-mark-soft);
+  }
+  /* A fill, a swatch or a pip takes its side's colour, else the ink. */
+  .az-mark [data-side='attackers'] {
+    --az-mark-colour: var(--az-atk);
+  }
+  .az-mark [data-side='defenders'] {
+    --az-mark-colour: var(--az-def);
+  }
+  .az-mark-fill {
+    background: var(--az-mark-colour);
+  }
+  .az-mark-fill[data-pattern='hatched'] {
+    background: repeating-linear-gradient(135deg, var(--az-mark-colour) 0 1.5px, transparent 1.5px 4.5px);
+    box-shadow: inset 0 0 0 1px var(--az-mark-colour);
+  }
+  .az-mark-fill[data-pattern='hollow'] {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--az-mark-colour);
+  }
+  .az-mark-fill[data-pattern='dotted'] {
+    background: radial-gradient(circle, var(--az-mark-colour) 0.9px, transparent 1.3px) 1px 1px / 4px 4px;
+    box-shadow: inset 0 0 0 1px var(--az-mark-colour);
+  }
+  .az-mark-fill[data-faint] {
+    opacity: 0.4;
+  }
+  /* A pip: done is a solid block, the one on now half-filled, one to come a hollow outline in the track's line. */
+  .az-pips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--az-mark-pip-gap) var(--az-mark-group-gap);
+    align-items: center;
+  }
+  .az-pip-group {
+    display: inline-flex;
+    gap: var(--az-mark-pip-gap);
+  }
+  .az-pip {
+    display: inline-block;
+    width: var(--az-mark-pip-w);
+    height: var(--az-mark-pip-h);
+    box-shadow: inset 0 0 0 1px var(--az-mark-line);
+  }
+  .az-pip[data-state='done'] {
+    background: var(--az-mark-colour);
+    box-shadow: none;
+  }
+  .az-pip[data-state='current'] {
+    background: linear-gradient(90deg, var(--az-mark-colour) 50%, transparent 50%);
+    box-shadow: inset 0 0 0 1px var(--az-mark-colour);
+  }
+  /* A slot of HeadSlots: an outline for each needed, with a mark inside once someone online fills it; an ally's mark is dashed. */
+  .az-slots {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--az-mark-pip-gap);
+    align-items: center;
+  }
+  .az-slot {
+    position: relative;
+    display: inline-block;
+    width: var(--az-mark-slot);
+    height: var(--az-mark-slot);
+  }
+  .az-slot[data-slot] {
+    box-shadow: inset 0 0 0 1px var(--az-mark-line);
+  }
+  .az-slot[data-mark]::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--az-mark-slot) - var(--az-mark-slot-mark)) / 2);
+    background: var(--az-mark-ink);
+  }
+  .az-slot[data-mark='ally']::after {
+    background: color-mix(in srgb, var(--az-mark-ink) 35%, transparent);
+    outline: 1px dashed var(--az-mark-ink);
+    outline-offset: -1px;
+  }
+  .az-slot-rule {
+    align-self: stretch;
+    width: 1px;
+    margin: 0 var(--az-mark-pip-gap);
+    background: var(--az-mark-line);
+  }
+}

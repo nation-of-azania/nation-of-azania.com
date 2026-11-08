@@ -38,6 +38,7 @@
     "test:alliances": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-alliances.ts",
     "test:motion": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-motion.ts",
     "test:outlook": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-outlook.ts",
+    "test:marks": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-marks.ts",
     "test:quiet-watch": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-quiet-watch.ts",
     "test:media-names": "cross-env NODE_OPTIONS=--no-deprecation tsx scripts/test-media-names.ts",
     "test:names": "cross-env NODE_OPTIONS=\"--no-deprecation --expose-gc\" tsx scripts/test-names.ts"
