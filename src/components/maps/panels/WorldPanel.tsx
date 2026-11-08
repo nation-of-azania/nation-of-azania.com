@@ -279,7 +279,7 @@ function ComingWorld() {
 }
 
 /** The small head over a column of marks: what the column is, and the scale it's on. */
-const COLUMN = 'font-label text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500'
+const COLUMN = 'font-label text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500'
 
 /**
  * Azania's standing among the nations, under the totals: for the diplomats

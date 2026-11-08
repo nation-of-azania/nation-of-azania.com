@@ -81,8 +81,21 @@ export type OurTown = { name: string; slug: string; home: Point | null }
 /** "within" or "beyond" a nation's reach, by the server's rule. */
 const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' : 'beyond')
 
-/** A distance as farWords rounds it, to the ten near by and the hundred far off, so a bar's figure says what the words would. */
-const roundBlocks = (blocks: number) => (blocks < 1000 ? Math.round(blocks / 10) * 10 : Math.round(blocks / 100) * 100)
+/**
+ * A distance against the reach: the bar and its within-or-beyond from the
+ * exact distance, so they never disagree at the wall; only the figure
+ * beside the bar is rounded, as farWords rounds it.
+ */
+function Reach({ blocks, words, className }: { blocks: number; words: string; className?: string }) {
+  return (
+    <div className={cn('flex items-center gap-x-2', className)}>
+      <ReachBar className="min-w-0 flex-1" distance={blocks} figure={false} limit={CAPITAL_WAR_RADIUS} size="panel" words={words} />
+      <span aria-hidden="true" className="shrink-0 font-mono text-[15px] font-semibold text-ink-900 tabular-nums">
+        {farWords(blocks).replace(/ blocks$/, '')} <span className="font-normal text-ink-500">of {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks</span>
+      </span>
+    </div>
+  )
+}
 
 /** The rule a nation's reach rests on: the hint on each "Nation reach" section. */
 const REACH_HINT = `A nation may besiege towns within ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital: the bar is that distance, the wall its reach.`
@@ -249,11 +262,9 @@ export function AbroadTownPanel({
           <p className={REACH_LABEL}>
             From {spoken(capital.town)}, Azania’s capital · <strong className="font-semibold text-ink-700">{reachWord(fromCapital)} its reach</strong>
           </p>
-          <ReachBar
+          <Reach
+            blocks={fromCapital}
             className="mt-1.5"
-            distance={roundBlocks(fromCapital)}
-            limit={CAPITAL_WAR_RADIUS}
-            size="panel"
             words={`${farWords(fromCapital)} from ${spoken(capital.town)}, Azania’s capital: ${reachWord(fromCapital)} Azania’s reach, which is ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital`}
           />
         </PanelSection>
@@ -397,11 +408,9 @@ export function NationPanel({
                   <p className={REACH_LABEL}>
                     {spoken(nation.capital.name)} to {spoken(capital.town)}, capital to capital
                   </p>
-                  <ReachBar
+                  <Reach
+                    blocks={between}
                     className="mt-1.5"
-                    distance={roundBlocks(between)}
-                    limit={CAPITAL_WAR_RADIUS}
-                    size="panel"
                     words={`${spoken(nation.capital.name)}, ${theirName}’s capital, is ${farWords(between)} from ${spoken(capital.town)}, Azania’s: ${reachWord(between)} the ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')}-block reach`}
                   />
                 </div>
