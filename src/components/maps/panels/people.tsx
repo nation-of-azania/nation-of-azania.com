@@ -59,31 +59,29 @@ function useOnline(store: Store<LiveState>): Set<string> {
 /** Whether a name matches the search, ignoring case and a Bedrock player's dot. */
 const matches = (name: string, query: string) => name.replace(/^\./, '').toLowerCase().includes(query)
 
-/** A name's outlaw command, copied by a click: the one in-game primitive, beside every name, and the hint says which. */
+/**
+ * A name's outlaw command, copied by a click: the one in-game primitive,
+ * beside every name. What it copies is the button's name; what the
+ * command is for, the section's hint says once (PEOPLE_HINT), not every
+ * row.
+ */
 function CopyCommand({ name }: { name: string }) {
   const [copied, copy] = useCopy()
   const command = outlawCommand(name)
   return (
-    <Hint
-      text={
-        <>
-          Copy <code>{command}</code>, to paste in chat.
-        </>
-      }
+    <button
+      aria-label={`Copy ${command}`}
+      className={cn(
+        'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[12px] tracking-[0.04em] focus-visible:outline-saffron-500',
+        copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
+      )}
+      onClick={() => copy(command)}
+      title={`Copy ${command}`}
+      type="button"
     >
-      <button
-        aria-label={`Copy ${command}`}
-        className={cn(
-          'inline-flex h-7 shrink-0 items-center gap-1 px-1.5 font-mono text-[12px] tracking-[0.04em] focus-visible:outline-saffron-500',
-          copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
-        )}
-        onClick={() => copy(command)}
-        type="button"
-      >
-        <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
-        <span aria-live="polite">{copied ? 'Copied' : 'outlaw'}</span>
-      </button>
-    </Hint>
+      <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+      <span aria-live="polite">{copied ? 'Copied' : 'outlaw'}</span>
+    </button>
   )
 }
 
@@ -107,10 +105,22 @@ function PersonRow({ name, ruler, online }: { name: string; ruler: boolean; onli
   )
 }
 
-/** The whole list copied, as names or as commands, a line each; says how many it copied for a moment. */
-function CopyAll({ names, what, className }: { names: string[]; what: 'names' | 'commands'; className?: string }) {
+/**
+ * The whole list copied, as names or as commands, a line each; says how
+ * many it copied for a moment. The section's own pair carries the hint
+ * saying what each copies; a town's pair inside the nation's folds doesn't
+ * (`hint={false}`), since the head has said it once.
+ */
+function CopyAll({ names, what, className, hint = true }: { names: string[]; what: 'names' | 'commands'; className?: string; hint?: boolean }) {
   const [copied, copy] = useCopy()
   const text = (what === 'names' ? names : names.map(outlawCommand)).join('\n')
+  const button = (
+    <TextButton className={cn('px-2 py-1 text-[13px]', className)} disabled={names.length === 0} onClick={() => copy(text)}>
+      <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
+      {copied ? `Copied ${names.length}` : what === 'names' ? 'Names' : 'Commands'}
+    </TextButton>
+  )
+  if (!hint) return button
   return (
     <Hint
       text={
@@ -123,10 +133,7 @@ function CopyAll({ names, what, className }: { names: string[]; what: 'names' | 
         )
       }
     >
-      <TextButton className={cn('px-2 py-1 text-[13px]', className)} disabled={names.length === 0} onClick={() => copy(text)}>
-        <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />
-        {copied ? `Copied ${names.length}` : what === 'names' ? 'Names' : 'Commands'}
-      </TextButton>
+      {button}
     </Hint>
   )
 }
@@ -332,8 +339,8 @@ export function NationPeople({ nation, members }: { nation: Pick<NationSummary, 
                       </ul>
                       <p className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-ink-500">
                         <span className="mr-1">{spoken(town.name)}’s list:</span>
-                        <CopyAll names={town.people} what="names" />
-                        <CopyAll names={town.people} what="commands" />
+                        <CopyAll hint={false} names={town.people} what="names" />
+                        <CopyAll hint={false} names={town.people} what="commands" />
                       </p>
                     </>
                   ) : (

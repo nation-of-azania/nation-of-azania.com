@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { cn } from '@/blocks/components/shared'
 import { BylineAvatar } from '@/components/site/BylineAvatar'
 import { formatDate, minecraftHeadUrl } from '@/components/site/format'
 import {
@@ -20,6 +21,7 @@ import { abroadHref, nationHref, townHref } from '@/maps/url'
 import { CAPITAL_WAR_RADIUS } from '@/maps/world'
 
 import { SiteBadge } from '../layers/SiteMark'
+import { Pips, ReachBar } from '../ui/Marks'
 import { Swatch } from '../ui/Swatch'
 import { NationAllies } from './Allies'
 import { BeliefsSection } from './BeliefsChart'
@@ -79,13 +81,21 @@ export type OurTown = { name: string; slug: string; home: Point | null }
 /** "within" or "beyond" a nation's reach, by the server's rule. */
 const reachWord = (blocks: number) => (blocks <= CAPITAL_WAR_RADIUS ? 'within' : 'beyond')
 
+/** A distance as farWords rounds it, to the ten near by and the hundred far off, so a bar's figure says what the words would. */
+const roundBlocks = (blocks: number) => (blocks < 1000 ? Math.round(blocks / 10) * 10 : Math.round(blocks / 100) * 100)
+
+/** The rule a nation's reach rests on: the hint on each "Nation reach" section. */
+const REACH_HINT = `A nation may besiege towns within ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital: the bar is that distance, the wall its reach.`
+
+/** The small head over a mark in the reach section. */
+const REACH_LABEL = 'font-label text-[11px] uppercase tracking-[0.18em] text-ink-500'
+
 /** Names in a list, as a reader says them: "Oasis, Georgetown and Cape Agulhas". */
 const listed = (names: string[]) =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 
 /** Where a page abroad's facts come from, and what the map keeps of them: the head's hint on every page abroad. */
-const SOURCE_HINT =
-  'From Towny, as the Rulercraft map has it, read every quarter of an hour. Azania Maps keeps nothing of other nations’ towns.'
+const SOURCE_HINT = 'Towny’s figures from the Rulercraft map, read every quarter of an hour; nothing of them is kept here.'
 
 /**
  * A town abroad: its nation, ruler, residents and claims, its spawn when
@@ -226,9 +236,8 @@ export function AbroadTownPanel({
       {site ? (
         <PanelSection title="Terms">
           <p className="text-[15px] leading-relaxed text-ink-700">
-            {/^[aeiou]/i.test(siteTitle(site)) ? 'An' : 'A'} {siteTitle(site).toLowerCase()} the server runs
-            {pays ? `, paying ${pays} to the nation that holds it` : ''}. It changes hands by siege, so whoever holds
-            it is worth knowing.
+            {/^[aeiou]/i.test(siteTitle(site)) ? 'An' : 'A'} {siteTitle(site).toLowerCase()} the server runs. It changes hands by siege, so whoever holds it is
+            worth knowing.
           </p>
         </PanelSection>
       ) : null}
@@ -236,12 +245,17 @@ export function AbroadTownPanel({
       <AwayParts away={town.away} from={town.home} of={site ? 'site' : 'town'} town={town.name} />
 
       {fromCapital != null && capital ? (
-        <PanelSection title="Nation reach">
-          <p className="text-[15px] leading-relaxed text-ink-700">
-            {farWords(fromCapital)} from {spoken(capital.town)}, Azania’s capital:{' '}
-            <strong className="font-semibold">{reachWord(fromCapital)} Azania’s reach</strong>, which is{' '}
-            {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital.
+        <PanelSection hint={REACH_HINT} title="Nation reach">
+          <p className={REACH_LABEL}>
+            From {spoken(capital.town)}, Azania’s capital · <strong className="font-semibold text-ink-700">{reachWord(fromCapital)} its reach</strong>
           </p>
+          <ReachBar
+            className="mt-1.5"
+            distance={roundBlocks(fromCapital)}
+            limit={CAPITAL_WAR_RADIUS}
+            size="panel"
+            words={`${farWords(fromCapital)} from ${spoken(capital.town)}, Azania’s capital: ${reachWord(fromCapital)} Azania’s reach, which is ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks from its capital`}
+          />
         </PanelSection>
       ) : null}
 
@@ -371,41 +385,66 @@ export function NationPanel({
       <BeliefsSection beliefs={nation.beliefs} towns={towns.length} />
 
       {nation.capital && capital ? (
-        <PanelSection title="Nation reach">
-          <div className="space-y-2 text-[15px] leading-relaxed text-ink-700">
-            <p>
-              A nation may besiege towns within {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks of its capital. {spoken(nation.name)}’s,{' '}
-              {spoken(nation.capital.name)}, is {farWords(blocksBetween(nation.capital.home, capital.home))} from{' '}
-              {spoken(capital.town)}, Azania’s.
-            </p>
-            <p>
-              <strong className="font-semibold">Within its reach:</strong>{' '}
-              {theirs.length ? (
-                <>
-                  {theirs.length === ours.length ? 'all' : `${theirs.length} of ${ours.length}`} of Azania’s towns:{' '}
-                  {theirs.map((town, index) => (
-                    <span key={town.slug}>
-                      {index ? (index === theirs.length - 1 ? ' and ' : ', ') : null}
-                      <Link className={LINK} href={townHref(town.slug)}>
-                        {spoken(town.name)}
-                      </Link>
-                    </span>
-                  ))}
-                  .
-                </>
-              ) : (
-                'none of Azania’s towns.'
-              )}
-            </p>
-            <p>
-              <strong className="font-semibold">Within Azania’s:</strong>{' '}
-              {reachable.length
-                ? `${reachable.length === members.length ? 'all' : `${reachable.length} of ${members.length}`} of its towns${
-                    reachable.length <= 4 ? `: ${listed(reachable.map((town) => spoken(town.name)))}` : ''
-                  }.`
-                : 'none of its towns.'}
-            </p>
-          </div>
+        <PanelSection hint={REACH_HINT} title="Nation reach">
+          {/* The capitals' distance against the reach, then each side's towns within the other's, as pips with the names. */}
+          {(() => {
+            const between = blocksBetween(nation.capital.home, capital.home)
+            const theirName = spoken(nation.name)
+            const names = (list: { name: string }[]) => listed(list.map((town) => spoken(town.name)))
+            return (
+              <div className="space-y-3">
+                <div>
+                  <p className={REACH_LABEL}>
+                    {spoken(nation.capital.name)} to {spoken(capital.town)}, capital to capital
+                  </p>
+                  <ReachBar
+                    className="mt-1.5"
+                    distance={roundBlocks(between)}
+                    limit={CAPITAL_WAR_RADIUS}
+                    size="panel"
+                    words={`${spoken(nation.capital.name)}, ${theirName}’s capital, is ${farWords(between)} from ${spoken(capital.town)}, Azania’s: ${reachWord(between)} the ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')}-block reach`}
+                  />
+                </div>
+                <div>
+                  <p className={cn(REACH_LABEL, 'flex flex-wrap items-center gap-x-3 gap-y-1')}>
+                    <span>Within {theirName}’s reach</span>
+                    <Pips done={theirs.length} of={ours.length} words={`${theirs.length} of Azania’s ${ours.length} towns within ${theirName}’s reach`} />
+                  </p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
+                    {theirs.length ? (
+                      theirs.map((town, index) => (
+                        <span key={town.slug}>
+                          {index ? (index === theirs.length - 1 ? ' and ' : ', ') : null}
+                          <Link className={LINK} href={townHref(town.slug)}>
+                            {spoken(town.name)}
+                          </Link>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-ink-500">None of Azania’s towns.</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className={cn(REACH_LABEL, 'flex flex-wrap items-center gap-x-3 gap-y-1')}>
+                    <span>Within Azania’s</span>
+                    <Pips done={reachable.length} of={members.length} words={`${reachable.length} of ${theirName}’s ${members.length} towns within Azania’s reach`} />
+                  </p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
+                    {reachable.length ? (
+                      reachable.length <= 6 ? (
+                        `${names(reachable)}.`
+                      ) : (
+                        `${reachable.length === members.length ? 'All' : `${reachable.length}`} of its towns.`
+                      )
+                    ) : (
+                      <span className="text-ink-500">None of its towns.</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
         </PanelSection>
       ) : null}
 
