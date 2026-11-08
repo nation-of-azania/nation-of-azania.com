@@ -269,16 +269,18 @@ export function CapBalance({
   const sideText = (side: MarkSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : undefined)
   return (
     <Mark layout="row" words={words ?? capBalanceWords(now, after, names, cap)} {...mark}>
-      {/* The bar, with its ends named under it alone; the figure stands beside both. */}
+      {/* The bar, with its ends named under it alone; the figure stands beside both. The bar sits in a row of its own, so its flex-1 runs across, not down. */}
       <span className={cn('flex min-w-0 flex-1 flex-col', ends ? 'gap-y-1' : null)}>
-        <span aria-hidden="true" className={TRACK}>
-          <span className="absolute inset-y-0 left-1/2 w-px bg-(--az-mark-line)" />
-          {now !== 0 ? <span className="az-mark-fill absolute inset-y-0" data-side={nowSide} style={spanStyle(capSpan(now, 0, cap))} /> : null}
-          {run ? <span className="az-mark-fill absolute inset-y-0" data-faint="" data-side={sideOfBalance(after! - now)} style={spanStyle(run)} /> : null}
-          <Tick at={0} />
-          <Tick at={1} />
-          <span className="absolute -inset-y-0.5 w-[3px] -translate-x-1/2 bg-(--az-mark-ink)" style={{ left: pc(capX(now, cap)) }} />
-          {after !== null ? <span className="absolute -inset-y-0.5 w-[7px] -translate-x-1/2 border-[1.5px] border-(--az-mark-ink) bg-(--az-mark-paper)" style={{ left: pc(capX(after, cap)) }} /> : null}
+        <span aria-hidden="true" className="flex">
+          <span className={TRACK}>
+            <span className="absolute inset-y-0 left-1/2 w-px bg-(--az-mark-line)" />
+            {now !== 0 ? <span className="az-mark-fill absolute inset-y-0" data-side={nowSide} style={spanStyle(capSpan(now, 0, cap))} /> : null}
+            {run ? <span className="az-mark-fill absolute inset-y-0" data-faint="" data-side={sideOfBalance(after! - now)} style={spanStyle(run)} /> : null}
+            <Tick at={0} />
+            <Tick at={1} />
+            <span className="absolute -inset-y-0.5 w-[3px] -translate-x-1/2 bg-(--az-mark-ink)" style={{ left: pc(capX(now, cap)) }} />
+            {after !== null ? <span className="absolute -inset-y-0.5 w-[7px] -translate-x-1/2 border-[1.5px] border-(--az-mark-ink) bg-(--az-mark-paper)" style={{ left: pc(capX(after, cap)) }} /> : null}
+          </span>
         </span>
         {ends ? (
           <span aria-hidden="true" className="flex justify-between gap-2 font-label text-[11px] font-semibold uppercase leading-none tracking-[0.12em]">

@@ -877,66 +877,84 @@ carries what's already drawn into place until the fresh render lands.
   counted over the last 60 days and shared at the CDN a quarter of an
   hour; asked for only when something on the page wants it, never on a
   page load and never polled: `components/maps/fighters.ts`), shown
-  wherever a player is chosen (`ui/Fighter.tsx`): how many of the battle
-  sessions they could have fought in they did (at any of the session's
-  battles, an ally's included; and how many for allies), their tries at
-  the banner and how each
-  ended (held, died, left, cut short), their deaths in the zone and those
-  the points confirm, minutes in the zone and at the banner, sessions won
-  and lost, their score (the chance they take the banner when they try,
-  times the chance they turn up, both smoothed), and their usual hours as
-  a strip of the week with now ringed, in UTC, with what it says of now
-  ("at this hour on 3 of the last 4 Saturdays"). Counts rather than
-  percentages, since the samples are small and the records young: the
-  tracker reads every battle from 1 November, and until there are any the
-  card says so, as it says "one battle: too few to judge". The war view's
-  siege lists **who to expect** on each side, that side's residents with
-  those on now first and then by how likely they are to be fighting at
-  the session's time, each with their score: the danger on the enemy's
-  side and the turnout on one's own; and under them the residents of each
-  of the side's known allies, each as likely as their hours and turnout
-  say, scaled by the share of their fighting they've done for allies (an
-  alliance alone brings nobody). Its overview ranks the fighters by score, those
-  with two battles or more, and every roster's row carries the score of
-  anyone who has fought. A player's card on the normal map says their
-  record in a line.
-- **The outlook.** The war view's siege says, in a line under the balance,
-  who has the session (or the siege, in its last) if nothing changes and
-  what the other side would need from now (`src/maps/outlook.ts`, pure;
-  `panels/Outlook.tsx` draws it): the least holders at the banner for the
-  rest of the session that would turn it, against how many they have
-  online, allies counted as SiegeWar counts them and said apart ("8
-  holders from now would win the siege; they have only 3 online + 2
-  allies: out of reach, 114 kills short"), whether the leader could leave
-  the banner and still win even if every one of the other side online took
-  it, and, past the ±7,000 cap, whose points count for nothing. A fold
-  beneath (open by itself between sessions) holds the session's points as
-  they went and will go (both sides, who held the banner along the foot,
-  the projection dashed, and a ring on a side's line where it stepped up
-  by kills rather than climbed by the banner, kills close together one
-  ring with their number: `src/maps/course.ts`), what each side needs for the session and for the
-  siege, the siege's story session by session (`GET /maps/battles`, the
-  tracker's last fortnight: each session's result and the balance after it,
-  within the cap; the one on now as projected), and the **sessions ahead**:
-  for each, how many of each side's residents, and of its allies' for the
-  share of their fighting done for allies, are likely to fight at its
-  hour (their usual hours times their turnout), roughly what that does to
-  the balance (about 1,650 a fighter more than the other side), and the
-  lead the side the forecast leaves losing would need going into the other
-  side's sessions, and whether the cap even allows it: the question of
-  which session to turn out for. Rough by design, and only as good as the
-  records. In the war view the players' list is docked at the map's right
-  edge as a folded tab, and fighters beyond the edge of the map are marked
-  on its border with their head, a chevron in their side's colour and the
-  blocks to them (`layers/EdgeArrows.tsx`), the nearest few. Every "back
-  in" is said twice (`src/maps/motion.ts`; `components/maps/motion.ts`
-  keeps each player's last two minutes of readings beside the live feed
-  while the view is on): at a sprint, the pessimistic figure, and at the
-  player's own pace when they've been seen moving faster, the median of
-  their steps with any teleport dropped out, since most fly; and after a
-  death in the siege zone, how long the server's lock keeps them from
-  teleporting, the quickest the tracker has measured after a death or,
-  until it has, an upper bound.
+  wherever a player is chosen (`ui/Fighter.tsx`), each line a mark with
+  its words after (`ui/Marks.tsx`, the sums in `src/maps/marks.ts`,
+  `pnpm test:marks`): the battle sessions they could have fought in and
+  did as pips (at any of the session's battles, an ally's included; and
+  how many for allies), their tries at the banner as a tally of how each
+  ended (held, died, left, cut short), their deaths in the zone as pips
+  with those the points confirm filled, minutes at the banner as a meter
+  of those in the zone, sessions won and lost as W/L marks, their score
+  (the chance they take the banner when they try, times the chance they
+  turn up, both smoothed), when they last fought with the side's glyph
+  (swords for an attacker, a shield for a defender), and their usual hours
+  as a strip of the week with now ringed, in UTC; what the ringed hour
+  says ("at this hour on 3 of the last 4 Saturdays") is the strip's words
+  and its hint. Counts rather than percentages, since the samples are
+  small and the records young: the tracker reads every battle from
+  1 November, and until there are any the card says so, as it says "one
+  battle: too few to judge". The war view's siege lists **who to expect**
+  on each side: how many of that side's residents are on now of all of
+  them as a meter, then a row each, those on now first (a dot) and then by
+  how likely they are to be fighting at the session's time, each with
+  their sessions as pips and their score: the danger on the enemy's side
+  and the turnout on one's own; those already at the siege are the
+  Fighters roster above, so a group counts them and lists them only when
+  opened out, and those with no record yet are one count; and under them
+  the residents of each of the side's known allies, each as likely as
+  their hours and turnout say, scaled by the share of their fighting
+  they've done for allies (an alliance alone brings nobody). Its overview
+  ranks the fighters by score, those with two battles or more, each with
+  their record as the same marks ("7/9 fought · 6/21 held" and the side's
+  glyph), and every roster's row carries the score of anyone who has
+  fought, what the score is said once in the roster's head. A player's
+  card on the normal map says their record with the same marks.
+- **The outlook.** The war view's siege says, under the balance, in one
+  headline who has the session (or the siege, in its last) as it stands
+  ("Azania takes this session as it stands: hold on.") and, for the side
+  behind, what it would take from now (`src/maps/outlook.ts`, pure;
+  `panels/Outlook.tsx` draws it): the fewest holders at the banner for the
+  rest of the session that would turn it, as head slots set against those
+  it has online, allies counted as SiegeWar counts them and drawn dashed
+  (an empty slot is a need unmet: "out of reach"), and a padlock, shut or
+  open, for whether the leader could leave the banner and still win even
+  if every one of the other side online took it (the who and the margin
+  in its hint); past the ±7,000 cap, whose points count for nothing. A
+  fold beneath (open by itself between sessions) holds the session's
+  points as they went and will go (both sides, who held the banner along
+  the foot, the projection dashed, and a ring on a side's line where it
+  stepped up by kills rather than climbed by the banner, kills close
+  together one ring with their number: `src/maps/course.ts`), what each
+  side needs for the session and for the siege (the same slots, the
+  points and kills small beside them), and the siege's story session by
+  session, the **sessions ahead** among its rows (`GET /maps/battles`,
+  the tracker's last fortnight: each session's result as a bar with its
+  figure at the end and the balance after it, within the cap; the one on
+  now as projected; and each to come as forecast, its bar faint and its
+  row saying the turnout it rests on, "2.9 v 2.1 likely": how many of
+  each side's residents, and of its allies' for the share of their
+  fighting done for allies, are likely to fight at its hour, their usual
+  hours times their turnout, each fighter more than the other side worth
+  about 1,650 to the balance), with the forecast in one line under the
+  rows: who is likely to bring more at the sessions left, and the lead
+  the side it leaves losing would need going into the other side's
+  sessions, when the cap even allows one: the question of which session
+  to turn out for. Rough by design, and only as good as the records,
+  which a small line says. In the war view the players' list is docked at
+  the map's right edge as a folded tab, and fighters beyond the edge of
+  the map are marked on its border with their head, a chevron in their
+  side's colour and the blocks to them (`layers/EdgeArrows.tsx`), the
+  nearest few. A fighter's way back is a track two siege zones long, the
+  zone hatched and the banner at its right end, their mark on it and one
+  figure after it: the blocks in the zone, or the time back from outside
+  (`src/maps/motion.ts`; `components/maps/motion.ts` keeps each player's
+  last two minutes of readings beside the live feed while the view is
+  on): at the player's own pace when they've been seen moving faster than
+  a sprint, the median of their steps with any teleport dropped out, since
+  most fly, else at a sprint, the pessimistic figure; both times and the
+  pace are the track's words. After a death in the siege zone, a padlock
+  and how long the server's lock keeps them from teleporting, the quickest
+  the tracker has measured after a death or, until it has, an upper bound.
 - **Appearance.** The chrome and the panels are drawn light, dark, or,
   left to the map (*Automatic*, the default), light and dark in the war
   view, as the map always was: the viewer's own setting, at the foot of
@@ -1158,9 +1176,11 @@ which the routes insist on, so every viewer shares one copy.
   while a battle is fought; a small fire while it's quiet; named "Siege:
   attacker vs defender", and the town besieged edged in coral, with a
   thread from the banner to its home. A click opens a card beside the
-  banner with the siege in plain words (`src/maps/sieges.ts`): what kind,
-  the battle sessions fought, who's ahead, who holds the banner, this
-  battle's points and time left, the war chest, and SiegeWar's own lines.
+  banner with the siege's figures (`src/maps/sieges.ts`, `ui/Siege.tsx`):
+  what kind, the battle sessions fought as pips, who's ahead as a tug of
+  war against the ±7,000 cap with its figure (the attackers pulling left),
+  who holds the banner, this battle's points as a score and its time left,
+  the war chest, and SiegeWar's own lines.
   A siege Azania is in — its town besieged, or Azania attacking or
   defending — is unmissable: a larger mark ringed in saffron, the town's
   claims glowing, its name placed before Azania's own towns'; an alert at
@@ -1240,13 +1260,15 @@ which the routes insist on, so every viewer shares one copy.
   holds the banner, with how many and at what multiplier, and where that
   was read from (seen in the points, inferred from the hands it changed
   since the session began, or assumed); the time left; the balance now
-  and **after this session** if the banner stays as it is, with the
-  sessions left, and at the battle's own pace of kills when it has one;
-  a verdict in one line, who the session's end favours and, for the side
-  behind, what it takes to come level: so many kills, so many at the
-  banner for the rest of the session, or taking the banner back and
-  holding it so long, or, past the 7,000 cap, the cushion the side ahead
-  has (what's over the cap is the other side's to score for nothing);
+  and **after this session** if the banner stays as it is, as one bar
+  against the ±7,000 cap (`ui/Marks.tsx` → CapBalance: a solid mark where
+  it stands, a hollow one where the session would leave it, the figures
+  beside it once), with the sessions left, and at the battle's own pace
+  of kills when it has one; the verdict (the outlook, below): one
+  headline, the holders the side behind needs as slots against those it
+  has online, and the padlock for whether the leader can leave the
+  banner; under the score, its share split into the banner's points
+  (solid) and the kills' (hatched);
   the **captures under way** at the banner, run on the live positions
   the way SiegeWar counts them (`stepCaptures`: a check every 20 seconds
   at the moment the points show, five minutes in the zone, leaving at a
@@ -1267,10 +1289,11 @@ which the routes insist on, so every viewer shares one copy.
   to be at; each row switches the view to that siege;
   and the fighters within two zones of the banner by side, lowest health
   first, each with their vitals, head and name (an ally with the dashed
-  ring and "ally of Syrian Empire"), how far from the banner,
-  and for anyone outside the zone the time back, sprinting at the game's pace or by
-  their own town's spawn when that is nearer (the spawn's warm-up isn't
-  counted). The foot says what is assumed: the two radii are SiegeWar's
+  ring and "ally of Syrian Empire"), and where they stand as a track to
+  the banner with one figure: "at the banner", the blocks in the zone, or
+  for anyone outside the zone the time back, at their own pace or
+  sprinting at the game's pace, by their own town's spawn when that is
+  nearer (the spawn's warm-up isn't counted). The foot says what is assumed: the two radii are SiegeWar's
   defaults, which the rules don't give (`ASSUMED` in `battle.ts`); the
   ±7,000 balance cap, and no bonus for taking the banner back (SiegeWar's
   default ×3 is off on Rulercraft), were seen in battles (`docs/war-rules.md`).

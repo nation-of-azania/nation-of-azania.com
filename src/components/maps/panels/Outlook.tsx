@@ -291,6 +291,25 @@ function courseOf(assessed: NonNullable<ReturnType<typeof assessBattle>>, readin
   return { points, end, top, since }
 }
 
+/**
+ * How many kills each side has scored this session, told from the points'
+ * steps (course.ts → killsAlong) along the tracker's minutes and the
+ * view's readings: for the scoreboard's split of banner points and kill
+ * points. Nothing until the battles are read; it asks for them, as the
+ * fold does.
+ */
+export function useSessionKills(siege: Siege, assessed: NonNullable<ReturnType<typeof assessBattle>>, readings: BattleReading[]): Record<BattleSide, number> {
+  const battles = useBattles(true)
+  const start = sessionClock(assessed.reading.at).start
+  return useMemo(() => {
+    const { current } = splitSessions(sessionsOf(battles, siege, assessed.reading.at), start)
+    const { points } = courseOf(assessed, readings, current)
+    const count = { attackers: 0, defenders: 0 }
+    for (const step of killsAlong(points)) count[step.side] += step.kills
+    return count
+  }, [battles, siege, assessed, readings, start])
+}
+
 /** The shape of the session in a few pixels, for the fold's line: the two lines alone, no room for the kills' marks. */
 function Sparkline({ assessed, readings, tracked }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[]; tracked: TrackedBattle | null }) {
   const { points, end, top } = courseOf(assessed, readings, tracked)

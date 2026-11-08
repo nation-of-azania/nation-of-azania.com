@@ -40,13 +40,13 @@ import { recordOf, useFighters, type FightersState } from '../fighters'
 import { useStore } from '../hooks'
 import { ENOUGH, FighterCard, OnlineDot, rankExpected, RecordMarks, SCORE_WORDS, ScoreBadge, type Expected } from '../ui/Fighter'
 import { AlliesList } from './Allies'
-import { OutlookDetails, OutlookSummary, totalOnline, type OnlineCount } from './Outlook'
+import { OutlookDetails, OutlookSummary, totalOnline, useSessionKills, type OnlineCount } from './Outlook'
 import { returnFor, useMotion } from '../motion'
 import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
 import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
-import { CapBalance, Meter, Pips, TrackToBanner } from '../ui/Marks'
+import { CapBalance, Meter, Pips, Tally, TrackToBanner } from '../ui/Marks'
 import { useCopy } from '../ui/Readouts'
 import { SiegeBadge } from '../ui/Siege'
 import { LOW_HEALTH, Vitals } from '../ui/Vitals'
@@ -624,6 +624,13 @@ function Scoreboard({
   const lead = score ? score.attacker - score.defender : 0
   const total = score ? score.attacker + score.defender : 0
   const share = total ? score!.attacker / total : 0.5
+  // The points each side earned by kills this session (course.ts, from the points' steps), no more than its score.
+  const killed = useSessionKills(siege, assessed, readings)
+  const kills = {
+    attackers: Math.min(score?.attacker ?? 0, killed.attackers * RULES.killPoints),
+    defenders: Math.min(score?.defender ?? 0, killed.defenders * RULES.killPoints),
+  }
+  const killWords = (points: number) => (points ? `${n(points)} by kills and the rest at the banner` : 'all at the banner')
   const elapsed = secondsLeft === null ? 0 : 1 - secondsLeft / (RULES.sessionMinutes * 60)
   const holder = reading.banner.side
   const sourceWords = { observed: 'seen in the points', inferred: 'from the hands it changed', assumed: 'assumed' }[multiplier.source]
@@ -650,10 +657,25 @@ function Scoreboard({
           </p>
         </div>
       </div>
-      <div aria-hidden="true" className="mt-1.5 flex h-1.5 overflow-hidden bg-sand-50/10">
-        <span className="h-full bg-(--az-atk)" style={{ width: `${share * 100}%` }} />
-        <span className="h-full bg-(--az-def)" style={{ width: `${(1 - share) * 100}%` }} />
-      </div>
+      {/* The share of the points, each side's split into the banner's (solid) and the kills' (hatched): how the score was earned, without a sentence. */}
+      {score ? (
+        <Tally
+          className="mt-1.5"
+          figure={false}
+          parts={[
+            { label: 'attackers at the banner', value: score.attacker - kills.attackers, side: 'attackers', pattern: 'solid' },
+            { label: 'attackers by kills', value: kills.attackers, side: 'attackers', pattern: 'hatched' },
+            { label: 'defenders by kills', value: kills.defenders, side: 'defenders', pattern: 'hatched' },
+            { label: 'defenders at the banner', value: score.defender - kills.defenders, side: 'defenders', pattern: 'solid' },
+          ]}
+          words={`Attackers ${n(score.attacker)}, ${killWords(kills.attackers)}; defenders ${n(score.defender)}, ${killWords(kills.defenders)}`}
+        />
+      ) : (
+        <div aria-hidden="true" className="mt-1.5 flex h-1.5 overflow-hidden bg-sand-50/10">
+          <span className="h-full bg-(--az-atk)" style={{ width: `${share * 100}%` }} />
+          <span className="h-full bg-(--az-def)" style={{ width: `${(1 - share) * 100}%` }} />
+        </div>
+      )}
 
       {/* The banner and the clock, side by side. */}
       <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
@@ -1211,7 +1233,6 @@ function WhereTrack({ distance, back, side, className }: { distance: number; bac
           side={side}
         />
       </span>
-      {!atBanner && !inZone && back.expected === null ? <span className="text-[12px] text-sand-200/70">at a sprint</span> : null}
       {!atBanner && !inZone && back.via === 'spawn' ? <span className="text-[12px] text-sand-200/70">by /t spawn</span> : null}
       <Locked back={back} />
     </span>
