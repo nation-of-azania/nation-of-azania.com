@@ -18,8 +18,8 @@ import type { Allegiance } from '../warView'
  * of either side of the siege the view is on who stands beyond the page
  * (and for the one being watched, whatever their side), a small marker
  * on the map's border pointing their way, with their head, a chevron in
- * their side's colour (an ally's head in a dashed ring of it, their nation
- * in the tooltip) and how far they are from the middle of the view.
+ * their side's colour (an ally's head in a dashed ring of it, whose ally in
+ * the tooltip) and how far they are from the middle of the view.
  * The nearest first, at most a few, so a panned-away map says where the
  * fight went without a crowd; placed again as the map moves, by one
  * handler on the map's own events, and never while nobody is off the edge.
@@ -30,7 +30,7 @@ const MOST = 8
 /** The markers sit this far inside the map's edge, clear of the controls' column on the right. */
 const INSET = { top: 28, right: 28, bottom: 28, left: 28 }
 
-type Arrow = { name: string; side: PlayerSide | null; ally: string | null; x: number; y: number; angle: number; blocks: number; watched: boolean }
+type Arrow = { name: string; side: PlayerSide | null; allyOf: string | null; x: number; y: number; angle: number; blocks: number; watched: boolean }
 
 export function EdgeArrows({
   store,
@@ -79,7 +79,7 @@ export function EdgeArrows({
         const x = centre.x + dx * scale
         const y = centre.y + dy * scale
         const blocks = Math.round(Math.hypot(player.x - middle.lng, player.z - middle.lat))
-        found.push({ name: player.name, side: theirSide, ally: part?.ally ?? null, x, y, angle: (Math.atan2(dy, dx) * 180) / Math.PI, blocks, watched: isWatched, distance: Math.hypot(dx, dy) })
+        found.push({ name: player.name, side: theirSide, allyOf: part?.allyOf ?? null, x, y, angle: (Math.atan2(dy, dx) * 180) / Math.PI, blocks, watched: isWatched, distance: Math.hypot(dx, dy) })
       }
       found.sort((a, b) => Number(b.watched) - Number(a.watched) || a.distance - b.distance)
       setArrows(spread(found.slice(0, MOST), box))
@@ -108,11 +108,11 @@ export function EdgeArrows({
         <Hint
           described={false}
           key={arrow.name}
-          text={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view${arrow.ally ? ` · an ally, of ${spoken(arrow.ally)}` : ''}`}
+          text={`${arrow.name}: ${arrow.blocks.toLocaleString('en-GB')} blocks from the middle of the view${arrow.allyOf ? ` · ally of ${spoken(arrow.allyOf)}` : ''}`}
         >
           <button
-            aria-label={`${arrow.name}${arrow.ally ? `, an ally of ${spoken(arrow.ally)}` : ''}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
-            className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null, arrow.ally ? 'az-edge-ally' : null)}
+            aria-label={`${arrow.name}${arrow.allyOf ? `, ally of ${spoken(arrow.allyOf)}` : ''}, ${arrow.blocks.toLocaleString('en-GB')} blocks that way`}
+            className={cn('az-edge pointer-events-auto', arrow.side ? `az-edge-${arrow.side}` : null, arrow.allyOf ? 'az-edge-ally' : null)}
             data-watched={arrow.watched ? '' : undefined}
             onClick={() => onPick(arrow.name)}
             style={{ transform: `translate(${arrow.x.toFixed(0)}px, ${arrow.y.toFixed(0)}px) translate(-50%, -50%)` }}

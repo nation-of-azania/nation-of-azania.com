@@ -21,6 +21,7 @@ import {
   allySide,
   defendingNation,
   mergeAlliances,
+  nationOfSide,
   sharedSieges,
   type AllianceBattle,
 } from '../src/maps/alliances'
@@ -77,6 +78,10 @@ check(allySide('Imperial_Avalonia', quarry, alliedBy([{ nations: ['Imperial_Aval
 const nationless = siege({ townNation: null, defender: 'South_America_Quarry' })
 check(sideOf(town('Imperial_Avalonia'), nationless, allied) === 'other' && sideOf(town(null, 'South_America_Quarry'), nationless) === 'defenders', 'a town of no nation: its residents defend, no ally may')
 check(allegianceOf(town('American_Syndicate'), quarry, allied).ally === false, 'a resident is no ally')
+// Whose ally: what an ally's mark names (the war view's "ally of American Syndicate"), the side's nation, never the ally's own.
+check(nationOfSide(quarry, ally.side as 'defenders') === 'American_Syndicate', 'an ally of the defenders is the besieged town’s nation’s ally')
+check(nationOfSide(quarry, 'attackers') === 'Sul_America', 'an ally of the attackers is the attacker’s')
+check(nationOfSide(nationless, 'defenders') === null && nationOfSide(siege({ townNation: null }), 'defenders') === 'American_Syndicate', 'a town of no nation: nobody’s ally; the town’s nation unread: the marker’s defender')
 
 // Kills between marks: what a side's points rose by beyond its holders' checks.
 const mark = (t: number, banner: Mark['banner'], holders: number, attacker: number, defender: number): Mark => ({ t, banner, holders, attacker, defender })

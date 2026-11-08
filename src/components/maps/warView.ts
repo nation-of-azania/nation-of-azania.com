@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
-import type { Allied } from '@/maps/alliances'
+import { nationOfSide, type Allied } from '@/maps/alliances'
 import { allegianceOf, NO_CAPTURES, sessionClock, stepCaptures, townOfName, type Captures, type PlayerSide } from '@/maps/battle'
 import type { Outline } from '@/maps/geo'
 import type { Siege, WorldTown } from '@/maps/world'
@@ -21,9 +21,11 @@ import type { LiveState } from './live'
  * A player's part in the siege the view is on, for the heads on the map,
  * the lists and the edge arrows: their side, and, when they fight on it
  * as an ally of its nation rather than a resident (src/maps/alliances.ts),
- * their own nation, to say whose ally they are.
+ * that nation, to say whose ally they are ("ally of American Syndicate").
+ * Never their own nation: out of the siege's context "ally · Imperial
+ * Avalonia" read as Imperial Avalonia being Azania's ally.
  */
-export type Allegiance = { side: PlayerSide; ally: string | null }
+export type Allegiance = { side: PlayerSide; allyOf: string | null }
 
 /** A town as the parts are read from it: the world's reading or, before it comes, Azania's own. */
 export type SideTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
@@ -34,7 +36,7 @@ export function allegiancesFor(siege: Siege | null, towns: SideTown[], allied: A
   return (name) => {
     const town = townOfName(name, towns)
     const { side, ally } = allegianceOf(town, siege, allied)
-    return { side, ally: ally ? (town?.nation ?? null) : null }
+    return { side, allyOf: ally && side !== 'other' ? nationOfSide(siege, side) : null }
   }
 }
 

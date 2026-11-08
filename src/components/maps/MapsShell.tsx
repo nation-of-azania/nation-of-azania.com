@@ -658,7 +658,12 @@ export function MapsShell({ data: served, children }: ShellProps) {
   // since SiegeWar counts a mutual ally's soldiers for either side and the map would otherwise call them nobody's.
   const fighters = useFighters(warOn)
   const allied = useMemo(() => alliedBy(alliancesKnown(homeNation, data.relations, fighters.alliances)), [homeNation, data.relations, fighters.alliances])
-  const allegianceOfName = useMemo(() => allegiancesFor(viewSiegeObject, sideTowns, allied), [viewSiegeObject, sideTowns, allied])
+  // The siege the heads, the lists and the edge arrows take their sides from: with a siege, a nation or a player chosen,
+  // the view's siege, which the sidebar's distances are to as well; in the overview, which is about every siege, only a
+  // battle on, the one the map frames, and the players list names it. Never a quiet siege the view picked by itself: a
+  // dashed ring there said someone was the ally of a side nobody had looked at.
+  const markSiege = warFocus || viewSiegeObject?.battle ? viewSiegeObject : null
+  const allegianceOfName = useMemo(() => allegiancesFor(markSiege, sideTowns, allied), [markSiege, sideTowns, allied])
   const sideOfName = useMemo(() => sidesFor(viewSiegeObject, sideTowns, allied), [viewSiegeObject, sideTowns, allied])
   // The captures of the view's siege, run on the live positions SiegeWar's way (battle.ts → stepCaptures), on the checks the points show.
   const viewPhase = useMemo(() => tickPhaseOf(viewSiege ? (war.readings[viewSiege] ?? []) : []), [war.readings, viewSiege])
@@ -1525,7 +1530,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
         worldStatus={worldState.status}
       />
       {/* On a wide war view the list is docked at the map's edge instead (below). */}
-      {warOn && wide ? null : <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { allegiance: allegianceOfName } : null} />}
+      {warOn && wide ? null : <PlayersButton home={homeNation} onPick={pickOnline} store={liveStore} towns={sideTowns} war={warOn ? { allegiance: allegianceOfName, siege: markSiege } : null} />}
       <DiplomacyButton on={extras.diplomacy} onToggle={() => setExtra('diplomacy', !extras.diplomacy)} />
       <WarButton on={warOn} onToggle={() => (warOn ? leaveWar() : enterWar())} />
       <Legend globe={globeSupport} />
@@ -1839,7 +1844,7 @@ export function MapsShell({ data: served, children }: ShellProps) {
                   open={dockOpen}
                   store={liveStore}
                   towns={sideTowns}
-                  war={{ allegiance: allegianceOfName, watch: warFocus }}
+                  war={{ allegiance: allegianceOfName, siege: markSiege, watch: warFocus }}
                 />
               )
               return dockOpen ? (

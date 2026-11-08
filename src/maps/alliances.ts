@@ -62,6 +62,16 @@ export function defendingNation(siege: Pick<Siege, 'town' | 'townNation' | 'defe
   return siege.defender
 }
 
+/**
+ * The nation a side fights as, whose allies SiegeWar counts for it: the
+ * attacker, or the besieged town's nation (defendingNation; null for a
+ * town of no nation). What an ally's mark names: "ally of American
+ * Syndicate", never the ally's own nation, which out of a siege's context
+ * reads as the nation being someone's (Azania's) ally.
+ */
+export const nationOfSide = (siege: Pick<Siege, 'attacker' | 'town' | 'townNation' | 'defender'>, side: BattleSide): string | null =>
+  side === 'attackers' ? siege.attacker || null : defendingNation(siege)
+
 const pairKey = (a: string, b: string): string => [nationKey(a), nationKey(b)].sort().join('|')
 
 type Evidence = { battle: string; at: string; by: 'banner' | 'kill'; player: string; nations: [string, string] }

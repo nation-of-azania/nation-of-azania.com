@@ -37,8 +37,8 @@ import type { Allegiance } from '../warView'
  *
  * In the war view (`war`) the heads are fighters: ringed by their side in
  * the siege the view is on (attackers coral, defenders sea; an ally of a
- * side's nation in a dashed ring of the same, their nation named on the
- * tag), with health and armour drawn under the name as two small bars,
+ * side's nation in a dashed ring of the same, the tag saying whose ally),
+ * with health and armour drawn under the name as two small bars,
  * and a click gives the player to the sidebar rather than opening the card. The one being
  * watched wears a ring that breathes, and, while the view follows them,
  * the map pans with each reading to keep them in the middle: the pan
@@ -239,15 +239,17 @@ function setCapture(element: HTMLElement, name: string, fight: WarHeads | null, 
 /**
  * A head's part in the view's siege: its side, for the ring and the tag's
  * colour, and, for an ally of the side's nation, the dashed ring and the
- * line under the name saying whose ally they are ("ally · Imperial
- * Avalonia"). Cleared when the view has no siege.
+ * line under the name saying whose ally they are ("ally of American
+ * Syndicate": the side's nation, never their own, which out of context
+ * read as that nation being Azania's ally). Cleared when the view has no
+ * siege to take the sides from.
  */
 function setPart(element: HTMLElement, name: string, fight: WarHeads | null): void {
   const part = fight?.allegiance(name) ?? null
   element.setAttribute('data-side', part?.side ?? '')
-  element.toggleAttribute('data-ally', Boolean(part?.ally))
+  element.toggleAttribute('data-ally', Boolean(part?.allyOf))
   const line = element.querySelector<HTMLElement>('.az-player-ally')
-  if (line) line.textContent = part?.ally ? `ally · ${spoken(part.ally)}` : ''
+  if (line) line.textContent = part?.allyOf ? `ally of ${spoken(part.allyOf)}` : ''
 }
 
 /**

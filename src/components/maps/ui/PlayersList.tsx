@@ -9,7 +9,7 @@ import { sameNation } from '@/maps/abroad'
 import { townOfName } from '@/maps/battle'
 import { spoken } from '@/maps/data'
 import type { LivePlayer } from '@/maps/players'
-import type { WorldTown } from '@/maps/world'
+import type { Siege, WorldTown } from '@/maps/world'
 
 import { useStore, type Store } from '../hooks'
 import type { LiveState } from '../live'
@@ -27,14 +27,17 @@ import { Vitals } from './Vitals'
  * sidebar takes them; otherwise their card opens). In the war view every
  * row carries health and armour, the loudest thing on it, and a ring in
  * the player's side's colour: dashed for an ally of the side's nation,
- * whose row says whose ally they are.
+ * whose row says whose ally they are ("ally of American Syndicate", the
+ * side's nation: the group's head already says who they are themselves).
+ * The head of the list says which siege the sides are of, so a ring is
+ * never read against a siege nobody chose; with none, it says to choose one.
  */
 
 /** A town as the sides and nations are read from it: the world's reading, or Azania's own before it comes. */
 export type NamedTown = Pick<WorldTown, 'name' | 'nation' | 'people' | 'home'>
 
-/** The war view, while it's on: each player's part in the siege it's on, for the ring and the ally's line. */
-export type WarList = { allegiance: (name: string) => Allegiance | null }
+/** The war view, while it's on: each player's part in the siege the sides are taken from, for the ring and the ally's line, and that siege, named at the head of the list (null: no sides until one is chosen). */
+export type WarList = { allegiance: (name: string) => Allegiance | null; siege: Siege | null }
 
 const matches = (name: string, query: string) => name.replace(/^\./, '').toLowerCase().includes(query)
 
@@ -181,6 +184,13 @@ export function PlayersList({
           </span>
           {ours ? <span className="text-[13px] font-semibold text-saffron-600">{ours} of Azania</span> : null}
         </p>
+        {war && live.players.length ? (
+          <p className="mt-0.5 text-[12px] leading-snug text-ink-500">
+            {war.siege
+              ? `Sides in the ${war.siege.battle ? 'battle at' : 'siege of'} ${spoken(war.siege.town ?? war.siege.defender)}`
+              : 'Choose a siege to see its sides'}
+          </p>
+        ) : null}
         {live.players.length > 6 ? (
           <label className="relative mt-2 block">
             <span className="sr-only">Find a player</span>
@@ -215,14 +225,14 @@ export function PlayersList({
                       onClick={() => onPick(player)}
                       type="button"
                     >
-                      <span className={cn('az-war-head shrink-0', part ? `az-war-head-${part.side}` : null, part?.ally ? 'az-war-head-ally' : null)}>
+                      <span className={cn('az-war-head shrink-0', part ? `az-war-head-${part.side}` : null, part?.allyOf ? 'az-war-head-ally' : null)}>
                         <Head name={player.name} px={26} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-ink-900">{player.name}</span>
-                        {part?.ally ? (
+                        {part?.allyOf ? (
                           <span className={cn('block truncate text-[12px] font-semibold', part.side === 'attackers' ? 'text-(--az-atk)' : 'text-(--az-def)')}>
-                            ally · {spoken(part.ally)}
+                            ally of {spoken(part.allyOf)}
                           </span>
                         ) : null}
                       </span>

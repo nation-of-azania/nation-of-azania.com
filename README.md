@@ -1176,8 +1176,13 @@ which the routes insist on, so every viewer shares one copy.
   on (attackers coral, defenders sea; worked out from the towns' resident
   lists and the alliances the map knows, `src/maps/alliances.ts`, since
   SiegeWar counts a mutual ally's soldiers for the side: an ally of a
-  side's nation wears the side's ring dashed and "ally · Imperial Avalonia"
-  on the tag, and one the map can't place is of neither): the whole head
+  side's nation wears the side's ring dashed and "ally of American
+  Syndicate" on the tag, whose ally and never their own nation, which out
+  of context read as that nation being Azania's ally; one the map can't
+  place is of neither). The sides are those of the siege the sidebar is
+  on; in the overview, which is about every siege, only of a battle on,
+  the one the map frames, and the players list says which ("Sides in the
+  battle at Hurghada"), or, with none, to choose a siege. The whole head
   unit in the side's colour, a thick ring and the name's plate tinted dark
   coral or dark sea, so one side is told from the other across a crowded
   banner, their names always beside them, and under the name their
@@ -1254,7 +1259,7 @@ which the routes insist on, so every viewer shares one copy.
   to be at; each row switches the view to that siege;
   and the fighters within two zones of the banner by side, lowest health
   first, each with their vitals, head and name (an ally with the dashed
-  ring and "ally · Sea Drifters"), how far from the banner,
+  ring and "ally of Syrian Empire"), how far from the banner,
   and for anyone outside the zone the time back, sprinting at the game's pace or by
   their own town's spawn when that is nearer (the spawn's warm-up isn't
   counted). The foot says what is assumed: the two radii are SiegeWar's
