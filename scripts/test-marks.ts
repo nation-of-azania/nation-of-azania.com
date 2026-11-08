@@ -25,9 +25,14 @@ import {
   reachWords,
   share,
   sideOfBalance,
+  sideWords,
   signed,
   slotsOf,
   tallyWords,
+  TRACK_ZONES,
+  trackScale,
+  trackWords,
+  winLossWords,
 } from '../src/maps/marks'
 
 let failed = false
@@ -106,6 +111,24 @@ check(headSlotsWords(3, 2) === '3 holders needed; only 2 online: out of reach', 
 
 // The delta chip.
 check(deltaWords(12, 'people') === 'up 12 people' && deltaWords(-3) === 'down 3' && deltaWords(0) === 'no change', 'a delta’s words')
+
+// Won and lost.
+check(winLossWords(4, 3) === '4 won, 3 lost, on points' && winLossWords(0, 0) === 'no session won or lost yet', 'won and lost, in words')
+
+// The track to the banner: two zones long, the banner at the right.
+const zone = RULES.siegeZoneRadius
+check(TRACK_ZONES === 2 && trackScale(0).x === 1 && trackScale(zone * 2).x === 0 && trackScale(zone * 5).x === 0, 'the banner at the right end, two zones out at the left wall, further on the wall too')
+check(near(trackScale(zone).x, 0.5) && near(trackScale(zone).zoneX, 0.5) && near(trackScale(RULES.bannerRadius).bannerX, trackScale(RULES.bannerRadius).x), 'the zone\u2019s edge halfway, the banner zone\u2019s tick where its edge falls')
+check(trackScale(10).place === 'banner' && trackScale(34).place === 'zone' && trackScale(300).place === 'outside' && trackScale(900).place === 'far', 'at the banner, in the zone, outside, or beyond the track')
+check(trackWords(10) === 'at the banner' && trackWords(34) === 'in the zone, 34 blocks from the banner', 'at the banner and in the zone, in words')
+check(trackWords(34, { expected: null, pessimistic: '0:54', pace: null, via: 'run', locked: '2:10' }) === 'in the zone, 34 blocks from the banner; can\u2019t teleport for 2:10', 'the lock after a death, in the zone')
+check(
+  trackWords(300, { expected: '0:44', pessimistic: '0:54', pace: 6.8, via: 'run', locked: null }) === '300 blocks from the banner: back in 0:44 at their pace (6.8 blocks a second), 0:54 at a sprint',
+  'outside: the way back at their pace and at a sprint',
+)
+check(trackWords(300, { expected: null, pessimistic: '0:54', pace: null, via: 'spawn', locked: null }) === '300 blocks from the banner: back in 0:54 at a sprint, by /t spawn', 'outside, by their town\u2019s spawn')
+check(trackWords(300) === '300 blocks from the banner, outside the zone', 'outside, with no way back known')
+check(sideWords('attackers') === 'as an attacker' && sideWords('defenders') === 'as a defender', 'a side\u2019s words')
 
 if (failed) {
   console.error('\nSome checks failed.')

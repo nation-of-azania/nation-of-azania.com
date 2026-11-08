@@ -165,3 +165,51 @@ export function deltaWords(value: number, noun?: string): string {
   if (value === 0) return 'no change'
   return `${value > 0 ? 'up' : 'down'} ${n(Math.abs(value))}${noun ? ` ${noun}` : ''}`
 }
+
+/** "4 won, 3 lost, on points"; "none yet" with neither. */
+export function winLossWords(won: number, lost: number): string {
+  if (!won && !lost) return 'no session won or lost yet'
+  return `${n(won)} won, ${n(lost)} lost, on points`
+}
+
+/** A track to the banner runs this many siege zones out from it: as far as a roster reaches (battle.ts → playersAtSiege). */
+export const TRACK_ZONES = 2
+
+export type TrackPlace = 'banner' | 'zone' | 'outside' | 'far'
+
+/**
+ * Where a fighter stands on a track to the banner, the banner at the right
+ * end (1) and the track running TRACK_ZONES siege zones out to the left
+ * (0): their mark's place, the zone's edge and the banner zone's as
+ * ticks, and which of the three they're in; beyond the track's reach the
+ * mark sits on the left wall (`far`).
+ */
+export function trackScale(distance: number, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius): { x: number; zoneX: number; bannerX: number; place: TrackPlace } {
+  const reach = zone * TRACK_ZONES
+  const place: TrackPlace = distance <= banner ? 'banner' : distance <= zone ? 'zone' : distance <= reach ? 'outside' : 'far'
+  return { x: 1 - clamp(distance, 0, reach) / reach, zoneX: 1 - zone / reach, bannerX: 1 - banner / reach, place }
+}
+
+/** The way back, as the words say it: the times as the clock shows them ("0:44"), the pace in blocks a second. */
+export type WayBackWords = { expected: string | null; pessimistic: string; pace: number | null; via: 'run' | 'spawn'; locked: string | null }
+
+/**
+ * "at the banner"; "in the zone, 34 blocks from the banner"; "300 blocks
+ * from the banner: back in 0:44 at their pace (6.8 blocks a second), 0:54
+ * at a sprint", and after a death, "can't teleport for 2:10".
+ */
+export function trackWords(distance: number, back: WayBackWords | null = null, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius): string {
+  const { place } = trackScale(distance, zone, banner)
+  const lock = back?.locked ? `; can’t teleport for ${back.locked}` : ''
+  if (place === 'banner') return 'at the banner'
+  if (place === 'zone') return `in the zone, ${n(distance)} blocks from the banner${lock}`
+  if (!back) return `${n(distance)} blocks from the banner, outside the zone`
+  const way =
+    back.expected !== null
+      ? `back in ${back.expected} at their pace${back.pace !== null ? ` (${back.pace} blocks a second)` : ''}, ${back.pessimistic} at a sprint`
+      : `back in ${back.pessimistic} at a sprint`
+  return `${n(distance)} blocks from the banner: ${way}${back.via === 'spawn' ? ', by /t spawn' : ''}${lock}`
+}
+
+/** "as an attacker", "as a defender": the side a fighter last fought on. */
+export const sideWords = (side: 'attackers' | 'defenders'): string => (side === 'attackers' ? 'as an attacker' : 'as a defender')

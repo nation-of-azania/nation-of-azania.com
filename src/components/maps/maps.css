@@ -1732,6 +1732,20 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     background: linear-gradient(90deg, var(--az-mark-colour) 50%, transparent 50%);
     box-shadow: inset 0 0 0 1px var(--az-mark-colour);
   }
+  /* Won and lost (WinLoss): a session won solid in the good colour, one lost hatched in the bad. */
+  .az-pip[data-state='won'] {
+    background: var(--az-mark-good);
+    box-shadow: none;
+  }
+  .az-pip[data-state='lost'] {
+    background: repeating-linear-gradient(135deg, var(--az-mark-bad) 0 1.5px, transparent 1.5px 4.5px);
+    box-shadow: inset 0 0 0 1px var(--az-mark-bad);
+  }
+  /* A fighter's mark on the track to the banner (TrackToBanner): a block in the side's colour, edged in the paper so it stands off the zone's hatching. */
+  .az-track-mark {
+    background: var(--az-mark-colour);
+    box-shadow: 0 0 0 1px var(--az-mark-paper);
+  }
   /* A slot of HeadSlots: an outline for each needed, with a mark inside once someone online fills it; an ally's mark is dashed. */
   .az-slots {
     display: inline-flex;

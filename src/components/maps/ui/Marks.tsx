@@ -21,12 +21,19 @@ import {
   reachWords,
   share,
   sideOfBalance,
+  sideWords,
   signed,
   slotsOf,
   tallyWords,
+  trackScale,
+  trackWords,
+  winLossWords,
   type Span,
   type TallyPart,
+  type WayBackWords,
 } from '@/maps/marks'
+
+import { Icon } from './icons'
 
 /**
  * The panels' small marks, each in place of a sentence: "X of Y" as pips
@@ -369,6 +376,95 @@ export function HeadSlots({
       </span>
       {figure ? <Figure rest={` · ${n(online)}${allies ? ` + ${n(allies)}` : ''} online`} value={`${n(needed)} needed`} /> : null}
     </Mark>
+  )
+}
+
+/**
+ * Sessions won and lost as marks, a form guide's W and L: one solid mark
+ * in the good colour for each won, one hatched in the bad for each lost,
+ * and the figure "4–3". Past twenty they're a tally instead.
+ */
+export function WinLoss({ won, lost, figure = true, words, ...mark }: MarkProps & { won: number; lost: number; figure?: boolean }) {
+  const said = words ?? winLossWords(won, lost)
+  if (!asPips(won + lost))
+    return (
+      <Tally
+        figure={figure}
+        parts={[
+          { label: 'won', value: won, pattern: 'solid' },
+          { label: 'lost', value: lost, pattern: 'hatched' },
+        ]}
+        words={said}
+        {...mark}
+      />
+    )
+  return (
+    <Mark words={said} {...mark}>
+      <span aria-hidden="true" className="az-pips">
+        {pipGroups(won + lost).map((count, group) => (
+          <span className="az-pip-group" key={group}>
+            {Array.from({ length: count }, (_, i) => {
+              const index = group * 5 + i
+              return <span className="az-pip" data-state={index < won ? 'won' : 'lost'} key={i} />
+            })}
+          </span>
+        ))}
+      </span>
+      {figure ? <Figure rest={`–${n(lost)}`} value={n(won)} /> : null}
+    </Mark>
+  )
+}
+
+/**
+ * A fighter's place on the way to the banner: a track running two siege
+ * zones out from the banner at its right end, the zone shaded, the
+ * banner zone's edge ticked, and a mark in the side's colour where they
+ * stand (on the left wall when they're further than the track reaches).
+ * After the bar, one figure: the time back, or by default the blocks.
+ */
+export function TrackToBanner({
+  distance,
+  back = null,
+  side,
+  figure,
+  words,
+  size = 'row',
+  ...mark
+}: MarkProps & {
+  distance: number
+  /** The way back, for the words; null when they're in the zone or it isn't known. */
+  back?: WayBackWords | null
+  side?: MarkSide
+  /** What's said after the bar: the blocks by default; a time, or nothing (`false`). */
+  figure?: ReactNode | false
+}) {
+  const scale = trackScale(distance)
+  return (
+    <Mark layout="row" size={size} words={words ?? trackWords(distance, back)} {...mark}>
+      <span aria-hidden="true" className={TRACK}>
+        <span className="az-mark-fill absolute inset-y-0 right-0" data-faint="" data-pattern="hatched" style={{ left: pc(scale.zoneX) }} />
+        <Tick at={scale.bannerX} />
+        <Tick at={1} ink tall />
+        <span className="az-track-mark absolute -inset-y-0.5 w-[5px] -translate-x-1/2" data-side={side} style={{ left: pc(scale.x) }} />
+      </span>
+      {figure === false ? null : figure !== undefined ? (
+        <span aria-hidden="true" className="az-mark-figure shrink-0">
+          {figure}
+        </span>
+      ) : (
+        <Figure rest={size === 'panel' ? ' blocks' : undefined} value={n(distance)} />
+      )}
+    </Mark>
+  )
+}
+
+/** The side a fighter fought on, as its glyph: crossed swords for an attacker, a shield for a defender, in the side's colour. */
+export function SideMark({ side, words, className, size = 'row' }: { side: MarkSide; words?: string; className?: string; size?: MarkSize }) {
+  const said = words ?? sideWords(side)
+  return (
+    <span aria-label={said} className={cn('inline-flex shrink-0 align-middle', side === 'attackers' ? 'text-(--az-atk)' : 'text-(--az-def)', className)} role="img" title={said}>
+      <Icon className={size === 'panel' ? 'h-4 w-4' : 'h-3.5 w-3.5'} name={side === 'attackers' ? 'war' : 'shield'} />
+    </span>
   )
 }
 

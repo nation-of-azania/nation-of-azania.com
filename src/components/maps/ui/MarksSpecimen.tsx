@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/blocks/components/shared'
 
 import '../maps.css'
-import { CapBalance, Delta, HeadSlots, Meter, Pips, RankStrip, ReachBar, Tally, type MarkSize } from './Marks'
+import { CapBalance, Delta, HeadSlots, Meter, Pips, RankStrip, ReachBar, SideMark, Tally, TrackToBanner, WinLoss, type MarkSize } from './Marks'
 
 /**
  * Every mark (./Marks.tsx) laid out for the eye, in both sizes, on each
@@ -64,6 +64,24 @@ const CASES: { name: string; mark: (size: MarkSize) => ReactNode }[] = [
   { name: 'HeadSlots · 1 needed · 5 online + 1 ally', mark: (size) => <HeadSlots allies={1} needed={1} online={5} size={size} /> },
   { name: 'HeadSlots · 3 needed · 1 online + 1 ally: out of reach', mark: (size) => <HeadSlots allies={1} needed={3} online={1} size={size} /> },
   { name: 'HeadSlots · 8 needed · 5 online', mark: (size) => <HeadSlots needed={8} online={5} size={size} /> },
+  { name: 'WinLoss · 4 won, 3 lost', mark: (size) => <WinLoss lost={3} size={size} won={4} /> },
+  { name: 'WinLoss · 15 won, 9 lost falls back to a tally', mark: (size) => <WinLoss lost={9} size={size} won={15} /> },
+  { name: 'TrackToBanner · at the banner, attackers', mark: (size) => <TrackToBanner distance={10} figure={<span className="text-(--az-mark-bad)">at the banner</span>} side="attackers" size={size} /> },
+  { name: 'TrackToBanner · in the zone, 34 blocks, defenders', mark: (size) => <TrackToBanner distance={34} side="defenders" size={size} /> },
+  {
+    name: 'TrackToBanner · 300 blocks out, back in 0:44',
+    mark: (size) => <TrackToBanner back={{ expected: '0:44', pessimistic: '0:54', pace: 6.8, via: 'run', locked: null }} distance={300} figure="0:44" side="attackers" size={size} />,
+  },
+  { name: 'TrackToBanner · 900 blocks, beyond the track', mark: (size) => <TrackToBanner back={{ expected: null, pessimistic: '2:41', pace: null, via: 'spawn', locked: null }} distance={900} figure="2:41" size={size} /> },
+  {
+    name: 'SideMark · as an attacker, as a defender',
+    mark: (size) => (
+      <span className="inline-flex items-center gap-2">
+        <SideMark side="attackers" size={size} />
+        <SideMark side="defenders" size={size} />
+      </span>
+    ),
+  },
   {
     name: 'Delta · up is good; down is good; no change; no better way',
     mark: (size) => (
