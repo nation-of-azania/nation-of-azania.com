@@ -5,7 +5,7 @@ import { useState, type MouseEvent, type PointerEvent } from 'react'
 import { cn } from '@/blocks/components/shared'
 import type { Beliefs, Share } from '@/maps/beliefs'
 import { spoken } from '@/maps/data'
-import { BELIEF_COLOURS, GROUND, NO_NATION } from '@/maps/palette'
+import { BELIEF_COLOURS, NO_NATION } from '@/maps/palette'
 
 import { Icon } from '../ui/icons'
 import { PanelSection } from './shared'
@@ -20,6 +20,8 @@ import { PanelSection } from './shared'
  * tap. A name's colour is its own in every nation's chart (hashed into the
  * palette), so Catholic is Catholic wherever it's met. Said in a sentence
  * where a chart would only belabour it: one share, or none chosen at all.
+ * The gaps and the hatching are the sand's tokens, so the ring holds in
+ * the dark appearance.
  */
 
 /** At most this many named shares get a slice of their own; past six, the smallest are folded together, since a tail of one isn't worth a fold. */
@@ -188,9 +190,10 @@ function BeliefFigure({ label, what, shares, towns }: { label: string; what: 'cu
             viewBox="0 0 100 100"
           >
             <defs>
+              {/* The hatching in the sand's tokens, so it reads on the dark ground too. */}
               <pattern height={5} id={HATCH} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={5}>
-                <rect fill={GROUND.sand} height={5} width={5} />
-                <line stroke="#d6c9ab" strokeWidth={1.6} x1={0} x2={0} y1={0} y2={5} />
+                <rect className="fill-sand-100" height={5} width={5} />
+                <line className="stroke-sand-300" strokeWidth={1.6} x1={0} x2={0} y1={0} y2={5} />
               </pattern>
             </defs>
             {arcs.map(({ slice, from, to }) =>
@@ -208,12 +211,11 @@ function BeliefFigure({ label, what, shares, towns }: { label: string; what: 'cu
               ) : to > from ? (
                 // A whitewash edge is the gap between neighbours; the rest dim while one is picked out.
                 <path
-                  className="transition-opacity duration-150 motion-reduce:transition-none"
+                  className="stroke-sand-50 transition-opacity duration-150 motion-reduce:transition-none"
                   d={arcPath(from, to)}
                   fill={paint(slice)}
                   key={slice.key}
                   opacity={active !== null && active !== slice.key ? 0.35 : 1}
-                  stroke={GROUND.whitewash}
                   strokeLinejoin="round"
                   strokeWidth={1.5}
                 />
