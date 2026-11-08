@@ -61,9 +61,9 @@ const matches = (name: string, query: string) => name.replace(/^\./, '').toLower
 
 /**
  * A name's outlaw command, copied by a click: the one in-game primitive,
- * beside every name. What it copies is the button's name; what the
- * command is for, the section's hint says once (PEOPLE_HINT), not every
- * row.
+ * beside every name. What it copies is the button's name (and nothing
+ * else, so it's read once); what the command is for, the section's hint
+ * says once (PEOPLE_HINT), not every row.
  */
 function CopyCommand({ name }: { name: string }) {
   const [copied, copy] = useCopy()
@@ -76,7 +76,6 @@ function CopyCommand({ name }: { name: string }) {
         copied ? 'text-sea-800' : 'text-ink-400 hover:text-sea-800',
       )}
       onClick={() => copy(command)}
-      title={`Copy ${command}`}
       type="button"
     >
       <Icon className="h-3 w-3" name={copied ? 'check' : 'copy'} />

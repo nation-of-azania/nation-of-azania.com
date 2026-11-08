@@ -96,16 +96,16 @@ function LanesFigure({ lanes, kind, words }: { lanes: RoadLanes; kind: MapRoad['
   }
   const lines = Math.max(1, ...names.map((name) => name.line + 1))
   return (
-    <div aria-label={words} className="max-w-full overflow-x-auto" role="img" title={words}>
-      <div className="relative" style={{ width, height: STRIP_HEIGHT + 13 + lines * 13 }}>
+    <div aria-label={words} className="max-w-full overflow-x-auto" role="img">
+      <div className="relative" style={{ width, height: STRIP_HEIGHT + 14 + lines * 13 }}>
         <LanesStrip frame={FRAME} height={STRIP_HEIGHT} kind={kind} lanes={lanes} ppb={ppb} />
         {widths.map((label, i) => (
-          <span className="absolute -translate-x-1/2 whitespace-nowrap font-mono text-[10px] leading-none text-ink-500 tabular-nums" key={`w${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 3 }}>
+          <span className="absolute -translate-x-1/2 whitespace-nowrap font-mono text-[11px] leading-none text-ink-500 tabular-nums" key={`w${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 3 }}>
             {label.text}
           </span>
         ))}
         {names.map((label, i) => (
-          <span className="absolute -translate-x-1/2 whitespace-nowrap text-[11px] leading-none text-ink-700" key={`n${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 15 + label.line * 13 }}>
+          <span className="absolute -translate-x-1/2 whitespace-nowrap text-[11px] leading-none text-ink-700" key={`n${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 16 + label.line * 13 }}>
             {label.text}
           </span>
         ))}
@@ -133,11 +133,10 @@ function RoadRibbon({ lanes, length }: { lanes: RoadLanes; length: number }) {
     .join('; ')}.`
   return (
     <svg aria-label={words} className="block max-w-full text-ink-700" height={height} role="img" viewBox={`0 0 ${FRAME} ${height}`} width={FRAME}>
-      <title>{words}</title>
       <line stroke="currentColor" strokeOpacity={0.3} strokeWidth={2} x1={pad} x2={FRAME - pad} y1={mid} y2={mid} />
       <circle cx={pad} cy={mid} fill="currentColor" fillOpacity={0.55} r={4} />
       <line stroke="currentColor" strokeOpacity={0.3} strokeWidth={2} x1={FRAME - pad} x2={FRAME - pad} y1={mid - 5} y2={mid + 5} />
-      <text className="fill-ink-500 font-mono" fontSize={10} textAnchor="end" x={FRAME - pad} y={height - 2}>
+      <text className="fill-ink-500 font-mono" fontSize={11} textAnchor="end" x={FRAME - pad} y={height - 2}>
         {blocks(length)}
       </text>
       {changes.map((change, i) => {
@@ -148,7 +147,7 @@ function RoadRibbon({ lanes, length }: { lanes: RoadLanes; length: number }) {
             <rect fill="currentColor" fillOpacity={0.14} height={14} width={x1 - x0} x={x0} y={mid - 7} />
             <line stroke="currentColor" strokeOpacity={0.65} strokeWidth={2} x1={x0} x2={x0} y1={mid - 10} y2={mid + 10} />
             <line stroke="currentColor" strokeOpacity={0.65} strokeWidth={1.5} x1={x1} x2={x1} y1={mid - 7} y2={mid + 7} />
-            <text className="fill-ink-700 font-mono" fontSize={10} fontWeight={600} textAnchor="middle" x={x0} y={height - 2}>
+            <text className="fill-ink-700 font-mono" fontSize={11} fontWeight={600} textAnchor="middle" x={x0} y={height - 2}>
               {blocks(change.at)}
             </text>
           </g>
