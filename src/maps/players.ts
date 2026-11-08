@@ -69,7 +69,7 @@ export const LIVE_PLAYERS_EVERY_MS = 2000
 export const MAX_HEALTH = 20
 export const MAX_ARMOR = 20
 
-/** A move further than this between two readings is a teleport (`/t spawn`), and a head jumps rather than glides. */
+/** A move further than this between two readings is a teleport (`/t spawn`) however long it took: a head fades out and in rather than gliding (any shorter jump is told by its speed, src/maps/motion.ts → jumpedBetween). */
 export const TELEPORT_BLOCKS = 300
 
 /** Bedrock players' names start with a dot; the skin service has no head for them. */

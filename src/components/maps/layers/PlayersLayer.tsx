@@ -6,6 +6,7 @@ import { minecraftHeadUrl } from '@/components/site/format'
 import { captureEndsAt, type Captures } from '@/maps/battle'
 import { spoken, type MapData, type MapTown } from '@/maps/data'
 import type { Point } from '@/maps/geo'
+import { diedBetween, jumpedBetween, type Fix } from '@/maps/motion'
 import { isBedrockName, MAX_ARMOR, MAX_HEALTH, TELEPORT_BLOCKS, townOfPlayer, type LivePlayer } from '@/maps/players'
 import { settlements } from '@/maps/sites'
 import { spawnRoute } from '@/maps/spawn'
@@ -35,6 +36,17 @@ import type { Allegiance } from '../warView'
  * and the way there as a player has it. The heads stand only in the real
  * world, never in an echo of it.
  *
+ * A head glides only where a player could have gone (src/maps/motion.ts).
+ * A jump no one runs or flies (a respawn, a teleport) is a crossfade: the
+ * old marker stays where it was and fades out as a ghost while a fresh one
+ * fades in where they are now, so the eye is never led across the map as
+ * if they'd flown it, and never loses them. A death (no health in a
+ * reading) sinks the head away where they fell before the respawn comes;
+ * one gone from the feed fades out where it stood; one arriving fades in.
+ * All of it a few hundred milliseconds (maps.css → az-head-in, az-head-out,
+ * az-head-fall), by CSS alone, and none of it with reduced motion or in a
+ * tab out of sight, where heads just stand at their readings.
+ *
  * In the war view (`war`) the heads are fighters: ringed by their side in
  * the siege the view is on (attackers coral, defenders sea; an ally of a
  * side's nation in a dashed ring of the same, the tag saying whose ally),
@@ -60,6 +72,14 @@ const STACK_SPREAD = 1000
 /** How far a hovered head rises: over every other, wherever it stands. */
 const RISE = 100_000_000
 
+/** A head gone (a ghost fading out where a player was) is removed this long after: the fades in maps.css are shorter. */
+const GONE_MS = 360
+/** A head's arrival is marked this long: its fade-in (maps.css → az-head-in) is shorter. */
+const ARRIVED_MS = 400
+
+/** Why a head left where it stood: the fade each gets (maps.css → .az-player[data-gone]). */
+type Gone = 'died' | 'teleported' | 'left'
+
 type StackedMarker = L.Marker & { _icon?: HTMLElement | null; arrival: number }
 
 /** Leaflet's own record of an animated zoom (a flight) under way, which a following pan must not cut short. */
@@ -84,6 +104,8 @@ type Entry = {
   marker: L.Marker
   element: HTMLElement
   player: LivePlayer
+  /** When the reading that placed them was taken, by the feed's clock: a move is judged by the time it took. */
+  at: number
   /** Where the head is gliding from and to, when it set off, and how long the glide takes: the feed's own beat. */
   from: Point
   to: Point
@@ -113,6 +135,7 @@ export type WarHeads = {
 }
 
 const at = (player: LivePlayer): Point => [player.x, player.z]
+const fixOf = (player: LivePlayer, at: number): Fix => ({ at, x: player.x, z: player.z, health: player.health })
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -342,6 +365,16 @@ export function PlayersLayer({
   useEffect(() => {
     if (!enabled) return
     const held = entries.current
+    // Ghosts: markers of heads gone from where they stood, fading out until their timer removes them; and every timer set.
+    const ghosts = new Set<L.Marker>()
+    const timers = new Set<number>()
+    const later = (callback: () => void, ms: number) => {
+      const timer = window.setTimeout(() => {
+        timers.delete(timer)
+        callback()
+      }, ms)
+      timers.add(timer)
+    }
     let frame = 0
     const step = (now: number) => {
       frame = 0
@@ -377,8 +410,63 @@ export function PlayersLayer({
       map.panTo(target, { animate: !jump, duration: over / 1000, easeLinearity: 1, noMoveStart: true })
     }
 
+    /** A fresh head for a player at `to`, fading in: on arrival, and on landing after a jump. */
+    const place = (player: LivePlayer, to: Point, now: number, every: number, readAt: number) => {
+      const fight = warRef.current
+      const town = townOfPlayer(player.name, townsRef.current)
+      const { icon, element } = iconFor(player, town)
+      setVitals(element, player)
+      if (fight) {
+        setPart(element, player.name, fight)
+        element.classList.toggle('az-player-watched', fight.watch === player.name)
+        setCapture(element, player.name, fight, Date.now())
+      } else element.classList.toggle('az-player-selected', chosenRef.current === player.name)
+      const marker = new HeadMarker(toLatLng(to), {
+        icon,
+        pane: PANE,
+        keyboard: false,
+        // A head's click is its own: the map, and a tool wanting clicks, never see it.
+        bubblingMouseEvents: false,
+        riseOnHover: true,
+        riseOffset: RISE,
+      })
+      marker.arrival = arrivals++ % STACK_SPREAD
+      marker.on('click', (event: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(event.originalEvent)
+        const fighting = warRef.current
+        if (fighting) return fighting.onPick(player.name)
+        setChosen((picked) => (picked === player.name ? null : player.name))
+      })
+      marker.addTo(map)
+      // The arrival's fade is a one-off.
+      later(() => element.classList.remove('az-player-new'), ARRIVED_MS)
+      held.set(player.name, { marker, element, player, at: readAt, from: to, to, since: now, over: every, still: true })
+    }
+
+    /**
+     * A head gone from where it stood: the marker, no longer the player's, is a ghost that fades out there (the
+     * why says how: a death sinks, the rest dissolve) and is removed once it has. Nothing to see, or a head that
+     * fell already (sunk where the reading found them at no health): removed at once.
+     */
+    const retire = (entry: Entry, why: Gone, atOnce: boolean) => {
+      const { marker, element } = entry
+      if (atOnce || element.hasAttribute('data-gone')) return marker.remove()
+      element.classList.remove('az-player-watched', 'az-player-selected', 'az-player-new')
+      element.removeAttribute('role')
+      element.setAttribute('aria-hidden', 'true')
+      element.setAttribute('data-gone', why)
+      marker.off('click')
+      const icon = marker.getElement()
+      if (icon) icon.style.pointerEvents = 'none'
+      ghosts.add(marker)
+      later(() => {
+        ghosts.delete(marker)
+        marker.remove()
+      }, GONE_MS)
+    }
+
     const reconcile = () => {
-      const { players, every } = store.get()
+      const { players, every, at: readAt } = store.get()
       const seen = new Set<string>()
       const now = performance.now()
       // A page out of sight gets no animation frames (the window behind the game, or minimised, while the feed
@@ -390,53 +478,42 @@ export function PlayersLayer({
         seen.add(player.name)
         const to = at(player)
         const entry = held.get(player.name)
-        if (entry) {
-          entry.player = player
-          const from = current(entry)
-          const far = Math.hypot(to[0] - from[0], to[1] - from[1]) > TELEPORT_BLOCKS
-          entry.from = jump || far ? to : from
-          entry.to = to
-          entry.since = now
-          entry.over = every
-          entry.still = hidden
-          if (jump || far) entry.marker.setLatLng(toLatLng(to))
-          setVitals(entry.element, player)
-          if (fight) setPart(entry.element, player.name, fight)
-          if (fight?.follow && fight.watch === player.name) follow(to, every, jump || far)
+        if (!entry) {
+          place(player, to, now, every, readAt)
           continue
         }
-        const town = townOfPlayer(player.name, townsRef.current)
-        const { icon, element } = iconFor(player, town)
-        setVitals(element, player)
-        if (fight) {
-          setPart(element, player.name, fight)
-          element.classList.toggle('az-player-watched', fight.watch === player.name)
-          setCapture(element, player.name, fight, Date.now())
+        const before = fixOf(entry.player, entry.at)
+        const after = fixOf(player, readAt)
+        const from = current(entry)
+        const far = Math.hypot(to[0] - from[0], to[1] - from[1]) > TELEPORT_BLOCKS
+        // Dead: the head sinks away where they fell (data-gone, which a respawn's reading clears by replacing it),
+        // and stands there, at no health, until they come back somewhere.
+        const dead = player.health === 0
+        // Back from the dead, or a jump no one runs or flies: a crossfade, the old head's ghost fading where it was
+        // while a fresh head fades in where they are. A move over TELEPORT_BLOCKS is a jump however long it took.
+        const gone: Gone | null = dead ? null : diedBetween(before, after) ? 'died' : far || jumpedBetween(before, after) ? 'teleported' : null
+        if (gone) {
+          retire(entry, gone, jump)
+          place(player, to, now, every, readAt)
+          if (fight?.follow && fight.watch === player.name) follow(to, every, true)
+          continue
         }
-        const marker = new HeadMarker(toLatLng(to), {
-          icon,
-          pane: PANE,
-          keyboard: false,
-          // A head's click is its own: the map, and a tool wanting clicks, never see it.
-          bubblingMouseEvents: false,
-          riseOnHover: true,
-          riseOffset: RISE,
-        })
-        marker.arrival = arrivals++ % STACK_SPREAD
-        marker.on('click', (event: L.LeafletMouseEvent) => {
-          L.DomEvent.stop(event.originalEvent)
-          const fighting = warRef.current
-          if (fighting) return fighting.onPick(player.name)
-          setChosen((picked) => (picked === player.name ? null : player.name))
-        })
-        marker.addTo(map)
-        // The arrival's fade is a one-off.
-        window.setTimeout(() => element.classList.remove('az-player-new'), 600)
-        held.set(player.name, { marker, element, player, from: to, to, since: now, over: every, still: true })
+        entry.player = player
+        entry.at = readAt
+        entry.from = jump || dead ? to : from
+        entry.to = to
+        entry.since = now
+        entry.over = every
+        entry.still = hidden || dead
+        if (jump || dead) entry.marker.setLatLng(toLatLng(to))
+        if (dead && !jump) entry.element.setAttribute('data-gone', 'died')
+        setVitals(entry.element, player)
+        if (fight) setPart(entry.element, player.name, fight)
+        if (fight?.follow && fight.watch === player.name) follow(to, every, jump)
       }
       for (const [name, entry] of held) {
         if (seen.has(name)) continue
-        entry.marker.remove()
+        retire(entry, 'left', jump)
         held.delete(name)
         if (chosenRef.current === name) setChosen(null)
       }
@@ -447,6 +524,10 @@ export function PlayersLayer({
     return () => {
       unsubscribe()
       cancelAnimationFrame(frame)
+      for (const timer of timers) window.clearTimeout(timer)
+      timers.clear()
+      for (const ghost of ghosts) ghost.remove()
+      ghosts.clear()
       for (const entry of held.values()) entry.marker.remove()
       held.clear()
       setChosen(null)

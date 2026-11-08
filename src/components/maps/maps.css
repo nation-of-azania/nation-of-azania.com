@@ -347,7 +347,8 @@
 /*
  * The players online: a head in a ring, the name beneath it. Leaflet moves the marker;
  * only the look is here. Names show on hover, on the chosen player, and close in (the
- * pane's class); a head arriving fades in; one leaving just goes. The head is the
+ * pane's class); a head arriving fades in; one gone from where it stood (a
+ * death, a teleport, leaving the feed) fades out there. The head is the
  * player's monogram, in an ink of its own, with the face laid over it once it has
  * arrived: never an empty square.
  */
@@ -360,10 +361,46 @@
   width: 28px;
   height: 28px;
   cursor: pointer;
-  transition: opacity 400ms ease-out;
 }
+/*
+ * A head's comings and goings (layers/PlayersLayer.tsx → place, retire), each a
+ * few hundred milliseconds, opacity and transform only: one arriving (joining,
+ * spawning, landing after a jump) comes up from a little large; one gone from
+ * where it stood fades out there, dissolving outward for a teleport or for
+ * leaving the feed, and sinking for a death, where the marker stays, sunk, at no
+ * health until the respawn's reading replaces it. A ghost takes no pointer.
+ */
 .az-player-new {
-  opacity: 0;
+  animation: az-head-in 260ms ease-out both;
+}
+.az-player[data-gone] {
+  pointer-events: none;
+  animation: az-head-out 260ms ease-in both;
+}
+.az-player[data-gone='died'] {
+  animation: az-head-fall 320ms ease-in both;
+}
+@keyframes az-head-in {
+  from {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes az-head-out {
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+@keyframes az-head-fall {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
 }
 .az-player-mark {
   position: absolute;
@@ -1254,9 +1291,13 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .az-player,
   .az-player-head {
     transition: none;
+  }
+  /* Heads just stand at their readings: no coming up, no fading; a fallen one stays as it is, its hearts saying it. */
+  .az-player-new,
+  .az-player[data-gone] {
+    animation: none;
   }
 }
 

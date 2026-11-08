@@ -74,11 +74,26 @@ export function paceOf(fixes: Fix[], now: number): { blocksPerSecond: number; mo
   }
 }
 
+/** A jump covers at least this much; a shorter move between two readings is a step, however quick it looks. */
+export const JUMP_BLOCKS = 50
+
+/**
+ * A jump between two readings: a way no one runs or flies in the time,
+ * however they went (a respawn, a teleport, the server moving them). The
+ * players layer fades a head out where it was and in where it is for one,
+ * rather than gliding it there as if they'd flown. Two readings at one
+ * time are taken a second apart.
+ */
+export function jumpedBetween(before: Fix, after: Fix): boolean {
+  const blocks = distanceOf(before, after)
+  const seconds = Math.max(1, (after.at - before.at) / 1000)
+  return blocks >= JUMP_BLOCKS && blocks / seconds > MOST_BLOCKS_PER_S
+}
+
 /** A death between two readings: at no health in the first, or a jump no one runs that lands them at full health from less. */
 export function diedBetween(before: Fix, after: Fix): boolean {
   if (before.health === 0) return true
-  const seconds = Math.max(1, (after.at - before.at) / 1000)
-  return before.health !== null && before.health < 20 && after.health === 20 && distanceOf(before, after) / seconds > MOST_BLOCKS_PER_S && distanceOf(before, after) >= 50
+  return before.health !== null && before.health < 20 && after.health === 20 && jumpedBetween(before, after)
 }
 
 /** A teleport between two readings: a long way, faster than anyone flies, and no death (their health didn't jump back to full). */
