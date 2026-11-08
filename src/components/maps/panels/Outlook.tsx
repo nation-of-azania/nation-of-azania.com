@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
@@ -10,7 +10,7 @@ import { clusterKills, killsAlong, type CoursePoint } from '@/maps/course'
 import { spoken } from '@/maps/data'
 import { allyShare } from '@/maps/fighters'
 import { headSlotsWords } from '@/maps/marks'
-import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type SiegeForecast, type Target } from '@/maps/outlook'
+import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type Need, type SessionForecast, type SiegeForecast, type Target } from '@/maps/outlook'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useAlliances } from '../alliances'
@@ -58,10 +58,6 @@ export const totalOnline = (online: OnlineCount): Record<BattleSide, number> => 
   attackers: online.attackers.residents + online.attackers.allies,
   defenders: online.defenders.residents + online.defenders.allies,
 })
-
-/** "5 online", or "3 online + 2 allies". */
-export const onlineWords = ({ residents, allies }: OnlineCount[BattleSide]): string =>
-  allies ? `${n(residents)} online + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : `${n(residents)} online`
 
 export type OutlookProps = {
   siege: Siege
@@ -234,10 +230,8 @@ export function OutlookDetails(props: OutlookProps) {
       <summary className="flex cursor-pointer select-none items-center gap-2.5 py-1 focus-visible:outline-saffron-400 [&::-webkit-details-marker]:hidden">
         <span className={cn(EYEBROW, 'shrink-0')}>Outlook</span>
         {assessed && (readings.length > 1 || current) ? <Sparkline assessed={assessed} readings={readings} tracked={current} /> : null}
-        <span className="min-w-0 flex-1 truncate text-[13px] text-sand-200/80">
-          {siege.progress ? `Session ${Math.min(siege.progress.of, siege.progress.done + (siege.battle ? 1 : 0))} of ${siege.progress.of}` : ''}
-          {forecast?.winner ? ` · forecast ${who(forecast.winner).toLowerCase() === 'azania' ? 'Azania' : forecast.winner}` : ''}
-        </span>
+        {/* The session's number is the header's pips; here, the forecast's winner alone, or nothing. */}
+        <span className="min-w-0 flex-1 truncate text-[13px] text-sand-200/80">{forecast?.winner ? `forecast ${who(forecast.winner)}` : ''}</span>
         <span aria-hidden="true" className="az-outlook-chevron shrink-0 text-sand-200/70">
           ▾
         </span>
@@ -245,10 +239,17 @@ export function OutlookDetails(props: OutlookProps) {
       <div className="space-y-3 pb-1 pt-1">
         {assessed && outlook ? <SessionChart assessed={assessed} readings={readings} tracked={current} /> : null}
         {assessed && outlook ? <WhatItTakes outlook={outlook} who={who} online={props.online} /> : null}
-        <SiegeStory assessed={assessed} forecast={forecast} past={past} siege={siege} who={who} battlesStatus={battles.status} />
-        {forecast ? (
-          <SessionsAhead forecast={forecast} rests={{ attackers: sides.attackers.rests, defenders: sides.defenders.rests }} siege={siege} who={who} known={fighters.status} />
-        ) : siege.progress && left === 0 ? (
+        <SiegeStory
+          assessed={assessed}
+          battlesStatus={battles.status}
+          forecast={forecast}
+          known={fighters.status}
+          past={past}
+          rests={{ attackers: sides.attackers.rests, defenders: sides.defenders.rests }}
+          siege={siege}
+          who={who}
+        />
+        {!forecast && siege.progress && left === 0 ? (
           <p className="text-[14px] leading-snug text-sand-200/80">
             {siege.battle ? 'The last session: the siege is decided at its end.' : 'Every session fought: the siege is decided.'}
           </p>
@@ -399,10 +400,8 @@ function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<R
         The session’s points, minute by minute
         <HintMark
           label="About the chart"
-          text={`Attackers in coral, defenders in sea. A ring on a line is a kill: a hundred to that side at once (a number beside it, so many close together); the rest of a rise is the banner’s, ten a holder every twenty seconds. Dashed: to the session’s end, if the banner stays as it is. Along the foot, who held the banner.${
-            since !== null
-              ? ` To minute ${Math.round(since)} the tracker’s points, one a minute, which don’t say how many held the banner, so there a kill is told by a minute’s rise over the run’s usual; the view’s own since.`
-              : ''
+          text={`Coral attackers, sea defenders. A ring is a kill (×n: so many close together); the rest is the banner’s. Dashed: to the end, as the banner stands. Foot: who held it.${
+            since !== null ? ` To minute ${Math.round(since)}, the tracker’s points, a minute apart.` : ''
           }`}
         />
       </figcaption>
@@ -410,17 +409,22 @@ function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<R
   )
 }
 
-/** What each side needs from now, for the session and, when it's another, for the siege. */
+/**
+ * What each side needs from now, for the session and, when it's another,
+ * for the siege: the holders as slots against those online (HeadSlots),
+ * the points and the kills small beside them.
+ */
 function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (side: BattleSide) => string; online: OnlineCount | null }) {
   const targets: Target[] = outlook.final ? ['siege'] : ['session', 'siege']
   const words = (target: Target) => (target === 'session' ? 'This session' : outlook.final ? 'The siege' : 'The siege, after all sessions')
+  const kills = (need: Need) => `${n(need.kills)} kill${need.kills === 1 ? '' : 's'}`
   return (
     <div>
       <p className={EYEBROW}>
         What it takes, from now
         <HintMark
           label="About what it takes"
-          text="For each side: the points short, the least holders at the banner for the rest of the session that would turn it (five minutes to take it, or to join the holders), and the kills that would do instead. The siege is the balance on their side when all its sessions are fought; the sessions ahead are the rest of the story."
+          text="For each side: the fewest holders for the rest of the session that would turn it (five minutes to take it or to join), against those online; or the kills instead."
         />
       </p>
       <dl className="mt-1 space-y-1.5">
@@ -430,155 +434,39 @@ function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (s
             {(['attackers', 'defenders'] as const).map((side) => {
               const need = outlook.needs[target][side]
               return (
-                <dd className="flex items-baseline gap-2 text-[14px] leading-snug" key={side}>
-                  <span className={cn('w-24 shrink-0 truncate font-semibold', colour(side))}>{who(side)}</span>
-                  <span className="min-w-0 text-sand-100">
-                    {need.already ? (
-                      <>theirs if nothing changes</>
-                    ) : (
-                      <>
-                        <span className={cn(FIGURE, 'font-semibold')}>{n(need.short)}</span> short ·{' '}
-                        {need.holders === null ? (
-                          'no number of holders would do in time'
-                        ) : (
-                          <>
-                            <span className={cn(FIGURE, 'font-semibold')}>{n(need.holders)}</span> holder{need.holders === 1 ? '' : 's'} from now
-                            {online ? (need.enough ? ` (${onlineWords(online[side])})` : ` (only ${onlineWords(online[side])})`) : ''}
-                          </>
-                        )}{' '}
-                        · or <span className={cn(FIGURE, 'font-semibold')}>{n(need.kills)}</span> kills
-                      </>
-                    )}
-                  </span>
+                <dd className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] leading-snug text-sand-100" key={side}>
+                  <span className={cn('w-20 shrink-0 truncate font-semibold', colour(side))}>{who(side)}</span>
+                  {need.already ? (
+                    <span className="text-sand-200/80">theirs as the banner stands</span>
+                  ) : need.holders === null ? (
+                    <span>
+                      too late to take it · <span className={cn(FIGURE, 'font-semibold')}>{kills(need)}</span> short
+                    </span>
+                  ) : (
+                    <>
+                      {online ? (
+                        <HeadSlots
+                          allies={online[side].allies}
+                          needed={need.holders}
+                          online={online[side].residents}
+                          words={`${who(side)}: ${headSlotsWords(need.holders, online[side].residents, online[side].allies)}; ${n(need.short)} points short, or ${kills(need)}`}
+                        />
+                      ) : (
+                        <span>
+                          <span className={cn(FIGURE, 'font-semibold')}>{n(need.holders)}</span> holder{need.holders === 1 ? '' : 's'} from now
+                        </span>
+                      )}
+                      <span className="text-[12px] text-sand-200/75">
+                        · <span className={FIGURE}>{n(need.short)}</span> short · or <span className={FIGURE}>{kills(need)}</span>
+                      </span>
+                    </>
+                  )}
                 </dd>
               )
             })}
           </div>
         ))}
       </dl>
-    </div>
-  )
-}
-
-/**
- * The siege across its sessions: each one's result and the balance after
- * it, within the cap; the one on now as projected; and the ones to come
- * as forecast. Each a row with a bar for the result, the attackers' to
- * the left of the middle and the defenders' to the right.
- */
-function SiegeStory({
-  past,
-  assessed,
-  forecast,
-  siege,
-  who,
-  battlesStatus,
-}: {
-  past: TrackedBattle[]
-  assessed: NonNullable<ReturnType<typeof assessBattle>> | null
-  forecast: SiegeForecast | null
-  siege: Siege
-  who: (side: BattleSide) => string
-  battlesStatus: string
-}) {
-  const capped = (value: number) => Math.max(-RULES.balanceCap, Math.min(RULES.balanceCap, value))
-  type Row = { key: string; label: string; when: string; margin: number | null; balance: number | null; kind: 'past' | 'now' | 'next'; note?: string }
-  const rows: Row[] = []
-  let balance = 0
-  past.forEach((battle, index) => {
-    const result = resultOf(battle)
-    const margin = result ? result.attacker - result.defender : null
-    if (margin !== null) balance = capped(balance + margin)
-    const start = Date.parse(battle.startedAt)
-    // Numbered by the marker's count where the tracker saved it: a session nobody came to is one, though nothing was tracked.
-    rows.push({ key: battle.startedAt, label: `Session ${(battle.session ?? index) + 1}`, when: `${dayOf(start)} ${timeOf(start)}`, margin, balance: margin === null ? null : balance, kind: 'past' })
-  })
-  // The sessions fought so far, by the marker or the tracker, whichever saw more; the marker's balance is where the siege stands.
-  const fought = Math.max(siege.progress?.done ?? 0, past.length)
-  const disagree = past.length > 0 && siege.balance !== null && balance !== siege.balance
-  if (assessed?.projected && siege.battle) {
-    const margin = assessed.projected.points.attacker - assessed.projected.points.defender
-    rows.push({
-      key: 'now',
-      label: `Session ${fought + 1}`,
-      when: 'now',
-      margin,
-      balance: assessed.projected.balance,
-      kind: 'now',
-      note: 'if the banner stays as it is',
-    })
-  }
-  forecast?.sessions.forEach((session, index) => {
-    rows.push({
-      key: String(session.start),
-      label: `Session ${fought + (siege.battle ? 1 : 0) + index + 1}`,
-      when: `${dayOf(session.start)} ${timeOf(session.start)}`,
-      margin: session.favoured ? session.swing : 0,
-      balance: session.balance,
-      kind: 'next',
-      note: session.favoured ? `${who(session.favoured)} likely ${session.expected[session.favoured].toFixed(0)} to ${session.expected[other(session.favoured)].toFixed(0)}` : 'even, as far as the hours say',
-    })
-  })
-  const most = Math.max(RULES.balanceCap, ...rows.map((row) => Math.abs(row.margin ?? 0)))
-  return (
-    <div>
-      <p className={EYEBROW}>
-        The siege, session by session
-        {siege.balance !== null ? (
-          <span className="ml-2 normal-case tracking-normal text-sand-200/85">
-            balance now <span className={cn(FIGURE, 'font-semibold', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>{signed(siege.balance)}</span>
-            {Math.abs(siege.balance) >= RULES.balanceCap ? ' · at the cap' : ''}
-          </span>
-        ) : null}
-      </p>
-      {rows.length === 0 ? (
-        <p className="mt-1 text-[14px] leading-snug text-sand-200/80">
-          {battlesStatus === 'asking' || battlesStatus === 'idle'
-            ? 'Reading the battles…'
-            : battlesStatus === 'down'
-              ? 'The battles couldn’t be read just now.'
-              : 'No session of this siege tracked yet: the tracker reads every battle from 1 November.'}
-        </p>
-      ) : (
-        <ol className="mt-1 space-y-1">
-          {rows.map((row) => (
-            <li className={cn('grid grid-cols-[5.5rem_1fr_4.5rem] items-center gap-2 text-[13px]', row.kind === 'next' ? 'text-sand-200/70' : 'text-sand-100')} key={row.key}>
-              <span className="min-w-0">
-                <span className="block truncate font-semibold">{row.label}</span>
-                <span className="block truncate text-[12px] text-sand-200/70">{row.when}</span>
-              </span>
-              <span className="min-w-0">
-                <span aria-hidden="true" className="relative block h-2 bg-sand-50/10">
-                  <span className="absolute inset-y-0 left-1/2 w-px bg-sand-50/40" />
-                  {row.margin ? (
-                    <span
-                      className={cn('absolute inset-y-0', row.kind === 'next' ? 'opacity-50' : null, row.margin > 0 ? 'bg-(--az-atk)' : 'bg-(--az-def)')}
-                      style={{
-                        // The attackers' margin runs left from the middle, the defenders' right, as every balance bar does (ui/Marks.tsx → CapBalance).
-                        left: row.margin > 0 ? `${50 - (Math.abs(row.margin) / most) * 50}%` : '50%',
-                        width: `${(Math.abs(row.margin) / most) * 50}%`,
-                      }}
-                    />
-                  ) : null}
-                </span>
-                <span className="block truncate text-[12px] text-sand-200/70">
-                  {row.margin === null ? 'end not seen' : `${signed(row.margin)} ${row.kind === 'next' ? 'about' : 'on points'}`}
-                  {row.note ? ` · ${row.note}` : ''}
-                </span>
-              </span>
-              <span className={cn(FIGURE, 'text-right text-[15px] font-semibold', row.balance === null ? 'text-sand-300/60' : row.balance > 0 ? 'text-(--az-atk)' : row.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
-                {row.balance === null ? '–' : signed(row.balance)}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {disagree ? (
-        <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-          The sessions tracked add up to <span className={FIGURE}>{signed(balance)}</span>; by the marker the balance stands at{' '}
-          <span className={FIGURE}>{signed(siege.balance!)}</span>: a session not tracked, or not seen to its end.
-        </p>
-      ) : null}
     </div>
   )
 }
@@ -594,90 +482,183 @@ function restsWords(name: string, rests: Rests): string {
   return rests.allies ? `${own} and ${n(rests.allies)} of its allies’ (${allies})` : `${own}, none of its allies’ (${allies}) having fought for an ally yet`
 }
 
-/** The sessions still to come: who's likely to show up at each, what it does to the balance, and the lead the loser would need. */
-function SessionsAhead({
+/**
+ * The forecast in one line: who is likely to bring more at the sessions
+ * left, and the lead the side it leaves losing would need going into the
+ * other's sessions, when the cap even allows one. The turnout at each
+ * session is on its row.
+ */
+function forecastLine(forecast: SiegeForecast, who: (side: BattleSide) => string): string | null {
+  const parts: string[] = []
+  if (forecast.winner) {
+    const flooded = forecast.sessions.filter((session) => session.favoured === forecast.winner)
+    if (flooded.length)
+      parts.push(`${who(forecast.winner)} likely to bring more at ${flooded.length === forecast.sessions.length ? 'every session left' : flooded.map((session) => timeOf(session.start)).join(' and ')}`)
+  }
+  const first = forecast.lead ? forecast.sessions.find((session) => session.favoured === forecast.winner) : null
+  if (forecast.lead && first)
+    parts.push(`${who(forecast.lead.side)} would need a ${n(forecast.lead.needs)} lead into ${timeOf(first.start)}${forecast.lead.possible ? '' : ', more than the cap allows'}`)
+  return parts.length ? `${parts.join('; ')}.` : null
+}
+
+/**
+ * The siege across its sessions, and the sessions still to come: each
+ * fought one's result and the balance after it, within the cap; the one
+ * on now as projected; and each to come as forecast, by who usually
+ * turns up at its hour. Each a row with a bar for the margin, the
+ * attackers' to the left of the middle and the defenders' to the right,
+ * its figure written at the bar's end, and the balance after it at the
+ * right. A forecast row says the turnout it rests on ("2.9 v 2.1 likely")
+ * and draws its bar faint; the forecast's one line stands under the rows.
+ */
+function SiegeStory({
+  past,
+  assessed,
   forecast,
   rests,
+  known,
   siege,
   who,
-  known,
+  battlesStatus,
 }: {
-  forecast: SiegeForecast
+  past: TrackedBattle[]
+  assessed: NonNullable<ReturnType<typeof assessBattle>> | null
+  forecast: SiegeForecast | null
   rests: Record<BattleSide, Rests>
+  /** The records' state: what the forecast's turnout rests on. */
+  known: string
   siege: Siege
   who: (side: BattleSide) => string
-  known: string
+  battlesStatus: string
 }) {
-  const counted = forecast.known.attackers + forecast.known.defenders
-  const flooded = forecast.winner ? forecast.sessions.filter((session) => session.favoured === forecast.winner) : []
-  const first = forecast.lead ? forecast.sessions.find((session) => session.favoured === forecast.winner) : null
-  const words: ReactNode[] = []
-  if (forecast.winner && flooded.length) {
-    const biggest = flooded.reduce((best, session) => (Math.abs(session.swing) > Math.abs(best.swing) ? session : best))
-    words.push(
-      <span key="flood">
-        {who(forecast.winner)} {flooded.length === forecast.sessions.length ? 'are likely to bring more at every session left' : `are likely to bring more at ${flooded.map((session) => timeOf(session.start)).join(' and ')}`}{' '}
-        (about {biggest.expected[forecast.winner].toFixed(0)} to {biggest.expected[other(forecast.winner)].toFixed(0)} at {timeOf(biggest.start)}).
-      </span>,
-    )
+  const capped = (value: number) => Math.max(-RULES.balanceCap, Math.min(RULES.balanceCap, value))
+  type Row = { key: string; label: string; when: string; margin: number | null; balance: number | null; kind: 'past' | 'now' | 'next'; expected?: SessionForecast['expected'] }
+  const rows: Row[] = []
+  let balance = 0
+  past.forEach((battle, index) => {
+    const result = resultOf(battle)
+    const margin = result ? result.attacker - result.defender : null
+    if (margin !== null) balance = capped(balance + margin)
+    const start = Date.parse(battle.startedAt)
+    // Numbered by the marker's count where the tracker saved it: a session nobody came to is one, though nothing was tracked.
+    rows.push({ key: battle.startedAt, label: `Session ${(battle.session ?? index) + 1}`, when: `${dayOf(start)} ${timeOf(start)}`, margin, balance: margin === null ? null : balance, kind: 'past' })
+  })
+  // The sessions fought so far, by the marker or the tracker, whichever saw more; the marker's balance is where the siege stands.
+  const fought = Math.max(siege.progress?.done ?? 0, past.length)
+  const disagree = past.length > 0 && siege.balance !== null && balance !== siege.balance
+  if (assessed?.projected && siege.battle) {
+    const margin = assessed.projected.points.attacker - assessed.projected.points.defender
+    rows.push({ key: 'now', label: `Session ${fought + 1}`, when: 'now', margin, balance: assessed.projected.balance, kind: 'now' })
   }
-  if (forecast.lead && first) {
-    words.push(
-      <span key="lead">
-        {' '}
-        To come through, {who(forecast.lead.side)} would need a <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(forecast.lead.needs)}</span> lead going into{' '}
-        {timeOf(first.start)}:{' '}
-        {forecast.lead.possible ? 'within the cap, so winning the earlier sessions big enough would do.' : 'more than the cap allows, so they must also contest those sessions.'}
-      </span>,
-    )
-  }
+  forecast?.sessions.forEach((session, index) => {
+    rows.push({
+      key: String(session.start),
+      label: `Session ${fought + (siege.battle ? 1 : 0) + index + 1}`,
+      when: `${dayOf(session.start)} ${timeOf(session.start)}`,
+      margin: session.favoured ? session.swing : 0,
+      balance: session.balance,
+      kind: 'next',
+      expected: session.expected,
+    })
+  })
+  const most = Math.max(RULES.balanceCap, ...rows.map((row) => Math.abs(row.margin ?? 0)))
+  // The words of a row's bar, for a screen reader: the margin and what kind of figure it is.
+  const barWords = (row: Row) =>
+    row.margin === null ? 'end not seen' : row.kind === 'next' ? `about ${signed(row.margin)}, as the usual hours say` : row.kind === 'now' ? `${signed(row.margin)} on points, if the banner stays as it is` : `${signed(row.margin)} on points`
+  const counted = forecast ? forecast.known.attackers + forecast.known.defenders : 0
+  const line = forecast && counted ? forecastLine(forecast, who) : null
   return (
     <div>
       <p className={EYEBROW}>
-        Sessions ahead · {forecast.sessions.length}
-        <HintMark
-          label="About the forecast"
-          text={`Rough: who is likely to fight at each session, from their usual hours and their turnout, and about ${n(POINTS_PER_EXTRA_FIGHTER)} to the balance for each fighter more than the other side brings, if they hold the banner. Rests on the usual hours of ${restsWords(who('attackers'), rests.attackers)}, and of ${restsWords(who('defenders'), rests.defenders)}${
-            siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''
-          }. An ally counts for the share of their fighting done for allies, as SiegeWar counts a mutual ally’s soldiers for the side; an ally the map doesn’t know of isn’t counted.`}
-        />
+        The siege, session by session
+        {forecast ? (
+          <HintMark
+            label="About the forecast"
+            text={`Rough: who usually fights at each session’s hour, from their hours and turnout; each fighter more than the other side brings is worth about ${n(POINTS_PER_EXTRA_FIGHTER)} to the balance.`}
+          />
+        ) : null}
       </p>
-      {counted === 0 ? (
+      {rows.length === 0 ? (
         <p className="mt-1 text-[14px] leading-snug text-sand-200/80">
-          {known === 'ready'
-            ? 'No usual hours known for either side’s residents or allies yet: the tracker’s records are young. The sessions are listed above.'
-            : known === 'down'
-              ? 'The records couldn’t be read just now.'
-              : 'Reading the records…'}
+          {battlesStatus === 'asking' || battlesStatus === 'idle'
+            ? 'Reading the battles…'
+            : battlesStatus === 'down'
+              ? 'The battles couldn’t be read just now.'
+              : 'No session of this siege tracked yet: the tracker reads every battle from 1 November.'}
         </p>
       ) : (
-        <>
-          <ul className="mt-1 space-y-0.5">
-            {forecast.sessions.map((session) => (
-              <li className="flex items-baseline gap-2 text-[14px]" key={session.start}>
-                <span className={cn(FIGURE, 'w-[7rem] shrink-0 whitespace-nowrap text-sand-100')}>
-                  {dayOf(session.start)} {timeOf(session.start)}
+        <ol className="mt-1 space-y-1">
+          {rows.map((row) => {
+            const width = row.margin ? (Math.abs(row.margin) / most) * 50 : 0
+            return (
+              <li className={cn('grid grid-cols-[5.5rem_1fr_4.5rem] items-center gap-2 text-[13px]', row.kind === 'next' ? 'text-sand-200/70' : 'text-sand-100')} key={row.key}>
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{row.label}</span>
+                  <span className="block truncate text-[12px] text-sand-200/70">{row.when}</span>
                 </span>
-                <span className="min-w-0 flex-1 text-sand-200/85">
-                  <span className="text-(--az-atk)">{session.expected.attackers.toFixed(1)}</span> v <span className="text-(--az-def)">{session.expected.defenders.toFixed(1)}</span> likely
-                  {session.favoured ? (
-                    <>
-                      {' '}
-                      · <span className={cn(FIGURE, 'font-semibold', colour(session.favoured))}>{signed(session.swing)}</span>
-                    </>
-                  ) : (
-                    ' · even'
-                  )}
+                <span className="min-w-0">
+                  <span aria-label={barWords(row)} className="relative block h-2 bg-sand-50/10" role="img" title={barWords(row)}>
+                    <span className="absolute inset-y-0 left-1/2 w-px bg-sand-50/40" />
+                    {row.margin ? (
+                      <span
+                        className={cn('absolute inset-y-0', row.kind === 'next' ? 'opacity-50' : null, row.margin > 0 ? 'bg-(--az-atk)' : 'bg-(--az-def)')}
+                        // The attackers' margin runs left from the middle, the defenders' right, as every balance bar does (ui/Marks.tsx → CapBalance).
+                        style={{ left: row.margin > 0 ? `${50 - width}%` : '50%', width: `${width}%` }}
+                      />
+                    ) : null}
+                    {/* The figure at the bar's end, on the empty side of it: "≈" for a forecast. */}
+                    {row.margin !== null ? (
+                      <span
+                        aria-hidden="true"
+                        className={cn(FIGURE, 'absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] leading-none', row.kind === 'next' ? 'text-sand-200/70' : 'text-sand-100')}
+                        style={row.margin > 0 ? { right: `calc(${50 + width}% + 4px)` } : { left: `calc(${50 + width}% + 4px)` }}
+                      >
+                        {row.kind === 'next' ? '≈' : ''}
+                        {signed(row.margin)}
+                      </span>
+                    ) : (
+                      <span aria-hidden="true" className="absolute left-[calc(50%+4px)] top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] leading-none text-sand-300/60">
+                        end not seen
+                      </span>
+                    )}
+                  </span>
+                  {row.expected ? (
+                    <span className="mt-0.5 block truncate text-[12px] text-sand-200/70">
+                      <span className={cn(FIGURE, 'text-(--az-atk)')}>{row.expected.attackers.toFixed(1)}</span> v{' '}
+                      <span className={cn(FIGURE, 'text-(--az-def)')}>{row.expected.defenders.toFixed(1)}</span> likely
+                    </span>
+                  ) : null}
                 </span>
-                <span className={cn(FIGURE, 'shrink-0 font-semibold', session.balance > 0 ? 'text-(--az-atk)' : session.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
-                  {signed(session.balance)}
+                <span className={cn(FIGURE, 'text-right text-[15px] font-semibold', row.balance === null ? 'text-sand-300/60' : row.balance > 0 ? 'text-(--az-atk)' : row.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
+                  {row.balance === null ? '–' : signed(row.balance)}
                 </span>
               </li>
-            ))}
-          </ul>
-          {words.length ? <p className="mt-1.5 text-[15px] leading-snug text-sand-100">{words}</p> : null}
-        </>
+            )
+          })}
+        </ol>
       )}
+      {disagree ? (
+        <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+          The tracked sessions add up to <span className={FIGURE}>{signed(balance)}</span>; the marker says <span className={FIGURE}>{signed(siege.balance!)}</span>: a session not tracked, or not
+          seen to its end.
+        </p>
+      ) : null}
+      {forecast ? (
+        counted === 0 ? (
+          <p className="mt-1.5 text-[13px] leading-snug text-sand-200/80">
+            {known === 'ready' ? 'No usual hours known for either side yet: the records are young, so the sessions to come are listed as even.' : known === 'down' ? 'The records couldn’t be read just now.' : 'Reading the records…'}
+          </p>
+        ) : (
+          <>
+            {line ? <p className="mt-1.5 text-[15px] font-semibold leading-snug text-sand-100">{line}</p> : null}
+            <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+              Rests on the usual hours of {restsWords(who('attackers'), rests.attackers)}, and of {restsWords(who('defenders'), rests.defenders)}
+              {siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''}; an ally for the share of their fighting done for
+              allies.
+            </p>
+          </>
+        )
+      ) : null}
     </div>
   )
 }
