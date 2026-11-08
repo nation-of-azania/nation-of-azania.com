@@ -1,10 +1,10 @@
 import { roadLength, type MapData, type MapRoad } from '@/maps/data'
 import { junctionsOf } from '@/maps/junctions'
-import { describeChanges, describeLanes, laneEndsOf, laneEndWords, lanesWidth, profileOf } from '@/maps/lanes'
-import { ROAD_KINDS, ROAD_SHAPES } from '@/maps/registry'
+import { describeChanges, describeLanes, laneEndsOf, laneEndWords, lanesWidth, partLabel, placedParts, profileOf, type RoadLanes } from '@/maps/lanes'
+import { ROAD_KINDS } from '@/maps/registry'
 
 import { LanesStrip } from '../ui/LanesStrip'
-import { stripScale } from '../ui/lanesScale'
+import { stripScale, stripSpan } from '../ui/lanesScale'
 import { Look, RoadActions, Survey } from './islands'
 import { Facts, PanelHead, PanelSection, TownLink } from './shared'
 
@@ -38,74 +38,153 @@ function meets(road: MapRoad, roads: MapRoad[]): string[] {
   return named
 }
 
+/** The lanes figures' frame, in px: the strips and the ribbon share it, so they line up down the section. */
+const FRAME = 320
+const STRIP_HEIGHT = 28
+const LABEL_PX = 5.6
+
+const blocks = (width: number) => width.toLocaleString('en-GB', { maximumFractionDigits: 1 })
+
+/**
+ * The cross-section drawn to scale (ui/LanesStrip.tsx) with its parts
+ * labelled right under it, where they lie, instead of a sentence beside:
+ * each part's width in blocks, then its name, "2 lanes" over a run of
+ * lanes one way, "median", "verge" or "pavement" (the lines between lanes
+ * need no name). A name too wide for its part sits a line lower, so
+ * neighbours never overlap. The sentence the labels replace
+ * (lanes.ts → describeLanes) is the figure's name for a screen reader.
+ */
+function LanesFigure({ lanes, kind, words }: { lanes: RoadLanes; kind: MapRoad['kind']; words: string }) {
+  const ppb = stripScale(lanes, FRAME, { min: 4, max: 14 })
+  const width = Math.max(stripSpan(lanes) * ppb, FRAME)
+  const x = (offset: number) => width / 2 + offset * ppb
+  const placed = placedParts(lanes)
+  // Widths under each part wide enough on the page to hold a figure.
+  const widths = placed.filter(({ part }) => part.kind !== 'line' && part.width * ppb >= 16).map((p) => ({ at: x(p.centre), text: blocks(p.part.width) }))
+  // Names: a run of lanes one way is one label; a strip or a pavement its own.
+  const names: { at: number; text: string; line: number }[] = []
+  for (let i = 0; i < placed.length; i++) {
+    const { part, from } = placed[i]
+    if (part.kind === 'line') continue
+    if (part.kind === 'lane') {
+      let j = i
+      let count = 0
+      let to = placed[i].to
+      while (j < placed.length && (placed[j].part.kind === 'line' || (placed[j].part.kind === 'lane' && (placed[j].part as { dir: string }).dir === part.dir))) {
+        if (placed[j].part.kind === 'lane') {
+          count++
+          to = placed[j].to
+        }
+        j++
+      }
+      // A line after the last lane of the run belongs to the next run.
+      while (j > i && placed[j - 1].part.kind === 'line') j--
+      names.push({ at: x((from + to) / 2), text: `${count} lane${count === 1 ? '' : 's'}`, line: 0 })
+      i = j - 1
+    } else {
+      names.push({ at: x(placed[i].centre), text: partLabel(lanes, i).toLowerCase(), line: 0 })
+    }
+  }
+  // Stagger: a name that would run into the one before it drops to the line below.
+  const ends: number[] = []
+  for (const name of names) {
+    const half = (name.text.length * LABEL_PX) / 2 + 3
+    let line = 0
+    while (line < 2 && ends[line] !== undefined && name.at - half < ends[line]) line++
+    name.line = line
+    ends[line] = name.at + half
+  }
+  const lines = Math.max(1, ...names.map((name) => name.line + 1))
+  return (
+    <div aria-label={words} className="max-w-full overflow-x-auto" role="img" title={words}>
+      <div className="relative" style={{ width, height: STRIP_HEIGHT + 13 + lines * 13 }}>
+        <LanesStrip frame={FRAME} height={STRIP_HEIGHT} kind={kind} lanes={lanes} ppb={ppb} />
+        {widths.map((label, i) => (
+          <span className="absolute -translate-x-1/2 whitespace-nowrap font-mono text-[10px] leading-none text-ink-500 tabular-nums" key={`w${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 3 }}>
+            {label.text}
+          </span>
+        ))}
+        {names.map((label, i) => (
+          <span className="absolute -translate-x-1/2 whitespace-nowrap text-[11px] leading-none text-ink-700" key={`n${i}`} style={{ left: label.at, top: STRIP_HEIGHT + 15 + label.line * 13 }}>
+            {label.text}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The road unrolled, start to end, with each change along its lanes
+ * marked where it begins and how far it runs: the editor's ribbon
+ * (editor/ChangesRibbon.tsx) read-only, the start a dot, the end a tick,
+ * each change a band with its distance in under it. Where it begins, in
+ * blocks, is the figure; the strips below say what it comes to.
+ */
+function RoadRibbon({ lanes, length }: { lanes: RoadLanes; length: number }) {
+  const changes = lanes.changes ?? []
+  const pad = 10
+  const height = 30
+  const mid = 11
+  const scale = (FRAME - 2 * pad) / Math.max(1, length)
+  const x = (s: number) => pad + Math.max(0, Math.min(length, s)) * scale
+  const words = `Along the ${blocks(length)}-block road the lanes change ${changes.length === 1 ? 'once' : `${changes.length} times`}: ${changes
+    .map((change) => `from ${blocks(change.at)} blocks, over ${blocks(change.over)}`)
+    .join('; ')}.`
+  return (
+    <svg aria-label={words} className="block max-w-full text-ink-700" height={height} role="img" viewBox={`0 0 ${FRAME} ${height}`} width={FRAME}>
+      <title>{words}</title>
+      <line stroke="currentColor" strokeOpacity={0.3} strokeWidth={2} x1={pad} x2={FRAME - pad} y1={mid} y2={mid} />
+      <circle cx={pad} cy={mid} fill="currentColor" fillOpacity={0.55} r={4} />
+      <line stroke="currentColor" strokeOpacity={0.3} strokeWidth={2} x1={FRAME - pad} x2={FRAME - pad} y1={mid - 5} y2={mid + 5} />
+      <text className="fill-ink-500 font-mono" fontSize={10} textAnchor="end" x={FRAME - pad} y={height - 2}>
+        {blocks(length)}
+      </text>
+      {changes.map((change, i) => {
+        const x0 = x(change.at)
+        const x1 = Math.max(x0 + 3, x(change.at + change.over))
+        return (
+          <g key={i}>
+            <rect fill="currentColor" fillOpacity={0.14} height={14} width={x1 - x0} x={x0} y={mid - 7} />
+            <line stroke="currentColor" strokeOpacity={0.65} strokeWidth={2} x1={x0} x2={x0} y1={mid - 10} y2={mid + 10} />
+            <line stroke="currentColor" strokeOpacity={0.65} strokeWidth={1.5} x1={x1} x2={x1} y1={mid - 7} y2={mid + 7} />
+            <text className="fill-ink-700 font-mono" fontSize={10} fontWeight={600} textAnchor="middle" x={x0} y={height - 2}>
+              {blocks(change.at)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 /** A road's page: its class, length, whose it is, and what it meets. */
 export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
   const town = data.towns.find((candidate) => candidate.id === road.town) ?? null
   const length = Math.round(roadLength(road))
   const [start, end] = [road.line[0], road.line[road.line.length - 1]]
   const joined = meets(road, data.roads)
+  const changes = road.lanes ? describeChanges(road.lanes) : []
+  const corners = road.shape === 'curved' ? road.corners.length : 0
   return (
     <article className="pb-6">
-      <PanelHead
-        eyebrow={`${ROAD_KINDS[road.kind].label} · ${town ? 'town road' : 'national'}`}
-        title={road.name ?? 'Unnamed road'}
-      >
-        <p className="mt-2 text-[15px] text-ink-700">
-          {length.toLocaleString('en-GB')} blocks, {road.shape === 'curved' ? 'curving' : 'straight'}{' '}
-          through {road.line.length} point{road.line.length === 1 ? '' : 's'}
-          {road.shape === 'curved' && road.corners.length
-            ? `, ${road.corners.length} of them sharp corner${road.corners.length === 1 ? '' : 's'}`
-            : ''}
-          .
-        </p>
+      <PanelHead eyebrow={ROAD_KINDS[road.kind].label} title={road.name ?? 'Unnamed road'}>
         {/* For those who may: the way in to the course, right under the name. */}
         <RoadActions className="mt-3" road={road} />
       </PanelHead>
       <div className="mt-4 px-4">
         <Facts
           items={[
+            { label: 'Length', value: `${length.toLocaleString('en-GB')} blocks` },
             {
-              label: 'Class',
-              value: `${ROAD_KINDS[road.kind].label} · ${ROAD_SHAPES[road.shape].label.toLowerCase()}`,
+              label: 'Course',
+              value: `${road.shape === 'curved' ? 'Curved' : 'Straight'} · ${road.line.length} point${road.line.length === 1 ? '' : 's'}${corners ? ` · ${corners} sharp corner${corners === 1 ? '' : 's'}` : ''}`,
             },
             {
               label: 'Belongs to',
-              value: town ? <TownLink town={town} /> : 'The nation: it runs between towns',
+              value: town ? <TownLink town={town} /> : 'The nation',
+              hint: town ? undefined : 'A national road runs between towns, drawn by those who may draw anywhere.',
             },
-            { label: 'Length', value: `${length.toLocaleString('en-GB')} blocks` },
-            // The cross-section as built: in a few words, and drawn to scale, as the editor shows it; where the lanes
-            // change along the road, each change after it, with what the road comes to.
-            ...(road.lanes
-              ? [
-                  {
-                    label: 'Lanes',
-                    value: (
-                      <span className="block">
-                        <span className="block">
-                          {describeLanes(road.lanes)} · {lanesWidth(road.lanes)} blocks across
-                          {road.lanes.changes?.length ? (road.lanes.changes.length === 1 ? ' at the start' : ` at the start, changing ${road.lanes.changes.length} times`) : ''}
-                        </span>
-                        <LanesStrip className="mt-1.5 max-w-full" frame={176} height={22} kind={road.kind} lanes={road.lanes} ppb={stripScale(road.lanes, 176, { min: 3, max: 12 })} />
-                        {describeChanges(road.lanes).map((change, i) => {
-                          const after = profileOf(road.lanes!, i + 1)
-                          return (
-                            <span className="mt-2 block" key={i}>
-                              <span className="block">
-                                <span className="font-mono text-[13px] tabular-nums text-ink-500">
-                                  {change.at.toLocaleString('en-GB')} blocks in, over {change.over}
-                                </span>
-                                {' · '}
-                                {change.words} · {lanesWidth(after)} across
-                              </span>
-                              <LanesStrip className="mt-1.5 max-w-full" frame={176} height={22} kind={road.kind} lanes={after} ppb={stripScale(after, 176, { min: 3, max: 12 })} />
-                            </span>
-                          )
-                        })}
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
             {
               label: 'Runs',
               value: (
@@ -132,6 +211,39 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
           </Look>
         </div>
       </div>
+      {/* The cross-section as built, drawn to scale and labelled on the drawing; where it changes along the road, the ribbon says where and each strip what it comes to. */}
+      {road.lanes ? (
+        <PanelSection
+          action={<span className="shrink-0 font-mono text-[13px] font-semibold text-ink-900 tabular-nums">{blocks(lanesWidth(road.lanes))} <span className="font-normal text-ink-500">blocks across</span></span>}
+          hint="The road as built, looking along it as drawn: each part as wide as it is, the arrows the way traffic runs, the dotted line where it was drawn."
+          title="Lanes"
+        >
+          <div className="space-y-4">
+            {changes.length ? <RoadRibbon lanes={road.lanes} length={length} /> : null}
+            {changes.length ? <p className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">At the start</p> : null}
+            <LanesFigure kind={road.kind} lanes={road.lanes} words={`${describeLanes(road.lanes)} · ${blocks(lanesWidth(road.lanes))} blocks across${changes.length ? ' at the start' : ''}`} />
+            {changes.map((change, i) => {
+              const after = profileOf(road.lanes!, i + 1)
+              return (
+                <div key={i}>
+                  <p className="flex items-baseline justify-between gap-3 font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">
+                    <span>
+                      From <span className="font-mono text-[12px] font-semibold tabular-nums text-ink-900">{blocks(change.at)}</span> blocks, over{' '}
+                      <span className="font-mono text-[12px] font-semibold tabular-nums text-ink-900">{blocks(change.over)}</span>
+                    </span>
+                    <span className="font-mono text-[12px] font-semibold normal-case tracking-normal text-ink-900 tabular-nums">
+                      {blocks(lanesWidth(after))} <span className="font-normal text-ink-500">across</span>
+                    </span>
+                  </p>
+                  <div className="mt-1.5">
+                    <LanesFigure kind={road.kind} lanes={after} words={`${blocks(change.at)} blocks in, over ${blocks(change.over)}: ${change.words} · ${blocks(lanesWidth(after))} blocks across`} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </PanelSection>
+      ) : null}
       <PanelSection title="Start">
         <Survey point={start} />
       </PanelSection>
