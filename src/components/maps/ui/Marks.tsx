@@ -453,7 +453,7 @@ export function TrackToBanner({
           {figure}
         </span>
       ) : (
-        <Figure rest={size === 'panel' ? ' blocks' : undefined} value={n(distance)} />
+        <Figure rest=" blocks" value={n(distance)} />
       )}
     </Mark>
   )
