@@ -9,13 +9,16 @@ import { assessBattle, RULES, sessionClock, type BattleReading, type BattleSide 
 import { clusterKills, killsAlong, type CoursePoint } from '@/maps/course'
 import { spoken } from '@/maps/data'
 import { allyShare } from '@/maps/fighters'
+import { headSlotsWords } from '@/maps/marks'
 import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type SiegeForecast, type Target } from '@/maps/outlook'
 import type { Siege, WorldTown } from '@/maps/world'
 
 import { useAlliances } from '../alliances'
 import { resultOf, sessionsOf, splitSessions, useBattles, type TrackedBattle } from '../battles'
 import { useFighters } from '../fighters'
-import { HintMark } from '../ui/Hint'
+import { Hint, HintMark } from '../ui/Hint'
+import { Icon } from '../ui/icons'
+import { HeadSlots } from '../ui/Marks'
 import { timeOf } from '../warView'
 
 /**
@@ -80,10 +83,14 @@ function useOutlook({ siege, assessed, now, phase, online }: OutlookProps): Batt
 }
 
 /**
- * The glance: who has it if nothing changes, and for the side behind what
- * it would take from now; whether the leader can leave the banner; the
- * cap when it's reached. One rule of colour, as the verdict had: lagoon
- * when Azania holds, coral when it must act.
+ * The glance, read mid-battle: one headline saying who has it as it
+ * stands; for the side behind, the holders it would take from now set
+ * against those it has online (ui/Marks.tsx → HeadSlots); a padlock, shut
+ * or open, for whether the leader can leave the banner; and the cap when
+ * it's reached. The balance itself is the bar above (the Scoreboard's
+ * CapBalance), said once. One rule of colour, as the verdict had: lagoon
+ * when Azania holds, coral when it must act. The whys are in the hints and
+ * the fold beneath.
  */
 export function OutlookSummary(props: OutlookProps) {
   const { siege, assessed, ours, online } = props
@@ -96,7 +103,7 @@ export function OutlookSummary(props: OutlookProps) {
   const need = behind ? outlook.needs[target][behind] : null
   const good = ours !== null && ours === ahead
   const bad = ours !== null && ours === behind
-  const balance = assessed.projected.balance
+  const what = outlook.final ? 'the siege' : 'the session'
   // "the 5 Azanians online", or, with allies among them, "the 5 on Azania's side online (3 + 2 allies)".
   const everyone = (side: BattleSide) => {
     const count = online![side]
@@ -104,70 +111,64 @@ export function OutlookSummary(props: OutlookProps) {
     if (!count.allies) return `the ${n(total)} ${who(side) === 'Azania' ? 'Azanians' : who(side)} online`
     return `the ${n(total)} on ${who(side)}’s side online (${n(count.residents)} + ${n(count.allies)} ${count.allies === 1 ? 'ally' : 'allies'})`
   }
+  const kills = need ? `${n(need.kills)} kill${need.kills === 1 ? '' : 's'}` : ''
   return (
     <div className={cn('mt-2.5 border-l-4 py-0.5 pl-3', good ? 'border-lagoon-400' : bad ? 'border-coral-500' : 'border-sand-300/40')}>
       <p className={cn('text-[16px] font-semibold leading-snug', good ? 'text-lagoon-300' : bad ? 'text-coral-300' : 'text-sand-50')}>
-        {ahead ? (
-          <>
-            {who(ahead)} {outlook.final ? 'wins the siege' : 'takes this session'} if nothing changes
-            {!outlook.final && balance !== null ? (
-              <span className="font-normal text-sand-200/85">
-                , <span className={FIGURE}>{signed(balance)}</span> going into the next
-              </span>
-            ) : null}
-            {good ? ': hold on.' : '.'}
-          </>
-        ) : (
-          'Level: whoever holds the banner from here takes it.'
-        )}
+        {ahead ? `${who(ahead)} ${outlook.final ? 'wins the siege' : 'takes this session'} as it stands${good ? ': hold on.' : '.'}` : 'Level: whoever holds the banner from here takes it.'}
       </p>
       {behind && need ? (
-        <p className="mt-0.5 text-[15px] leading-snug text-sand-100">
-          {who(behind)}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-snug text-sand-100">
+          <span className={cn('font-semibold', colour(behind))}>{who(behind)}</span>
           {need.holders === null ? (
+            <span>
+              can’t take it in the time left: <span className={cn(FIGURE, 'font-semibold')}>{kills}</span> short.
+            </span>
+          ) : online ? (
             <>
-              {' '}
-              can’t take it in the time left: <span className={cn(FIGURE, 'font-semibold')}>{n(need.kills)}</span> kill{need.kills === 1 ? '' : 's'} short.
+              {/* The holders it would take, each a slot, filled by those it has online: an empty slot is a need unmet. */}
+              <HeadSlots
+                allies={online[behind].allies}
+                needed={need.holders}
+                online={online[behind].residents}
+                words={`${who(behind)}: ${headSlotsWords(need.holders, online[behind].residents, online[behind].allies)} to turn ${what}; or ${kills}`}
+              />
+              {need.enough ? null : <span className="text-[13px] text-coral-300">out of reach</span>}
             </>
           ) : (
-            <>
-              : <span className={cn(FIGURE, 'font-semibold')}>{n(need.holders)}</span> holder{need.holders === 1 ? '' : 's'} from now would{' '}
-              {outlook.final ? 'win the siege' : 'turn the session'}
-              {online ? (
-                need.enough ? (
-                  <>
-                    ; they have <span className={cn(FIGURE, 'font-semibold')}>{onlineWords(online[behind])}</span>.
-                  </>
-                ) : (
-                  <>
-                    ; they have only <span className={cn(FIGURE, 'font-semibold')}>{onlineWords(online[behind])}</span>: out of reach,{' '}
-                    <span className={cn(FIGURE, 'font-semibold')}>{n(need.kills)}</span> kills short.
-                  </>
-                )
-              ) : (
-                '.'
-              )}
-            </>
+            <span>
+              <span className={cn(FIGURE, 'font-semibold')}>{n(need.holders)}</span> holder{need.holders === 1 ? '' : 's'} from now would turn {what}.
+            </span>
           )}
         </p>
       ) : null}
       {outlook.safeToLeave && online ? (
-        <p className="mt-0.5 text-[14px] leading-snug text-sand-200/85">
-          {outlook.safeToLeave.safe ? (
-            <>
-              {who(outlook.safeToLeave.side)} could leave the banner: every one of {everyone(other(outlook.safeToLeave.side))} taking it would still leave{' '}
-              <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(outlook.safeToLeave.margin)}</span> to spare.
-            </>
-          ) : (
-            <>
-              {who(outlook.safeToLeave.side)} can’t leave the banner: {everyone(other(outlook.safeToLeave.side))} taking it would overturn the{' '}
-              {outlook.final ? 'siege' : 'session'}.
-            </>
-          )}
+        <p className="mt-1 text-[14px] leading-snug text-sand-200/85">
+          {/* The padlock: shut, the leader must stay at the banner; open, it could go. The hint says against whom. */}
+          <Hint
+            text={
+              outlook.safeToLeave.safe
+                ? `Even if every one of ${everyone(other(outlook.safeToLeave.side))} took it now, ${who(outlook.safeToLeave.side)} would end ${what} ${n(outlook.safeToLeave.margin)} ahead.`
+                : `${everyone(other(outlook.safeToLeave.side))[0].toUpperCase()}${everyone(other(outlook.safeToLeave.side)).slice(1)} taking it would overturn ${what}.`
+            }
+          >
+            <span className="inline-flex items-center gap-1.5" tabIndex={0}>
+              <Icon className={cn('h-4 w-4 shrink-0', outlook.safeToLeave.safe ? 'text-lagoon-300' : 'text-sand-50')} name={outlook.safeToLeave.safe ? 'unlock' : 'lock'} />
+              <span>
+                {who(outlook.safeToLeave.side)} {outlook.safeToLeave.safe ? 'could leave the banner' : 'can’t leave the banner'}
+                {outlook.safeToLeave.safe ? (
+                  <>
+                    {' '}
+                    · <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(outlook.safeToLeave.margin)}</span> to spare
+                  </>
+                ) : null}
+              </span>
+            </span>
+          </Hint>
         </p>
       ) : null}
       {outlook.overCap ? (
-        <p className="mt-0.5 text-[14px] leading-snug text-sand-200/85">
+        <p className="mt-1 text-[14px] leading-snug text-sand-200/85">
           Past the cap by <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(outlook.overCap.points)}</span>: {who(outlook.overCap.side)}’s further points count
           for nothing, and so do {who(other(outlook.overCap.side))}’s first {n(outlook.overCap.points)}.
         </p>

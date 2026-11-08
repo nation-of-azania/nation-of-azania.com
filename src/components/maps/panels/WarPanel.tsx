@@ -569,10 +569,8 @@ function SiegeView({
 }
 
 /** How the score is run on, and what of the rules is assumed: the hint beside the live line under the scoreboard. */
-const SCORE_HINT = `The score runs on between the map’s readings at the banner’s rate; kills can’t be foreseen.${
-  ASSUMED.length
-    ? ' The zones (16 and 200 blocks) are SiegeWar’s defaults, which the rules don’t give; the balance held within ±7,000 and no bonus for taking the banner back were seen in battles.'
-    : ''
+const SCORE_HINT = `Run on between the map’s readings at the banner’s rate; kills can’t be foreseen.${
+  ASSUMED.length ? ' The 18- and 200-block zones are SiegeWar’s defaults; the ±7,000 cap and no bonus for retaking were seen in battles.' : ''
 }`
 
 /** How a fighter's time back to the banner is reckoned, and the lock after a death: the hint beside the fighters' rosters. */
@@ -627,7 +625,6 @@ function Scoreboard({
   const elapsed = secondsLeft === null ? 0 : 1 - secondsLeft / (RULES.sessionMinutes * 60)
   const holder = reading.banner.side
   const sourceWords = { observed: 'seen in the points', inferred: 'from the hands it changed', assumed: 'assumed' }[multiplier.source]
-  const ahead: BattleSide | null = projected?.balance ? (projected.balance > 0 ? 'attackers' : 'defenders') : null
   return (
     <div className="mt-3 border-y border-sand-50/10 bg-sand-50/[0.03] px-4 py-2.5">
       {/* The score, big, each side in its colour; the lead between. */}
@@ -705,26 +702,27 @@ function Scoreboard({
 
       <CapturesNow captures={captures} holder={holder} multiplierNext={reversalMultiplier(reversals + 1)} now={now} onFocus={onFocus} phase={phase} />
 
-      {/* The balance, now and at the session's end. */}
+      {/* The balance, now and at the session's end: the tug of war against the cap (ui/Marks.tsx → CapBalance), the solid mark where it stands, the hollow where this session would leave it, the figures once. */}
       {projected && siege.balance !== null ? (
         <div className="mt-2.5 border-t border-sand-50/10 pt-2">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <span className={EYEBROW}>Balance</span>
-            <span className={cn(FIGURE, 'text-[18px] font-semibold leading-none', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
-              {signed(siege.balance)}
-            </span>
-            <Icon className="h-4 w-4 shrink-0 self-center text-sand-300/60" name="arrow" />
-            <span className={cn(FIGURE, 'text-[24px] font-semibold leading-none', ahead === 'attackers' ? 'text-(--az-atk)' : ahead === 'defenders' ? 'text-(--az-def)' : 'text-sand-50')}>
-              {projected.balance === null ? '–' : signed(projected.balance)}
-            </span>
-            <span className={EYEBROW}>after this session</span>
-          </p>
-          <p className="mt-1 text-[13px] leading-snug text-sand-200/75">
-            {projected.sessionsLeft === null ? '' : projected.sessionsLeft === 0 ? 'The last session' : `${projected.sessionsLeft} more session${projected.sessionsLeft === 1 ? '' : 's'}`}
-            {projected.sessionsLeft === null ? 'If' : ' · if'} the banner stays as it is
+          <div className="flex items-start gap-x-3">
+            <span className={cn(EYEBROW, 'shrink-0 pt-1')}>Balance</span>
+            <CapBalance
+              after={projected.balance}
+              className="min-w-0 flex-1"
+              ends={sideTags(siege)}
+              figure
+              names={[sideName(siege, 'attackers'), sideName(siege, 'defenders')]}
+              now={siege.balance}
+              size="panel"
+            />
+          </div>
+          <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+            {projected.sessionsLeft === null ? '' : projected.sessionsLeft === 0 ? 'The last session · ' : `${projected.sessionsLeft} more session${projected.sessionsLeft === 1 ? '' : 's'} · `}
+            after this one if the banner stays as it is
             {paced?.balance != null && paced.balance !== projected.balance ? (
               <>
-                ; at this pace of kills <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{signed(paced.balance)}</span>
+                ; at this pace of kills <span className={cn(FIGURE, 'font-semibold text-sand-200/85')}>{signed(paced.balance)}</span>
               </>
             ) : null}
             .
@@ -738,7 +736,7 @@ function Scoreboard({
         {/* The dot flashes as each reading lands: keyed by it, so the flash plays anew each time. */}
         <span aria-hidden="true" className="az-live-dot" key={reading.at} />
         <span>
-          Live · read from the map {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
+          Live · read {Math.max(0, Math.round((now - reading.at) / 1000))} s ago
           {phase === null ? ' · the checks’ rhythm not yet read' : ''}
           <HintMark label="About the score" text={SCORE_HINT} />
         </span>

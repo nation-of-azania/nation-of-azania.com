@@ -268,8 +268,9 @@ export function CapBalance({
   const run = after !== null && after !== now ? capSpan(after, now, cap) : null
   const sideText = (side: MarkSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : undefined)
   return (
-    <Mark layout={ends ? 'column' : 'row'} words={words ?? capBalanceWords(now, after, names, cap)} {...mark}>
-      <span className="flex min-w-0 flex-1 items-center gap-x-2">
+    <Mark layout="row" words={words ?? capBalanceWords(now, after, names, cap)} {...mark}>
+      {/* The bar, with its ends named under it alone; the figure stands beside both. */}
+      <span className={cn('flex min-w-0 flex-1 flex-col', ends ? 'gap-y-1' : null)}>
         <span aria-hidden="true" className={TRACK}>
           <span className="absolute inset-y-0 left-1/2 w-px bg-(--az-mark-line)" />
           {now !== 0 ? <span className="az-mark-fill absolute inset-y-0" data-side={nowSide} style={spanStyle(capSpan(now, 0, cap))} /> : null}
@@ -279,26 +280,26 @@ export function CapBalance({
           <span className="absolute -inset-y-0.5 w-[3px] -translate-x-1/2 bg-(--az-mark-ink)" style={{ left: pc(capX(now, cap)) }} />
           {after !== null ? <span className="absolute -inset-y-0.5 w-[7px] -translate-x-1/2 border-[1.5px] border-(--az-mark-ink) bg-(--az-mark-paper)" style={{ left: pc(capX(after, cap)) }} /> : null}
         </span>
-        {figure ? (
-          <span aria-hidden="true" className="az-mark-figure flex items-center gap-x-1.5">
-            <span className={sideText(nowSide)}>{signed(now)}</span>
-            {after !== null ? (
-              <>
-                <small>→</small>
-                <span className={sideText(afterSide)}>{signed(after)}</span>
-              </>
-            ) : null}
+        {ends ? (
+          <span aria-hidden="true" className="flex justify-between gap-2 font-label text-[11px] font-semibold uppercase leading-none tracking-[0.12em]">
+            <abbr className="min-w-0 truncate text-(--az-atk) no-underline" title={names?.[0]}>
+              {ends[0]}
+            </abbr>
+            <abbr className="min-w-0 truncate text-(--az-def) no-underline" title={names?.[1]}>
+              {ends[1]}
+            </abbr>
           </span>
         ) : null}
       </span>
-      {ends ? (
-        <span aria-hidden="true" className="flex justify-between gap-2 font-label text-[11px] font-semibold uppercase leading-none tracking-[0.12em]">
-          <abbr className="min-w-0 truncate text-(--az-atk) no-underline" title={names?.[0]}>
-            {ends[0]}
-          </abbr>
-          <abbr className="min-w-0 truncate text-(--az-def) no-underline" title={names?.[1]}>
-            {ends[1]}
-          </abbr>
+      {figure ? (
+        <span aria-hidden="true" className={cn('az-mark-figure flex items-center gap-x-1.5', ends ? 'self-start' : null)}>
+          <span className={sideText(nowSide)}>{signed(now)}</span>
+          {after !== null ? (
+            <>
+              <small>→</small>
+              <span className={sideText(afterSide)}>{signed(after)}</span>
+            </>
+          ) : null}
         </span>
       ) : null}
     </Mark>
@@ -374,7 +375,7 @@ export function HeadSlots({
           <span className="az-slot" data-mark={slot.mark ?? undefined} key={`spare-${i}`} />
         ))}
       </span>
-      {figure ? <Figure rest={` · ${n(online)}${allies ? ` + ${n(allies)}` : ''} online`} value={`${n(needed)} needed`} /> : null}
+      {figure ? <Figure rest={` needed · ${n(online)}${allies ? ` + ${n(allies)}` : ''} online`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} /> : null}
     </Mark>
   )
 }
