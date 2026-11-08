@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { expectedAt, fighterScore, hourOfWeek } from '@/maps/fighters'
-import { asPips, countWords, n } from '@/maps/marks'
+import { countWords, n, tallyWords } from '@/maps/marks'
 
 import type { FighterEntry, FightersState } from '../fighters'
 import { Hint, HintMark } from './Hint'
@@ -94,6 +94,9 @@ export function ScoreBadge({ record, tone, className, hint = true }: { record: F
   )
 }
 
+/** The tries at the banner a record is judged by: held, died and left; those cut short by the session's end or a gap are said apart. */
+export const triesOf = (record: Pick<FighterEntry, 'held' | 'died' | 'left'>): number => record.held + record.died + record.left
+
 /** "7 of 9 sessions fought", with the sessions for allies when there were any: the one phrasing for turnout across the war view. */
 export function foughtWords(record: FighterEntry): string {
   return `${countWords(record.fought, record.could, 'sessions fought')}${record.allied ? `, ${n(record.allied)} for allies` : ''}`
@@ -107,21 +110,29 @@ export function foughtWords(record: FighterEntry): string {
  * the player's card on the map.
  */
 export function RecordMarks({ record, tone, size = 'row', held = true, className }: { record: FighterEntry; tone: Tone; size?: MarkSize; held?: boolean; className?: string }) {
-  const tries = record.held + record.died + record.left
+  const tries = triesOf(record)
   const t = TONES[tone]
-  const word = (text: string) => <span className={cn('text-[12px]', t.soft)}>{text}</span>
+  // The word after a mark is for the eye; the mark's name says it already.
+  const word = (text: string) => (
+    <span aria-hidden="true" className={cn('text-[12px]', t.soft)}>
+      {text}
+    </span>
+  )
   return (
-    <span className={cn('inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5', className)}>
-      <Pips done={record.fought} of={record.could} size={size} tone={tone} words={foughtWords(record)} />
-      {word('fought')}
+    <span className={cn('inline-flex flex-wrap items-center gap-x-2 gap-y-0.5', className)}>
+      <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
+        <Pips done={record.fought} of={record.could} size={size} tone={tone} words={foughtWords(record)} />
+        {word('fought')}
+      </span>
       {held && tries ? (
-        <>
-          <span className={cn('text-[12px]', t.faint)}>·</span>
-          <Pips className={asPips(tries) ? undefined : 'w-16'} done={record.held} of={tries} size={size} tone={tone} words={countWords(record.held, tries, 'tries at the banner held')} />
+        <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
+          <Pips done={record.held} of={tries} size={size} tone={tone} words={countWords(record.held, tries, 'tries at the banner held')} />
           {word('held')}
-        </>
+          {record.side && record.side !== 'other' ? <SideMark className="ml-0.5" side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} /> : null}
+        </span>
+      ) : record.side && record.side !== 'other' ? (
+        <SideMark side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} />
       ) : null}
-      {record.side && record.side !== 'other' ? <SideMark className="ml-0.5" side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} /> : null}
     </span>
   )
 }
@@ -220,7 +231,7 @@ export function FighterCard({
       </div>
     )
   const thin = record.fought < ENOUGH
-  const tries = record.held + record.died + record.left
+  const tries = triesOf(record)
   // Sessions, not battles: one at an ally's siege, or at one of their nation's two at once, isn't absent from the other.
   const extras = [record.battles > record.fought ? `${n(record.battles)} battles` : null, record.allied ? `${n(record.allied)} for allies` : null].filter(Boolean)
   return (
@@ -244,7 +255,7 @@ export function FighterCard({
         </Line>
         {record.fought ? (
           <>
-            <Line tone={tone} words={tries ? 'tries at the banner' : 'no try at the banner yet'}>
+            <Line tone={tone} words={tries ? `tries at the banner${record.cut ? ` · ${n(record.cut)} more cut short` : ''}` : 'no try at the banner yet'}>
               {tries ? (
                 <Tally
                   className="w-44"
@@ -253,10 +264,10 @@ export function FighterCard({
                     { label: 'held', value: record.held },
                     { label: 'died', value: record.died },
                     { label: 'left', value: record.left },
-                    ...(record.cut ? [{ label: 'cut short', value: record.cut }] : []),
                   ]}
                   size="panel"
                   tone={tone}
+                  words={`${tallyWords([{ label: 'held', value: record.held }, { label: 'died', value: record.died }, { label: 'left', value: record.left }], tries, 'tries at the banner')}${record.cut ? `, ${n(record.cut)} more cut short` : ''}`}
                 />
               ) : null}
             </Line>
@@ -267,7 +278,7 @@ export function FighterCard({
                 <span className={cn(FIGURE, 'text-[15px]', t.ink)}>0</span>
               )}
             </Line>
-            <Line tone={tone} words="min at the banner, of those in the zone">
+            <Line tone={tone} words="at the banner, of their minutes in the zone">
               <Meter className="w-36" noun="min" of={record.minutes} size="panel" tone={tone} value={record.bannerMinutes} words={`${n(record.bannerMinutes)} of ${n(record.minutes)} minutes in the zone at the banner`} />
             </Line>
             {record.won || record.lost ? (
@@ -330,7 +341,7 @@ export function recordWords(record: FighterEntry | null, state: FightersState): 
   if (state.status !== 'ready') return null
   if (state.battles === 0) return 'No battles tracked yet'
   if (!record) return 'No battle in 60 days'
-  const tries = record.held + record.died + record.left
+  const tries = triesOf(record)
   return `${record.fought} of ${record.could} sessions fought${tries ? ` · ${record.held} of ${tries} held` : ''}`
 }
 

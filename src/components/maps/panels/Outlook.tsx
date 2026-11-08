@@ -9,7 +9,7 @@ import { assessBattle, RULES, sessionClock, type BattleReading, type BattleSide 
 import { clusterKills, killsAlong, type CoursePoint } from '@/maps/course'
 import { spoken } from '@/maps/data'
 import { allyShare } from '@/maps/fighters'
-import { headSlotsWords } from '@/maps/marks'
+import { headSlotsWords, n, signed } from '@/maps/marks'
 import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type Need, type SessionForecast, type SiegeForecast, type Target } from '@/maps/outlook'
 import type { Siege, WorldTown } from '@/maps/world'
 
@@ -37,8 +37,6 @@ import { timeOf } from '../warView'
 
 const EYEBROW = 'font-label text-[12px] font-semibold uppercase tracking-[0.16em] text-sand-200/75'
 const FIGURE = 'font-mono tabular-nums'
-const n = (value: number) => Math.round(value).toLocaleString('en-GB')
-const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
 const other = (side: BattleSide): BattleSide => (side === 'attackers' ? 'defenders' : 'attackers')
 const colour = (side: BattleSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : 'text-sand-50')
 
@@ -129,7 +127,11 @@ export function OutlookSummary(props: OutlookProps) {
                 online={online[behind].residents}
                 words={`${who(behind)}: ${headSlotsWords(need.holders, online[behind].residents, online[behind].allies)} to turn ${what}; or ${kills}`}
               />
-              {need.enough ? null : <span className="text-[13px] text-coral-300">out of reach</span>}
+              {need.enough ? null : (
+                <span aria-hidden="true" className="text-[13px] text-coral-300">
+                  out of reach · or <span className={cn(FIGURE, 'font-semibold')}>{kills}</span>
+                </span>
+              )}
             </>
           ) : (
             <span>
@@ -459,7 +461,7 @@ function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (s
                     <span className="text-sand-200/80">theirs as the banner stands</span>
                   ) : need.holders === null ? (
                     <span>
-                      too late to take it · <span className={cn(FIGURE, 'font-semibold')}>{kills(need)}</span> short
+                      too late to take it · <span className={cn(FIGURE, 'font-semibold')}>{n(need.short)}</span> short · <span className={cn(FIGURE, 'font-semibold')}>{kills(need)}</span>
                     </span>
                   ) : (
                     <>
@@ -516,7 +518,11 @@ function forecastLine(forecast: SiegeForecast, who: (side: BattleSide) => string
   }
   const first = forecast.lead ? forecast.sessions.find((session) => session.favoured === forecast.winner) : null
   if (forecast.lead && first)
-    parts.push(`${who(forecast.lead.side)} would need a ${n(forecast.lead.needs)} lead into ${timeOf(first.start)}${forecast.lead.possible ? '' : ', more than the cap allows'}`)
+    parts.push(
+      `${who(forecast.lead.side)} would need a ${n(forecast.lead.needs)} lead into ${timeOf(first.start)}${
+        forecast.lead.possible ? ' (within the cap: winning the earlier sessions big enough would do)' : ', more than the cap allows: they must contest those sessions too'
+      }`,
+    )
   return parts.length ? `${parts.join('; ')}.` : null
 }
 
@@ -581,6 +587,8 @@ function SiegeStory({
     })
   })
   const most = Math.max(RULES.balanceCap, ...rows.map((row) => Math.abs(row.margin ?? 0)))
+  // A bar this wide (of the whole track) carries its figure inside: outside, the figure would reach the next column.
+  const INSIDE = 18
   // The words of a row's bar, for a screen reader: the margin and what kind of figure it is.
   const barWords = (row: Row) =>
     row.margin === null ? 'end not seen' : row.kind === 'next' ? `about ${signed(row.margin)}, as the usual hours say` : row.kind === 'now' ? `${signed(row.margin)} on points, if the banner stays as it is` : `${signed(row.margin)} on points`
@@ -616,7 +624,7 @@ function SiegeStory({
                   <span className="block truncate text-[12px] text-sand-200/70">{row.when}</span>
                 </span>
                 <span className="min-w-0">
-                  <span aria-label={barWords(row)} className="relative block h-2 bg-sand-50/10" role="img" title={barWords(row)}>
+                  <span aria-label={barWords(row)} className="relative block h-2 bg-sand-50/10" role="img">
                     <span className="absolute inset-y-0 left-1/2 w-px bg-sand-50/40" />
                     {row.margin ? (
                       <span
@@ -625,12 +633,24 @@ function SiegeStory({
                         style={{ left: row.margin > 0 ? `${50 - width}%` : '50%', width: `${width}%` }}
                       />
                     ) : null}
-                    {/* The figure at the bar's end, on the empty side of it: "≈" for a forecast. */}
+                    {/* The figure at the bar's end, on the empty side of it, "≈" for a forecast; a long bar (past a third of its half) carries it inside, at its far end, so it never runs into the next column. */}
                     {row.margin !== null ? (
                       <span
                         aria-hidden="true"
-                        className={cn(FIGURE, 'absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] leading-none', row.kind === 'next' ? 'text-sand-200/70' : 'text-sand-100')}
-                        style={row.margin > 0 ? { right: `calc(${50 + width}% + 4px)` } : { left: `calc(${50 + width}% + 4px)` }}
+                        className={cn(
+                          FIGURE,
+                          'absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] leading-none',
+                          width >= INSIDE ? (row.kind === 'next' ? 'text-sand-100' : 'text-sea-950') : row.kind === 'next' ? 'text-sand-200/70' : 'text-sand-100',
+                        )}
+                        style={
+                          width >= INSIDE
+                            ? row.margin > 0
+                              ? { left: `calc(${50 - width}% + 4px)` }
+                              : { right: `calc(${50 - width}% + 4px)` }
+                            : row.margin > 0
+                              ? { right: `calc(${50 + width}% + 4px)` }
+                              : { left: `calc(${50 + width}% + 4px)` }
+                        }
                       >
                         {row.kind === 'next' ? '≈' : ''}
                         {signed(row.margin)}
@@ -657,7 +677,7 @@ function SiegeStory({
         </ol>
       )}
       {disagree ? (
-        <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+        <p className="mt-1 text-[12px] leading-snug text-sand-200/85">
           The tracked sessions add up to <span className={FIGURE}>{signed(balance)}</span>; the marker says <span className={FIGURE}>{signed(siege.balance!)}</span>: a session not tracked, or not
           seen to its end.
         </p>
@@ -670,10 +690,10 @@ function SiegeStory({
         ) : (
           <>
             {line ? <p className="mt-1.5 text-[15px] font-semibold leading-snug text-sand-100">{line}</p> : null}
-            <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
+            <p className="mt-1 text-[12px] leading-snug text-sand-200/85">
               Rests on the usual hours of {restsWords(who('attackers'), rests.attackers)}, and of {restsWords(who('defenders'), rests.defenders)}
               {siege.townNation && !sameNation(siege.townNation, siege.defender) ? ` (${spoken(siege.townNation)}’s not among them)` : ''}; an ally for the share of their fighting done for
-              allies.
+              allies, one the map doesn’t know of not at all.
             </p>
           </>
         )

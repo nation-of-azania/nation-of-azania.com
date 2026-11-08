@@ -4,8 +4,9 @@ import { cn } from '@/blocks/components/shared'
 import { RULES } from '@/maps/battle'
 import {
   asPips,
+  blocksShort,
   capBalanceWords,
-  capSpan,
+  capRuns,
   capX,
   countWords,
   deltaWords,
@@ -30,6 +31,7 @@ import {
   winLossWords,
   type Span,
   type TallyPart,
+  type TrackPlace,
   type WayBackWords,
 } from '@/maps/marks'
 
@@ -79,7 +81,7 @@ const LAYOUT = {
 /** The mark's shell: an image named by its words, sized and toned by attribute (maps.css → .az-mark). */
 function Mark({ words, tone, size = 'row', className, layout = 'inline', children }: MarkProps & { words: string; layout?: keyof typeof LAYOUT; children: ReactNode }) {
   return (
-    <span aria-label={words} className={cn('az-mark', LAYOUT[layout], className)} data-size={size} data-tone={tone} role="img" title={words}>
+    <span aria-label={words} className={cn('az-mark', LAYOUT[layout], className)} data-size={size} data-tone={tone} role="img">
       {children}
     </span>
   )
@@ -132,7 +134,14 @@ export function Pips({
   noun?: string
   figure?: boolean
 }) {
-  if (!asPips(of)) return <Meter figure={figure} noun={noun} of={of} side={side} value={done} words={words} {...mark} />
+  if (of <= 0)
+    return (
+      <Mark words={words ?? countWords(done, of, noun)} {...mark}>
+        <Figure value="–" />
+      </Mark>
+    )
+  // Past twenty, a meter: with a width of its own, since in a row of marks a flex-1 track would shrink to nothing.
+  if (!asPips(of)) return <Meter figure={figure} noun={noun} of={of} side={side} value={done} words={words} {...mark} className={cn('w-20 shrink-0', mark.className)} />
   let index = 0
   return (
     <Mark words={words ?? countWords(done, of, noun)} {...mark}>
@@ -179,6 +188,8 @@ export function Meter({
     <Mark layout="row" size={size} words={words ?? meterWords(value, of, noun, target)} {...mark}>
       <span aria-hidden="true" className={TRACK}>
         <span className="az-mark-fill absolute inset-y-0 left-0" data-side={side} style={{ width: pc(share(value, of)) }} />
+        <Tick at={0} />
+        <Tick at={1} />
         {target !== null ? <Tick at={share(target, of)} ink /> : null}
       </span>
       {figure ? <Figure rest={ofRest(size, of, noun)} value={n(value)} /> : null}
@@ -218,7 +229,7 @@ export function Tally({
         {parts.map((part, index) =>
           part.value > 0 ? <span className="az-mark-fill shrink-0" data-pattern={pattern(part, index)} data-side={part.side} key={part.label} style={{ width: pc(share(part.value, whole)) }} /> : null,
         )}
-        {whole > sum ? <span className="min-w-0 flex-1 bg-(--az-mark-track)" /> : null}
+        {whole > sum || sum === 0 ? <span className="min-w-0 flex-1 bg-(--az-mark-track)" /> : null}
       </span>
       {figure ? (
         <span aria-hidden="true" className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-(--az-mark-soft)">
@@ -265,7 +276,8 @@ export function CapBalance({
 }) {
   const nowSide = sideOfBalance(now)
   const afterSide = after !== null ? sideOfBalance(after) : null
-  const run = after !== null && after !== now ? capSpan(after, now, cap) : null
+  // What stays is solid, what changes hatched (marks.ts → capRuns), each in the colour of its half.
+  const runs = capRuns(now, after, cap)
   const sideText = (side: MarkSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : undefined)
   return (
     <Mark layout="row" words={words ?? capBalanceWords(now, after, names, cap)} {...mark}>
@@ -274,12 +286,15 @@ export function CapBalance({
         <span aria-hidden="true" className="flex">
           <span className={TRACK}>
             <span className="absolute inset-y-0 left-1/2 w-px bg-(--az-mark-line)" />
-            {now !== 0 ? <span className="az-mark-fill absolute inset-y-0" data-side={nowSide} style={spanStyle(capSpan(now, 0, cap))} /> : null}
-            {run ? <span className="az-mark-fill absolute inset-y-0" data-faint="" data-side={sideOfBalance(after! - now)} style={spanStyle(run)} /> : null}
+            {runs.solid ? <span className="az-mark-fill absolute inset-y-0" data-side={runs.solid.side} style={spanStyle(runs.solid.span)} /> : null}
+            {runs.hatched.map((run, i) => (
+              <span className="az-mark-fill absolute inset-y-0" data-pattern="hatched" data-side={run.side} key={i} style={spanStyle(run.span)} />
+            ))}
             <Tick at={0} />
             <Tick at={1} />
-            <span className="absolute -inset-y-0.5 w-[3px] -translate-x-1/2 bg-(--az-mark-ink)" style={{ left: pc(capX(now, cap)) }} />
+            {/* The hollow mark for after, then the solid for now over it, so now stays seen when the two are close. */}
             {after !== null ? <span className="absolute -inset-y-0.5 w-[7px] -translate-x-1/2 border-[1.5px] border-(--az-mark-ink) bg-(--az-mark-paper)" style={{ left: pc(capX(after, cap)) }} /> : null}
+            <span className="absolute -inset-y-0.5 w-[3px] -translate-x-1/2 bg-(--az-mark-ink)" style={{ left: pc(capX(now, cap)) }} />
           </span>
         </span>
         {ends ? (
@@ -349,11 +364,15 @@ export function ReachBar({
   )
 }
 
+/** HeadSlots draws this many slots, and this many spare marks, at most; the rest is a "+N". */
+export const SLOTS_MAX = 6
+
 /**
  * The needed against the available: a hollow slot for each one needed,
  * filled in turn by those online (solid) and their allies (dashed), and
  * the spare online beyond a hairline. "1 holder needed · 5 online + 1
- * ally" reads as one filled slot and five more marks.
+ * ally" reads as one filled slot and five more marks. Past six of either,
+ * a "+N" stands for the rest, the figure and the words saying the whole.
  */
 export function HeadSlots({
   needed,
@@ -366,18 +385,21 @@ export function HeadSlots({
 }: MarkProps & { needed: number; online: number; allies?: number; noun?: string; figure?: boolean }) {
   const slots = slotsOf(needed, online, allies)
   const spare = slots.filter((slot) => !slot.slot)
+  const more = (count: number) => (count > 0 ? <span className="az-slot-more">+{n(count)}</span> : null)
   return (
     <Mark words={words ?? headSlotsWords(needed, online, allies, noun)} {...mark}>
       <span aria-hidden="true" className="az-slots">
-        {slots.slice(0, needed).map((slot, i) => (
+        {slots.slice(0, Math.min(needed, SLOTS_MAX)).map((slot, i) => (
           <span className="az-slot" data-mark={slot.mark ?? undefined} data-slot="" key={i} />
         ))}
+        {more(needed - SLOTS_MAX)}
         {needed > 0 && spare.length ? <span className="az-slot-rule" /> : null}
-        {spare.map((slot, i) => (
+        {spare.slice(0, SLOTS_MAX).map((slot, i) => (
           <span className="az-slot" data-mark={slot.mark ?? undefined} key={`spare-${i}`} />
         ))}
+        {more(spare.length - SLOTS_MAX)}
       </span>
-      {figure ? <Figure rest={` needed · ${n(online)}${allies ? ` + ${n(allies)}` : ''} online`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} /> : null}
+      {figure ? <Figure rest={` needed · ${n(online)} online${allies ? ` + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : ''}`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} /> : null}
     </Mark>
   )
 }
@@ -428,7 +450,9 @@ export function WinLoss({ won, lost, figure = true, words, ...mark }: MarkProps 
 export function TrackToBanner({
   distance,
   back = null,
+  place = null,
   side,
+  fixed = false,
   figure,
   words,
   size = 'row',
@@ -437,25 +461,31 @@ export function TrackToBanner({
   distance: number
   /** The way back, for the words; null when they're in the zone or it isn't known. */
   back?: WayBackWords | null
+  /** Where they are as the game reckons it (battle.ts → AtSiege), when known; else by the distance. */
+  place?: TrackPlace | null
   side?: MarkSide
+  /** A track of one width in every row, so the same distance is the same length; else it fills its row. */
+  fixed?: boolean
   /** What's said after the bar: the blocks by default; a time, or nothing (`false`). */
   figure?: ReactNode | false
 }) {
-  const scale = trackScale(distance)
+  const scale = trackScale(distance, undefined, undefined, place)
+  const far = scale.place === 'far'
   return (
-    <Mark layout="row" size={size} words={words ?? trackWords(distance, back)} {...mark}>
-      <span aria-hidden="true" className={TRACK}>
+    <Mark layout="row" size={size} words={words ?? trackWords(distance, back, undefined, undefined, place)} {...mark}>
+      <span aria-hidden="true" className={cn(TRACK, fixed ? 'w-24 flex-none' : null)}>
         <span className="az-mark-fill absolute inset-y-0 right-0" data-faint="" data-pattern="hatched" style={{ left: pc(scale.zoneX) }} />
         <Tick at={scale.bannerX} />
         <Tick at={1} ink tall />
-        <span className="az-track-mark absolute -inset-y-0.5 w-[5px] -translate-x-1/2" data-side={side} style={{ left: pc(scale.x) }} />
+        {/* Beyond the track's reach the mark stands hollow on the left wall: they're further than it can show. */}
+        <span className="az-track-mark absolute -inset-y-0.5 w-[5px] -translate-x-1/2" data-far={far ? '' : undefined} data-side={side} style={{ left: pc(scale.x) }} />
       </span>
       {figure === false ? null : figure !== undefined ? (
         <span aria-hidden="true" className="az-mark-figure shrink-0">
           {figure}
         </span>
       ) : (
-        <Figure rest=" blocks" value={n(distance)} />
+        <Figure rest=" blocks" value={far ? blocksShort(distance) : n(distance)} />
       )}
     </Mark>
   )
@@ -465,7 +495,7 @@ export function TrackToBanner({
 export function SideMark({ side, words, className, size = 'row' }: { side: MarkSide; words?: string; className?: string; size?: MarkSize }) {
   const said = words ?? sideWords(side)
   return (
-    <span aria-label={said} className={cn('inline-flex shrink-0 align-middle', side === 'attackers' ? 'text-(--az-atk)' : 'text-(--az-def)', className)} role="img" title={said}>
+    <span aria-label={said} className={cn('inline-flex shrink-0 align-middle', side === 'attackers' ? 'text-(--az-atk)' : 'text-(--az-def)', className)} role="img">
       <Icon className={size === 'panel' ? 'h-4 w-4' : 'h-3.5 w-3.5'} name={side === 'attackers' ? 'war' : 'shield'} />
     </span>
   )

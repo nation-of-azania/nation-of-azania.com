@@ -9,7 +9,9 @@
 import { RULES } from '../src/maps/battle'
 import {
   asPips,
+  blocksShort,
   capBalanceWords,
+  capRuns,
   capSpan,
   capX,
   countWords,
@@ -111,6 +113,18 @@ check(headSlotsWords(3, 2) === '3 holders needed; only 2 online: out of reach', 
 
 // The delta chip.
 check(deltaWords(12, 'people') === 'up 12 people' && deltaWords(-3) === 'down 3' && deltaWords(0) === 'no change', 'a delta’s words')
+
+// What a balance bar fills, now and as projected.
+const growing = capRuns(1250, 5720)
+check(growing.solid?.side === 'attackers' && near(growing.solid.span.width, 0.5 - capX(1250)) && growing.hatched.length === 1 && near(growing.hatched[0].span.left, capX(5720)), 'a lead growing: solid to now, the gain hatched beyond it')
+const shrinking = capRuns(-3000, -1000)
+check(shrinking.solid?.side === 'defenders' && near(shrinking.solid.span.width, capX(-1000) - 0.5) && shrinking.hatched[0].side === 'defenders' && near(shrinking.hatched[0].span.width, capX(-3000) - capX(-1000)), 'a lead shrinking: solid to after, the loss hatched, in its own half\u2019s colour')
+const crossing = capRuns(500, -700)
+check(crossing.solid === null && crossing.hatched.length === 2 && crossing.hatched[0].side === 'attackers' && crossing.hatched[1].side === 'defenders', 'a run across even: a stretch on each side, nothing solid')
+check(capRuns(0, -1400).hatched.length === 1 && capRuns(0, -1400).solid === null && capRuns(4000, null).solid?.side === 'attackers' && capRuns(4000, null).hatched.length === 0, 'from even all is to come; with no projection all is solid')
+check(blocksShort(21900) === '21.9k' && blocksShort(4500) === '4,500', 'blocks in short')
+check(trackScale(19, undefined, undefined, 'banner').place === 'banner' && trackWords(19, null, undefined, undefined, 'banner') === 'at the banner', 'the place as the game reckons it outranks the distance')
+check(asPips(21) === false, 'past twenty the pips are a meter (with a width of its own, in the specimen)')
 
 // Won and lost.
 check(winLossWords(4, 3) === '4 won, 3 lost, on points' && winLossWords(0, 0) === 'no session won or lost yet', 'won and lost, in words')

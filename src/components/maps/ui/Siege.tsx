@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from 'react'
+
 import { cn } from '@/blocks/components/shared'
 import { spoken } from '@/maps/data'
 import {
@@ -24,6 +26,27 @@ import { CapBalance, Pips } from './Marks'
  * banner, this battle's points and its time left, and the war chest; and
  * SiegeWar's own lines, for anyone who wants them as written.
  */
+
+/** The sessions fought as pips, the one on now half-filled: "1 of 3 battle sessions fought", the same wherever a siege is listed. */
+export function SessionPips({ siege, size, className }: { siege: Siege; size?: 'row' | 'panel'; className?: string }) {
+  if (!siege.progress) return null
+  return <Pips className={cn('shrink-0', className)} current={siege.battle ? siege.progress.done : null} done={siege.progress.done} of={siege.progress.of} size={size} words={progressWords(siege) ?? undefined} />
+}
+
+/** A list's line under a siege's title: the town, the sessions as pips and the state, separated only where both sides have something. */
+export function SiegeLine({ siege, className }: { siege: Siege; className?: string }) {
+  const parts: ReactNode[] = [siege.town ? <span className="min-w-0 truncate" key="town">{spoken(siege.town)}</span> : null, siege.progress ? <SessionPips key="pips" siege={siege} /> : null, <span key="state">{siege.battle ? 'a battle on' : 'quiet'}</span>].filter(Boolean)
+  return (
+    <span className={cn('flex items-center gap-x-1.5', className)}>
+      {parts.map((part, i) => (
+        <Fragment key={i}>
+          {i ? <span aria-hidden="true">·</span> : null}
+          {part}
+        </Fragment>
+      ))}
+    </span>
+  )
+}
 
 /** The siege's mark on its own, small, for a card's head or a list. */
 export function SiegeBadge({ siege, side, className }: { siege: Siege; side: SiegeSide; className?: string }) {

@@ -94,6 +94,39 @@ export function capSpan(to: number, from = 0, cap: number = RULES.balanceCap): S
   return { left: Math.min(a, b), width: Math.abs(b - a) }
 }
 
+export type CapRun = { span: Span; side: 'attackers' | 'defenders' }
+
+/**
+ * What a balance bar fills, now and as projected: the part of the lead
+ * that stays whichever way the session goes is solid (from even to the
+ * nearer of now and after, when both are on one side), and the part that
+ * is changing, between now and after, is hatched, each stretch in the
+ * colour of the half it lies in (a run across even is two stretches). So
+ * a lead growing shows its gain hatched beyond the solid, and a lead
+ * shrinking shows the part it stands to lose hatched; nothing is drawn
+ * over a fill of the other side's colour.
+ */
+export function capRuns(now: number, after: number | null, cap: number = RULES.balanceCap): { solid: CapRun | null; hatched: CapRun[] } {
+  const side = (balance: number): CapRun['side'] => (balance > 0 ? 'attackers' : 'defenders')
+  const run = (from: number, to: number): CapRun | null => (from === to ? null : { span: capSpan(to, from, cap), side: side(from || to) })
+  if (after === null || after === now) return { solid: now === 0 ? null : run(0, now), hatched: [] }
+  const hatched: CapRun[] = []
+  let solid: CapRun | null = null
+  if (now * after > 0) {
+    // Both on one side: solid to the nearer, hatched between.
+    const near = Math.abs(now) < Math.abs(after) ? now : after
+    solid = run(0, near)
+    hatched.push(run(near, Math.abs(now) < Math.abs(after) ? after : now)!)
+  } else {
+    // Across even (or from it): a stretch on each side that has one.
+    for (const balance of [now, after]) {
+      const stretch = run(0, balance)
+      if (stretch) hatched.push(stretch)
+    }
+  }
+  return { solid, hatched }
+}
+
 /** Whose favour a balance is in: positive is the attackers', as SiegeWar counts it. */
 export const sideOfBalance = (balance: number): 'attackers' | 'defenders' | null => (balance > 0 ? 'attackers' : balance < 0 ? 'defenders' : null)
 
@@ -184,11 +217,15 @@ export type TrackPlace = 'banner' | 'zone' | 'outside' | 'far'
  * ticks, and which of the three they're in; beyond the track's reach the
  * mark sits on the left wall (`far`).
  */
-export function trackScale(distance: number, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius): { x: number; zoneX: number; bannerX: number; place: TrackPlace } {
+export function trackScale(distance: number, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius, place?: TrackPlace | null): { x: number; zoneX: number; bannerX: number; place: TrackPlace } {
   const reach = zone * TRACK_ZONES
-  const place: TrackPlace = distance <= banner ? 'banner' : distance <= zone ? 'zone' : distance <= reach ? 'outside' : 'far'
-  return { x: 1 - clamp(distance, 0, reach) / reach, zoneX: 1 - zone / reach, bannerX: 1 - banner / reach, place }
+  // The place as the game reckons it when the caller knows it (the banner zone stops at a town's claims: battle.ts → inBannerZone), else by the distance.
+  const where: TrackPlace = place ?? (distance <= banner ? 'banner' : distance <= zone ? 'zone' : distance <= reach ? 'outside' : 'far')
+  return { x: 1 - clamp(distance, 0, reach) / reach, zoneX: 1 - zone / reach, bannerX: 1 - banner / reach, place: where }
 }
+
+/** Blocks in short: "21.9k" from ten thousand, else "4,500". */
+export const blocksShort = (distance: number): string => (distance >= 10_000 ? `${(distance / 1000).toFixed(1)}k` : n(distance))
 
 /** The way back, as the words say it: the times as the clock shows them ("0:44"), the pace in blocks a second. */
 export type WayBackWords = { expected: string | null; pessimistic: string; pace: number | null; via: 'run' | 'spawn'; locked: string | null }
@@ -198,11 +235,11 @@ export type WayBackWords = { expected: string | null; pessimistic: string; pace:
  * from the banner: back in 0:44 at their pace (6.8 blocks a second), 0:54
  * at a sprint", and after a death, "can't teleport for 2:10".
  */
-export function trackWords(distance: number, back: WayBackWords | null = null, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius): string {
-  const { place } = trackScale(distance, zone, banner)
+export function trackWords(distance: number, back: WayBackWords | null = null, zone: number = RULES.siegeZoneRadius, banner: number = RULES.bannerRadius, place?: TrackPlace | null): string {
+  const where = trackScale(distance, zone, banner, place).place
   const lock = back?.locked ? `; can’t teleport for ${back.locked}` : ''
-  if (place === 'banner') return 'at the banner'
-  if (place === 'zone') return `in the zone, ${n(distance)} blocks from the banner${lock}`
+  if (where === 'banner') return 'at the banner'
+  if (where === 'zone') return `in the zone, ${n(distance)} blocks from the banner${lock}`
   if (!back) return `${n(distance)} blocks from the banner, outside the zone`
   const way =
     back.expected !== null

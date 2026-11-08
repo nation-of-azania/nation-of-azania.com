@@ -1746,9 +1746,16 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     background: var(--az-mark-colour);
     box-shadow: 0 0 0 1px var(--az-mark-paper);
   }
+  .az-track-mark[data-far] {
+    background: var(--az-mark-paper);
+    box-shadow:
+      0 0 0 1px var(--az-mark-paper),
+      inset 0 0 0 1.5px var(--az-mark-colour);
+  }
   /* A slot of HeadSlots: an outline for each needed, with a mark inside once someone online fills it; an ally's mark is dashed. */
   .az-slots {
     display: inline-flex;
+    flex-shrink: 0;
     flex-wrap: wrap;
     gap: var(--az-mark-pip-gap);
     align-items: center;
@@ -1778,5 +1785,11 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     width: 1px;
     margin: 0 var(--az-mark-pip-gap);
     background: var(--az-mark-line);
+  }
+  /* The slots past the six drawn, as a count. */
+  .az-slot-more {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+    color: var(--az-mark-soft);
   }
 }

@@ -27,10 +27,11 @@ import {
 import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import type { LivePlayer } from '@/maps/players'
-import { azaniaSide, bySiegeWeight, progressWords, sideTags, siegeHeadline, type SiegeSide } from '@/maps/sieges'
+import { azaniaSide, bySiegeWeight, sideTags, siegeHeadline, type SiegeSide } from '@/maps/sieges'
 import { secondsLeftNow, sessionClock } from '@/maps/battle'
 import { allyShare, fighterScore } from '@/maps/fighters'
-import type { WayBackWords } from '@/maps/marks'
+import { TRACK_ZONES } from '@/maps/marks'
+import { n, signed, type TrackPlace, type WayBackWords } from '@/maps/marks'
 import { outlookOf, type BattleOutlook, type Target } from '@/maps/outlook'
 import type { Siege } from '@/maps/world'
 
@@ -46,9 +47,9 @@ import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
 import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
-import { CapBalance, Meter, Pips, Tally, TrackToBanner } from '../ui/Marks'
+import { CapBalance, Meter, Tally, TrackToBanner } from '../ui/Marks'
 import { useCopy } from '../ui/Readouts'
-import { SiegeBadge } from '../ui/Siege'
+import { SessionPips, SiegeBadge, SiegeLine } from '../ui/Siege'
 import { LOW_HEALTH, Vitals } from '../ui/Vitals'
 import { Wordmark } from '../ui/Wordmark'
 import { clockOf, sessionWords, timeOf, useSecond, type SideTown, type WarFocus } from '../warView'
@@ -87,8 +88,6 @@ const SECOND = 'text-[14px] leading-snug text-sand-200/80'
 const CHIP =
   'inline-flex max-w-full items-center gap-1.5 border border-sand-50/20 px-2 py-0.5 text-[14px] font-semibold leading-snug text-sand-50 hover:border-sand-50/45 hover:bg-sand-50/5 focus-visible:outline-saffron-400'
 
-const n = (value: number) => value.toLocaleString('en-GB')
-const signed = (value: number) => (value > 0 ? `+${n(value)}` : n(value))
 
 const sideWord = (side: PlayerSide | null) => (side === 'attackers' ? 'Attacker' : side === 'defenders' ? 'Defender' : 'Other')
 const sideColour = (side: PlayerSide | null) => (side === 'attackers' ? 'text-(--az-atk)' : side === 'defenders' ? 'text-(--az-def)' : 'text-sand-200/75')
@@ -334,11 +333,7 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
         <SiegeBadge className="mt-0.5 h-7 w-7" side={side} siege={siege} />
         <span className="min-w-0 flex-1">
           <span className={cn('block font-display text-[18px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</span>
-          <span className={cn(SECOND, 'mt-0.5 flex items-center gap-x-1.5')}>
-            {siege.town ? <span className="min-w-0 truncate">{spoken(siege.town)} ·</span> : null}
-            <SessionPips siege={siege} />
-            <span className="shrink-0">· {siege.battle ? 'a battle on' : 'quiet'}</span>
-          </span>
+          <SiegeLine className={cn(SECOND, 'mt-0.5')} siege={siege} />
           {score ? (
             <span className={cn(FIGURE, 'mt-1 flex items-baseline gap-2 text-[17px] font-semibold')}>
               <span className="text-(--az-atk)">{n(score.attacker)}</span>
@@ -352,12 +347,6 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
       </button>
     </li>
   )
-}
-
-/** The sessions fought as pips, the one on now half-filled: "1 of 3 battle sessions fought", the same wherever a siege is listed. */
-function SessionPips({ siege, size }: { siege: Siege; size?: 'row' | 'panel' }) {
-  if (!siege.progress) return null
-  return <Pips className="shrink-0" current={siege.battle ? siege.progress.done : null} done={siege.progress.done} of={siege.progress.of} size={size} words={progressWords(siege) ?? undefined} />
 }
 
 /**
@@ -577,17 +566,22 @@ function WayBackHint() {
       label="About the times back"
       text={
         <>
-          The track runs two siege zones out from the banner, the zone hatched. Times back at a sprint ({SPRINT_BLOCKS_PER_S} blocks a second), or at their own pace when seen moving faster.{' '}
-          <LockWords />
+          The track runs two siege zones out from the banner, the zone hatched. Times back at a sprint ({SPRINT_BLOCKS_PER_S} blocks a second), or at their own pace when seen faster in their last two
+          minutes, teleports left out. <LockWords />
         </>
       }
     />
   )
 }
 
-/** What the score on each row is, said once in a roster's head. */
+/** What the score on each row is, said once in a roster's head, the mark labelled so it isn't a second ⓘ beside the first. */
 function ScoreHint() {
-  return <HintMark label="About the score" text={SCORE_WORDS} />
+  return (
+    <span className="ml-2 inline-flex items-center gap-0.5 text-sand-200/60">
+      <span className="text-[11px]">score</span>
+      <HintMark label="About the score" text={SCORE_WORDS} />
+    </span>
+  )
 }
 
 /** The live score, the banner, the time, the balance now and to come, and the verdict, in the room they need and no more. */
@@ -658,7 +652,7 @@ function Scoreboard({
         </div>
       </div>
       {/* The share of the points, each side's split into the banner's (solid) and the kills' (hatched): how the score was earned, without a sentence. */}
-      {score ? (
+      {score && total ? (
         <Tally
           className="mt-1.5"
           figure={false}
@@ -742,15 +736,15 @@ function Scoreboard({
             </span>
           </p>
           <CapBalance after={projected.balance} className="mt-1" ends={sideTags(siege)} names={[sideName(siege, 'attackers'), sideName(siege, 'defenders')]} now={siege.balance} size="panel" />
-          <p className="mt-1 text-[12px] leading-snug text-sand-300/70">
-            {projected.sessionsLeft === null ? '' : projected.sessionsLeft === 0 ? 'The last session · ' : `${projected.sessionsLeft} more session${projected.sessionsLeft === 1 ? '' : 's'} · `}
-            after this one if the banner stays as it is
+          <p className="mt-1 text-[12px] leading-snug text-sand-200/85">
+            After this session, if the banner stays as it is
             {paced?.balance != null && paced.balance !== projected.balance ? (
               <>
-                ; at this pace of kills <span className={cn(FIGURE, 'font-semibold text-sand-200/85')}>{signed(paced.balance)}</span>
+                {' '}
+                (at this pace of kills <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{signed(paced.balance)}</span>)
               </>
             ) : null}
-            .
+            {projected.sessionsLeft === null ? '.' : projected.sessionsLeft === 0 ? ' · the last session: the siege is decided at its end.' : ` · ${projected.sessionsLeft} more to come.`}
           </p>
         </div>
       ) : null}
@@ -847,7 +841,7 @@ function LockWords() {
   if (fighters.status !== 'ready') return null
   return fighters.lock ? (
     <>
-      After a death, no teleport for about {clockOf(fighters.lock.quickest)} (the quickest seen of {fighters.lock.seen}).
+      After a death, no teleport for about {clockOf(fighters.lock.quickest)} (the quickest of {fighters.lock.seen} death{fighters.lock.seen === 1 ? '' : 's'} seen).
     </>
   ) : (
     <>After a death, no teleport for up to {clockOf(fighters.lockDefault)}, as far as is known.</>
@@ -1198,8 +1192,12 @@ function FighterRow({
 /** Where a fighter is to the banner: at it, in the zone, or outside with the time back, as a track with one figure. */
 function Whereabouts({ entry, siege, towns }: { entry: AtSiege; siege: Siege; towns: SideTown[] }) {
   const back = useWayBack(entry.player, siege, towns)
-  return <WhereTrack back={back} distance={entry.distance} side={entry.side === 'other' ? undefined : entry.side} />
+  return <WhereTrack back={back} distance={entry.distance} place={placeOf(entry)} side={entry.side === 'other' ? undefined : entry.side} />
 }
+
+/** Where they are as the game reckons it (battle.ts → playersAtSiege: the banner zone stops at a town's claims), for the track. */
+const placeOf = (entry: Pick<AtSiege, 'atBanner' | 'inZone' | 'distance'>): TrackPlace =>
+  entry.atBanner ? 'banner' : entry.inZone ? 'zone' : entry.distance <= RULES.siegeZoneRadius * TRACK_ZONES ? 'outside' : 'far'
 
 /** The way back as the track's words say it (src/maps/marks.ts → trackWords): the times as the clock shows them. */
 const wayBackWords = (back: Return): WayBackWords => ({
@@ -1218,22 +1216,26 @@ const wayBackWords = (back: Return): WayBackWords => ({
  * the sprint and the pace are the track's words). The lock after a death
  * follows while it holds.
  */
-function WhereTrack({ distance, back, side, className }: { distance: number; back: Return; side?: BattleSide; className?: string }) {
-  const atBanner = distance <= RULES.bannerRadius
-  const inZone = distance <= RULES.siegeZoneRadius
+function WhereTrack({ distance, back, place, side, className }: { distance: number; back: Return; place: TrackPlace; side?: BattleSide; className?: string }) {
+  const atBanner = place === 'banner'
+  const inZone = place === 'zone'
   const time = back.expected ?? back.pessimistic
   return (
     <span className={cn('inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 align-middle', className)}>
-      <span className="inline-flex w-36 shrink-0 align-middle">
+      {/* One track width in every row, so the same distance is the same length; the figure stands after it. */}
+      <span className="inline-flex align-middle">
         <TrackToBanner
-          back={inZone ? (back.locked ? wayBackWords(back) : null) : wayBackWords(back)}
-          className="w-full"
+          back={inZone || atBanner ? (back.locked ? wayBackWords(back) : null) : wayBackWords(back)}
           distance={distance}
-          figure={atBanner ? <span className="text-coral-300">at the banner</span> : inZone ? undefined : clockOf(time)}
+          figure={atBanner ? <span className="text-coral-300">at the banner</span> : inZone ? undefined : place === 'far' ? undefined : clockOf(time)}
+          fixed
+          place={place}
           side={side}
         />
       </span>
-      {!atBanner && !inZone && back.via === 'spawn' ? <span className="text-[12px] text-sand-200/70">by /t spawn</span> : null}
+      {/* Beyond the track, the figure is the blocks and the time back follows in small; outside it, the spawn when the way is by it. */}
+      {place === 'far' ? <span className={cn(FIGURE, 'text-[12px] text-sand-200/85')}>back in {clockOf(time)}</span> : null}
+      {!atBanner && !inZone && back.via === 'spawn' ? <span className="text-[12px] text-sand-200/85">by /t spawn</span> : null}
       <Locked back={back} />
     </span>
   )
@@ -1257,9 +1259,10 @@ function useWayBack(player: LivePlayer, siege: Siege, towns: SideTown[]): Return
 /** The lock after a death, while it holds: a padlock and the time until they may teleport. */
 function Locked({ back }: { back: Return }) {
   if (!back.locked) return null
+  // No tab stop: it sits inside a row's button, whose name the track's words give; the section's hint says what the lock is.
   return (
     <Hint text="Dead in the battle a moment ago: the server keeps them from teleporting for a while.">
-      <span className="inline-flex items-center gap-1 text-[13px] text-saffron-300" tabIndex={0}>
+      <span className="inline-flex items-center gap-1 text-[13px] text-saffron-300">
         <Icon className="h-3 w-3" name="lock" />
         <span className={cn(FIGURE, 'font-semibold')}>{clockOf(back.locked)}</span>
       </span>
@@ -1407,8 +1410,16 @@ function NationView({
 /** A player's distance to the view's banner, and the time back: as a nation's roster says it, the same track. */
 function ToBanner({ player, siege, towns, side }: { player: LivePlayer; siege: Siege; towns: SideTown[]; side: PlayerSide | null }) {
   const back = useWayBack(player, siege, towns)
-  const distance = Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1]))
-  return <WhereTrack back={back} distance={distance} side={side === 'other' || !side ? undefined : side} />
+  const at = useAtSiege(player, siege, towns)
+  return <WhereTrack back={back} distance={at.distance} place={placeOf(at)} side={side === 'other' || !side ? undefined : side} />
+}
+
+/** One player's standing to a siege's banner as the game reckons it (battle.ts → playersAtSiege, within any distance). */
+function useAtSiege(player: LivePlayer, siege: Siege, towns: SideTown[]): Pick<AtSiege, 'atBanner' | 'inZone' | 'distance'> {
+  return useMemo(() => {
+    const [entry] = playersAtSiege(siege, [player], towns, Infinity).near
+    return entry ?? { atBanner: false, inZone: false, distance: Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1])) }
+  }, [player, siege, towns])
 }
 
 /* One player, watched. */
@@ -1445,7 +1456,8 @@ function PlayerView({
   // Whose ally they are, when they fight on their side as one: the side's nation.
   const allyOf = allegiance?.ally && siege && side !== 'other' && side ? nationOfSide(siege, side) : null
   const place = player ? `${Math.round(player.x)} ${Math.round(player.y)} ${Math.round(player.z)}` : null
-  const distance = player && siege ? Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1])) : null
+  const at = useAtSiegeMaybe(player, siege, towns)
+  const distance = at?.distance ?? null
   const backWay = player && siege ? returnFor(motion, name, [player.x, player.z], siege.at, town?.home ?? null, now || motion.at, lockSeconds) : null
   return (
     <>
@@ -1481,31 +1493,37 @@ function PlayerView({
             <Vitals armor={player.armor} className="w-full" health={player.health} size="large" />
           </div>
           <div className="mt-3 px-4">
-            {siege && distance !== null && backWay ? (
+            {siege && at && distance !== null && backWay ? (
               <div className="text-[16px] leading-snug text-sand-50">
-                {/* The track to the banner at the panel size, the one figure large after it; the way back in a line beneath. */}
+                {/* The track to the banner at the panel size, the one figure large after it; the blocks and the way back in a line beneath. */}
                 <TrackToBanner
-                  back={distance > RULES.siegeZoneRadius ? wayBackWords(backWay) : backWay.locked ? wayBackWords(backWay) : null}
+                  back={at.inZone || at.atBanner ? (backWay.locked ? wayBackWords(backWay) : null) : wayBackWords(backWay)}
                   distance={distance}
                   figure={
-                    <span className={cn('text-[20px]', distance <= RULES.bannerRadius ? 'text-coral-300' : null)}>
-                      {distance <= RULES.bannerRadius ? 'At the banner' : distance <= RULES.siegeZoneRadius ? `${n(distance)} blocks` : clockOf(backWay.expected ?? backWay.pessimistic)}
+                    <span className={cn('text-[20px]', at.atBanner ? 'text-coral-300' : null)}>
+                      {at.atBanner ? 'At the banner' : at.inZone ? `${n(distance)} blocks` : clockOf(backWay.expected ?? backWay.pessimistic)}
                     </span>
                   }
+                  place={placeOf(at)}
                   side={side === 'other' || !side ? undefined : side}
                   size="panel"
                 />
-                {distance > RULES.bannerRadius ? (
+                {!at.atBanner ? (
                   <p className="mt-1 text-[14px] text-sand-200/85">
-                    {distance <= RULES.siegeZoneRadius ? (
+                    {at.inZone ? (
                       'In the siege zone.'
-                    ) : backWay.expected !== null ? (
-                      <>
-                        Back at their pace, <span className={FIGURE}>{backWay.pace}</span> blocks a second; <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(backWay.pessimistic)}</span> at a sprint
-                        {backWay.via === 'spawn' ? `; by /t spawn and ${n(backWay.blocks)} blocks.` : '.'}
-                      </>
                     ) : (
-                      <>Back at a sprint, no pace of their own seen yet{backWay.via === 'spawn' ? `; by /t spawn and ${n(backWay.blocks)} blocks.` : '.'}</>
+                      <>
+                        <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{n(distance)}</span> blocks from the banner.{' '}
+                        {backWay.expected !== null ? (
+                          <>
+                            Back at their pace, <span className={FIGURE}>{backWay.pace}</span> blocks a second; <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{clockOf(backWay.pessimistic)}</span> at a sprint
+                            {backWay.via === 'spawn' ? `; by /t spawn and ${n(backWay.blocks)} blocks.` : '.'}
+                          </>
+                        ) : (
+                          <>Back at a sprint, no pace of their own seen yet{backWay.via === 'spawn' ? `; by /t spawn and ${n(backWay.blocks)} blocks.` : '.'}</>
+                        )}
+                      </>
                     )}
                   </p>
                 ) : null}
@@ -1558,6 +1576,15 @@ function PlayerView({
       <PlayerRecord name={name} />
     </>
   )
+}
+
+/** The player's standing to the view's siege, when there's a player and a siege (hooks can't be skipped, so this one takes nulls). */
+function useAtSiegeMaybe(player: LivePlayer | null, siege: Siege | null, towns: SideTown[]): Pick<AtSiege, 'atBanner' | 'inZone' | 'distance'> | null {
+  return useMemo(() => {
+    if (!player || !siege) return null
+    const [entry] = playersAtSiege(siege, [player], towns, Infinity).near
+    return entry ?? { atBanner: false, inZone: false, distance: Math.round(Math.hypot(player.x - siege.at[0], player.z - siege.at[1])) }
+  }, [player, siege, towns])
 }
 
 /** The player's record in the battles (ui/Fighter.tsx), asked for as the view opens. */
@@ -1669,6 +1696,7 @@ function ExpectedGroup({
     <div className="mt-2">
       <p className={cn(EYEBROW, 'flex flex-wrap items-center gap-x-2.5 gap-y-0.5', sideColour(side))}>
         <span className="min-w-0 truncate">{label}</span>
+        {ally ? <HintMark label="About the allies" text="Each as likely as their hours and turnout say, for the share of their fighting done for allies; an ally the map doesn’t know of isn’t counted." /> : null}
         {ranked.length ? <Meter className="w-28 shrink-0" noun="on now" of={ranked.length} side={side} value={onNow} words={`${onNow} of ${ranked.length} on now${atSiege ? `, ${atSiege} at the siege` : ''}`} /> : null}
         {atSiege && !open ? <span className="normal-case tracking-normal text-sand-200/70">{atSiege} at the siege, above</span> : null}
       </p>
@@ -1695,7 +1723,7 @@ function ExpectedGroup({
                           <span className={cn(FIGURE, 'text-sand-200/85')}>{Math.round(entry.expected * 100)}%</span> likely
                         </span>
                       ) : fighters.status === 'ready' ? (
-                        <span className="text-sand-300/60">no record</span>
+                        <span className="text-sand-200/70">no record</span>
                       ) : (
                         '…'
                       )}

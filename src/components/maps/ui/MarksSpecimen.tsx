@@ -19,6 +19,16 @@ const CASES: { name: string; mark: (size: MarkSize) => ReactNode }[] = [
   { name: 'Pips · 7 of 9, attackers', mark: (size) => <Pips done={7} noun="sessions fought" of={9} side="attackers" size={size} /> },
   { name: 'Pips · 13 of 20, the 14th on now', mark: (size) => <Pips current={13} done={13} noun="tries" of={20} size={size} /> },
   { name: 'Pips · 26 of 52 falls back to a meter', mark: (size) => <Pips done={26} noun="online" of={52} size={size} /> },
+  {
+    name: 'Pips · 26 of 30 in a row of marks (the meter keeps its width); none of none',
+    mark: (size) => (
+      <span className="inline-flex flex-wrap items-center gap-x-2">
+        <Pips done={26} noun="fought" of={30} size={size} />
+        <span className="text-[12px]">fought</span>
+        <Pips done={0} noun="tries" of={0} size={size} />
+      </span>
+    ),
+  },
   { name: 'Meter · 6 of 52 online', mark: (size) => <Meter noun="online" of={52} size={size} value={6} /> },
   { name: 'Meter · 6 of 52, 10 needed (a bullet graph)', mark: (size) => <Meter noun="online" of={52} size={size} target={10} value={6} /> },
   { name: 'Meter · 1,030 of 1,230 points, defenders', mark: (size) => <Meter noun="points" of={1230} side="defenders" size={size} value={1030} /> },
@@ -63,7 +73,10 @@ const CASES: { name: string; mark: (size: MarkSize) => ReactNode }[] = [
   { name: 'ReachBar · 14,000 blocks, beyond 12,320', mark: (size) => <ReachBar distance={14000} limit={12320} size={size} /> },
   { name: 'HeadSlots · 1 needed · 5 online + 1 ally', mark: (size) => <HeadSlots allies={1} needed={1} online={5} size={size} /> },
   { name: 'HeadSlots · 3 needed · 1 online + 1 ally: out of reach', mark: (size) => <HeadSlots allies={1} needed={3} online={1} size={size} /> },
-  { name: 'HeadSlots · 8 needed · 5 online', mark: (size) => <HeadSlots needed={8} online={5} size={size} /> },
+  { name: 'HeadSlots · 8 needed · 5 online (six drawn, +2)', mark: (size) => <HeadSlots needed={8} online={5} size={size} /> },
+  { name: 'HeadSlots · 2 needed · 14 online (six spare drawn, +6)', mark: (size) => <HeadSlots needed={2} online={14} size={size} /> },
+  { name: 'CapBalance · −3,000 → −1,000, the loss hatched', mark: (size) => <CapBalance after={-1000} figure now={-3000} size={size} /> },
+  { name: 'CapBalance · +500 → −700, across even', mark: (size) => <CapBalance after={-700} figure now={500} size={size} /> },
   { name: 'WinLoss · 4 won, 3 lost', mark: (size) => <WinLoss lost={3} size={size} won={4} /> },
   { name: 'WinLoss · 15 won, 9 lost falls back to a tally', mark: (size) => <WinLoss lost={9} size={size} won={15} /> },
   { name: 'TrackToBanner · at the banner, attackers', mark: (size) => <TrackToBanner distance={10} figure={<span className="text-(--az-mark-bad)">at the banner</span>} side="attackers" size={size} /> },
@@ -72,7 +85,8 @@ const CASES: { name: string; mark: (size: MarkSize) => ReactNode }[] = [
     name: 'TrackToBanner · 300 blocks out, back in 0:44',
     mark: (size) => <TrackToBanner back={{ expected: '0:44', pessimistic: '0:54', pace: 6.8, via: 'run', locked: null }} distance={300} figure="0:44" side="attackers" size={size} />,
   },
-  { name: 'TrackToBanner · 900 blocks, beyond the track', mark: (size) => <TrackToBanner back={{ expected: null, pessimistic: '2:41', pace: null, via: 'spawn', locked: null }} distance={900} figure="2:41" size={size} /> },
+  { name: 'TrackToBanner · 21,900 blocks, beyond the track (hollow mark, the blocks)', mark: (size) => <TrackToBanner back={{ expected: null, pessimistic: '1:05:12', pace: null, via: 'spawn', locked: null }} distance={21900} size={size} /> },
+  { name: 'TrackToBanner · fixed width, 19 blocks but on a claim: in the zone by the game', mark: (size) => <TrackToBanner distance={19} fixed place="zone" side="attackers" size={size} /> },
   {
     name: 'SideMark · as an attacker, as a defender',
     mark: (size) => (
