@@ -462,8 +462,8 @@ function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (s
 /**
  * The siege across its sessions: each one's result and the balance after
  * it, within the cap; the one on now as projected; and the ones to come
- * as forecast. Each a row with a bar for the result, attackers' to the
- * right.
+ * as forecast. Each a row with a bar for the result, the attackers' to
+ * the left of the middle and the defenders' to the right.
  */
 function SiegeStory({
   past,
@@ -553,7 +553,8 @@ function SiegeStory({
                     <span
                       className={cn('absolute inset-y-0', row.kind === 'next' ? 'opacity-50' : null, row.margin > 0 ? 'bg-(--az-atk)' : 'bg-(--az-def)')}
                       style={{
-                        left: row.margin > 0 ? '50%' : `${50 - (Math.abs(row.margin) / most) * 50}%`,
+                        // The attackers' margin runs left from the middle, the defenders' right, as every balance bar does (ui/Marks.tsx → CapBalance).
+                        left: row.margin > 0 ? `${50 - (Math.abs(row.margin) / most) * 50}%` : '50%',
                         width: `${(Math.abs(row.margin) / most) * 50}%`,
                       }}
                     />

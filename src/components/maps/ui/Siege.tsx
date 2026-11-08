@@ -1,6 +1,5 @@
 import { cn } from '@/blocks/components/shared'
 import { spoken } from '@/maps/data'
-import { GROUND } from '@/maps/palette'
 import {
   balanceWords,
   bannerWords,
@@ -15,14 +14,15 @@ import {
 import type { Siege } from '@/maps/world'
 
 import { SiegeMarkGlyph } from '../layers/SiegesLayer'
+import { CapBalance, Pips } from './Marks'
 
 /**
  * A siege's figures in plain words, as the card on the map, the front and
  * a besieged town's page give them: what kind of siege it is, the battle
- * sessions fought (as pips), who's ahead (as a tug of war about the
- * middle), who holds the banner, this battle's points and its time left,
- * and the war chest; and SiegeWar's own lines, for anyone who wants them
- * as written.
+ * sessions fought (as pips, ui/Marks.tsx), who's ahead (as a tug of war
+ * against the ±7,000 cap, the attackers pulling left), who holds the
+ * banner, this battle's points and its time left, and the war chest; and
+ * SiegeWar's own lines, for anyone who wants them as written.
  */
 
 /** The siege's mark on its own, small, for a card's head or a list. */
@@ -31,54 +31,6 @@ export function SiegeBadge({ siege, side, className }: { siege: Siege; side: Sie
     <svg aria-hidden="true" className={cn('h-6 w-6 shrink-0', className)} viewBox="-14 -14 28 28">
       <SiegeMarkGlyph battle={siege.battle} breathe={false} scale={side ? 0.85 : 1} side={side} x={0} y={0} />
     </svg>
-  )
-}
-
-/** The sessions fought, one pip each. */
-function Pips({ done, of }: { done: number; of: number }) {
-  return (
-    <span aria-hidden="true" className="inline-flex gap-0.5 align-middle">
-      {Array.from({ length: Math.min(of, 12) }, (_, i) => (
-        <span className={cn('h-2 w-2.5', i < done ? 'bg-coral-700' : 'border border-ink-400/50 bg-sand-50')} key={i} />
-      ))}
-    </span>
-  )
-}
-
-/**
- * Who's ahead, as a bar about the middle: the attacker's lead runs left in
- * coral, the defender's right in sea, each end named in its side's colour
- * (shortened when the two names would run together: sieges.ts → sideTags).
- */
-function Balance({ siege }: { siege: Siege }) {
-  const balance = siege.balance ?? 0
-  // A lead of a couple of hundred fills most of a side; the bar never quite fills.
-  const share = Math.abs(balance) / (Math.abs(balance) + 200)
-  const [attacker, defender] = sideTags(siege)
-  return (
-    <span className="block">
-      <span aria-hidden="true" className="relative mt-1 block h-2 bg-sand-200">
-        <span className="absolute inset-y-0 left-1/2 w-px bg-ink-400" />
-        {balance ? (
-          <span
-            className="absolute inset-y-0"
-            style={{
-              background: balance > 0 ? GROUND.coral : GROUND.sea500,
-              left: balance > 0 ? `${50 - share * 50}%` : '50%',
-              width: `${share * 50}%`,
-            }}
-          />
-        ) : null}
-      </span>
-      <span className="mt-0.5 flex justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
-        <abbr className="min-w-0 truncate no-underline" style={{ color: GROUND.coral }} title={spoken(siege.attacker)}>
-          {attacker}
-        </abbr>
-        <abbr className="min-w-0 truncate no-underline" style={{ color: GROUND.sea500 }} title={spoken(siege.defender)}>
-          {defender}
-        </abbr>
-      </span>
-    </span>
   )
 }
 
@@ -101,7 +53,11 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
           <div className={ROW}>
             <dt className={LABEL}>Progress</dt>
             <dd>
-              <Pips done={siege.progress.done} of={siege.progress.of} /> <span className="ml-1">{progress}</span>
+              {/* The pips are the image, named by the words; the words beside them are for the eye. */}
+              <Pips done={siege.progress.done} figure={false} of={siege.progress.of} words={progress} />{' '}
+              <span aria-hidden="true" className="ml-1">
+                {progress}
+              </span>
             </dd>
           </div>
         ) : null}
@@ -109,8 +65,9 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
           <div className={ROW}>
             <dt className={LABEL}>Balance</dt>
             <dd>
-              {balance}
-              <Balance siege={siege} />
+              <span aria-hidden="true">{balance}</span>
+              {/* Each end named in its side's colour, shortened when the two names would run together (sieges.ts → sideTags). */}
+              <CapBalance className="mt-1" ends={sideTags(siege)} names={[spoken(siege.attacker), spoken(siege.defender)]} now={siege.balance ?? 0} size="panel" words={balance} />
             </dd>
           </div>
         ) : null}
