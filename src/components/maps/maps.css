@@ -959,6 +959,28 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) .bg-sea-900 {
   fill: currentColor;
   fill-opacity: 0.15;
 }
+/* A kill on the chart: a ring on the side's line where it stepped, hollow so the line shows through it, and the number of them when more than one. */
+.az-chart-kill circle {
+  fill: none;
+  stroke-width: 1.5;
+}
+.az-chart-kill[data-side='attackers'] circle {
+  stroke: var(--az-atk);
+}
+.az-chart-kill[data-side='defenders'] circle {
+  stroke: var(--az-def);
+}
+.az-chart-kill text {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+}
+.az-chart-kill[data-side='attackers'] text {
+  fill: var(--az-atk);
+}
+.az-chart-kill[data-side='defenders'] text {
+  fill: var(--az-def);
+}
 .az-outlook-chevron {
   transition: transform 160ms ease-out;
 }

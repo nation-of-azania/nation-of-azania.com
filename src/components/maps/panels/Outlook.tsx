@@ -6,6 +6,7 @@ import { cn } from '@/blocks/components/shared'
 import { sameNation } from '@/maps/abroad'
 import { alliesOf, defendingNation } from '@/maps/alliances'
 import { assessBattle, RULES, sessionClock, type BattleReading, type BattleSide } from '@/maps/battle'
+import { clusterKills, killsAlong, type CoursePoint } from '@/maps/course'
 import { spoken } from '@/maps/data'
 import { allyShare } from '@/maps/fighters'
 import { forecastSiege, outlookOf, POINTS_PER_EXTRA_FIGHTER, sessionsAfter, type BattleOutlook, type SiegeForecast, type Target } from '@/maps/outlook'
@@ -262,17 +263,25 @@ export function OutlookDetails(props: OutlookProps) {
  * up to the first the view read itself (`tracked`, the session so far as
  * /maps/battles has it), then as the view read them; the end projected.
  * `since` is the minute the view's own readings begin, when the tracker's
- * came before them.
+ * came before them. The view's readings carry the banner's holders, the
+ * tracker's minutes don't (null), which is what tells a kill's step from
+ * the banner's climb (src/maps/course.ts).
  */
 function courseOf(assessed: NonNullable<ReturnType<typeof assessBattle>>, readings: BattleReading[], tracked: TrackedBattle | null = null) {
   const total = RULES.sessionMinutes * 60
-  const live = readings
+  const live: CoursePoint[] = readings
     .filter((reading) => reading.points && reading.secondsLeft !== null)
-    .map((reading) => ({ minute: (total - reading.secondsLeft!) / 60, attacker: reading.points!.attacker, defender: reading.points!.defender, banner: reading.banner.side }))
+    .map((reading) => ({
+      minute: (total - reading.secondsLeft!) / 60,
+      attacker: reading.points!.attacker,
+      defender: reading.points!.defender,
+      banner: reading.banner.side,
+      holders: reading.banner.holders,
+    }))
   const firstLive = live.length ? live[0].minute : Infinity
-  const before = (tracked?.points ?? [])
+  const before: CoursePoint[] = (tracked?.points ?? [])
     .filter(([minute]) => minute < firstLive - 0.5)
-    .map(([minute, attacker, defender, banner]) => ({ minute, attacker, defender, banner: (banner === 'a' ? 'attackers' : banner === 'd' ? 'defenders' : null) as BattleSide | null }))
+    .map(([minute, attacker, defender, banner]) => ({ minute, attacker, defender, banner: banner === 'a' ? 'attackers' : banner === 'd' ? 'defenders' : null, holders: null }))
   const points = [...before, ...live]
   const since = before.length && live.length ? firstLive : null
   const end = assessed.projected ? { minute: RULES.sessionMinutes, ...assessed.projected.points } : null
@@ -280,7 +289,7 @@ function courseOf(assessed: NonNullable<ReturnType<typeof assessBattle>>, readin
   return { points, end, top, since }
 }
 
-/** The shape of the session in a few pixels, for the fold's line. */
+/** The shape of the session in a few pixels, for the fold's line: the two lines alone, no room for the kills' marks. */
 function Sparkline({ assessed, readings, tracked }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[]; tracked: TrackedBattle | null }) {
   const { points, end, top } = courseOf(assessed, readings, tracked)
   const w = 64
@@ -300,10 +309,16 @@ function Sparkline({ assessed, readings, tracked }: { assessed: NonNullable<Retu
 /**
  * The session's points as they went, both sides, with who held the banner
  * along the foot, running on dashed to the end the banner as it is would
- * make (the projection).
+ * make (the projection). Where a side's line stepped up by a kill rather
+ * than climbed by the banner, a ring on the line in the side's colour,
+ * and kills within a few minutes of each other one ring with their number
+ * (course.ts → clusterKills), so a hard first few minutes isn't a row of
+ * them. The side's own colour, since the points are theirs: a defender's
+ * death is a ring on the attackers' line.
  */
 function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<ReturnType<typeof assessBattle>>; readings: BattleReading[]; tracked: TrackedBattle | null }) {
   const { points, end, top, since } = courseOf(assessed, readings, tracked)
+  const kills = clusterKills(killsAlong(points))
   if (!points.length) return <p className="text-[13px] text-sand-200/75">The session’s course comes with the readings.</p>
   const w = 320
   const h = 96
@@ -354,6 +369,22 @@ function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<R
         ))}
         <path d={path('defender', points)} fill="none" style={{ stroke: 'var(--az-def)' }} strokeLinejoin="round" strokeWidth={2} vectorEffect="non-scaling-stroke" />
         <path d={path('attacker', points)} fill="none" style={{ stroke: 'var(--az-atk)' }} strokeLinejoin="round" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        {/* The kills: a ring on the line where it stepped, with the number when there was more than one. */}
+        {kills.map((kill) => {
+          const p = points[kill.at]
+          const cx = x(kill.minute)
+          const cy = y(kill.side === 'attackers' ? p.attacker : p.defender)
+          return (
+            <g className="az-chart-kill" data-side={kill.side} key={`${kill.side}-${kill.at}`}>
+              <circle cx={cx} cy={cy} r={3.5} vectorEffect="non-scaling-stroke" />
+              {kill.kills > 1 ? (
+                <text textAnchor="middle" x={cx} y={cy - 6}>
+                  ×{kill.kills}
+                </text>
+              ) : null}
+            </g>
+          )
+        })}
         {end ? (
           <>
             <path d={path('defender', [last, end])} fill="none" strokeDasharray="3 3" style={{ stroke: 'var(--az-def)' }} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
@@ -367,8 +398,10 @@ function SessionChart({ assessed, readings, tracked }: { assessed: NonNullable<R
         The session’s points, minute by minute
         <HintMark
           label="About the chart"
-          text={`Attackers in coral, defenders in sea. Dashed: to the session’s end, if the banner stays as it is. Along the foot, who held the banner.${
-            since !== null ? ` To minute ${Math.round(since)} the tracker’s points, one a minute; the view’s own since.` : ''
+          text={`Attackers in coral, defenders in sea. A ring on a line is a kill: a hundred to that side at once (a number beside it, so many close together); the rest of a rise is the banner’s, ten a holder every twenty seconds. Dashed: to the session’s end, if the banner stays as it is. Along the foot, who held the banner.${
+            since !== null
+              ? ` To minute ${Math.round(since)} the tracker’s points, one a minute, which don’t say how many held the banner, so there a kill is told by a minute’s rise over the run’s usual; the view’s own since.`
+              : ''
           }`}
         />
       </figcaption>

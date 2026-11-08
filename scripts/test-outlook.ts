@@ -7,6 +7,7 @@
  *   pnpm test:outlook
  */
 import type { BattleReading } from '../src/maps/battle'
+import { clusterKills, killsAlong, type CoursePoint } from '../src/maps/course'
 import { POINTS_PER_EXTRA_FIGHTER, forecastSiege, ofThisSiege, outlookOf, sessionsAfter, sessionsStarted } from '../src/maps/outlook'
 
 let failed = false
@@ -110,6 +111,35 @@ const skipped = [{ startedAt: '2026-11-03T00:00:00.000Z', session: 0 }, { starte
 check(ofThisSiege(skipped, { progress: { done: 2, of: 3 } }, Date.parse('2026-11-03T18:40:00Z')).length === 2, 'a session untracked between two: both kept')
 check(ofThisSiege([quarry1, { startedAt: '2026-11-08T00:00:00.000Z', session: 1 }], second, between).length === 1, 'an old siege’s first session before a new one’s first tracked (its second): only the new one’s')
 check(ofThisSiege(bySul, { progress: null }, between).length === 3, 'without the marker’s progress, all kept')
+
+// Kills along the session's chart (src/maps/course.ts): a step is a kill, a climb is the banner.
+const course = (rows: [number, number, number, 'a' | 'd' | '', number | null][]): CoursePoint[] =>
+  rows.map(([minute, attacker, defender, banner, holders]) => ({ minute, attacker, defender, banner: banner === 'a' ? 'attackers' : banner === 'd' ? 'defenders' : null, holders }))
+const steps = (points: CoursePoint[]) => killsAlong(points).map((step) => `${step.side[0]}${step.at}:${step.kills}`).join()
+// The view's own readings, every 15 seconds, the defenders holding with two (+20 a check): the attackers' hundred is a kill,
+// the defenders' 120 is a check and a kill, and 20 is the check alone.
+check(
+  steps(course([[10, 0, 400, 'd', 2], [10.25, 0, 420, 'd', 2], [10.5, 100, 440, 'd', 2], [10.75, 100, 560, 'd', 2], [11, 100, 580, 'd', 2]])) === 'a2:1,d3:1',
+  'readings with holders: the attackers’ hundred against the holding defenders is a kill, as is the defenders’ 120 (a check and a kill)',
+)
+// The tracker's minute points, holders unknown: the side not holding rises by kills alone; the holding side's usual minute is the
+// banner's (30, three holders... or three checks of one), and a minute a hundred over it had a kill in, two hundred two.
+const tracked = course([[0, 0, 0, '', null], [1, 0, 0, '', null], [2, 0, 100, '', null], [3, 20, 100, 'a', null], [4, 50, 100, 'a', null], [5, 180, 100, 'a', null], [6, 210, 300, 'a', null], [7, 240, 300, 'a', null], [8, 470, 300, 'a', null]])
+check(steps(tracked) === 'd2:1,a5:1,d6:2,a8:2', 'minute points: the defenders’ hundreds while not holding are kills; the attackers’ 130 and 230 minutes over their usual 30 are one and two')
+check(killsAlong(tracked).every((step) => step.at !== 3), 'the minute the banner was taken in (a rise of 20) is no kill')
+// Jitter: a minute may catch two checks or four; with three holders that's 60 or 120 for the banner, which mustn't read as a kill.
+const jittered = course([[0, 0, 0, 'a', null], [1, 90, 0, 'a', null], [2, 150, 0, 'a', null], [3, 240, 0, 'a', null], [4, 360, 0, 'a', null], [5, 450, 0, 'a', null], [6, 640, 0, 'a', null]])
+check(steps(jittered) === 'a6:1', 'a minute of four checks (120) over the usual 90 is no kill; 190 is one')
+// A side holding with no kill-free minute in sight: one interval says nothing (no kill told), honestly.
+check(steps(course([[0, 0, 0, 'a', null], [1, 130, 0, 'a', null]])) === '', 'one minute of holding can’t tell a kill from the banner')
+// The seam between the tracker's last minute and the view's first reading: the holders carried back while the same side holds.
+check(steps(course([[20, 600, 0, 'a', null], [21, 730, 0, 'a', 3], [21.25, 740, 0, 'a', 3]])) === 'a1:1', 'at the seam, the view’s holders tell the tracker’s last minute: 130 with three holders is a check and a kill')
+// Clusters: a run of kills in the first minutes is one mark with a number, not a row; the sides apart.
+const run = killsAlong(course([[0, 0, 0, '', null], [1, 100, 0, '', null], [1.5, 200, 0, '', null], [2, 300, 100, '', null], [3, 400, 100, '', null], [5, 500, 100, '', null], [9, 600, 100, '', null]]))
+check(run.length === 7, 'seven steps: six of the attackers’, one of the defenders’')
+const clusters = clusterKills(run)
+check(clusters.map((cluster) => `${cluster.side[0]}${cluster.from}-${cluster.minute}:${cluster.kills}`).join() === 'a1-3:4,d2-2:1,a5-5:1,a9-9:1', 'four kills in the first three minutes are one mark of four; the fifth minute’s starts another; the defenders’ is its own')
+check(clusters[0].at === 4, 'a cluster is drawn at its last step')
 
 if (failed) {
   console.error('\nSome checks failed.')
