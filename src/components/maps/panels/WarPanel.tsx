@@ -37,7 +37,7 @@ import { useAlliances } from '../alliances'
 import { useMaps } from '../context'
 import { recordOf, useFighters, type FightersState } from '../fighters'
 import { useStore } from '../hooks'
-import { FighterCard, OnlineDot, rankExpected, ScoreBadge, ENOUGH, type Expected } from '../ui/Fighter'
+import { ENOUGH, FighterCard, OnlineDot, rankExpected, RecordMarks, SCORE_WORDS, ScoreBadge, type Expected } from '../ui/Fighter'
 import { AlliesList } from './Allies'
 import { OutlookDetails, OutlookSummary, totalOnline, type OnlineCount } from './Outlook'
 import { returnFor, useMotion } from '../motion'
@@ -434,7 +434,7 @@ function TopFighters({ onFocus }: { onFocus: (focus: WarFocus) => void }) {
         Fighters’ scores{fighters.status === 'ready' && fighters.battles ? ` · ${fighters.battles} battle${fighters.battles === 1 ? '' : 's'} in 60 days` : ''}
         <HintMark
           label="About the scores"
-          text={`A score of 100: the chance they take the banner when they try, times the chance they turn up to a session they could fight, each smoothed so one lucky try doesn’t top the list. Those with ${ENOUGH} battles or more, from the last 60 days.`}
+          text={`${SCORE_WORDS} Those with ${ENOUGH} battles or more, from the last 60 days. Beside each: sessions fought of those they could, tries at the banner held, the side they last fought on.`}
         />
       </p>
       {fighters.status === 'ready' && fighters.battles === 0 ? (
@@ -458,11 +458,7 @@ function TopFighters({ onFocus }: { onFocus: (focus: WarFocus) => void }) {
                 <Head name={record.name} px={24} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-[14px] font-semibold tracking-[0.02em] text-sand-50">{record.name}</span>
-                  <span className="block text-[13px] text-sand-200/70">
-                    {record.fought} of {record.could} sessions fought · {record.held} of {record.held + record.died + record.left} held
-                    {record.allied ? ` · ${record.allied} for allies` : ''}
-                    {record.side && record.side !== 'other' ? ` · last ${record.side === 'attackers' ? 'attacking' : 'defending'}` : ''}
-                  </span>
+                  <RecordMarks className="mt-0.5" record={record} tone="war" />
                 </span>
                 <span className={cn(FIGURE, 'text-[20px] font-semibold text-sand-50')}>{score}</span>
               </button>

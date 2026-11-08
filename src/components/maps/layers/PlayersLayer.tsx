@@ -15,7 +15,7 @@ import type { LiveState } from '../live'
 import type { Store } from '../hooks'
 import { recordOf, useFighters } from '../fighters'
 import { useLatest, useStore } from '../hooks'
-import { recordWords, ScoreBadge } from '../ui/Fighter'
+import { RecordMarks, recordWords, ScoreBadge } from '../ui/Fighter'
 import { L, toLatLng, useLeaflet } from '../leaflet/canvas'
 import { monogramOf } from '../ui/Head'
 import { Icon } from '../ui/icons'
@@ -676,11 +676,14 @@ function PlayerCard({
               'On the server, not of Azania'
             )}
           </p>
-          {words ? (
+          {record?.fought ? (
+            /* Their record as marks (ui/Fighter.tsx → RecordMarks): the one way a record is said in a line. */
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-snug text-ink-500">
-              <span>{words}</span>
-              {record?.fought ? <ScoreBadge className="scale-90" record={record} tone="panel" /> : null}
+              <RecordMarks record={record} tone="panel" />
+              <ScoreBadge className="scale-90" record={record} tone="panel" />
             </p>
+          ) : words ? (
+            <p className="mt-1 text-[12px] leading-snug text-ink-500">{words}</p>
           ) : null}
         </div>
         <button
