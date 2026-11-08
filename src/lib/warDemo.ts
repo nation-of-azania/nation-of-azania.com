@@ -15,7 +15,11 @@ import { CAPITAL_WAR_RADIUS, type Siege, type War, type World, type WorldTown } 
  * of either side, moving about the banner. Every hour on the clock is a
  * battle session that runs the same way: nobody holds the banner for ten
  * minutes, the attackers take it with three, the defenders take it back
- * at half past (the reversal bonus), and kills now and then. A second
+ * at half past (the reversal bonus), and kills now and then, each a
+ * fighter of the side that lost the points lying where they fell for a
+ * moment, then back at their spawn at full health (a defender's is the
+ * town's, inside the siege zone, as at Fort Alaskana; an attacker's is
+ * far off, and they teleport back). A second
  * siege runs at the same time, of the defenders' ally's town by a nation
  * allied with Azania, so the two sieges share fighters both ways (one of
  * either side of the first stands in the second's zone); its attackers
@@ -127,6 +131,11 @@ const SECOND_ATTACKERS_TAKE = 180
 const SECOND_ATTACKER_HOLDERS = 2
 const SECOND_KILLS_BY_DEFENDERS = [1500]
 
+/** A death on the feed: no health where they fell for DEAD_FOR seconds, at their spawn at full for AT_SPAWN_FOR, then back by the end. */
+const DEATH_SECONDS = 40
+const DEAD_FOR = 4
+const AT_SPAWN_FOR = 10
+
 const ticksBetween = (from: number, to: number) => Math.max(0, Math.floor((to - from) / RULES.tickSeconds))
 const signed = (points: number) => (points === 0 ? '0' : `+${points}`)
 
@@ -210,25 +219,28 @@ const around = ([x, z]: Point, radius: number, angle: number): Point => [x + Mat
  * The demo's fighters at `now`, circling the banner; one of each side on
  * the way back from their town. With a second siege on, one of each side
  * stands in its zone instead (the sieges share fighters), the ally among
- * the first's defenders, and the second's attacker at its banner.
+ * the first's defenders, and the second's attacker at its banner. The
+ * first of each side dies for the other side's kills (the script's times),
+ * as a death looks on the feed.
  */
 export async function demoPlayers(now: number): Promise<LivePlayers> {
   const cast = await currentScene()
   if (!cast) return { at: now, online: 0, players: [] }
   const t = now / 1000
+  const session = (now % HOUR) / 1000
   const banner = cast.siege.at
   const players: LivePlayer[] = []
-  const add = (name: string, [x, z]: Point, index: number) =>
+  const add = (name: string, [x, z]: Point, index: number, health?: number) =>
     players.push({
       name,
       x: Math.round(x),
       y: 70,
       z: Math.round(z),
-      health: Math.max(1, 20 - ((Math.floor(t / 3) * 7 + index * 5) % 15)),
+      health: health ?? Math.max(1, 20 - ((Math.floor(t / 3) * 7 + index * 5) % 15)),
       armor: [20, 15, 12, 7, 0, 18][index % 6],
     })
   const second = cast.second?.at ?? null
-  const place = (people: Scene['attackers'], phase: number, ring: number) =>
+  const place = (people: Scene['attackers'], phase: number, ring: number, killedAt: number[]) =>
     people.forEach((person, index) => {
       // The second of each side has gone to the other siege: in its zone, a little off its banner.
       if (index === 1 && second && people.length > 2) {
@@ -244,10 +256,25 @@ export async function demoPlayers(now: number): Promise<LivePlayers> {
         return
       }
       const radius = ring + ((index * 9) % 40)
-      add(person.name, around(banner, radius, phase + index * 0.9 + t / (25 + index * 3)), index)
+      const spot = (at: number) => around(banner, radius, phase + index * 0.9 + at / (25 + index * 3))
+      // The first of the side, killed at the script's times: lying where they fell at no health, then at their spawn at
+      // full, then walking back when it's near (the town's, inside the zone) or teleporting back at the end when it's far.
+      const killed = index === 0 ? killedAt.find((at) => session >= at && session < at + DEATH_SECONDS) : undefined
+      if (killed !== undefined) {
+        const since = session - killed
+        const fell = spot(t - since)
+        if (since < DEAD_FOR) return add(person.name, fell, index, 0)
+        const spawn = person.home ?? fell
+        const near = distance(spawn, banner) <= 300
+        if (since < DEAD_FOR + AT_SPAWN_FOR || !near) return add(person.name, spawn, index, 20)
+        const k = (since - DEAD_FOR - AT_SPAWN_FOR) / (DEATH_SECONDS - DEAD_FOR - AT_SPAWN_FOR)
+        const back = spot(t)
+        return add(person.name, [spawn[0] + (back[0] - spawn[0]) * k, spawn[1] + (back[1] - spawn[1]) * k], index, 20)
+      }
+      add(person.name, spot(t), index)
     })
-  place(cast.attackers, 0, 6)
-  place(cast.defenders, Math.PI, 10)
+  place(cast.attackers, 0, 6, KILLS_BY_DEFENDERS)
+  place(cast.defenders, Math.PI, 10, KILLS_BY_ATTACKERS)
   cast.others.forEach((name, index) => {
     // The ally among the defenders, in the zone; the second siege's attacker at its own banner.
     if (index === 1 && second) add(name, around(second, 8, t / 30), index + 3)
