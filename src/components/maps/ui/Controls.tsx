@@ -253,9 +253,32 @@ export function LayerMenu({
 }
 
 /**
+ * One entry of the legend: its sample, a label of a few words beside it,
+ * and, where the sample doesn't say it all, the rest as a hint on a mark
+ * after the label, so the list stays a list and the explanation is a tap
+ * away. Each entry has the sample's words for a screen reader in its label
+ * and hint together; the sample itself is decoration.
+ */
+function LegendRow({ sample, label, hint }: { sample: ReactNode; label: string; hint?: string }) {
+  return (
+    <li className="flex items-center gap-2.5 px-1 py-0.5 text-[13px] leading-snug">
+      {sample}
+      <span className="min-w-0">
+        {label}
+        {hint ? <HintMark className="-my-1" label={`About: ${label}`} text={hint} /> : null}
+      </span>
+    </li>
+  )
+}
+
+const SAMPLE = 'h-5 w-12 shrink-0'
+
+/**
  * What the marks mean: the road classes, the place groups, a town's claims
  * and a held site's, the event mark; and the way out to the globe, where
- * the browser can draw one (`globe`).
+ * the browser can draw one (`globe`). Each entry is a sample and a label
+ * of a few words, in two columns so the whole is seen with little
+ * scrolling; what a sample can't say on its own is its entry's hint.
  */
 export function Legend({ globe }: { globe: boolean }) {
   const hatch = `${useId()}-hatch`
@@ -263,60 +286,64 @@ export function Legend({ globe }: { globe: boolean }) {
   const sample = (group: PlaceGroup) =>
     (Object.entries(PLACE_CATEGORIES).find(([, c]) => c.group === group)?.[0] ??
       'other') as keyof typeof PLACE_CATEGORIES
+  const reach = CAPITAL_WAR_RADIUS.toLocaleString('en-GB')
   return (
-    <Popover icon="info" label="Legend" width="w-[23rem] max-w-[calc(100vw-1.5rem)]">
+    <Popover icon="info" label="Legend" width="w-[28rem] max-w-[calc(100vw-1.5rem)]">
       <div className="max-h-[70vh] overflow-y-auto px-1 pb-1">
         <p className={cn(EYEBROW, 'px-1 pt-1')}>Roads</p>
-        <ul className="mt-1.5 space-y-1">
+        <ul className="mt-1 grid grid-cols-2 gap-x-2">
           {(Object.keys(ROAD_KINDS) as (keyof typeof ROAD_KINDS)[]).map((kind) => {
             const style = ROAD_STYLES[kind]
             return (
-              <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]" key={kind}>
-                <svg aria-hidden="true" className="h-3 w-12 shrink-0" viewBox="0 0 48 12">
-                  {style.casing ? (
+              <LegendRow
+                key={kind}
+                label={ROAD_KINDS[kind].label}
+                sample={
+                  <svg aria-hidden="true" className="h-3 w-12 shrink-0" viewBox="0 0 48 12">
+                    {style.casing ? (
+                      <line
+                        stroke={style.casing}
+                        strokeLinecap="round"
+                        strokeWidth={7}
+                        x1={3}
+                        x2={45}
+                        y1={6}
+                        y2={6}
+                      />
+                    ) : null}
                     <line
-                      stroke={style.casing}
-                      strokeLinecap="round"
-                      strokeWidth={7}
+                      stroke={style.fill}
+                      strokeDasharray={
+                        style.dash ? style.dash.map((n) => n * 5).join(' ') : undefined
+                      }
+                      strokeLinecap={style.dash ? 'butt' : 'round'}
+                      strokeWidth={5}
                       x1={3}
                       x2={45}
                       y1={6}
                       y2={6}
                     />
-                  ) : null}
-                  <line
-                    stroke={style.fill}
-                    strokeDasharray={
-                      style.dash ? style.dash.map((n) => n * 5).join(' ') : undefined
-                    }
-                    strokeLinecap={style.dash ? 'butt' : 'round'}
-                    strokeWidth={5}
-                    x1={3}
-                    x2={45}
-                    y1={6}
-                    y2={6}
-                  />
-                  {style.over ? (
-                    <line
-                      stroke={style.over.colour}
-                      strokeDasharray={style.over.dash.map((n) => n * 5).join(' ')}
-                      strokeWidth={2.2}
-                      x1={3}
-                      x2={45}
-                      y1={6}
-                      y2={6}
-                    />
-                  ) : null}
-                </svg>
-                <span>{ROAD_KINDS[kind].label}</span>
-              </li>
+                    {style.over ? (
+                      <line
+                        stroke={style.over.colour}
+                        strokeDasharray={style.over.dash.map((n) => n * 5).join(' ')}
+                        strokeWidth={2.2}
+                        x1={3}
+                        x2={45}
+                        y1={6}
+                        y2={6}
+                      />
+                    ) : null}
+                  </svg>
+                }
+              />
             )
           })}
         </ul>
-        <p className={cn(EYEBROW, 'mt-3 px-1')}>Places</p>
-        <ul className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1">
+        <p className={cn(EYEBROW, 'mt-2.5 px-1')}>Places</p>
+        <ul className="mt-1 grid grid-cols-2 gap-x-2">
           {groups.map((group) => (
-            <li className="flex items-center gap-2 px-1 py-0.5 text-[14px]" key={group}>
+            <li className="flex items-center gap-2 px-1 py-0.5 text-[13px]" key={group}>
               <span
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-sand-50"
                 style={{ background: GROUP_COLOURS[group] }}
@@ -327,190 +354,225 @@ export function Legend({ globe }: { globe: boolean }) {
             </li>
           ))}
         </ul>
-        <p className={cn(EYEBROW, 'mt-3 px-1')}>Towns and events</p>
-        <ul className="mt-1.5 space-y-1">
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
-              <rect
-                fill={GROUND.sea700}
-                fillOpacity={0.12}
-                height={12}
-                stroke={GROUND.sea700}
-                strokeWidth={1.5}
-                width={40}
-                x={4}
-                y={2}
-              />
-            </svg>
-            <span>A town’s claims (Towny)</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <PartSample role="outpost" />
-            </svg>
-            <span>A town’s outpost, striped: claims apart from the town, with a spawn of their own</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <PartSample role="detached" />
-            </svg>
-            <span>Claims detached from a town, joined to neither it nor an outpost</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <defs>
-                <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
-                  <line stroke={GROUND.saffronDeep} strokeOpacity={0.55} strokeWidth={1.2} x1={0} x2={0} y1={0} y2={6} />
-                </pattern>
-              </defs>
-              <rect fill={GROUND.saffron} fillOpacity={0.08} height={14} width={40} x={4} y={3} />
-              <rect
-                fill={`url(#${hatch})`}
-                height={14}
-                stroke={GROUND.saffronDeep}
-                strokeDasharray="4 2"
-                strokeWidth={1.5}
-                width={40}
-                x={4}
-                y={3}
-              />
-              <SiteMark facts={{ kind: 'quarry', resource: 'Diamond' }} scale={0.7} x={24} y={10} />
-            </svg>
-            <span>A site Azania holds: a quarry, a wasteland, a treasure ship</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.saffron} strokeWidth={2} width={12} x={8} y={4} />
-              <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.whitewash} strokeWidth={2} width={12} x={28} y={4} />
-            </svg>
-            <span>A player online now: Azania’s own ringed in saffron</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <EventMark phase="upcoming" scale={0.8} x={14} y={10} />
-              <EventMark phase="past" scale={0.8} x={34} y={10} />
-            </svg>
-            <span>An event: coming, and past</span>
-          </li>
+        <p className={cn(EYEBROW, 'mt-2.5 px-1')}>Towns and events</p>
+        <ul className="mt-1 grid grid-cols-2 gap-x-2">
+          <LegendRow
+            label="A town’s claims"
+            sample={
+              <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
+                <rect
+                  fill={GROUND.sea700}
+                  fillOpacity={0.12}
+                  height={12}
+                  stroke={GROUND.sea700}
+                  strokeWidth={1.5}
+                  width={40}
+                  x={4}
+                  y={2}
+                />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="Claims apart from the town, with a spawn of their own; striped, with the spawn marked."
+            label="A town’s outpost"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <PartSample role="outpost" />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="Claims joined to neither the town nor an outpost, drawn thinner and fainter."
+            label="Detached claims"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <PartSample role="detached" />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="A quarry, a wasteland or a treasure ship the server runs, hatched in the treasury’s gold; its mark says which kind."
+            label="A site Azania holds"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <defs>
+                  <pattern height={6} id={hatch} patternTransform="rotate(45)" patternUnits="userSpaceOnUse" width={6}>
+                    <line stroke={GROUND.saffronDeep} strokeOpacity={0.55} strokeWidth={1.2} x1={0} x2={0} y1={0} y2={6} />
+                  </pattern>
+                </defs>
+                <rect fill={GROUND.saffron} fillOpacity={0.08} height={14} width={40} x={4} y={3} />
+                <rect
+                  fill={`url(#${hatch})`}
+                  height={14}
+                  stroke={GROUND.saffronDeep}
+                  strokeDasharray="4 2"
+                  strokeWidth={1.5}
+                  width={40}
+                  x={4}
+                  y={3}
+                />
+                <SiteMark facts={{ kind: 'quarry', resource: 'Diamond' }} scale={0.7} x={24} y={10} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="Players online; Azania’s ringed"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <rect fill={GROUND.sea500} height={12} rx={1} stroke={GROUND.saffron} strokeWidth={2} width={12} x={8} y={4} />
+                <rect fill={GROUND.inkSoft} height={12} rx={1} stroke={GROUND.whitewash} strokeWidth={2} width={12} x={28} y={4} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="An event: coming, and past"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <EventMark phase="upcoming" scale={0.8} x={14} y={10} />
+                <EventMark phase="past" scale={0.8} x={34} y={10} />
+              </svg>
+            }
+          />
         </ul>
-        <p className={cn(EYEBROW, 'mt-3 px-1')}>The world</p>
-        <ul className="mt-1.5 space-y-1">
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
-              <rect fill={NATION_SAMPLE.line} fillOpacity={0.12} height={12} stroke={NATION_SAMPLE.line} strokeWidth={1} width={19} x={3} y={2} />
-              <rect fill={OTHER_SAMPLE.line} fillOpacity={0.12} height={12} stroke={OTHER_SAMPLE.line} strokeWidth={1} width={19} x={26} y={2} />
-            </svg>
-            <span>Another nation’s towns, in its own colour</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
-              <rect fill={NO_NATION.line} fillOpacity={0.08} height={12} stroke={NO_NATION.line} strokeDasharray="3 2" strokeWidth={1} width={40} x={4} y={2} />
-            </svg>
-            <span>A town of no nation</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
-              <circle cx={14} cy={8} fill={GROUND.whitewash} r={5.5} stroke={NATION_SAMPLE.line} strokeWidth={1.25} />
-              <circle cx={14} cy={8} fill={NATION_SAMPLE.line} r={3} />
-              <circle cx={34} cy={8} fill={NATION_SAMPLE.line} r={2.75} stroke={GROUND.whitewash} strokeWidth={1} />
-            </svg>
-            <span>A nation’s capital, and a town</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <SiteMark facts={{ kind: 'quarry', resource: 'Iron' }} ring={NATION_SAMPLE.line} scale={0.7} x={24} y={10} />
-            </svg>
-            <span>A site another nation holds, rimmed in its colour</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <rect
-                fill={SERVER_INKS.trading.edge}
-                fillOpacity={0.06}
-                height={14}
-                stroke={SERVER_INKS.trading.edge}
-                strokeDasharray="0.5 3.5"
-                strokeLinecap="round"
-                strokeWidth={1.75}
-                width={40}
-                x={4}
-                y={3}
-              />
-              <TradingMark kind="trading" scale={0.75} x={24} y={10} />
-            </svg>
-            <span>A trading outpost, the server’s own: nobody holds it, and it’s no town’s</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-5 w-12 shrink-0" viewBox="0 0 48 20">
-              <TradingMark kind="landmark" scale={0.7} x={24} y={10} />
-            </svg>
-            <span>One of the server’s landmarks</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <SiegeMarkGlyph battle breathe={false} scale={0.8} side={null} x={13} y={12} />
-              <SiegeMarkGlyph battle={false} breathe={false} scale={0.8} side={null} x={35} y={12} />
-            </svg>
-            <span>A siege, at its banner: a battle on, and quiet</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <SiegeMarkGlyph battle breathe={false} scale={0.7} side="defending" x={24} y={12} />
-            </svg>
-            <span>A siege Azania is in, ringed in saffron</span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.whitewash} strokeOpacity={0.7} strokeWidth={4} />
-              <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
-            </svg>
-            <span>
-              A nation’s reach, with Diplomacy on or in the war view: {CAPITAL_WAR_RADIUS.toLocaleString('en-GB')} blocks
-              from its capital, as far as it may besiege
-            </span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.06} r={11} stroke={GROUND.coralDeep} strokeDasharray="4 3" strokeWidth={1.5} />
-              <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.2} r={3.5} stroke={GROUND.coralDeep} strokeWidth={1.5} />
-            </svg>
-            <span>
-              In the war view, a siege’s zones to scale: the banner zone, where five minutes takes the banner, within
-              the siege zone, where a death costs a hundred points
-            </span>
-          </li>
-          <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-            <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
-              <rect fill={GROUND.sea500} height={10} rx={1} stroke={GROUND.coral} strokeWidth={2} width={10} x={7} y={1} />
-              <rect fill="#701e14" height={8} rx={1} width={20} x={2} y={14} />
-              <rect fill={GROUND.inkSoft} height={10} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={10} x={31} y={1} />
-              <rect fill="#103658" height={8} rx={1} width={20} x={26} y={14} />
-              {[4, 9, 14, 28, 33].map((x) => (
-                <path d={LEGEND_HEART} fill="#ff4d4d" key={x} transform={`translate(${x} 16) scale(0.5)`} />
-              ))}
-            </svg>
-            <span>
-              And its fighters, ringed in their side’s colour, attackers coral and defenders sea, with their hearts and
-              armour under the name
-            </span>
-          </li>
+        <p className={cn(EYEBROW, 'mt-2.5 px-1')}>The world</p>
+        <ul className="mt-1 grid grid-cols-2 gap-x-2">
+          <LegendRow
+            label="Another nation’s towns, in its colour"
+            sample={
+              <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
+                <rect fill={NATION_SAMPLE.line} fillOpacity={0.12} height={12} stroke={NATION_SAMPLE.line} strokeWidth={1} width={19} x={3} y={2} />
+                <rect fill={OTHER_SAMPLE.line} fillOpacity={0.12} height={12} stroke={OTHER_SAMPLE.line} strokeWidth={1} width={19} x={26} y={2} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="A town of no nation"
+            sample={
+              <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
+                <rect fill={NO_NATION.line} fillOpacity={0.08} height={12} stroke={NO_NATION.line} strokeDasharray="3 2" strokeWidth={1} width={40} x={4} y={2} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="A capital, and a town"
+            sample={
+              <svg aria-hidden="true" className="h-4 w-12 shrink-0" viewBox="0 0 48 16">
+                <circle cx={14} cy={8} fill={GROUND.whitewash} r={5.5} stroke={NATION_SAMPLE.line} strokeWidth={1.25} />
+                <circle cx={14} cy={8} fill={NATION_SAMPLE.line} r={3} />
+                <circle cx={34} cy={8} fill={NATION_SAMPLE.line} r={2.75} stroke={GROUND.whitewash} strokeWidth={1} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="Rimmed in the holding nation’s colour."
+            label="A site another nation holds"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <SiteMark facts={{ kind: 'quarry', resource: 'Iron' }} ring={NATION_SAMPLE.line} scale={0.7} x={24} y={10} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="The server’s own: nobody holds it, and it’s no town’s."
+            label="A trading outpost"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <rect
+                  fill={SERVER_INKS.trading.edge}
+                  fillOpacity={0.06}
+                  height={14}
+                  stroke={SERVER_INKS.trading.edge}
+                  strokeDasharray="0.5 3.5"
+                  strokeLinecap="round"
+                  strokeWidth={1.75}
+                  width={40}
+                  x={4}
+                  y={3}
+                />
+                <TradingMark kind="trading" scale={0.75} x={24} y={10} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="One of the server’s landmarks"
+            sample={
+              <svg aria-hidden="true" className={SAMPLE} viewBox="0 0 48 20">
+                <TradingMark kind="landmark" scale={0.7} x={24} y={10} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="At the siege’s banner: crossed swords while a battle is on, a flame while it’s quiet."
+            label="A siege: a battle on, and quiet"
+            sample={
+              <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+                <SiegeMarkGlyph battle breathe={false} scale={0.8} side={null} x={13} y={12} />
+                <SiegeMarkGlyph battle={false} breathe={false} scale={0.8} side={null} x={35} y={12} />
+              </svg>
+            }
+          />
+          <LegendRow
+            label="A siege Azania is in, ringed"
+            sample={
+              <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+                <SiegeMarkGlyph battle breathe={false} scale={0.7} side="defending" x={24} y={12} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint={`How far from its capital a nation may besiege: ${reach} blocks. Shown with Diplomacy on, and in the war view.`}
+            label={`A nation’s reach: ${reach} blocks`}
+            sample={
+              <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+                <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.whitewash} strokeOpacity={0.7} strokeWidth={4} />
+                <path d="M2 22A30 30 0 0 1 46 22" fill="none" stroke={GROUND.sea800} strokeDasharray="5 3" strokeWidth={2} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="To scale, in the war view: the banner zone, where five minutes takes the banner, within the siege zone, where a death costs a hundred points."
+            label="A siege’s zones, in the war view"
+            sample={
+              <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+                <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.06} r={11} stroke={GROUND.coralDeep} strokeDasharray="4 3" strokeWidth={1.5} />
+                <circle cx={24} cy={12} fill={GROUND.coral} fillOpacity={0.2} r={3.5} stroke={GROUND.coralDeep} strokeWidth={1.5} />
+              </svg>
+            }
+          />
+          <LegendRow
+            hint="In the war view, each fighter is ringed in their side’s colour, attackers coral and defenders sea, with their hearts and armour under the name."
+            label="Its fighters: attackers coral, defenders sea"
+            sample={
+              <svg aria-hidden="true" className="h-6 w-12 shrink-0" viewBox="0 0 48 24">
+                <rect fill={GROUND.sea500} height={10} rx={1} stroke={GROUND.coral} strokeWidth={2} width={10} x={7} y={1} />
+                <rect fill="#701e14" height={8} rx={1} width={20} x={2} y={14} />
+                <rect fill={GROUND.inkSoft} height={10} rx={1} stroke={GROUND.sea500} strokeWidth={2} width={10} x={31} y={1} />
+                <rect fill="#103658" height={8} rx={1} width={20} x={26} y={14} />
+                {[4, 9, 14, 28, 33].map((x) => (
+                  <path d={LEGEND_HEART} fill="#ff4d4d" key={x} transform={`translate(${x} 16) scale(0.5)`} />
+                ))}
+              </svg>
+            }
+          />
           {globe ? (
-            <li className="flex items-center gap-3 px-1 py-0.5 text-[14px]">
-              <Icon className="mx-3.5 h-5 w-5 shrink-0 text-sea-800" name="globe" />
-              <span>Zoom out past the whole world and the map becomes a globe</span>
-            </li>
+            <LegendRow
+              hint="Zoom out past the whole world and the map becomes a globe."
+              label="Zoomed right out: a globe"
+              sample={<Icon className="mx-3.5 h-5 w-5 shrink-0 text-sea-800" name="globe" />}
+            />
           ) : null}
         </ul>
-        <p className={cn(EYEBROW, 'mt-3 px-1')}>
+        <p className={cn(EYEBROW, 'mt-2.5 px-1')}>
           Diplomacy, when it’s on
           <HintMark
             label="About the diplomacy layer"
             text="Each nation is washed in Azania’s stance toward it; a friend’s or foe’s name wears a pennant, and a siege one is in is ringed in its colour. Set from a nation’s page by Azania’s diplomats."
           />
         </p>
-        <ul className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1">
+        <ul className="mt-1 grid grid-cols-3 gap-x-2">
           {STANCE_ORDER.map((stance) => (
-            <li className="flex items-center gap-1.5 px-1 py-0.5 text-[14px]" key={stance}>
+            <li className="flex items-center gap-1.5 px-1 py-0.5 text-[13px]" key={stance}>
               <StanceSwatch stance={stance} />
               <span className="truncate">{stanceLabel(stance)}</span>
             </li>
