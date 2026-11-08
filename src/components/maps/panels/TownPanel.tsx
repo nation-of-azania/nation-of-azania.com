@@ -6,8 +6,8 @@ import { spoken, townFit, type MapData, type MapTown } from '@/maps/data'
 import type { Article } from '@/payload-types'
 
 import { ComingClippings, ComingText, type Coming } from './coming'
-import { GrowthChart, GrowthChartComing } from './GrowthChart'
-import { AboutActions, AddHere, EventsList, RulerPurse, Survey, TownBank } from './islands'
+import { GrowthChart, GrowthChartComing, Spark } from './GrowthChart'
+import { AboutActions, AddHere, EmptyNote, EventsList, RulerPurse, Survey, TownBank } from './islands'
 import { AwayParts, partsWords } from './parts'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
 import { TownSiege } from './sieges'
@@ -50,6 +50,14 @@ export function TownPanel({
   const more = residents.length - shown.length
   const away = awayOf(town.parts)
   const main = townFit(town)
+  // What the page has nothing of yet, once it's known: one quiet line at the foot, in place of a sentence under each empty section.
+  const missing = [
+    ...(record !== undefined && !record?.about ? (['about'] as const) : []),
+    ...(places.length ? [] : (['places'] as const)),
+    ...(events.length ? [] : (['events'] as const)),
+    ...(articles !== undefined && articles.length === 0 ? (['papers'] as const) : []),
+  ]
+  const empty = (what: (typeof missing)[number]) => missing.includes(what)
 
   return (
     <article className="pb-6">
@@ -88,7 +96,16 @@ export function TownPanel({
           items={[
             {
               label: town.residents === 1 ? 'Resident' : 'Residents',
-              value: `${town.residents}${shown.length ? ` · ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}` : ''}`,
+              // The count with the census's line beside it, where the census has one (the chart below has the dates).
+              value: (
+                <>
+                  <span className="inline-flex items-center gap-2">
+                    {town.residents}
+                    {census && census.length > 1 ? <Spark className="h-4 w-14" measure="residents" values={census.map((point) => point.residents)} /> : null}
+                  </span>
+                  {shown.length ? ` · ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}` : ''}
+                </>
+              ),
             },
             { label: 'Bank', value: <TownBank townyId={town.townyId} /> },
             {
@@ -104,19 +121,16 @@ export function TownPanel({
 
       <AwayParts away={away} from={town.home} town={town.name} />
 
-      <PanelSection
-        action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />}
-        title="About"
-      >
-        {record === undefined ? (
-          // A line in the note's type, as the note that nothing is written yet takes: what most towns have.
-          <ComingText className="text-[15px]" last="88%" lines={1} />
-        ) : record?.about ? (
-          <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
-        ) : (
-          <p className="az-arrive text-[15px] italic text-ink-500">Nothing written yet.</p>
-        )}
-      </PanelSection>
+      {empty('about') ? null : (
+        <PanelSection action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />} title="About">
+          {record === undefined ? (
+            // A line in the note's type, as the quiet line that nothing is written yet takes: what most towns have.
+            <ComingText className="text-[15px]" last="88%" lines={1} />
+          ) : (
+            <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record?.about}</p>
+          )}
+        </PanelSection>
+      )}
 
       <PanelSection hint="The census: the town’s residents and claimed chunks, read from the Rulercraft map once a day." title="Growth">
         {census === undefined ? (
@@ -136,12 +150,8 @@ export function TownPanel({
         )}
       </PanelSection>
 
-      <PanelSection
-        action={<AddHere town={town} />}
-        flush
-        title={`Places${places.length ? ` · ${places.length}` : ''}`}
-      >
-        {places.length ? (
+      {places.length ? (
+        <PanelSection action={<AddHere town={town} />} flush title={`Places · ${places.length}`}>
           <ul className="divide-y divide-sand-300/70">
             {places.map((place) => (
               <li key={place.id}>
@@ -149,27 +159,28 @@ export function TownPanel({
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="px-4 text-[15px] italic text-ink-500">No places drawn yet.</p>
-        )}
-      </PanelSection>
+        </PanelSection>
+      ) : null}
 
-      <PanelSection flush title="Events">
-        <EventsList
-          emptyNote="Nothing on in town just now."
-          ids={events.map((event) => event.id)}
-        />
-      </PanelSection>
+      {events.length ? (
+        <PanelSection flush title="Events">
+          <EventsList emptyNote="Nothing on in town just now." ids={events.map((event) => event.id)} />
+        </PanelSection>
+      ) : null}
 
-      <PanelSection title="In the papers">
-        {articles === undefined ? (
-          <ComingClippings />
-        ) : (
-          <div className="az-arrive">
-            <ArticleLinks articles={articles} emptyNote="Nothing written about the town yet." />
-          </div>
-        )}
-      </PanelSection>
+      {empty('papers') ? null : (
+        <PanelSection title="In the papers">
+          {articles === undefined ? (
+            <ComingClippings />
+          ) : (
+            <div className="az-arrive">
+              <ArticleLinks articles={articles} emptyNote="Nothing written about the town yet." />
+            </div>
+          )}
+        </PanelSection>
+      )}
+
+      <EmptyNote about={record?.about ?? null} missing={missing} town={town} />
     </article>
   )
 }
