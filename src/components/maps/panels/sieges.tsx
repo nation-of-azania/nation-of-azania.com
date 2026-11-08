@@ -4,11 +4,12 @@ import { useMemo } from 'react'
 
 import { homeNationOf, sameNation } from '@/maps/abroad'
 import { spoken } from '@/maps/data'
-import { azaniaSide, bySiegeWeight, siegeHeadline, siegeTitle, type SiegeSide } from '@/maps/sieges'
+import { azaniaSide, bySiegeWeight, progressWords, siegeHeadline, siegeTitle, type SiegeSide } from '@/maps/sieges'
 import type { Siege } from '@/maps/world'
 
 import { useMaps } from '../context'
 import { TextButton } from '../ui/chrome'
+import { Pips } from '../ui/Marks'
 import { SiegeBadge, SiegeFigures } from '../ui/Siege'
 import { PanelSection } from './shared'
 
@@ -88,14 +89,11 @@ function SiegeRow({ siege, side }: { siege: Siege; side: SiegeSide }) {
       <SiegeBadge side={side} siege={siege} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold text-ink-900">{siegeTitle(siege)}</span>
-        <span className="block truncate text-[13px] text-ink-500">
-          {[
-            siege.town ? spoken(siege.town) : null,
-            siege.progress ? `${siege.progress.done} of ${siege.progress.of} fought` : null,
-            siege.battle ? 'a battle on' : 'quiet',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
+        <span className="flex items-center gap-x-1.5 text-[13px] text-ink-500">
+          {siege.town ? <span className="min-w-0 truncate">{spoken(siege.town)} ·</span> : null}
+          {/* The sessions fought as pips, the one on now half-filled, named "1 of 3 battle sessions fought". */}
+          {siege.progress ? <Pips className="shrink-0" current={siege.battle ? siege.progress.done : null} done={siege.progress.done} of={siege.progress.of} words={progressWords(siege) ?? undefined} /> : null}
+          <span className="shrink-0">· {siege.battle ? 'a battle on' : 'quiet'}</span>
         </span>
       </span>
       <TextButton className="shrink-0 px-2.5 py-1" onClick={() => openSiege(siege.townId)}>

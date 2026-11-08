@@ -51,13 +51,10 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
       <dl className="divide-y divide-sand-300/60">
         {progress && siege.progress ? (
           <div className={ROW}>
-            <dt className={LABEL}>Progress</dt>
+            <dt className={LABEL}>Sessions</dt>
             <dd>
-              {/* The pips are the image, named by the words; the words beside them are for the eye. */}
-              <Pips done={siege.progress.done} figure={false} of={siege.progress.of} words={progress} />{' '}
-              <span aria-hidden="true" className="ml-1">
-                {progress}
-              </span>
+              {/* The pips are the image, named by the words ("1 of 3 battle sessions fought"); the one on now half-filled. */}
+              <Pips current={siege.battle ? siege.progress.done : null} done={siege.progress.done} of={siege.progress.of} size="panel" words={progress} />
             </dd>
           </div>
         ) : null}
@@ -65,9 +62,8 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
           <div className={ROW}>
             <dt className={LABEL}>Balance</dt>
             <dd>
-              <span aria-hidden="true">{balance}</span>
-              {/* Each end named in its side's colour, shortened when the two names would run together (sieges.ts → sideTags). */}
-              <CapBalance className="mt-1" ends={sideTags(siege)} names={[spoken(siege.attacker), spoken(siege.defender)]} now={siege.balance ?? 0} size="panel" words={balance} />
+              {/* The tug of war against the cap, the figure after it; each end named in its side's colour, shortened when the two names would run together (sieges.ts → sideTags). */}
+              <CapBalance className="mt-0.5" ends={sideTags(siege)} figure names={[spoken(siege.attacker), spoken(siege.defender)]} now={siege.balance ?? 0} size="panel" words={balance} />
             </dd>
           </div>
         ) : null}
@@ -82,9 +78,15 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
           <dd>
             {timeWords(siege)}
             {points && siege.battle ? (
-              <span className="block text-ink-500">
-                Points this battle: {spoken(siege.attacker)} {points.attacker.toLocaleString('en-GB')},{' '}
-                {spoken(siege.defender)} {points.defender.toLocaleString('en-GB')}
+              /* This battle's points as a score, the attackers' first: the same shape as the war view's. */
+              <span
+                aria-label={`This battle's points: ${spoken(siege.attacker)} ${points.attacker.toLocaleString('en-GB')}, ${spoken(siege.defender)} ${points.defender.toLocaleString('en-GB')}`}
+                className="mt-0.5 flex items-baseline gap-2 font-mono text-[16px] font-semibold tabular-nums"
+                role="img"
+              >
+                <span className="text-(--az-atk)">{points.attacker.toLocaleString('en-GB')}</span>
+                <span className="font-label text-[11px] font-normal uppercase tracking-[0.14em] text-ink-500">atk · def</span>
+                <span className="text-(--az-def)">{points.defender.toLocaleString('en-GB')}</span>
               </span>
             ) : null}
           </dd>

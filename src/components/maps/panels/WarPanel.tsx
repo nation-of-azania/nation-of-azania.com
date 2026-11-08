@@ -27,7 +27,7 @@ import {
 import { spoken } from '@/maps/data'
 import type { Point } from '@/maps/geo'
 import type { LivePlayer } from '@/maps/players'
-import { azaniaSide, bySiegeWeight, siegeHeadline, type SiegeSide } from '@/maps/sieges'
+import { azaniaSide, bySiegeWeight, progressWords, sideTags, siegeHeadline, type SiegeSide } from '@/maps/sieges'
 import { secondsLeftNow, sessionClock } from '@/maps/battle'
 import { allyShare, fighterScore } from '@/maps/fighters'
 import { outlookOf, type BattleOutlook, type Target } from '@/maps/outlook'
@@ -45,6 +45,7 @@ import type { Return } from '@/maps/motion'
 import { Head } from '../ui/Head'
 import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
+import { CapBalance, Pips } from '../ui/Marks'
 import { useCopy } from '../ui/Readouts'
 import { SiegeBadge } from '../ui/Siege'
 import { LOW_HEALTH, Vitals } from '../ui/Vitals'
@@ -332,41 +333,30 @@ function SiegeRow({ entry, onOpen }: { entry: { siege: Siege; side: SiegeSide };
         <SiegeBadge className="mt-0.5 h-7 w-7" side={side} siege={siege} />
         <span className="min-w-0 flex-1">
           <span className={cn('block font-display text-[18px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</span>
-          <span className={cn(SECOND, 'mt-0.5 block truncate')}>
-            {[siege.town ? spoken(siege.town) : null, siege.progress ? `${siege.progress.done} of ${siege.progress.of} fought` : null, siege.battle ? 'a battle on' : 'quiet']
-              .filter(Boolean)
-              .join(' · ')}
+          <span className={cn(SECOND, 'mt-0.5 flex items-center gap-x-1.5')}>
+            {siege.town ? <span className="min-w-0 truncate">{spoken(siege.town)} ·</span> : null}
+            <SessionPips siege={siege} />
+            <span className="shrink-0">· {siege.battle ? 'a battle on' : 'quiet'}</span>
           </span>
           {score ? (
             <span className={cn(FIGURE, 'mt-1 flex items-baseline gap-2 text-[17px] font-semibold')}>
               <span className="text-(--az-atk)">{n(score.attacker)}</span>
               <span className="text-[12px] font-normal uppercase tracking-[0.14em] text-sand-200/70">atk · def</span>
               <span className="text-(--az-def)">{n(score.defender)}</span>
-              {siege.balance !== null ? (
-                <span className="ml-auto text-[13px] font-normal text-sand-200/80">
-                  balance <span className="font-semibold text-sand-50">{signed(siege.balance)}</span>
-                </span>
-              ) : null}
-            </span>
-          ) : siege.balance !== null ? (
-            <span className={cn(FIGURE, 'mt-1 flex flex-wrap items-baseline gap-x-2 text-[13px] text-sand-200/80')}>
-              balance{' '}
-              <span className={cn('text-[17px] font-semibold', siege.balance > 0 ? 'text-(--az-atk)' : siege.balance < 0 ? 'text-(--az-def)' : 'text-sand-50')}>
-                {signed(siege.balance)}
-              </span>
-              {Math.abs(siege.balance) >= RULES.balanceCap ? (
-                <span className="text-sand-100">at the ±{n(RULES.balanceCap)} cap</span>
-              ) : siege.balance ? (
-                <span>for the {siege.balance > 0 ? 'attackers' : 'defenders'}</span>
-              ) : (
-                <span>even</span>
-              )}
             </span>
           ) : null}
+          {/* The siege's balance against the cap, with its figure: the one line that says how the siege stands. */}
+          {siege.balance !== null ? <CapBalance className="mt-1.5" figure names={[sideName(siege, 'attackers'), sideName(siege, 'defenders')]} now={siege.balance} /> : null}
         </span>
       </button>
     </li>
   )
+}
+
+/** The sessions fought as pips, the one on now half-filled: "1 of 3 battle sessions fought", the same wherever a siege is listed. */
+function SessionPips({ siege, size }: { siege: Siege; size?: 'row' | 'panel' }) {
+  if (!siege.progress) return null
+  return <Pips className="shrink-0" current={siege.battle ? siege.progress.done : null} done={siege.progress.done} of={siege.progress.of} size={size} words={progressWords(siege) ?? undefined} />
 }
 
 /**
@@ -527,10 +517,15 @@ function SiegeView({
         <SiegeBadge className="mt-0.5 h-8 w-8" side={side} siege={siege} />
         <div className="min-w-0 flex-1">
           <h2 className={cn('font-display text-[20px] leading-tight', side ? 'text-saffron-300' : 'text-sand-50')}>{siegeHeadline(siege, side)}</h2>
-          <p className={cn(SECOND, 'mt-0.5')}>
+          <p className={cn(SECOND, 'mt-0.5 flex flex-wrap items-center gap-x-1.5')}>
             <span className={cn('font-semibold', siege.battle ? 'text-coral-400' : null)}>{siege.battle ? 'A battle on' : 'Quiet'}</span>
-            {siege.town ? ` · ${spoken(siege.town)}` : ''}
-            {siege.progress ? ` · ${siege.progress.done} of ${siege.progress.of} fought` : ''}
+            {siege.town ? <span>· {spoken(siege.town)}</span> : null}
+            {siege.progress ? (
+              <>
+                <span>·</span>
+                <SessionPips siege={siege} />
+              </>
+            ) : null}
           </p>
           {/* The two sides, each a button to its nation. */}
           <ul className="mt-1.5 flex flex-wrap gap-1.5">
@@ -552,9 +547,9 @@ function SiegeView({
         <div className="mx-4 mt-3 border border-sand-50/10 px-3 py-2 text-[15px] leading-snug text-sand-200/85">
           {siege.battle ? 'The battle’s first reading is on its way.' : 'No battle on just now: the score waits for the next session.'}
           {siege.balance !== null ? (
-            <span className="mt-1 block">
-              Balance <span className={cn(FIGURE, 'font-semibold text-sand-50')}>{signed(siege.balance)}</span>
-              {siege.balance ? ` for the ${siege.balance > 0 ? 'attackers' : 'defenders'}` : ', even'}.
+            <span className="mt-2 flex items-start gap-x-3">
+              <span className={cn(EYEBROW, 'pt-0.5')}>Balance</span>
+              <CapBalance className="min-w-0 flex-1" ends={sideTags(siege)} figure names={[sideName(siege, 'attackers'), sideName(siege, 'defenders')]} now={siege.balance} size="panel" />
             </span>
           ) : null}
           {/* Between sessions the story and the sessions ahead are what there is to read: open. */}
