@@ -191,6 +191,43 @@ export function sessionsAfter(now: number, count: number): number[] {
   return starts
 }
 
+/** How many battle sessions start from `from` to `to`, both included: counted no further than `most + 1`, all a caller needs. */
+export function sessionsStarted(from: number, to: number, most: number): number {
+  let count = 0
+  let at = from
+  while (count <= most) {
+    const clock = sessionClock(at)
+    if (clock.start > to) break
+    if (clock.start >= from) count++
+    at = clock.end + 1000
+  }
+  return count
+}
+
+/**
+ * Which of a town's tracked sessions by the same attacker are this siege's.
+ * A nation can besiege a town again (South_America_Quarry: Sul America's
+ * siege of 1 November, then its siege of 7 November), and the one before's
+ * sessions are no part of this one's story. A siege's sessions follow one
+ * another, and the tracker saved with each how many the siege had fought
+ * before it (`session`, the marker's progress); so a session is this
+ * siege's when no more sessions have started since it than the siege has
+ * fought since, by its marker now: one more for the session on now or just
+ * over, which the marker counts only once it's done. One of an earlier
+ * siege fails it by the whole of that siege's sessions after it and this
+ * one's before now. Without the marker's progress, all are kept.
+ */
+export function ofThisSiege<T extends { startedAt: string; session: number | null }>(battles: T[], siege: Pick<Siege, 'progress'>, now: number): T[] {
+  if (!siege.progress || !now) return battles
+  const done = siege.progress.done
+  return battles.filter((battle) => {
+    const start = Date.parse(battle.startedAt)
+    if (!Number.isFinite(start)) return false
+    const since = done - (battle.session ?? 0) + 1
+    return since >= 1 && sessionsStarted(start, now, since) <= since
+  })
+}
+
 /** Each fighter more than the other side brings is worth about this to the balance in a session: a holder for the hour, less the capture. */
 export const POINTS_PER_EXTRA_FIGHTER = PER_CHECK * (SESSION_CHECKS - CAPTURE_CHECKS)
 

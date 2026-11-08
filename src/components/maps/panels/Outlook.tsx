@@ -192,7 +192,9 @@ export function OutlookDetails(props: OutlookProps) {
   // session's chart off from its first minute rather than from when the view was opened.
   const clock = sessionClock(now)
   const sessionStart = siege.battle && clock.on ? clock.start : null
-  const { finished: past, current } = useMemo(() => splitSessions(sessionsOf(battles, siege), sessionStart), [battles, siege, sessionStart])
+  // Asked again each minute: which sessions are this siege's changes only as sessions start.
+  const minute = Math.floor(now / 60_000) * 60_000
+  const { finished: past, current } = useMemo(() => splitSessions(sessionsOf(battles, siege, minute), sessionStart), [battles, siege, minute, sessionStart])
   // The sessions still to come, after the one on now: their starts, and who of each side usually turns up at them.
   // A session on now counts for the siege whether or not anyone fights it (seen: South_America_Quarry's went from 1/3 to
   // 2/3 with nobody there and no battle on its marker), so it isn't one still to come.
@@ -454,7 +456,8 @@ function SiegeStory({
     const margin = result ? result.attacker - result.defender : null
     if (margin !== null) balance = capped(balance + margin)
     const start = Date.parse(battle.startedAt)
-    rows.push({ key: battle.startedAt, label: `Session ${index + 1}`, when: `${dayOf(start)} ${timeOf(start)}`, margin, balance: margin === null ? null : balance, kind: 'past' })
+    // Numbered by the marker's count where the tracker saved it: a session nobody came to is one, though nothing was tracked.
+    rows.push({ key: battle.startedAt, label: `Session ${(battle.session ?? index) + 1}`, when: `${dayOf(start)} ${timeOf(start)}`, margin, balance: margin === null ? null : balance, kind: 'past' })
   })
   // The sessions fought so far, by the marker or the tracker, whichever saw more; the marker's balance is where the siege stands.
   const fought = Math.max(siege.progress?.done ?? 0, past.length)

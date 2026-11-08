@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react'
 
+import { ofThisSiege } from '@/maps/outlook'
+import type { Siege } from '@/maps/world'
+
 import { createStore, useStore } from './hooks'
 
 /**
@@ -18,8 +21,8 @@ export type TrackedBattle = {
   attacker: string | null
   defender: string | null
   startedAt: string
-  /** The sessions the siege had fought before this one. */
-  session: number
+  /** The sessions the siege had fought before this one; null when its marker didn't say. */
+  session: number | null
   coverage: number | null
   fought: number | null
   /** The marker's last word: the points the balance moved by; null when the tracker didn't see the end. */
@@ -78,11 +81,14 @@ export function useBattles(wanted = true): BattlesState {
   return useStore(store)
 }
 
-/** A siege's sessions among the battles, in order: those of the same town by the same attacker. */
-export function sessionsOf(state: BattlesState, siege: { townId: string; attacker: string }): TrackedBattle[] {
-  return state.battles
-    .filter((battle) => battle.townId === siege.townId && (battle.attacker ?? '').toLowerCase() === siege.attacker.toLowerCase())
-    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+/**
+ * A siege's sessions among the battles, in order: those of the same town by
+ * the same attacker, and of this siege, not an earlier one by the same
+ * nation (src/maps/outlook.ts → ofThisSiege), as of `now`.
+ */
+export function sessionsOf(state: BattlesState, siege: Pick<Siege, 'townId' | 'attacker' | 'progress'>, now: number): TrackedBattle[] {
+  const same = state.battles.filter((battle) => battle.townId === siege.townId && (battle.attacker ?? '').toLowerCase() === siege.attacker.toLowerCase())
+  return ofThisSiege(same, siege, now).sort((a, b) => a.startedAt.localeCompare(b.startedAt))
 }
 
 /**

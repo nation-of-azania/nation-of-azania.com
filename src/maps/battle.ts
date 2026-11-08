@@ -614,14 +614,18 @@ export function returnEstimate(
   return { seconds: Math.round(direct / SPRINT_BLOCKS_PER_S), via: 'run', blocks: Math.round(direct) }
 }
 
+/** The server's clock face, made once: sessionClock reads it for every hour it steps through. */
+let serverFormat: Intl.DateTimeFormat | null = null
+
 /** The server's hour and minute at `at`, in its time zone. */
 function serverClock(at: number): { hour: number; minute: number } {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+  serverFormat ??= new Intl.DateTimeFormat('en-GB', {
     timeZone: RULES.serverTimeZone,
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(new Date(at))
+  })
+  const parts = serverFormat.formatToParts(new Date(at))
   const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0)
   return { hour: value('hour'), minute: value('minute') }
 }

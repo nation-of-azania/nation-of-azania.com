@@ -7,7 +7,7 @@
  *   pnpm test:outlook
  */
 import type { BattleReading } from '../src/maps/battle'
-import { POINTS_PER_EXTRA_FIGHTER, forecastSiege, outlookOf, sessionsAfter } from '../src/maps/outlook'
+import { POINTS_PER_EXTRA_FIGHTER, forecastSiege, ofThisSiege, outlookOf, sessionsAfter, sessionsStarted } from '../src/maps/outlook'
 
 let failed = false
 function check(ok: boolean, what: string): void {
@@ -84,6 +84,32 @@ check(capped.sessions.map((session) => session.balance).join() === '7000,7000,20
 check(forecast.known.attackers === 4 && forecast.known.defenders === 4, 'what it rests on')
 const unknown = forecastSiege(1200, starts, { attackers: [{ could: 0, fought: 0, hours: null }], defenders: [] })
 check(unknown.sessions.every((session) => session.favoured === null && session.swing === 0) && unknown.winner === 'attackers' && unknown.lead === null, 'with no hours known, nothing is forecast; the balance stands')
+
+// A siege's own sessions: South_America_Quarry, besieged by Sul America on 1 November (its first session tracked), by the
+// American Syndicate on 3 November once Sul America held it, and by Sul America again from 7 November, as the tracker saved them.
+const quarry1 = { startedAt: '2026-11-01T00:00:00.000Z', session: 0 }
+const quarry3 = [
+  { startedAt: '2026-11-07T18:00:00.000Z', session: 0 },
+  { startedAt: '2026-11-08T00:00:00.000Z', session: 1 },
+]
+const bySul = [quarry1, ...quarry3]
+const second = { progress: { done: 2, of: 3 } }
+const between = Date.parse('2026-11-08T01:22:00Z')
+check(sessionsStarted(Date.parse('2026-11-07T18:00:00Z'), between, 5) === 2 && sessionsStarted(Date.parse('2026-11-01T00:00:00Z'), between, 5) === 6, 'sessions started since: counted, and no further than asked')
+const starts3 = (list: { startedAt: string }[]) => list.map((one) => one.startedAt).join()
+check(starts3(ofThisSiege(bySul, second, between)) === starts3(quarry3), 'Sul America’s siege of 7 November is two sessions, not three: the 1 November one was another siege (the war view said “Session 4” next)')
+// The third session on now (the marker still says 2 done until it ends), and just after it, before and once the marker counts it.
+const third = { startedAt: '2026-11-08T12:00:00.000Z', session: 2 }
+check(ofThisSiege([...bySul, third], second, Date.parse('2026-11-08T12:30:00Z')).length === 3, 'during the third session: the three of this siege')
+check(ofThisSiege([...bySul, third], second, Date.parse('2026-11-08T13:01:00Z')).length === 3, 'just after it, the marker not yet counting it: still the three')
+check(ofThisSiege([...bySul, third], { progress: { done: 3, of: 3 } }, Date.parse('2026-11-08T13:01:00Z')).length === 3, 'and once it does')
+// A new siege by the same nation, laid before its first session: none of the old one's.
+check(ofThisSiege(bySul, { progress: { done: 0, of: 3 } }, Date.parse('2026-11-09T10:00:00Z')).length === 0, 'a siege just laid again: nothing of the one before')
+// A session nobody came to isn't tracked: the one before it still counts, and a siege's first tracked session can be its second.
+const skipped = [{ startedAt: '2026-11-03T00:00:00.000Z', session: 0 }, { startedAt: '2026-11-03T18:00:00.000Z', session: 2 }]
+check(ofThisSiege(skipped, { progress: { done: 2, of: 3 } }, Date.parse('2026-11-03T18:40:00Z')).length === 2, 'a session untracked between two: both kept')
+check(ofThisSiege([quarry1, { startedAt: '2026-11-08T00:00:00.000Z', session: 1 }], second, between).length === 1, 'an old siege’s first session before a new one’s first tracked (its second): only the new one’s')
+check(ofThisSiege(bySul, { progress: null }, between).length === 3, 'without the marker’s progress, all kept')
 
 if (failed) {
   console.error('\nSome checks failed.')
