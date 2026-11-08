@@ -843,10 +843,16 @@ carries what's already drawn into place until the fresh render lands.
   frame loop, so nothing else on the map is redrawn for a poll) that
   **glides** from one reading to the next rather than jumping: at a
   steady pace over the feed's own beat, so a walk reads as a walk, each
-  reading setting off from wherever the head has got to; it jumps only
-  for a teleport, and while the window is out of sight (behind the game,
-  or minimised), where the browser gives no animation frames, each head
-  stands at its reading instead and glides again once the page is seen. Azania's residents, matched against the towns'
+  reading setting off from wherever the head has got to. It glides only
+  where a player could have gone: a jump no one runs or flies (a teleport,
+  a respawn, `src/maps/motion.ts` → `jumpedBetween`) fades the head out
+  where it was and in where it is, a death (a reading at no health) sinks
+  it away where they fell until the respawn brings it up again, and a head
+  arriving or leaving the feed fades in or out, each a few hundred
+  milliseconds. With reduced motion, and while the window is out of sight
+  (behind the game, or minimised), where the browser gives no animation
+  frames, each head stands at its reading instead, and glides again once
+  the page is seen. Azania's residents, matched against the towns'
   resident lists, are ringed in saffron. Two heads that overlap stack by
   where the players stand, the southern one in front, and keep that order
   through a zoom. Every head is the player's
@@ -906,7 +912,9 @@ carries what's already drawn into place until the fresh render lands.
   it, and, past the ±7,000 cap, whose points count for nothing. A fold
   beneath (open by itself between sessions) holds the session's points as
   they went and will go (both sides, who held the banner along the foot,
-  the projection dashed), what each side needs for the session and for the
+  the projection dashed, and a ring on a side's line where it stepped up
+  by kills rather than climbed by the banner, kills close together one
+  ring with their number: `src/maps/course.ts`), what each side needs for the session and for the
   siege, the siege's story session by session (`GET /maps/battles`, the
   tracker's last fortnight: each session's result and the balance after it,
   within the cap; the one on now as projected), and the **sessions ahead**:
