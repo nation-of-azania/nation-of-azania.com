@@ -10,7 +10,8 @@ import type { WorldStats } from '@/maps/worldStats'
  * founded that month, in the growth charts' frame (./GrowthChart.tsx),
  * with the month under the pointer written above. Towns that have since
  * fallen aren't in it, so it isn't a history of the server, and the copy
- * beside it says so.
+ * beside it says so. Drawn in the tokens' classes, so it holds in the
+ * dark appearance.
  */
 
 const FRAME = { width: 320, height: 96, pad: { left: 8, right: 34, top: 10, bottom: 18 } }
@@ -70,8 +71,7 @@ export function FoundedChart({ months, className }: { months: WorldStats['founde
         {months.map((month, index) =>
           month.towns > 0 ? (
             <rect
-              className={cn('transition-opacity duration-150 motion-reduce:transition-none', hover != null && hover !== index ? 'opacity-50' : 'opacity-100')}
-              fill="#2c6b93"
+              className={cn('fill-sea-500 transition-opacity duration-150 motion-reduce:transition-none', hover != null && hover !== index ? 'opacity-50' : 'opacity-100')}
               height={height - pad.bottom - y(month.towns)}
               key={month.month}
               width={bar}

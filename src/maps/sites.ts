@@ -158,10 +158,11 @@ function takenWords(note: string | null): string | null {
  * A site's terms, said kindly, from what the reading kept: what it is and
  * what it pays, what else it gives, and how it is taken. One sentence a
  * line, for a panel or a plate; the map's own words stay in `note` for
- * anyone who wants them exactly.
+ * anyone who wants them exactly. A panel whose head says the pay already
+ * asks for the terms without it (`pays: false`), so it's said once.
  */
-export function siteTerms(facts: SiteFacts): string[] {
-  const pays = incomeWords(facts.income)
+export function siteTerms(facts: SiteFacts, { pays: withPay = true }: { pays?: boolean } = {}): string[] {
+  const pays = withPay ? incomeWords(facts.income) : null
   const paid = pays ? `whoever holds it is paid ${pays}` : null
   const lines: string[] = []
   switch (facts.kind) {

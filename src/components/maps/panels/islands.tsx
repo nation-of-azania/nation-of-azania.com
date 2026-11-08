@@ -20,7 +20,7 @@ import { useMaps } from '../context'
 import { useHydrated } from '../hooks'
 import { emptyEvent, emptyPlace, emptyRoad } from '../state'
 import { Notice, TextButton } from '../ui/chrome'
-import { HintMark } from '../ui/Hint'
+import { Hint, HintMark } from '../ui/Hint'
 import { Icon } from '../ui/icons'
 import { privateSpawnNote, useCopy } from '../ui/Readouts'
 import { EventRow } from '../ui/WhatsOn'
@@ -251,12 +251,14 @@ export function Survey({
           </button>
           {route.then ? <span className="text-ink-500">{route.then}</span> : null}
           {hint ? <HintMark label="About the way there" text={hint} /> : null}
+          {/* A private spawn: a lock and the word, the whole of it as the hint and for a screen reader, not a sentence under every card. */}
           {closed ? (
-            <span className="basis-full text-[12px] italic leading-snug text-ink-500">
-              {town
-                ? `Its spawn is private: only ${spoken(town.name)}’s residents can use it.`
-                : privateSpawnNote(route.town)}
-            </span>
+            <Hint text={town ? `Its spawn is private: only ${spoken(town.name)}’s residents can use it.` : privateSpawnNote(route.town)}>
+              <span className="inline-flex items-center gap-1 text-[12px] italic text-ink-500" tabIndex={0}>
+                <Icon className="h-3 w-3" name="lock" />
+                private
+              </span>
+            </Hint>
           ) : null}
         </p>
       ) : null}
@@ -365,6 +367,40 @@ export function AboutActions({ town, about }: { town: MapTown; about: string | n
       <Icon className="h-3.5 w-3.5" name="pencil" />{' '}
       {about ? 'Edit the description' : 'Write a description'}
     </TextButton>
+  )
+}
+
+/**
+ * What a town's page has nothing of yet, in one quiet line instead of a
+ * sentence under each empty section: "no description, no places drawn,
+ * nothing on, nothing in the papers". For those who may write and draw in
+ * the town, the ways in sit beside it, since the empty sections that held
+ * them aren't drawn.
+ */
+export function EmptyNote({ town, missing, about }: { town: MapTown; missing: ('about' | 'places' | 'events' | 'papers')[]; about: string | null }) {
+  const { mayEdit } = useMaps()
+  if (!missing.length) return null
+  const words: Record<(typeof missing)[number], string> = {
+    about: 'no description',
+    places: 'no places drawn',
+    events: 'nothing on',
+    papers: 'nothing in the papers',
+  }
+  const said = missing.map((what) => words[what])
+  const line = said.length === 1 ? said[0] : `${said.slice(0, -1).join(', ')} and ${said[said.length - 1]}`
+  const editor = mayEdit(town.id)
+  return (
+    <section className="mt-5 border-t border-sand-300 px-4 pt-3">
+      <p className="az-arrive text-[14px] italic leading-relaxed text-ink-500">
+        Nothing here yet: {line}.
+      </p>
+      {editor ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {missing.includes('about') ? <AboutActions about={about} town={town} /> : null}
+          {missing.includes('places') || missing.includes('events') ? <AddHere town={town} /> : null}
+        </div>
+      ) : null}
+    </section>
   )
 }
 

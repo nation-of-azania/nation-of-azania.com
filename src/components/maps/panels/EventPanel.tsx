@@ -2,7 +2,6 @@ import Link from 'next/link'
 
 import { articleHref } from '@/components/site/format'
 import type { MapData, MapEvent } from '@/maps/data'
-import { placeHref } from '@/maps/url'
 import type { Article } from '@/payload-types'
 
 import { HintMark } from '../ui/Hint'
@@ -66,23 +65,10 @@ export function EventPanel({
       </PanelHead>
 
       <div className="mt-4 px-4">
+        {/* Where it is: the place's own row below says it, with its pin and kind; here only when there's no place. */}
         <Facts
           items={[
-            {
-              label: 'Where',
-              value: place ? (
-                <Link
-                  className="text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900"
-                  href={placeHref(place.id)}
-                >
-                  {place.name}
-                </Link>
-              ) : town ? (
-                <TownLink town={town} />
-              ) : (
-                'A point on the map'
-              ),
-            },
+            ...(place ? [] : [{ label: 'Where', value: town ? <TownLink town={town} /> : 'A point on the map' }]),
             { label: 'Host', value: event.host ?? 'Not named' },
           ]}
         />

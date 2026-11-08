@@ -4,8 +4,9 @@ import { incomeWords, resourceWords, siteTerms, siteTitle, type SiteFacts } from
 import type { Article } from '@/payload-types'
 
 import { SiteBadge } from '../layers/SiteMark'
+import { Icon } from '../ui/icons'
 import { ComingClippings, ComingText, type Coming } from './coming'
-import { AboutActions, AddHere, EventsList, Survey } from './islands'
+import { AboutActions, AddHere, EmptyNote, EventsList, Survey } from './islands'
 import { AwayParts, partsWords } from './parts'
 import { ArticleLinks, Facts, PanelHead, PanelSection, PlaceRow } from './shared'
 import { TownSiege } from './sieges'
@@ -42,7 +43,16 @@ export function SitePanel({
   const title = siteTitle(facts)
   const pays = incomeWords(facts.income)
   const produces = facts.kind === 'quarry' ? resourceWords(facts.resource) : null
-  const terms = siteTerms(facts)
+  // The head says what it pays; the terms needn't again.
+  const terms = siteTerms(facts, { pays: false })
+  // What the page has nothing of yet, once it's known: one quiet line at the foot.
+  const missing = [
+    ...(record !== undefined && !record?.about ? (['about'] as const) : []),
+    ...(places.length ? [] : (['places'] as const)),
+    ...(events.length ? [] : (['events'] as const)),
+    ...(articles !== undefined && articles.length === 0 ? (['papers'] as const) : []),
+  ]
+  const empty = (what: (typeof missing)[number]) => missing.includes(what)
 
   return (
     <article className="pb-6">
@@ -111,36 +121,34 @@ export function SitePanel({
             <p key={line}>{line}</p>
           ))}
         </div>
+        {/* The map's own words, exactly, folded: the terms above say the same more kindly. */}
         {facts.note ? (
-          <p className="mt-3 text-[13px] italic leading-relaxed text-ink-500">
-            As the map puts it: “{facts.note}”
-          </p>
+          <details className="group mt-2 text-[13px]">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-sea-700 underline decoration-dotted underline-offset-2 hover:text-sea-900 focus-visible:outline-saffron-500 [&::-webkit-details-marker]:hidden">
+              As the map puts it
+              <Icon className="h-3 w-3 transition-transform group-open:rotate-180 motion-reduce:transition-none" name="chevron" />
+            </summary>
+            <p className="mt-1.5 italic leading-relaxed text-ink-500">“{facts.note}”</p>
+          </details>
         ) : null}
       </PanelSection>
 
       <AwayParts away={away} from={town.home} of="site" town={town.name} />
 
       {/* Staff and cartographers may write a few lines: how it was taken, what's built there. */}
-      <PanelSection
-        action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />}
-        title="About"
-      >
-        {record === undefined ? (
-          // Two lines in the note's type, as the note that nothing is written yet takes: what most sites have.
-          <ComingText className="text-[15px]" lines={2} />
-        ) : record?.about ? (
-          <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record.about}</p>
-        ) : (
-          <p className="az-arrive text-[15px] italic text-ink-500">Nothing written yet.</p>
-        )}
-      </PanelSection>
+      {empty('about') ? null : (
+        <PanelSection action={record === undefined ? null : <AboutActions about={record?.about ?? null} town={town} />} title="About">
+          {record === undefined ? (
+            // Two lines in the note's type, as most sites' few lines take.
+            <ComingText className="text-[15px]" lines={2} />
+          ) : (
+            <p className="az-arrive whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{record?.about}</p>
+          )}
+        </PanelSection>
+      )}
 
-      <PanelSection
-        action={<AddHere town={town} />}
-        flush
-        title={`Places${places.length ? ` · ${places.length}` : ''}`}
-      >
-        {places.length ? (
+      {places.length ? (
+        <PanelSection action={<AddHere town={town} />} flush title={`Places · ${places.length}`}>
           <ul className="divide-y divide-sand-300/70">
             {places.map((place) => (
               <li key={place.id}>
@@ -148,27 +156,28 @@ export function SitePanel({
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="px-4 text-[15px] italic text-ink-500">No places drawn yet.</p>
-        )}
-      </PanelSection>
+        </PanelSection>
+      ) : null}
 
-      <PanelSection flush title="Events">
-        <EventsList
-          emptyNote="Nothing on at the site just now."
-          ids={events.map((event) => event.id)}
-        />
-      </PanelSection>
+      {events.length ? (
+        <PanelSection flush title="Events">
+          <EventsList emptyNote="Nothing on at the site just now." ids={events.map((event) => event.id)} />
+        </PanelSection>
+      ) : null}
 
-      <PanelSection title="In the papers">
-        {articles === undefined ? (
-          <ComingClippings />
-        ) : (
-          <div className="az-arrive">
-            <ArticleLinks articles={articles} emptyNote="Nothing written about the site yet." />
-          </div>
-        )}
-      </PanelSection>
+      {empty('papers') ? null : (
+        <PanelSection title="In the papers">
+          {articles === undefined ? (
+            <ComingClippings />
+          ) : (
+            <div className="az-arrive">
+              <ArticleLinks articles={articles} emptyNote="Nothing written about the site yet." />
+            </div>
+          )}
+        </PanelSection>
+      )}
+
+      <EmptyNote about={record?.about ?? null} missing={missing} town={town} />
     </article>
   )
 }

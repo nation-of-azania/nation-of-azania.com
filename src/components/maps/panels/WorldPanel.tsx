@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { homeNationOf } from '@/maps/abroad'
 import type { ContinentId } from '@/maps/continents'
 import { spoken } from '@/maps/data'
+import { ordinal } from '@/maps/marks'
 import { abroadHref, nationHref, townHref } from '@/maps/url'
 import type { ContinentStats, NationRow, TownRow, WorldStats } from '@/maps/worldStats'
 
@@ -15,6 +16,7 @@ import { useAppearance, useStore } from '../hooks'
 import { Notice } from '../ui/chrome'
 import { Hint } from '../ui/Hint'
 import { Icon } from '../ui/icons'
+import { Meter, RankStrip } from '../ui/Marks'
 import { Swatch } from '../ui/Swatch'
 import { BeliefsSection } from './BeliefsChart'
 import { ComingText, ComingWords } from './coming'
@@ -43,11 +45,6 @@ const ROW = 'group flex items-center gap-3 px-4 py-2 transition-colors hover:bg-
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString('en-GB')} ${count === 1 ? one : many}`
 const people = (count: number) => (count === 1 ? '1 person' : `${count.toLocaleString('en-GB')} people`)
 const percent = (share: number) => (share <= 0 ? '0%' : share < 0.01 ? '<1%' : `${Math.round(share * 100)}%`)
-const ordinal = (n: number) => {
-  const rest = n % 100
-  const suffix = rest >= 11 && rest <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'
-  return `${n}${suffix}`
-}
 /** "3 Nov 2026", from a day as Towny's dates are read (YYYY-MM-DD). */
 const dayWords = (day: string | null) =>
   day ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`)) : 'a day not recorded'
@@ -152,13 +149,12 @@ export function WorldPanel() {
     <article className="pb-6">
       <PanelHead
         eyebrow="Rulercraft · the whole server"
-        hint="From Towny, as the Rulercraft map has it, read every quarter of an hour and worked out here in your browser; nothing of it is kept. People are the residents of players’ towns: the bots at the server’s sites aren’t counted."
+        hint="Towny’s figures from the Rulercraft map, read every quarter of an hour and worked out in your browser; nothing is kept. People are players’ towns’ residents: the sites’ bots aren’t counted."
         title="The world in numbers"
       >
         {stats ? (
-          <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
-            {plural(stats.totals.towns, 'town')}, {people(stats.totals.residents)} and {plural(stats.totals.nations, 'nation')}, as the Rulercraft map had
-            them at {timeWords(stats.at)}.{worldStatus === 'saved' ? ' The map isn’t answering just now: this is the world as last saved.' : ''}
+          <p className="mt-2 text-[13px] text-ink-500">
+            As the Rulercraft map had it at {timeWords(stats.at)}.{worldStatus === 'saved' ? ' The map isn’t answering just now: this is the world as last saved.' : ''}
           </p>
         ) : null}
         {lazy ? (
@@ -282,34 +278,58 @@ function ComingWorld() {
   )
 }
 
-/** Azania's standing among the nations, under the totals: for the diplomats first of all. */
+/** The small head over a column of marks: what the column is, and the scale it's on. */
+const COLUMN = 'font-label text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500'
+
+/**
+ * Azania's standing among the nations, under the totals: for the diplomats
+ * first of all. One headline, its place on its own continent; then each
+ * measure's rank on the one scale of all the nations, and its share of
+ * the world, as marks with the figure beside (ui/Marks.tsx). The ranking
+ * below says the world's ranks again only as a list; the continents say
+ * each continent's largest nation only when opened.
+ */
 function Standing({ stats }: { stats: WorldStats }) {
   const { home } = stats
   if (!home) return null
   const { nation, of, share } = home
   const capitalContinent = nation.capital ? stats.continents.find((continent) => continent.id === nation.capital!.continent) : null
   const leader = capitalContinent?.nations[0]
+  const placeOnContinent = capitalContinent ? capitalContinent.nations.findIndex((one) => one.name === nation.name) + 1 : 0
   const elsewhere = nation.continents.filter((where) => where.id !== nation.capital?.continent)
+  const headline = capitalContinent
+    ? leader?.name === nation.name
+      ? `The largest nation in ${capitalContinent.name}, of ${capitalContinent.nations.length}`
+      : `${ordinal(placeOnContinent)} of ${capitalContinent.nations.length} nations in ${capitalContinent.name}, where ${spoken(leader?.name ?? '')} is the largest`
+    : `${ordinal(nation.rank.residents)} of ${of} nations by people`
+  const rows: { key: Measure; label: string; noun: string; rank: number; value: number; whole: number; share: number }[] = [
+    { key: 'residents', label: 'People', noun: 'people', rank: nation.rank.residents, value: nation.residents, whole: stats.totals.residents, share: share.residents },
+    { key: 'towns', label: 'Towns', noun: 'towns', rank: nation.rank.towns, value: nation.towns, whole: stats.totals.towns, share: share.towns },
+    { key: 'chunks', label: 'Chunks', noun: 'chunks claimed', rank: nation.rank.chunks, value: nation.chunks, whole: stats.totals.chunks, share: share.chunks },
+  ]
   return (
     <section className="mx-4 mt-4 border border-l-4 border-sand-300 border-l-saffron-400 bg-sand-100/60 px-3 py-3">
       <p className={EYEBROW}>Where Azania stands</p>
-      <p className="mt-1 font-display text-xl leading-tight text-sea-950">
-        {ordinal(nation.rank.residents)} of {of} nations by people
-      </p>
-      <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
-        {ordinal(nation.rank.towns)} by towns, {ordinal(nation.rank.chunks)} by chunks claimed. {people(nation.residents)} in {plural(nation.towns, 'town')}:{' '}
-        {percent(share.residents)} of the world’s people and {percent(share.towns)} of its towns.
-        {capitalContinent
-          ? leader?.name === nation.name
-            ? ` Its capital is in ${capitalContinent.name}, where it is the largest nation of ${capitalContinent.nations.length}.`
-            : ` Its capital is in ${capitalContinent.name}, where ${spoken(leader?.name ?? '')} is the largest nation and Azania ${ordinal(
-                capitalContinent.nations.findIndex((one) => one.name === nation.name) + 1,
-              )} of ${capitalContinent.nations.length}.`
-          : ''}
-        {elsewhere.length
-          ? ` It has towns in ${elsewhere.map((where) => `${stats.continents.find((c) => c.id === where.id)?.name ?? where.id} (${where.towns})`).join(' and ')} as well.`
-          : ''}
-      </p>
+      <p className="mt-1 font-display text-xl leading-tight text-sea-950">{headline}</p>
+      <div className="mt-2.5 grid grid-cols-[3.25rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem] items-center gap-x-2 gap-y-1.5">
+        <span />
+        <span className={cn(COLUMN, 'col-span-2')}>Rank of {of} nations</span>
+        <span className={cn(COLUMN, 'col-span-2')}>Of the world</span>
+        {rows.map((row) => (
+          <Fragment key={row.key}>
+            <span className="text-[13px] font-semibold text-ink-900">{row.label}</span>
+            <RankStrip figure={false} of={of} rank={row.rank} words={`${ordinal(row.rank)} of ${of} nations by ${row.noun}`} />
+            <span className="font-mono text-[13px] font-semibold text-ink-900 tabular-nums">{ordinal(row.rank)}</span>
+            <Meter figure={false} of={row.whole} value={row.value} words={`${row.value.toLocaleString('en-GB')} of the world’s ${row.whole.toLocaleString('en-GB')} ${row.noun}: ${percent(row.share)}`} />
+            <span className="font-mono text-[13px] font-semibold text-ink-900 tabular-nums">{percent(row.share)}</span>
+          </Fragment>
+        ))}
+      </div>
+      {elsewhere.length ? (
+        <p className="mt-2 text-[13px] text-ink-500">
+          Towns in {elsewhere.map((where) => `${stats.continents.find((c) => c.id === where.id)?.name ?? where.id} (${where.towns})`).join(' and ')} as well.
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -401,7 +421,6 @@ function Continents({
                   </span>
                   <span className="mt-1 block truncate text-[13px] text-ink-500">
                     {plural(continent.towns, 'town')} · {plural(continent.nations.length, 'nation')}
-                    {continent.nations[0] ? `, ${spoken(continent.nations[0].name)} the largest` : ''}
                     {here ? (
                       <>
                         {' · '}
@@ -588,6 +607,8 @@ function Nations({ stats, continentName }: { stats: WorldStats; continentName: M
   )
   const shown = all ? ranked : ranked.slice(0, 10)
   const homeHidden = !all && stats.home && !shown.some((nation) => nation.home) ? stats.home.nation : null
+  // Each row's bar is drawn against the first nation's figure, as the continents' are against the fullest.
+  const most = Math.max(1, ranked[0]?.[measure] ?? 1)
   const row = (nation: NationRow) => (
     <li className={cn(nation.home && 'bg-saffron-100/60')} key={nation.slug}>
       <Link className={ROW} href={nationHref(nation.slug)}>
@@ -598,7 +619,10 @@ function Nations({ stats, continentName }: { stats: WorldStats; continentName: M
             {spoken(nation.name)}
             {nation.home ? <span className={cn(EYEBROW, 'ml-2 align-middle')}>Home</span> : null}
           </span>
-          <span className="block truncate text-[13px] text-ink-500">
+          <span aria-hidden="true" className="mt-1 block h-1 w-full bg-sand-200">
+            <span className={cn('block h-full', nation.home ? 'bg-saffron-500' : 'bg-sea-700')} style={{ width: `${Math.max(1, (nation[measure] / most) * 100)}%` }} />
+          </span>
+          <span className="mt-1 block truncate text-[13px] text-ink-500">
             {MEASURES.filter((one) => one.key !== measure)
               .map((one) => measureWords(nation, one.key))
               .join(' · ')}

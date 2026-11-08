@@ -12,14 +12,17 @@ import { ComingWords, type Coming } from './coming'
  * Growth, as the daily census records it: one measure per chart, the line
  * in one hue with a wash beneath, the latest value as the figure, and the
  * date under the pointer. Residents and claimed chunks are different
- * scales, so they are two charts, never one with two axes.
+ * scales, so they are two charts, never one with two axes. Every colour is
+ * a token's class (the hue as the text colour, drawn in currentColor), so
+ * the dark appearance follows of itself.
  */
 
 type Measure = 'residents' | 'chunks'
 
-const HUES: Record<Measure, { line: string; wash: string }> = {
-  residents: { line: '#2c6b93', wash: 'rgba(44, 107, 147, 0.12)' },
-  chunks: { line: '#b2761a', wash: 'rgba(178, 118, 26, 0.12)' },
+/** Each measure's hue, as a text-colour class the chart draws in: the sea for people, saffron for the ground. */
+const HUES: Record<Measure, string> = {
+  residents: 'text-sea-500',
+  chunks: 'text-saffron-500',
 }
 
 /** The chart's frame, in its own units: the line within the padding, the latest figure in the right margin, the dates beneath. */
@@ -120,7 +123,7 @@ export function GrowthChart({
         <title id={`${id}-title`}>{title}</title>
         {/* Hairline grid: the floor, and one line through the middle. */}
         <line
-          stroke="#ebe2cd"
+          className="stroke-sand-200"
           strokeWidth={1}
           x1={pad.left}
           x2={width - pad.right}
@@ -128,38 +131,40 @@ export function GrowthChart({
           y2={height - pad.bottom}
         />
         <line
-          stroke="#ebe2cd"
+          className="stroke-sand-200"
           strokeWidth={1}
           x1={pad.left}
           x2={width - pad.right}
           y1={y((low + high) / 2)}
           y2={y((low + high) / 2)}
         />
-        {area ? <path d={area} fill={hue.wash} /> : null}
-        {points.length > 1 ? (
-          <path
-            d={line}
-            fill="none"
-            stroke={hue.line}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-        {points.length > 0 ? (
-          <circle
-            cx={x(hover ?? points.length - 1)}
-            cy={y((shown ?? points[points.length - 1])[measure])}
-            fill={hue.line}
-            r={4.5}
-            stroke="#fbf8f1"
-            strokeWidth={2}
-          />
-        ) : null}
+        <g className={hue}>
+          {area ? <path d={area} fill="currentColor" fillOpacity={0.12} /> : null}
+          {points.length > 1 ? (
+            <path
+              d={line}
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+          {points.length > 0 ? (
+            <circle
+              className="stroke-sand-50"
+              cx={x(hover ?? points.length - 1)}
+              cy={y((shown ?? points[points.length - 1])[measure])}
+              fill="currentColor"
+              r={4.5}
+              strokeWidth={2}
+            />
+          ) : null}
+        </g>
         {hover != null ? (
           <line
-            stroke="#555c6a"
+            className="stroke-ink-500"
             strokeDasharray="0"
             strokeOpacity={0.4}
             strokeWidth={1}
@@ -170,8 +175,7 @@ export function GrowthChart({
           />
         ) : null}
         <text
-          className="font-body"
-          fill="#555c6a"
+          className="fill-ink-500 font-body"
           fontSize={10}
           x={width - pad.right + 6}
           y={y(latest) + 3.5}
@@ -180,12 +184,11 @@ export function GrowthChart({
         </text>
         {points.length > 1 ? (
           <>
-            <text className="font-body" fill="#666e7d" fontSize={9} x={pad.left} y={height - 5}>
+            <text className="fill-ink-400 font-body" fontSize={9} x={pad.left} y={height - 5}>
               {dayLabel(points[0].date)}
             </text>
             <text
-              className="font-body"
-              fill="#666e7d"
+              className="fill-ink-400 font-body"
               fontSize={9}
               textAnchor="end"
               x={width - pad.right}
@@ -197,6 +200,26 @@ export function GrowthChart({
         ) : null}
       </svg>
     </figure>
+  )
+}
+
+/**
+ * A word-sized line of a measure's census, beside its count (Tufte's
+ * sparkline): the shape of the last while, no axes, the figure printed
+ * next to it by whoever draws it. Nothing is said in it a screen reader
+ * needs, since the count and the chart carry the words.
+ */
+export function Spark({ values, measure, className }: { values: number[]; measure: Measure; className?: string }) {
+  if (values.length < 2) return null
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const path = values
+    .map((v, i) => `${i === 0 ? 'M' : 'L'}${((i / (values.length - 1)) * 60).toFixed(1)} ${(14 - ((v - min) / (max - min || 1)) * 12 + 1).toFixed(1)}`)
+    .join('')
+  return (
+    <svg aria-hidden="true" className={cn('az-arrive min-w-0', HUES[measure], className)} preserveAspectRatio="none" viewBox="0 0 60 16">
+      <path d={path} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+    </svg>
   )
 }
 
@@ -256,19 +279,7 @@ export function StatTile({
   measure: Measure | null
   hint?: ReactNode
 }) {
-  const hue = measure ? HUES[measure] : null
   const values = measure && points ? points.map((point) => point[measure]) : []
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const path =
-    values.length > 1
-      ? values
-          .map(
-            (v, i) =>
-              `${i === 0 ? 'M' : 'L'}${((i / (values.length - 1)) * 60).toFixed(1)} ${(14 - ((v - min) / (max - min || 1)) * 12 + 1).toFixed(1)}`,
-          )
-          .join('')
-      : ''
   return (
     <div className="border border-sand-300 bg-sand-50 px-3 py-2.5">
       <p className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">
@@ -280,25 +291,10 @@ export function StatTile({
           {value.toLocaleString('en-GB')}
         </p>
         {/* The trend gives way to a long figure, narrowing rather than spilling out of the tile. */}
-        {hue && points === undefined ? (
+        {measure && points === undefined ? (
           <span aria-hidden="true" className="az-coming az-coming-rise h-4 w-16 min-w-0" />
-        ) : hue && path ? (
-          <svg
-            aria-hidden="true"
-            className="az-arrive h-4 w-16 min-w-0"
-            preserveAspectRatio="none"
-            viewBox="0 0 60 16"
-          >
-            <path
-              d={path}
-              fill="none"
-              stroke={hue.line}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+        ) : measure ? (
+          <Spark className="h-4 w-16" measure={measure} values={values} />
         ) : null}
       </div>
     </div>
