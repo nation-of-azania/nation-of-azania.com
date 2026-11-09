@@ -680,7 +680,7 @@ function PlayerCard({
             /* Their record as marks (ui/Fighter.tsx → RecordMarks): the one way a record is said in a line. */
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-snug text-ink-500">
               <RecordMarks record={record} tone="panel" />
-              <ScoreBadge className="scale-90" record={record} tone="panel" />
+              <ScoreBadge className="origin-left scale-90" record={record} tone="panel" />
             </p>
           ) : words ? (
             <p className="mt-1 text-[12px] leading-snug text-ink-500">{words}</p>

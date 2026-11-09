@@ -1169,16 +1169,16 @@ function FighterRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className={cn('truncate font-mono text-[15px] font-semibold tracking-[0.02em]', low ? 'text-coral-300' : 'text-sand-50')}>{player.name}</span>
-            {record?.fought ? <ScoreBadge className="shrink-0 scale-90" hint={false} record={record} tone="war" /> : null}
+            {record?.fought ? <ScoreBadge className="origin-left shrink-0 scale-90" hint={false} record={record} tone="war" /> : null}
           </span>
           {where || ally ? (
-            <span className={cn(SECOND, 'block')}>
+            /* Whose ally, then the track: a gap between them, not a separator, so nothing dangles when the track drops to the next line on a phone. */
+            <span className={cn(SECOND, 'flex flex-wrap items-center gap-x-2 gap-y-0.5')}>
               {ally ? (
                 <Hint text={`${ally.nation ? `Of ${spoken(ally.nation)}, allied` : 'Allied'} with ${spoken(ally.of)}: SiegeWar counts them for its side.`}>
                   <span className={cn('font-semibold', sideColour(side))}>ally of {spoken(ally.of)}</span>
                 </Hint>
               ) : null}
-              {ally && where ? ' · ' : null}
               {where}
             </span>
           ) : null}

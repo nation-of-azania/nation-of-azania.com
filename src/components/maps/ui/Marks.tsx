@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 import { cn } from '@/blocks/components/shared'
 import { RULES } from '@/maps/battle'
@@ -94,12 +94,28 @@ function Mark({ words, tone, size = 'row', className, layout = 'inline', childre
   )
 }
 
-/** The figure beside a mark: `X` in ink, and the rest ("/Y", " of Y blocks") softer. One line, unless `wrap` lets a long one break where the row is narrow. */
-function Figure({ value, rest, wrap = false }: { value: string; rest?: string; wrap?: boolean }) {
+/**
+ * The figure beside a mark: `X` in ink, and the rest ("/Y", " of Y
+ * blocks") softer. One line; a long figure given `wrap` may break where
+ * the row is narrow, but only between the pieces it's given, never
+ * inside one ("3 holders needed" / "· 5 online + 1 ally").
+ */
+function Figure({ value, rest, wrap = false }: { value: string; rest?: string | string[]; wrap?: boolean }) {
+  const pieces = rest === undefined ? [] : Array.isArray(rest) ? rest : [rest]
   return (
     <span aria-hidden="true" className={cn('az-mark-figure', wrap ? 'min-w-0 whitespace-normal' : 'shrink-0')}>
-      {value}
-      {rest ? <small>{rest}</small> : null}
+      <span className="whitespace-nowrap">{value}</span>
+      {pieces.length ? (
+        <small>
+          {pieces.map((piece, i) => (
+            <Fragment key={i}>
+              {/* The space between two pieces stands outside them: the one place the figure may break. */}
+              {i ? ' ' : null}
+              <span className="whitespace-nowrap">{piece}</span>
+            </Fragment>
+          ))}
+        </small>
+      ) : null}
     </span>
   )
 }
@@ -408,7 +424,7 @@ export function HeadSlots({
         {more(spare.length - SLOTS_MAX)}
       </span>
       {/* The longest figure of any mark: where the row is narrow it breaks at a space rather than run past the edge. */}
-      {figure ? <Figure rest={` needed · ${n(online)} online${allies ? ` + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : ''}`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} wrap /> : null}
+      {figure ? <Figure rest={[' needed', `· ${n(online)} online${allies ? ` + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : ''}`]} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} wrap /> : null}
     </Mark>
   )
 }
