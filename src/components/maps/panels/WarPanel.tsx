@@ -1072,7 +1072,7 @@ function Fighters({
   )
   if (!about.near.length)
     return (
-      <section className="mx-4 mt-3 border-y border-sand-50/10 py-2">
+      <section className="mx-4 mt-3 border-b border-sand-50/10 pb-2">
         {counts}
         <p className="mt-2 text-[15px] text-sand-200/85">Nobody within {RULES.siegeZoneRadius * 2} blocks of the banner just now.</p>
       </section>
@@ -1081,7 +1081,7 @@ function Fighters({
   const groups = SIDE_ORDER.map((side) => ({ side, entries: sorted.filter((entry) => entry.side === side) })).filter((group) => group.entries.length)
   return (
     <section className="mt-3">
-      <div className="mx-4 border-y border-sand-50/10 py-2">{counts}</div>
+      <div className="mx-4 border-b border-sand-50/10 pb-2">{counts}</div>
       <div className="mt-2 flex items-center justify-between gap-3 px-4">
         <p className={EYEBROW}>
           Fighters · {about.near.length}
