@@ -414,11 +414,12 @@ export function NationPanel({
                     words={`${spoken(nation.capital.name)}, ${theirName}’s capital, is ${farWords(between)} from ${spoken(capital.town)}, Azania’s: ${reachWord(between)} the ${CAPITAL_WAR_RADIUS.toLocaleString('en-GB')}-block reach`}
                   />
                 </div>
+                {/* Each count as the capitals' line above: the label, the mark under it at the same distance, then the names; never the mark beside one label and under the next as the room decides. */}
                 <div>
-                  <p className={cn(REACH_LABEL, 'flex flex-wrap items-center gap-x-3 gap-y-1')}>
-                    <span>Within {theirName}’s reach</span>
-                    <Pips done={theirs.length} of={ours.length} words={`${theirs.length} of Azania’s ${ours.length} towns within ${theirName}’s reach`} />
-                  </p>
+                  <p className={REACH_LABEL}>Within {theirName}’s reach</p>
+                  <div className="mt-1.5">
+                    <Pips done={theirs.length} of={ours.length} size="panel" words={`${theirs.length} of Azania’s ${ours.length} towns within ${theirName}’s reach`} />
+                  </div>
                   <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
                     {theirs.length ? (
                       theirs.map((town, index) => (
@@ -435,10 +436,10 @@ export function NationPanel({
                   </p>
                 </div>
                 <div>
-                  <p className={cn(REACH_LABEL, 'flex flex-wrap items-center gap-x-3 gap-y-1')}>
-                    <span>Within Azania’s</span>
-                    <Pips done={reachable.length} of={members.length} words={`${reachable.length} of ${theirName}’s ${members.length} towns within Azania’s reach`} />
-                  </p>
+                  <p className={REACH_LABEL}>Within Azania’s</p>
+                  <div className="mt-1.5">
+                    <Pips done={reachable.length} of={members.length} size="panel" words={`${reachable.length} of ${theirName}’s ${members.length} towns within Azania’s reach`} />
+                  </div>
                   <p className="mt-1 text-[14px] leading-relaxed text-ink-700">
                     {reachable.length ? (
                       reachable.length <= 6 ? (

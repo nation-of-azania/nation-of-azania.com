@@ -464,7 +464,8 @@ function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (s
                       too late to take it · <span className={cn(FIGURE, 'font-semibold')}>{n(need.short)}</span> short · <span className={cn(FIGURE, 'font-semibold')}>{kills(need)}</span>
                     </span>
                   ) : (
-                    <>
+                    /* The slots with the points and kills in small under them, one column: beside the name where it fits, else under it, the two lines flush with each other either way. */
+                    <span className="flex min-w-0 flex-col gap-y-0.5">
                       {online ? (
                         <HeadSlots
                           allies={online[side].allies}
@@ -478,9 +479,9 @@ function WhatItTakes({ outlook, who, online }: { outlook: BattleOutlook; who: (s
                         </span>
                       )}
                       <span className="text-[12px] text-sand-200/75">
-                        · <span className={FIGURE}>{n(need.short)}</span> short · or <span className={FIGURE}>{kills(need)}</span>
+                        <span className={FIGURE}>{n(need.short)}</span> short · or <span className={FIGURE}>{kills(need)}</span>
                       </span>
-                    </>
+                    </span>
                   )}
                 </dd>
               )

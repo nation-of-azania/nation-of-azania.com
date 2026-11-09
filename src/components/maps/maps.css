@@ -1646,6 +1646,8 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     --az-mark-group-gap: 6px;
     --az-mark-slot: 12px;
     --az-mark-slot-mark: 8px;
+    /* Between the glyph and its figure: a word space at the figure's size, tighter than any gap a caller leaves beside the mark. */
+    --az-mark-gap: 6px;
     font-size: 12px;
     line-height: 1;
   }
@@ -1657,6 +1659,7 @@ html[data-az-theme='dark'] .az-maps:not([data-theme]) {
     --az-mark-group-gap: 9px;
     --az-mark-slot: 18px;
     --az-mark-slot-mark: 12px;
+    --az-mark-gap: 8px;
     font-size: 15px;
   }
   .az-war .az-mark:not([data-tone='panel']),

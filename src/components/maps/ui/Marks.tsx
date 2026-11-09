@@ -69,11 +69,18 @@ type MarkProps = {
   words?: string
 }
 
+/*
+ * The gap between a mark's glyph and its figure is the mark's own
+ * (maps.css → --az-mark-gap: 6px in a row, 8px on a panel), a word space
+ * at the figure's size: tighter than the gap a caller leaves between the
+ * mark and the words beside it (gap-x-2 and up), so the figure reads as
+ * the mark's and not as the next word's.
+ */
 const LAYOUT = {
   /** Beside words: pips, slots, a chip. */
-  inline: 'inline-flex items-center gap-x-2 align-middle',
+  inline: 'inline-flex items-center gap-x-(--az-mark-gap) align-middle',
   /** A bar filling its row, the figure after it. */
-  row: 'flex items-center gap-x-2',
+  row: 'flex items-center gap-x-(--az-mark-gap)',
   /** A bar with a line under it. */
   column: 'flex flex-col items-stretch gap-y-1',
 }
@@ -87,10 +94,10 @@ function Mark({ words, tone, size = 'row', className, layout = 'inline', childre
   )
 }
 
-/** The figure beside a mark: `X` in ink, and the rest ("/Y", " of Y blocks") softer. */
-function Figure({ value, rest }: { value: string; rest?: string }) {
+/** The figure beside a mark: `X` in ink, and the rest ("/Y", " of Y blocks") softer. One line, unless `wrap` lets a long one break where the row is narrow. */
+function Figure({ value, rest, wrap = false }: { value: string; rest?: string; wrap?: boolean }) {
   return (
-    <span aria-hidden="true" className="az-mark-figure shrink-0">
+    <span aria-hidden="true" className={cn('az-mark-figure', wrap ? 'min-w-0 whitespace-normal' : 'shrink-0')}>
       {value}
       {rest ? <small>{rest}</small> : null}
     </span>
@@ -309,7 +316,8 @@ export function CapBalance({
         ) : null}
       </span>
       {figure ? (
-        <span aria-hidden="true" className={cn('az-mark-figure flex items-center gap-x-1.5', ends ? 'self-start' : null)}>
+        /* With the ends named under the bar, the figure stands beside the bar alone, its centre on the bar's: a box the bar's height, the figure centred in it. */
+        <span aria-hidden="true" className={cn('az-mark-figure flex items-center gap-x-1.5', ends ? 'h-(--az-mark-bar) self-start' : null)}>
           <span className={sideText(nowSide)}>{signed(now)}</span>
           {after !== null ? (
             <>
@@ -399,7 +407,8 @@ export function HeadSlots({
         ))}
         {more(spare.length - SLOTS_MAX)}
       </span>
-      {figure ? <Figure rest={` needed · ${n(online)} online${allies ? ` + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : ''}`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} /> : null}
+      {/* The longest figure of any mark: where the row is narrow it breaks at a space rather than run past the edge. */}
+      {figure ? <Figure rest={` needed · ${n(online)} online${allies ? ` + ${n(allies)} ${allies === 1 ? 'ally' : 'allies'}` : ''}`} value={`${n(needed)} ${noun}${needed === 1 ? '' : 's'}`} wrap /> : null}
     </Mark>
   )
 }

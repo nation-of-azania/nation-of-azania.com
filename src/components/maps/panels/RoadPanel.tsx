@@ -219,8 +219,13 @@ export function RoadPanel({ road, data }: { road: MapRoad; data: MapData }) {
         >
           <div className="space-y-4">
             {changes.length ? <RoadRibbon lanes={road.lanes} length={length} /> : null}
-            {changes.length ? <p className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">At the start</p> : null}
-            <LanesFigure kind={road.kind} lanes={road.lanes} words={`${describeLanes(road.lanes)} · ${blocks(lanesWidth(road.lanes))} blocks across${changes.length ? ' at the start' : ''}`} />
+            {/* Each strip under its own line, the same distance from it: "At the start" here as "From N blocks" below. */}
+            <div>
+              {changes.length ? <p className="font-label text-[11px] uppercase tracking-[0.18em] text-ink-500">At the start</p> : null}
+              <div className={changes.length ? 'mt-1.5' : undefined}>
+                <LanesFigure kind={road.kind} lanes={road.lanes} words={`${describeLanes(road.lanes)} · ${blocks(lanesWidth(road.lanes))} blocks across${changes.length ? ' at the start' : ''}`} />
+              </div>
+            </div>
             {changes.map((change, i) => {
               const after = profileOf(road.lanes!, i + 1)
               return (

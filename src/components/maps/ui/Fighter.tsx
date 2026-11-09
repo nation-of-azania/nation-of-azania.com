@@ -118,8 +118,9 @@ export function RecordMarks({ record, tone, size = 'row', held = true, className
       {text}
     </span>
   )
+  // Within a mark and its word the gap is the mark's own (a word space); between the two marks, wider, so each reads as one unit.
   return (
-    <span className={cn('inline-flex flex-wrap items-center gap-x-2 gap-y-0.5', className)}>
+    <span className={cn('inline-flex flex-wrap items-center gap-x-2.5 gap-y-0.5', className)}>
       <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
         <Pips done={record.fought} of={record.could} size={size} tone={tone} words={foughtWords(record)} />
         {word('fought')}
@@ -128,7 +129,7 @@ export function RecordMarks({ record, tone, size = 'row', held = true, className
         <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
           <Pips done={record.held} of={tries} size={size} tone={tone} words={countWords(record.held, tries, 'tries at the banner held')} />
           {word('held')}
-          {record.side && record.side !== 'other' ? <SideMark className="ml-0.5" side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} /> : null}
+          {record.side && record.side !== 'other' ? <SideMark side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} /> : null}
         </span>
       ) : record.side && record.side !== 'other' ? (
         <SideMark side={record.side} size={size} words={`last fought ${record.side === 'attackers' ? 'as an attacker' : 'as a defender'}`} />
@@ -249,7 +250,7 @@ export function FighterCard({
         <ScoreBadge record={record} tone={tone} />
       </div>
       {/* Each line a mark first, its words after: the figure is the mark's, said once. */}
-      <dl className="mt-2 space-y-1.5">
+      <dl className="mt-2 space-y-2">
         <Line tone={tone} words={`sessions fought${record.could ? ', of those they could' : ''}${extras.length ? ` · ${extras.join(' · ')}` : ''}`}>
           <Pips done={record.fought} of={Math.max(record.could, record.fought)} size="panel" tone={tone} words={foughtWords(record)} />
         </Line>
@@ -258,7 +259,8 @@ export function FighterCard({
             <Line tone={tone} words={tries ? `tries at the banner${record.cut ? ` · ${n(record.cut)} more cut short` : ''}` : 'no try at the banner yet'}>
               {tries ? (
                 <Tally
-                  className="w-44"
+                  // Wide enough for its key ("6 held · 8 died · 7 left") on one line, so the words beside it sit against one line, not two.
+                  className="w-48"
                   noun="tries"
                   parts={[
                     { label: 'held', value: record.held },
@@ -300,12 +302,17 @@ export function FighterCard({
   )
 }
 
-/** One line of the record: the mark first, with its figure, then its words. */
+/**
+ * One line of the record: the mark first, with its figure, then its words.
+ * The mark is laid as a flex item, not in a line of text, so the line is
+ * as tall as the mark or the words and no taller: every line then sits
+ * the same distance from the next, whichever mark it carries.
+ */
 function Line({ children, words, tone }: { children: ReactNode; words: string; tone: Tone }) {
   const t = TONES[tone]
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
-      <dt className="shrink-0">{children}</dt>
+      <dt className="flex shrink-0 items-center">{children}</dt>
       <dd className={cn('text-[13px] leading-snug', t.soft)}>{words}</dd>
     </div>
   )

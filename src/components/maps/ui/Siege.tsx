@@ -85,8 +85,8 @@ export function SiegeFigures({ siege, className }: { siege: Siege; className?: s
           <div className={ROW}>
             <dt className={LABEL}>Balance</dt>
             <dd>
-              {/* The tug of war against the cap, the figure after it; each end named in its side's colour, shortened when the two names would run together (sieges.ts → sideTags). */}
-              <CapBalance className="mt-0.5" ends={sideTags(siege)} figure names={[spoken(siege.attacker), spoken(siege.defender)]} now={siege.balance ?? 0} size="panel" words={balance} />
+              {/* The tug of war against the cap, the figure after it; each end named in its side's colour, shortened when the two names would run together (sieges.ts → sideTags). Set down so the bar's centre is on the label's. */}
+              <CapBalance className="mt-1" ends={sideTags(siege)} figure names={[spoken(siege.attacker), spoken(siege.defender)]} now={siege.balance ?? 0} size="panel" words={balance} />
             </dd>
           </div>
         ) : null}
